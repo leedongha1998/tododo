@@ -31,6 +31,22 @@ supabase db reset         # 마이그레이션 재적용
 ```
 새 명령어가 생기면 여기에 추가할 것.
 
+## 개발 환경 (Windows)
+- Windows 계정명이 한글(`이동하`)이면 `C:\Users\이동하\...` 경로에서 Gradle/Dart 툴체인이 깨진다
+  (경로의 한글이 mojibake로 손상되어 `dev.flutter.flutter-plugin-loader`를 못 찾거나 pub 패키지
+  타입 인식이 실패함). Flutter SDK, JDK, Android SDK, `PUB_CACHE`는 전부 한글이 섞이지 않은
+  경로에 설치할 것 — 이 머신에서는 `C:\workspaces\devtools\`(flutter/, jdk-17.0.20+8/,
+  Android/sdk/, pub-cache/) 사용 중.
+- 관련 환경변수(User 레벨로 영구 등록됨): `JAVA_HOME`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`,
+  `PUB_CACHE`, PATH에 `flutter\bin`/`Android\sdk\platform-tools`/
+  `Android\sdk\cmdline-tools\latest\bin`/`jdk-17.0.20+8\bin` 추가됨.
+  `flutter config --android-sdk` / `--jdk-dir`도 같은 경로로 설정됨.
+- 이상하게 실패하는 빌드/컴파일 에러(원인 불명의 "isn't a type", 경로를 못 찾음 등)를 만나면
+  먼저 관련 경로에 비-ASCII 문자가 섞여 있는지부터 의심할 것.
+- 로컬에 Docker가 없어 `supabase start`(로컬 DB)는 아직 실행 불가. 클라우드 프로젝트를
+  만들고 `supabase link`로 연결하는 방식을 쓰거나, Docker Desktop을 설치해야 함(설치는
+  Windows 가상화 기능 활성화가 필요해 사용자가 직접 진행).
+
 ## 디렉토리 구조
 ```
 lib/
@@ -52,6 +68,8 @@ test/
 - 대결 유형은 두 가지: `speed`(속도전), `quality`(품질전)
 - 속도전 판정: 서버 타임스탬프(`completed_at`)가 빠른 쪽 승. 클라이언트 시간을 신뢰하지 않는다.
 - 품질전 판정: 완료 시 증거(사진 또는 텍스트) 제출 → 상대가 `approve` / `dispute` 선택. approve 시 종료.
+- 품질전 증거 제출은 양쪽 참가자가 각자 한다(한쪽만 제출하는 방식 아님). 서로 상대방의 증거를 approve/dispute한다.
+- 품질전은 속도 경쟁이 아니므로 승자(`winner_id`)를 두지 않는다. 양쪽 증거가 모두 approve되면 `finished`.
 - dispute 상태의 대결은 MVP에서 "미결" 상태로 남긴다. AI 심판은 나중에 붙인다.
 - 대결 상태 전이: `pending`(초대 대기) → `active` → `judging`(품질전만) → `finished` | `disputed`
 - 대결은 2인만. 3인 이상 구조를 미리 만들지 말 것.

@@ -1,0 +1,27 @@
+# Secrets
+.env
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Local Claude settings
+.claude/
+
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/*.jks
+android/app/*.keystore

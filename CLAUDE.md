@@ -1,0 +1,92 @@
+# CLAUDE.md — 투두두두 (TODODUDU)
+
+## 프로젝트 요약
+친구와 같은 투두를 걸고 대결하는 경쟁형 투두리스트 모바일 앱.
+1인 개발, 2주 안에 MVP를 완성해 Google Play 스토어에 배포하는 것이 1차 목표.
+포트폴리오는 부산물이지 목표가 아니다. 앱이 동작하고 배포되는 것이 항상 우선이다.
+
+## 현재 단계
+- MVP 개발 중 (배포 전)
+- 범위: 개인 투두 CRUD, 대결 생성/초대, 속도전, 품질전(상호 승인), 결과/전적
+- 범위 밖: AI 심판(배포 후, 유료 기능), 푸시 알림, 그룹 대결, 랭킹
+- 범위 밖 기능을 구현하거나 그를 위한 추상화를 미리 만들지 말 것
+
+## 기술 스택
+<!-- 스택 확정 시 이 섹션을 갱신할 것 -->
+- 클라이언트: Flutter (Android 우선, iOS는 고려하지 않음)
+- 백엔드/DB/인증: Supabase (Postgres, Auth, Storage, Edge Functions)
+- 상태 관리: Riverpod
+- 언어: Dart, SQL, Edge Function은 TypeScript
+- 소셜 로그인: Google 1종만
+
+## 개발 명령어
+```
+flutter pub get
+flutter run
+flutter analyze
+flutter test
+flutter build appbundle --release
+supabase start            # 로컬 DB
+supabase db reset         # 마이그레이션 재적용
+```
+새 명령어가 생기면 여기에 추가할 것.
+
+## 디렉토리 구조
+```
+lib/
+  core/          # 공통 유틸, 테마, 라우팅, Supabase 클라이언트
+  features/
+    auth/
+    todo/        # 개인 투두
+    battle/      # 대결
+    profile/     # 전적/프로필
+  main.dart
+supabase/
+  migrations/    # SQL 마이그레이션 (스키마 변경은 반드시 여기로)
+  functions/     # Edge Functions
+test/
+```
+각 feature 폴더는 `data/`(모델, 레포지토리) `domain/`(비즈니스 로직) `presentation/`(화면, 위젯, 프로바이더)로 나눈다.
+
+## 도메인 규칙 (반드시 지킬 것)
+- 대결 유형은 두 가지: `speed`(속도전), `quality`(품질전)
+- 속도전 판정: 서버 타임스탬프(`completed_at`)가 빠른 쪽 승. 클라이언트 시간을 신뢰하지 않는다.
+- 품질전 판정: 완료 시 증거(사진 또는 텍스트) 제출 → 상대가 `approve` / `dispute` 선택. approve 시 종료.
+- dispute 상태의 대결은 MVP에서 "미결" 상태로 남긴다. AI 심판은 나중에 붙인다.
+- 대결 상태 전이: `pending`(초대 대기) → `active` → `judging`(품질전만) → `finished` | `disputed`
+- 대결은 2인만. 3인 이상 구조를 미리 만들지 말 것.
+- 판정 로직은 클라이언트가 아니라 DB(RLS/트리거) 또는 Edge Function에서 처리한다.
+
+## 코딩 규칙
+- 함수/변수는 영어, 사용자에게 보이는 문자열은 한국어
+- 하드코딩된 문자열은 `lib/core/strings.dart`에 모은다
+- 에러는 삼키지 않는다. 최소한 로그를 남기고 사용자에게 토스트로 알린다
+- 새 화면 하나 = 새 커밋 하나. 큰 덩어리로 커밋하지 않는다
+- 새 패키지 추가 전에 이미 있는 패키지로 가능한지 먼저 확인하고, 추가하면 이유를 커밋 메시지에 적는다
+- 스키마 변경은 마이그레이션 파일로만. Supabase 대시보드에서 직접 수정 금지
+- RLS 정책은 테이블 만들 때 같이 작성한다. 나중에 붙이지 않는다
+
+## 테스트
+- 도메인 로직(판정, 상태 전이)은 반드시 유닛 테스트
+- 화면은 위젯 테스트 선택 사항. MVP 단계에서 강제하지 않는다
+- 기능 구현 후 `flutter analyze`와 `flutter test`가 통과해야 완료로 본다
+
+## 작업 방식
+- 작업 시작 전에 이 파일과 관련 feature 폴더를 먼저 읽는다
+- 요구사항이 모호하면 추측해서 구현하지 말고 물어본다. 단, 사소한 UI 결정은 알아서 하고 결과만 보고한다
+- 기능 하나 완료 시: 무엇을 만들었는지, 테스트 결과, 남은 문제를 3줄 이내로 보고
+- 범위 밖 기능이 필요해 보이면 구현하지 말고 `TODO_BACKLOG.md`에 한 줄 추가
+- 기존 코드 스타일을 따른다. 리팩토링은 요청받았을 때만
+
+## 하지 말 것
+- iOS 대응 코드
+- 다국어(i18n) 세팅
+- 범위 밖 기능을 위한 "미래 대비" 추상화
+- 클라이언트에서 승패 계산
+- 테스트 없이 판정 로직 수정
+- 시크릿/키를 코드나 커밋에 포함 (`.env`는 gitignore)
+
+## 배포
+- 타깃: Google Play 내부 테스트 트랙 → 프로덕션
+- 빌드: `flutter build appbundle --release`
+- 서명 키, 스토어 자산, 개인정보처리방침은 별도 체크리스트(`DEPLOY.md`)로 관리

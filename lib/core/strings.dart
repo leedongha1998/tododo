@@ -31,4 +31,14 @@ class AppStrings {
   static const battleInviteSent = '초대를 보냈습니다.';
   static const battleInviteFailed = '초대에 실패했습니다. 다시 시도해주세요.';
   static const battleChangeOpponent = '상대 다시 선택';
+
+  static const battleInvites = '초대함';
+  static const battleReceivedInvites = '받은 초대';
+  static const battleSentInvites = '보낸 초대';
+  static const battleAccept = '수락';
+  static const battleAccepted = '수락했습니다.';
+  static const battleAcceptFailed = '수락에 실패했습니다. 다시 시도해주세요.';
+  static const battleInvitesEmpty = '초대가 없어요.';
+  static const battleWaitingAcceptance = '수락 대기중';
+  static const battleLoadInvitesFailed = '초대 목록을 불러오지 못했습니다.';
 }

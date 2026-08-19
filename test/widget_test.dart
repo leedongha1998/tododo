@@ -4,9 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/auth/presentation/login_screen.dart';
+import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/profile.dart';
+import 'package:todododo/features/battle/domain/battle_invite.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
+import 'package:todododo/features/battle/presentation/battle_invites_screen.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
 import 'package:todododo/features/todo/data/todo.dart';
 import 'package:todododo/features/todo/domain/todo_providers.dart';
@@ -25,6 +28,18 @@ class _FakeBattleRepository implements BattleRepository {
     required String type,
     required String title,
   }) async {}
+
+  @override
+  Future<List<Battle>> fetchReceivedInvites() async => const [];
+
+  @override
+  Future<List<Battle>> fetchSentInvites() async => const [];
+
+  @override
+  Future<Map<String, String>> fetchDisplayNames(Iterable<String> ids) async => {};
+
+  @override
+  Future<void> acceptBattle(String battleId) async {}
 }
 
 void main() {
@@ -100,5 +115,34 @@ void main() {
 
     final submitButton = tester.widget<FilledButton>(find.byType(FilledButton));
     expect(submitButton.onPressed, isNull);
+  });
+
+  testWidgets('받은 초대가 보이고 수락 버튼이 있다', (WidgetTester tester) async {
+    final battle = Battle(
+      id: 'b1',
+      type: 'speed',
+      status: 'pending',
+      title: '아침 운동하기',
+      creatorId: 'creator1',
+      opponentId: 'me',
+      createdAt: DateTime(2026, 8, 20),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          receivedInvitesProvider.overrideWith(
+            (ref) async => [BattleInvite(battle: battle, otherPartyName: '친구')],
+          ),
+          sentInvitesProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(home: BattleInvitesScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('아침 운동하기'), findsOneWidget);
+    expect(find.textContaining('친구'), findsOneWidget);
+    expect(find.text(AppStrings.battleAccept), findsOneWidget);
   });
 }

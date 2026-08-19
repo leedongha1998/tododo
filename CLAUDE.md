@@ -48,6 +48,12 @@ supabase db reset         # 마이그레이션 재적용
   Windows 가상화 기능 활성화가 필요해 사용자가 직접 진행).
 - Supabase CLI(v2.115.0)는 `C:\workspaces\devtools\supabase-cli\supabase.exe`에 설치됨, PATH 등록됨.
   `supabase login`은 브라우저 인증이 필요해 계정 소유자(사용자)가 직접 실행해야 함.
+- Android 에뮬레이터(AVD) `todododo_avd`(Pixel 6, API 36, google_apis x86_64) 생성됨.
+  AVD 데이터도 한글 경로를 피해 `ANDROID_SDK_HOME`/`ANDROID_AVD_HOME`을
+  `C:\workspaces\devtools\android-home`(User 환경변수, 영구 등록)로 지정함 — 기본값인
+  `%USERPROFILE%\.android`를 쓰면 안 됨. 실행: `emulator -avd todododo_avd`
+  (헤드리스로 확인만 하려면 `-no-window -no-audio -gpu swiftshader_indirect` 추가).
+  하드웨어 가속용 하이퍼바이저는 이 머신에 이미 있음(Hyper-V 감지됨).
 
 ## 디렉토리 구조
 ```

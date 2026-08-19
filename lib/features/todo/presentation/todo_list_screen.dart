@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../auth/domain/auth_providers.dart';
+import '../../battle/presentation/create_battle_screen.dart';
 import '../data/todo.dart';
 import '../domain/todo_providers.dart';
 
@@ -72,6 +73,13 @@ class TodoListScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text(AppStrings.appName),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.sports_kabaddi),
+            tooltip: AppStrings.battleCreate,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: AppStrings.logout,

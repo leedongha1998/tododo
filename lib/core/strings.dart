@@ -18,4 +18,17 @@ class AppStrings {
   static const loadTodosFailed = '할 일을 불러오지 못했습니다.';
   static const saveTodoFailed = '저장에 실패했습니다. 다시 시도해주세요.';
   static const deleteTodoFailed = '삭제에 실패했습니다. 다시 시도해주세요.';
+
+  static const battleCreate = '대결 만들기';
+  static const battleOpponentSearchHint = '상대방 이름을 검색하세요';
+  static const battleOpponentEmpty = '검색 결과가 없어요.';
+  static const battleSearchFailed = '검색에 실패했습니다.';
+  static const battleTypeSpeed = '속도전';
+  static const battleTypeQuality = '품질전';
+  static const battleTitleHint = '무엇을 걸고 대결할까요?';
+  static const battleTitleRequired = '대결 내용을 입력해주세요.';
+  static const battleInviteSend = '초대 보내기';
+  static const battleInviteSent = '초대를 보냈습니다.';
+  static const battleInviteFailed = '초대에 실패했습니다. 다시 시도해주세요.';
+  static const battleChangeOpponent = '상대 다시 선택';
 }

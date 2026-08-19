@@ -4,10 +4,28 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/auth/presentation/login_screen.dart';
+import 'package:todododo/features/battle/data/battle_repository.dart';
+import 'package:todododo/features/battle/data/profile.dart';
+import 'package:todododo/features/battle/domain/battle_providers.dart';
+import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
 import 'package:todododo/features/todo/data/todo.dart';
 import 'package:todododo/features/todo/domain/todo_providers.dart';
 import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import 'package:todododo/main.dart';
+
+class _FakeBattleRepository implements BattleRepository {
+  @override
+  Future<List<Profile>> searchProfiles(String query) async {
+    return const [Profile(id: 'u1', displayName: '테스트유저')];
+  }
+
+  @override
+  Future<void> createBattle({
+    required String opponentId,
+    required String type,
+    required String title,
+  }) async {}
+}
 
 void main() {
   testWidgets('Supabase 미설정 시 설정 안내를 보여준다', (WidgetTester tester) async {
@@ -57,5 +75,30 @@ void main() {
 
     final doneText = tester.widget<Text>(find.text('빨래하기'));
     expect(doneText.style?.decoration, TextDecoration.lineThrough);
+  });
+
+  testWidgets('상대를 검색해서 선택하면 대결 유형/제목 입력이 나타난다', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [battleRepositoryProvider.overrideWithValue(_FakeBattleRepository())],
+        child: const MaterialApp(home: CreateBattleScreen()),
+      ),
+    );
+
+    expect(find.text(AppStrings.battleTypeSpeed), findsNothing);
+
+    await tester.enterText(find.byType(TextField), '테스트');
+    await tester.pumpAndSettle();
+
+    expect(find.text('테스트유저'), findsOneWidget);
+
+    await tester.tap(find.text('테스트유저'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.battleTypeSpeed), findsOneWidget);
+    expect(find.text(AppStrings.battleTypeQuality), findsOneWidget);
+
+    final submitButton = tester.widget<FilledButton>(find.byType(FilledButton));
+    expect(submitButton.onPressed, isNull);
   });
 }

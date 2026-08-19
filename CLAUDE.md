@@ -46,6 +46,8 @@ supabase db reset         # 마이그레이션 재적용
 - 로컬에 Docker가 없어 `supabase start`(로컬 DB)는 아직 실행 불가. 클라우드 프로젝트를
   만들고 `supabase link`로 연결하는 방식을 쓰거나, Docker Desktop을 설치해야 함(설치는
   Windows 가상화 기능 활성화가 필요해 사용자가 직접 진행).
+- Supabase CLI(v2.115.0)는 `C:\workspaces\devtools\supabase-cli\supabase.exe`에 설치됨, PATH 등록됨.
+  `supabase login`은 브라우저 인증이 필요해 계정 소유자(사용자)가 직접 실행해야 함.
 
 ## 디렉토리 구조
 ```

@@ -20,33 +20,25 @@ class AppStrings {
   static const deleteTodoFailed = '삭제에 실패했습니다. 다시 시도해주세요.';
 
   static const battleCreate = '대결 만들기';
-  static const battleOpponentSearchHint = '상대방 이름을 검색하세요';
-  static const battleOpponentEmpty = '검색 결과가 없어요.';
-  static const battleSearchFailed = '검색에 실패했습니다.';
   static const battleTypeSpeed = '속도전';
   static const battleTypeQuality = '품질전';
   static const battleTitleHint = '무엇을 걸고 대결할까요?';
   static const battleTitleRequired = '대결 내용을 입력해주세요.';
-  static const battleInviteSend = '초대 보내기';
-  static const battleInviteSent = '초대를 보냈습니다.';
-  static const battleInviteFailed = '초대에 실패했습니다. 다시 시도해주세요.';
-  static const battleChangeOpponent = '상대 다시 선택';
+  static const battleRecruitSubmit = '모집 등록하기';
+  static const battleRecruitSubmitted = '모집을 등록했습니다.';
+  static const battleRecruitSubmitFailed = '모집 등록에 실패했습니다. 다시 시도해주세요.';
 
-  static const battleInvites = '초대함';
-  static const battleReceivedInvites = '받은 초대';
-  static const battleSentInvites = '보낸 초대';
-  static const battleAccept = '수락';
-  static const battleAccepted = '수락했습니다.';
-  static const battleAcceptFailed = '수락에 실패했습니다. 다시 시도해주세요.';
-  static const battleInvitesEmpty = '초대가 없어요.';
-  static const battleWaitingAcceptance = '수락 대기중';
-  static const battleLoadInvitesFailed = '초대 목록을 불러오지 못했습니다.';
-  static const battleDecline = '거절';
-  static const battleDeclined = '초대를 거절했습니다.';
-  static const battleDeclineFailed = '거절에 실패했습니다. 다시 시도해주세요.';
-  static const battleInviteCancel = '초대 취소';
-  static const battleInviteCancelled = '초대를 취소했습니다.';
-  static const battleInviteCancelFailed = '취소에 실패했습니다. 다시 시도해주세요.';
+  static const battleRecruits = '모집함';
+  static const battleOpenRecruits = '모집 중인 대결';
+  static const battleMyRecruits = '내가 등록한 모집';
+  static const battleJoin = '참가하기';
+  static const battleJoined = '매칭되어 대결이 시작됐습니다.';
+  static const battleJoinFailed = '참가에 실패했습니다. 다시 시도해주세요.';
+  static const battleRecruitsEmpty = '모집 중인 대결이 없어요.';
+  static const battleLoadRecruitsFailed = '모집 목록을 불러오지 못했습니다.';
+  static const battleRecruitCancel = '취소';
+  static const battleRecruitCancelled = '모집을 취소했습니다.';
+  static const battleRecruitCancelFailed = '취소에 실패했습니다. 다시 시도해주세요.';
 
   static const battleMyBattles = '내 대결';
   static const battleMyBattlesEmpty = '진행 중인 대결이 없어요.';

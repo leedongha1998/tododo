@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../auth/domain/auth_providers.dart';
-import '../../battle/presentation/battle_invites_screen.dart';
+import '../../battle/presentation/battle_recruits_screen.dart';
 import '../../battle/presentation/create_battle_screen.dart';
 import '../../battle/presentation/my_battles_screen.dart';
 import '../../profile/presentation/profile_screen.dart';
@@ -78,9 +78,9 @@ class TodoListScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.mail_outline),
-            tooltip: AppStrings.battleInvites,
+            tooltip: AppStrings.battleRecruits,
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const BattleInvitesScreen()),
+              MaterialPageRoute(builder: (_) => const BattleRecruitsScreen()),
             ),
           ),
           IconButton(

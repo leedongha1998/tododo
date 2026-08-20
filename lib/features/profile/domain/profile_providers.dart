@@ -17,10 +17,10 @@ final battleRecordsProvider = FutureProvider<List<BattleRecord>>((ref) async {
   final repo = ref.watch(profileRepositoryProvider);
   final myId = supabase.auth.currentUser!.id;
   final battles = await repo.fetchCompletedBattles();
-  final otherIds = battles.map((b) => b.creatorId == myId ? b.opponentId : b.creatorId);
+  final otherIds = battles.map((b) => b.creatorId == myId ? b.opponentId! : b.creatorId);
   final names = await repo.fetchDisplayNames(otherIds);
   return battles.map((b) {
-    final otherId = b.creatorId == myId ? b.opponentId : b.creatorId;
+    final otherId = b.creatorId == myId ? b.opponentId! : b.creatorId;
     final resultLabel = b.type == 'speed'
         ? (b.winnerId == myId ? AppStrings.battleRecordWin : AppStrings.battleRecordLose)
         : (b.status == 'finished' ? AppStrings.battleStatusFinished : AppStrings.battleStatusDisputed);

@@ -5,7 +5,7 @@ class Battle {
     required this.status,
     required this.title,
     required this.creatorId,
-    required this.opponentId,
+    this.opponentId,
     required this.createdAt,
     this.winnerId,
     this.startedAt,
@@ -17,7 +17,7 @@ class Battle {
   final String status;
   final String title;
   final String creatorId;
-  final String opponentId;
+  final String? opponentId;
   final DateTime createdAt;
   final String? winnerId;
   final DateTime? startedAt;
@@ -29,7 +29,7 @@ class Battle {
         status: map['status'] as String,
         title: map['title'] as String,
         creatorId: map['creator_id'] as String,
-        opponentId: map['opponent_id'] as String,
+        opponentId: map['opponent_id'] as String?,
         createdAt: DateTime.parse(map['created_at'] as String),
         winnerId: map['winner_id'] as String?,
         startedAt: map['started_at'] == null ? null : DateTime.parse(map['started_at'] as String),

@@ -60,13 +60,17 @@ class BattleRepository {
     return _client.rpc('accept_battle', params: {'p_battle_id': battleId});
   }
 
+  Future<void> cancelBattle(String battleId) {
+    return _client.rpc('cancel_battle', params: {'p_battle_id': battleId});
+  }
+
   Future<List<Battle>> fetchMyBattles() async {
     final myId = _client.auth.currentUser!.id;
     final rows = await _client
         .from('battles')
         .select()
         .or('creator_id.eq.$myId,opponent_id.eq.$myId')
-        .neq('status', 'pending')
+        .not('status', 'in', '(pending,cancelled)')
         .order('created_at', ascending: false);
     return rows.map(Battle.fromMap).toList();
   }

@@ -29,6 +29,31 @@ class BattleInvitesScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _cancel(
+    BuildContext context,
+    WidgetRef ref,
+    String battleId, {
+    required bool isDecline,
+  }) async {
+    try {
+      await ref.read(battleRepositoryProvider).cancelBattle(battleId);
+      ref.invalidate(receivedInvitesProvider);
+      ref.invalidate(sentInvitesProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isDecline ? AppStrings.battleDeclined : AppStrings.battleInviteCancelled),
+        ));
+      }
+    } catch (e) {
+      debugPrint('cancelBattle failed: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isDecline ? AppStrings.battleDeclineFailed : AppStrings.battleInviteCancelFailed),
+        ));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final received = ref.watch(receivedInvitesProvider);
@@ -52,9 +77,19 @@ class BattleInvitesScreen extends ConsumerWidget {
                           (invite) => ListTile(
                             title: Text(invite.battle.title),
                             subtitle: Text('${invite.otherPartyName} · ${_typeLabel(invite.battle.type)}'),
-                            trailing: FilledButton(
-                              onPressed: () => _accept(context, ref, invite.battle.id),
-                              child: const Text(AppStrings.battleAccept),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextButton(
+                                  onPressed: () =>
+                                      _cancel(context, ref, invite.battle.id, isDecline: true),
+                                  child: const Text(AppStrings.battleDecline),
+                                ),
+                                FilledButton(
+                                  onPressed: () => _accept(context, ref, invite.battle.id),
+                                  child: const Text(AppStrings.battleAccept),
+                                ),
+                              ],
                             ),
                           ),
                         )
@@ -86,7 +121,17 @@ class BattleInvitesScreen extends ConsumerWidget {
                           (invite) => ListTile(
                             title: Text(invite.battle.title),
                             subtitle: Text('${invite.otherPartyName} · ${_typeLabel(invite.battle.type)}'),
-                            trailing: const Text(AppStrings.battleWaitingAcceptance),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(AppStrings.battleWaitingAcceptance),
+                                TextButton(
+                                  onPressed: () =>
+                                      _cancel(context, ref, invite.battle.id, isDecline: false),
+                                  child: const Text(AppStrings.battleInviteCancel),
+                                ),
+                              ],
+                            ),
                           ),
                         )
                         .toList(),

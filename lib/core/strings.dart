@@ -41,6 +41,12 @@ class AppStrings {
   static const battleInvitesEmpty = '초대가 없어요.';
   static const battleWaitingAcceptance = '수락 대기중';
   static const battleLoadInvitesFailed = '초대 목록을 불러오지 못했습니다.';
+  static const battleDecline = '거절';
+  static const battleDeclined = '초대를 거절했습니다.';
+  static const battleDeclineFailed = '거절에 실패했습니다. 다시 시도해주세요.';
+  static const battleInviteCancel = '초대 취소';
+  static const battleInviteCancelled = '초대를 취소했습니다.';
+  static const battleInviteCancelFailed = '취소에 실패했습니다. 다시 시도해주세요.';
 
   static const battleMyBattles = '내 대결';
   static const battleMyBattlesEmpty = '진행 중인 대결이 없어요.';

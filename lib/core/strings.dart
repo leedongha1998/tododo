@@ -76,4 +76,11 @@ class AppStrings {
   static const battleDecisionApproved = '상대방이 승인했어요.';
   static const battleQualityFinished = '모두 승인되어 대결이 종료됐어요.';
   static const battleDisputedMessage = '이의제기가 있어 아직 미결 상태예요.';
+
+  static const profileTitle = '프로필';
+  static const profileLoadFailed = '프로필을 불러오지 못했습니다.';
+  static const profileRecordEmpty = '아직 완료된 대결이 없어요.';
+  static const profileLoadRecordFailed = '전적을 불러오지 못했습니다.';
+  static const battleRecordWin = '승';
+  static const battleRecordLose = '패';
 }

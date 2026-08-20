@@ -14,6 +14,9 @@ import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
 import 'package:todododo/features/battle/presentation/battle_invites_screen.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
+import 'package:todododo/features/profile/domain/battle_record.dart';
+import 'package:todododo/features/profile/domain/profile_providers.dart';
+import 'package:todododo/features/profile/presentation/profile_screen.dart';
 import 'package:todododo/features/todo/data/todo.dart';
 import 'package:todododo/features/todo/domain/todo_providers.dart';
 import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
@@ -237,5 +240,53 @@ void main() {
     expect(find.text('상대 증거'), findsOneWidget);
     expect(find.text(AppStrings.battleApprove), findsOneWidget);
     expect(find.text(AppStrings.battleDispute), findsOneWidget);
+  });
+
+  testWidgets('프로필 화면에 이름과 대결 전적이 보인다', (WidgetTester tester) async {
+    final speedWin = Battle(
+      id: 'b1',
+      type: 'speed',
+      status: 'finished',
+      title: '아침 운동하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      winnerId: 'me',
+      createdAt: DateTime(2026, 8, 18),
+    );
+    final qualityDisputed = Battle(
+      id: 'b2',
+      type: 'quality',
+      status: 'disputed',
+      title: '방 청소하기',
+      creatorId: 'friend',
+      opponentId: 'me',
+      createdAt: DateTime(2026, 8, 19),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          battleRecordsProvider.overrideWith(
+            (ref) async => [
+              BattleRecord(battle: speedWin, otherPartyName: '친구', resultLabel: AppStrings.battleRecordWin),
+              BattleRecord(
+                battle: qualityDisputed,
+                otherPartyName: '친구',
+                resultLabel: AppStrings.battleStatusDisputed,
+              ),
+            ],
+          ),
+        ],
+        child: const MaterialApp(home: ProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('나'), findsOneWidget);
+    expect(find.text('아침 운동하기'), findsOneWidget);
+    expect(find.text('방 청소하기'), findsOneWidget);
+    expect(find.text(AppStrings.battleRecordWin), findsOneWidget);
+    expect(find.text(AppStrings.battleStatusDisputed), findsOneWidget);
   });
 }

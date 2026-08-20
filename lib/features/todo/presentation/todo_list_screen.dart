@@ -6,6 +6,7 @@ import '../../auth/domain/auth_providers.dart';
 import '../../battle/presentation/battle_invites_screen.dart';
 import '../../battle/presentation/create_battle_screen.dart';
 import '../../battle/presentation/my_battles_screen.dart';
+import '../../profile/presentation/profile_screen.dart';
 import '../data/todo.dart';
 import '../domain/todo_providers.dart';
 
@@ -94,6 +95,13 @@ class TodoListScreen extends ConsumerWidget {
             tooltip: AppStrings.battleCreate,
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: AppStrings.profileTitle,
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
             ),
           ),
           IconButton(

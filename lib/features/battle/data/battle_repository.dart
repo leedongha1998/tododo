@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'battle.dart';
+import 'battle_participant.dart';
 import 'profile.dart';
 
 class BattleRepository {
@@ -57,5 +58,46 @@ class BattleRepository {
 
   Future<void> acceptBattle(String battleId) {
     return _client.rpc('accept_battle', params: {'p_battle_id': battleId});
+  }
+
+  Future<List<Battle>> fetchMyBattles() async {
+    final myId = _client.auth.currentUser!.id;
+    final rows = await _client
+        .from('battles')
+        .select()
+        .or('creator_id.eq.$myId,opponent_id.eq.$myId')
+        .neq('status', 'pending')
+        .order('created_at', ascending: false);
+    return rows.map(Battle.fromMap).toList();
+  }
+
+  Future<Battle> fetchBattle(String battleId) async {
+    final row = await _client.from('battles').select().eq('id', battleId).single();
+    return Battle.fromMap(row);
+  }
+
+  Future<List<BattleParticipant>> fetchParticipants(String battleId) async {
+    final rows = await _client.from('battle_participants').select().eq('battle_id', battleId);
+    return rows.map(BattleParticipant.fromMap).toList();
+  }
+
+  Future<void> completeSpeedTask(String battleId) {
+    return _client.rpc('complete_speed_task', params: {'p_battle_id': battleId});
+  }
+
+  Future<void> submitQualityEvidence(String battleId, String content) {
+    return _client.rpc('submit_quality_evidence', params: {
+      'p_battle_id': battleId,
+      'p_evidence_type': 'text',
+      'p_evidence_content': content,
+    });
+  }
+
+  Future<void> decideQualityEvidence(String battleId, String targetUserId, String decision) {
+    return _client.rpc('decide_quality_evidence', params: {
+      'p_battle_id': battleId,
+      'p_target_user_id': targetUserId,
+      'p_decision': decision,
+    });
   }
 }

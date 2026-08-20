@@ -41,4 +41,39 @@ class AppStrings {
   static const battleInvitesEmpty = '초대가 없어요.';
   static const battleWaitingAcceptance = '수락 대기중';
   static const battleLoadInvitesFailed = '초대 목록을 불러오지 못했습니다.';
+
+  static const battleMyBattles = '내 대결';
+  static const battleMyBattlesEmpty = '진행 중인 대결이 없어요.';
+  static const battleLoadListFailed = '대결 목록을 불러오지 못했습니다.';
+  static const battleLoadDetailFailed = '대결 정보를 불러오지 못했습니다.';
+  static const battleStatusActive = '진행중';
+  static const battleStatusJudging = '판정중';
+  static const battleStatusFinished = '종료';
+  static const battleStatusDisputed = '미결';
+
+  static const battleMe = '나';
+  static const battleOpponent = '상대';
+  static const battleComplete = '완료하기';
+  static const battleCompleted = '완료했습니다.';
+  static const battleCompleteFailed = '완료 처리에 실패했습니다. 다시 시도해주세요.';
+  static const battleSpeedDone = '완료함';
+  static const battleSpeedWaiting = '진행중';
+  static const battleSpeedWaitingOpponent = '상대방을 기다리는 중이에요.';
+  static const battleYouWon = '승리했습니다!';
+  static const battleYouLost = '아쉽지만 패배했어요.';
+
+  static const battleEvidenceHint = '완료했다는 증거를 남겨주세요';
+  static const battleEvidenceSubmit = '증거 제출하기';
+  static const battleEvidenceSubmitted = '증거를 제출했습니다.';
+  static const battleEvidenceSubmitFailed = '증거 제출에 실패했습니다. 다시 시도해주세요.';
+  static const battleEvidenceWaitingSubmit = '아직 증거를 제출하지 않았어요.';
+  static const battleEvidenceWaitingOpponentSubmit = '상대방의 증거 제출을 기다리는 중이에요.';
+  static const battleEvidenceReview = '상대방이 제출한 증거';
+  static const battleApprove = '승인';
+  static const battleDispute = '이의제기';
+  static const battleDecisionFailed = '판정에 실패했습니다. 다시 시도해주세요.';
+  static const battleDecisionWaiting = '상대방의 판정을 기다리는 중이에요.';
+  static const battleDecisionApproved = '상대방이 승인했어요.';
+  static const battleQualityFinished = '모두 승인되어 대결이 종료됐어요.';
+  static const battleDisputedMessage = '이의제기가 있어 아직 미결 상태예요.';
 }

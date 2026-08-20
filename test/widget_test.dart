@@ -5,10 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/auth/presentation/login_screen.dart';
 import 'package:todododo/features/battle/data/battle.dart';
+import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/profile.dart';
+import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_invite.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
+import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
 import 'package:todododo/features/battle/presentation/battle_invites_screen.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
 import 'package:todododo/features/todo/data/todo.dart';
@@ -40,6 +43,24 @@ class _FakeBattleRepository implements BattleRepository {
 
   @override
   Future<void> acceptBattle(String battleId) async {}
+
+  @override
+  Future<List<Battle>> fetchMyBattles() async => const [];
+
+  @override
+  Future<Battle> fetchBattle(String battleId) => throw UnimplementedError();
+
+  @override
+  Future<List<BattleParticipant>> fetchParticipants(String battleId) async => const [];
+
+  @override
+  Future<void> completeSpeedTask(String battleId) async {}
+
+  @override
+  Future<void> submitQualityEvidence(String battleId, String content) async {}
+
+  @override
+  Future<void> decideQualityEvidence(String battleId, String targetUserId, String decision) async {}
 }
 
 void main() {
@@ -144,5 +165,77 @@ void main() {
     expect(find.text('아침 운동하기'), findsOneWidget);
     expect(find.textContaining('친구'), findsOneWidget);
     expect(find.text(AppStrings.battleAccept), findsOneWidget);
+  });
+
+  testWidgets('속도전 진행 화면에서 내가 완료 전이면 완료 버튼이 보인다', (WidgetTester tester) async {
+    final battle = Battle(
+      id: 'b1',
+      type: 'speed',
+      status: 'active',
+      title: '아침 운동하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      createdAt: DateTime(2026, 8, 20),
+    );
+    final detail = BattleDetail(
+      battle: battle,
+      me: const BattleParticipant(battleId: 'b1', userId: 'me'),
+      opponent: const BattleParticipant(battleId: 'b1', userId: 'friend'),
+      myName: '나',
+      opponentName: '친구',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [battleDetailProvider('b1').overrideWith((ref) async => detail)],
+        child: const MaterialApp(home: BattleDetailScreen(battleId: 'b1')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.battleComplete), findsOneWidget);
+  });
+
+  testWidgets('품질전 진행 화면에서 상대 증거가 있으면 승인/이의제기 버튼이 보인다', (WidgetTester tester) async {
+    final battle = Battle(
+      id: 'b2',
+      type: 'quality',
+      status: 'judging',
+      title: '방 청소하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      createdAt: DateTime(2026, 8, 20),
+    );
+    final detail = BattleDetail(
+      battle: battle,
+      me: BattleParticipant(
+        battleId: 'b2',
+        userId: 'me',
+        evidenceType: 'text',
+        evidenceContent: '내 증거',
+        evidenceSubmittedAt: DateTime(2026, 8, 20),
+      ),
+      opponent: BattleParticipant(
+        battleId: 'b2',
+        userId: 'friend',
+        evidenceType: 'text',
+        evidenceContent: '상대 증거',
+        evidenceSubmittedAt: DateTime(2026, 8, 20),
+      ),
+      myName: '나',
+      opponentName: '친구',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [battleDetailProvider('b2').overrideWith((ref) async => detail)],
+        child: const MaterialApp(home: BattleDetailScreen(battleId: 'b2')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('상대 증거'), findsOneWidget);
+    expect(find.text(AppStrings.battleApprove), findsOneWidget);
+    expect(find.text(AppStrings.battleDispute), findsOneWidget);
   });
 }

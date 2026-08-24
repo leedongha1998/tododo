@@ -30,6 +30,8 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
     setState(() => _isSubmitting = true);
     try {
       await ref.read(battleRepositoryProvider).createBattle(type: _type, title: title);
+      ref.invalidate(openRecruitsProvider);
+      ref.invalidate(myRecruitsProvider);
       if (!mounted) return;
       Navigator.of(context).pop();
       _showSnackBar(AppStrings.battleRecruitSubmitted);

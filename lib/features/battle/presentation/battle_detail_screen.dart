@@ -114,13 +114,13 @@ class _SpeedSection extends StatelessWidget {
           done: detail.opponent.completedAt != null,
         ),
         const SizedBox(height: 24),
-        if (battle.status == 'active' && detail.me.completedAt == null)
+        if (detail.canCompleteSpeedTask)
           FilledButton(onPressed: onComplete, child: const Text(AppStrings.battleComplete))
-        else if (battle.status == 'active')
+        else if (detail.isWaitingForOpponentSpeed)
           Text(AppStrings.battleSpeedWaitingOpponent)
         else if (battle.status == 'finished')
           Text(
-            battle.winnerId == detail.me.userId ? AppStrings.battleYouWon : AppStrings.battleYouLost,
+            detail.didIWinSpeedBattle ? AppStrings.battleYouWon : AppStrings.battleYouLost,
             style: Theme.of(context).textTheme.titleMedium,
           ),
       ],
@@ -155,20 +155,18 @@ class _QualitySectionState extends State<_QualitySection> {
   @override
   Widget build(BuildContext context) {
     final detail = widget.detail;
-    final battle = detail.battle;
     final BattleParticipant me = detail.me;
     final BattleParticipant opponent = detail.opponent;
 
-    final canSubmitEvidence =
-        (battle.status == 'active' || battle.status == 'judging') && me.evidenceSubmittedAt == null;
-    final canReviewOpponent = opponent.evidenceSubmittedAt != null && opponent.decision == null;
+    final canSubmitEvidence = detail.canSubmitEvidence;
+    final canReviewOpponent = detail.canReviewOpponentEvidence;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (battle.status == 'disputed')
+        if (detail.isDisputed)
           Text(AppStrings.battleDisputedMessage, style: Theme.of(context).textTheme.titleMedium),
-        if (battle.status == 'finished')
+        if (detail.isQualityFinished)
           Text(AppStrings.battleQualityFinished, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 16),
         Text('${AppStrings.battleMe} (${detail.myName})', style: Theme.of(context).textTheme.titleSmall),

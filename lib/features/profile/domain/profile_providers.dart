@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/strings.dart';
 import '../../../core/supabase/supabase_init.dart';
 import '../data/profile_repository.dart';
 import 'battle_record.dart';
@@ -21,13 +20,10 @@ final battleRecordsProvider = FutureProvider<List<BattleRecord>>((ref) async {
   final names = await repo.fetchDisplayNames(otherIds);
   return battles.map((b) {
     final otherId = b.creatorId == myId ? b.opponentId! : b.creatorId;
-    final resultLabel = b.type == 'speed'
-        ? (b.winnerId == myId ? AppStrings.battleRecordWin : AppStrings.battleRecordLose)
-        : (b.status == 'finished' ? AppStrings.battleStatusFinished : AppStrings.battleStatusDisputed);
-    return BattleRecord(
-      battle: b,
+    return BattleRecord.fromBattle(
+      b,
+      myId: myId,
       otherPartyName: names[otherId] ?? '알 수 없음',
-      resultLabel: resultLabel,
     );
   }).toList();
 });

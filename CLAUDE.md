@@ -105,6 +105,11 @@ test/
 - 범위 밖 기능이 필요해 보이면 구현하지 말고 `TODO_BACKLOG.md`에 한 줄 추가
 - 기존 코드 스타일을 따른다. 리팩토링은 요청받았을 때만
 
+## 기능 개발 파이프라인
+- 새 기능은 `/feature <name>`으로 시작한다 — pm→designer→developer→reviewer 순으로 진행되며 승인 지점마다 멈춘다.
+- 기획만 따로 논의하고 싶으면 `claude --agent pm`으로 별도 세션을 연다.
+- 각 단계 산출물은 `docs/specs/<name>/`(spec.md, design.md, plan.md)에 쌓인다.
+
 ## 하지 말 것
 - iOS 대응 코드
 - 다국어(i18n) 세팅

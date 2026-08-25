@@ -16,8 +16,8 @@ build/
 *.iml
 .vscode/
 
-# Local Claude settings
-.claude/
+# Local Claude settings (agents/skills/hooks are shared, only local overrides are ignored)
+.claude/settings.local.json
 
 # Android
 android/.gradle/

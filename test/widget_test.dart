@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,13 +57,16 @@ class _FakeBattleRepository implements BattleRepository {
   Future<List<BattleParticipant>> fetchParticipants(String battleId) async => const [];
 
   @override
-  Future<void> completeSpeedTask(String battleId) async {}
+  Future<String> uploadEvidencePhoto(String battleId, Uint8List bytes) async => 'path';
 
   @override
-  Future<void> submitQualityEvidence(String battleId, String content) async {}
+  Future<String> createEvidencePhotoUrl(String path) async => 'https://example.com/$path';
 
   @override
-  Future<void> decideQualityEvidence(String battleId, String targetUserId, String decision) async {}
+  Future<void> submitEvidence(String battleId, String evidenceType, String content) async {}
+
+  @override
+  Future<void> decideEvidence(String battleId, String targetUserId, String decision) async {}
 }
 
 void main() {
@@ -202,7 +207,7 @@ void main() {
     expect(find.text(AppStrings.battleJoin), findsOneWidget);
   });
 
-  testWidgets('속도전 진행 화면에서 내가 완료 전이면 완료 버튼이 보인다', (WidgetTester tester) async {
+  testWidgets('속도전 진행 화면에서 내가 제출 전이면 증거 제출 폼이 보인다', (WidgetTester tester) async {
     final battle = Battle(
       id: 'b1',
       type: 'speed',
@@ -228,13 +233,85 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleComplete), findsOneWidget);
+    // 속도전도 자기 신고가 아니라 증거 제출로 완료를 주장한다.
+    expect(find.text(AppStrings.battleEvidenceSubmit), findsOneWidget);
+    expect(find.text(AppStrings.battleSpeedEvidenceNotice), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
   });
 
-  testWidgets('품질전 진행 화면에서 상대 증거가 있으면 승인/이의제기 버튼이 보인다', (WidgetTester tester) async {
+  testWidgets('품질전 제출 폼은 사진이 필수라 텍스트 입력란이 없다', (WidgetTester tester) async {
+    final battle = Battle(
+      id: 'bq',
+      type: 'quality',
+      status: 'active',
+      title: '방 청소하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      createdAt: DateTime(2026, 8, 20),
+    );
+    final detail = BattleDetail(
+      battle: battle,
+      me: const BattleParticipant(battleId: 'bq', userId: 'me'),
+      opponent: const BattleParticipant(battleId: 'bq', userId: 'friend'),
+      myName: '나',
+      opponentName: '친구',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [battleDetailProvider('bq').overrideWith((ref) async => detail)],
+        child: const MaterialApp(home: BattleDetailScreen(battleId: 'bq')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.battleEvidencePhotoRequired), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidencePhotoAdd), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+  });
+
+  testWidgets('내 증거가 이의제기당하면 완료가 무효라고 알려준다', (WidgetTester tester) async {
+    final battle = Battle(
+      id: 'bd',
+      type: 'speed',
+      status: 'judging',
+      title: '아침 운동하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      createdAt: DateTime(2026, 8, 20),
+    );
+    final detail = BattleDetail(
+      battle: battle,
+      me: BattleParticipant(
+        battleId: 'bd',
+        userId: 'me',
+        evidenceType: 'text',
+        evidenceContent: '내 증거',
+        evidenceSubmittedAt: DateTime(2026, 8, 20),
+        decision: 'dispute',
+      ),
+      opponent: const BattleParticipant(battleId: 'bd', userId: 'friend'),
+      myName: '나',
+      opponentName: '친구',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [battleDetailProvider('bd').overrideWith((ref) async => detail)],
+        child: const MaterialApp(home: BattleDetailScreen(battleId: 'bd')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.battleMyEvidenceDisputed), findsOneWidget);
+    // 이의제기당해도 재제출로 복구할 수 있다.
+    expect(find.text(AppStrings.battleEvidenceResubmit), findsOneWidget);
+  });
+
+  testWidgets('진행 화면에서 상대 증거가 있으면 승인/이의제기 버튼이 보인다', (WidgetTester tester) async {
     final battle = Battle(
       id: 'b2',
-      type: 'quality',
+      type: 'speed',
       status: 'judging',
       title: '방 청소하기',
       creatorId: 'me',

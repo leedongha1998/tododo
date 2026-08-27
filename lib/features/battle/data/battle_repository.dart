@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'battle.dart';
@@ -5,6 +7,9 @@ import 'battle_participant.dart';
 
 class BattleRepository {
   BattleRepository(this._client);
+
+  static const _evidenceBucket = 'battle_evidence';
+  static const _signedUrlSeconds = 300;
 
   final SupabaseClient _client;
 
@@ -78,20 +83,34 @@ class BattleRepository {
     return rows.map(BattleParticipant.fromMap).toList();
   }
 
-  Future<void> completeSpeedTask(String battleId) {
-    return _client.rpc('complete_speed_task', params: {'p_battle_id': battleId});
+  // 사진 증거를 비공개 버킷에 올리고 오브젝트 경로를 돌려준다.
+  // 이 경로가 그대로 evidence_content에 저장된다. 재제출이 허용되므로 upsert.
+  Future<String> uploadEvidencePhoto(String battleId, Uint8List bytes) async {
+    final myId = _client.auth.currentUser!.id;
+    final path = '$battleId/$myId/evidence.jpg';
+    await _client.storage.from(_evidenceBucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
+        );
+    return path;
   }
 
-  Future<void> submitQualityEvidence(String battleId, String content) {
-    return _client.rpc('submit_quality_evidence', params: {
+  // 비공개 버킷이라 매번 짧은 수명의 서명 URL을 받아 화면에 그린다.
+  Future<String> createEvidencePhotoUrl(String path) {
+    return _client.storage.from(_evidenceBucket).createSignedUrl(path, _signedUrlSeconds);
+  }
+
+  Future<void> submitEvidence(String battleId, String evidenceType, String content) {
+    return _client.rpc('submit_evidence', params: {
       'p_battle_id': battleId,
-      'p_evidence_type': 'text',
+      'p_evidence_type': evidenceType,
       'p_evidence_content': content,
     });
   }
 
-  Future<void> decideQualityEvidence(String battleId, String targetUserId, String decision) {
-    return _client.rpc('decide_quality_evidence', params: {
+  Future<void> decideEvidence(String battleId, String targetUserId, String decision) {
+    return _client.rpc('decide_evidence', params: {
       'p_battle_id': battleId,
       'p_target_user_id': targetUserId,
       'p_decision': decision,

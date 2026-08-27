@@ -13,6 +13,7 @@ class AppStrings {
   static const todoInputHint = '할 일을 입력하세요';
   static const save = '저장';
   static const cancel = '취소';
+  static const retry = '다시 시도';
   static const delete = '삭제';
   static const emptyTodos = '아직 할 일이 없어요.\n오른쪽 아래 버튼으로 추가해보세요.';
   static const loadTodosFailed = '할 일을 불러오지 못했습니다.';
@@ -51,29 +52,46 @@ class AppStrings {
 
   static const battleMe = '나';
   static const battleOpponent = '상대';
-  static const battleComplete = '완료하기';
-  static const battleCompleted = '완료했습니다.';
-  static const battleCompleteFailed = '완료 처리에 실패했습니다. 다시 시도해주세요.';
-  static const battleSpeedDone = '완료함';
-  static const battleSpeedWaiting = '진행중';
-  static const battleSpeedWaitingOpponent = '상대방을 기다리는 중이에요.';
   static const battleYouWon = '승리했습니다!';
   static const battleYouLost = '아쉽지만 패배했어요.';
 
+  static const battleMyEvidence = '내가 제출한 증거';
   static const battleEvidenceHint = '완료했다는 증거를 남겨주세요';
-  static const battleEvidenceSubmit = '증거 제출하기';
+  static const battleEvidenceSubmit = '증거 제출하고 완료 주장하기';
+  static const battleEvidenceResubmit = '증거 다시 제출하기';
   static const battleEvidenceSubmitted = '증거를 제출했습니다.';
   static const battleEvidenceSubmitFailed = '증거 제출에 실패했습니다. 다시 시도해주세요.';
-  static const battleEvidenceWaitingSubmit = '아직 증거를 제출하지 않았어요.';
   static const battleEvidenceWaitingOpponentSubmit = '상대방의 증거 제출을 기다리는 중이에요.';
   static const battleEvidenceReview = '상대방이 제출한 증거';
   static const battleApprove = '승인';
   static const battleDispute = '이의제기';
   static const battleDecisionFailed = '판정에 실패했습니다. 다시 시도해주세요.';
+  static const battleDecisionDone = '판정을 등록했습니다.';
   static const battleDecisionWaiting = '상대방의 판정을 기다리는 중이에요.';
   static const battleDecisionApproved = '상대방이 승인했어요.';
   static const battleQualityFinished = '모두 승인되어 대결이 종료됐어요.';
   static const battleDisputedMessage = '이의제기가 있어 아직 미결 상태예요.';
+
+  static const battleEvidencePhotoAdd = '사진 첨부하기';
+  static const battleEvidencePhotoChange = '사진 다시 고르기';
+  static const battleEvidencePhotoFromCamera = '카메라로 찍기';
+  static const battleEvidencePhotoFromGallery = '갤러리에서 고르기';
+  static const battleEvidencePhotoPickFailed = '사진을 불러오지 못했습니다. 다시 시도해주세요.';
+  static const battleEvidencePhotoLoadFailed = '사진을 불러오지 못했어요.';
+  static const battleEvidencePhotoRequired = '품질전은 사진 증거가 필수예요.';
+
+  static const battleSpeedEvidenceNotice = '지금 제출한 시각이 승부 기준이 돼요. 상대가 승인해야 완료로 인정됩니다.';
+  static const battleMyEvidenceDisputed = '상대방이 내 증거에 이의를 제기했어요. 내 완료는 무효로 처리돼요.';
+  static const battleAwaitingBothDecisions = '상대방이 내 증거를 판정하면 결과가 확정돼요.';
+  static const battleSpeedDisputedMessage = '양쪽 모두 이의제기를 받아 유효한 완료가 없어요. 승자 없이 미결로 끝났어요.';
+  static const battleWonBySpeed = '먼저 완료를 증명해서 이겼어요.';
+  static const battleWonByOpponentDisputed = '상대방의 증거가 이의제기로 무효가 되어 이겼어요.';
+  static const battleLostBySpeed = '상대방이 먼저 완료를 증명했어요.';
+  static const battleLostByDisputed = '내 증거가 이의제기로 무효가 되어 졌어요.';
+
+  static const battleDisputeConfirmTitle = '이의제기할까요?';
+  static const battleDisputeConfirmSpeed = '이의제기하면 상대방의 완료가 무효가 돼요. 되돌릴 수 없어요.';
+  static const battleDisputeConfirmQuality = '이의제기하면 이 대결은 미결로 끝나요. 되돌릴 수 없어요.';
 
   static const profileTitle = '프로필';
   static const profileLoadFailed = '프로필을 불러오지 못했습니다.';

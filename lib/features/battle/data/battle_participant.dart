@@ -2,7 +2,6 @@ class BattleParticipant {
   const BattleParticipant({
     required this.battleId,
     required this.userId,
-    this.completedAt,
     this.evidenceType,
     this.evidenceContent,
     this.evidenceSubmittedAt,
@@ -12,7 +11,6 @@ class BattleParticipant {
 
   final String battleId;
   final String userId;
-  final DateTime? completedAt;
   final String? evidenceType;
   final String? evidenceContent;
   final DateTime? evidenceSubmittedAt;
@@ -22,8 +20,6 @@ class BattleParticipant {
   factory BattleParticipant.fromMap(Map<String, dynamic> map) => BattleParticipant(
         battleId: map['battle_id'] as String,
         userId: map['user_id'] as String,
-        completedAt:
-            map['completed_at'] == null ? null : DateTime.parse(map['completed_at'] as String),
         evidenceType: map['evidence_type'] as String?,
         evidenceContent: map['evidence_content'] as String?,
         evidenceSubmittedAt: map['evidence_submitted_at'] == null

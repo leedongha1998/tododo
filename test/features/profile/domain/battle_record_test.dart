@@ -34,6 +34,12 @@ void main() {
       expect(record.resultLabel, AppStrings.battleRecordLose);
     });
 
+    test('속도전도 양쪽 다 이의제기당하면 승자가 없어 미결로 표시한다', () {
+      final battle = _buildBattle(type: 'speed', status: 'disputed');
+      final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');
+      expect(record.resultLabel, AppStrings.battleStatusDisputed);
+    });
+
     test('품질전은 승자를 두지 않는다 — finished면 완료로만 표시한다', () {
       final battle = _buildBattle(type: 'quality', status: 'finished');
       final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');

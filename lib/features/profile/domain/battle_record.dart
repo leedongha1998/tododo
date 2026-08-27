@@ -19,9 +19,18 @@ class BattleRecord {
     required String myId,
     required String otherPartyName,
   }) {
-    final resultLabel = battle.type == 'speed'
-        ? (battle.winnerId == myId ? AppStrings.battleRecordWin : AppStrings.battleRecordLose)
-        : (battle.status == 'finished' ? AppStrings.battleStatusFinished : AppStrings.battleStatusDisputed);
+    final String resultLabel;
+    if (battle.type == 'quality') {
+      resultLabel = battle.status == 'finished'
+          ? AppStrings.battleStatusFinished
+          : AppStrings.battleStatusDisputed;
+    } else if (battle.winnerId == null) {
+      // 속도전도 양쪽 다 이의제기당하면 유효한 완료가 없어 승자 없이 미결로 끝난다.
+      resultLabel = AppStrings.battleStatusDisputed;
+    } else {
+      resultLabel =
+          battle.winnerId == myId ? AppStrings.battleRecordWin : AppStrings.battleRecordLose;
+    }
     return BattleRecord(battle: battle, otherPartyName: otherPartyName, resultLabel: resultLabel);
   }
 }

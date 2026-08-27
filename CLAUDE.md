@@ -93,6 +93,11 @@ test/
 - 새 패키지 추가 전에 이미 있는 패키지로 가능한지 먼저 확인하고, 추가하면 이유를 커밋 메시지에 적는다
 - 스키마 변경은 마이그레이션 파일로만. Supabase 대시보드에서 직접 수정 금지
 - RLS 정책은 테이블 만들 때 같이 작성한다. 나중에 붙이지 않는다
+- 새 RPC 함수를 만들면 `grant execute ... to authenticated`만으로는 부족하다. Postgres는 PUBLIC에,
+  Supabase는 anon에 EXECUTE를 기본으로 주므로 `revoke execute ... from public, anon`을 같이 쓴다
+- SECURITY DEFINER 함수는 첫 줄에 `if auth.uid() is null then raise exception '로그인이 필요합니다.'` 가드를 둔다
+- 참가자 검사에 `auth.uid() not in (a, b)`를 쓰지 말 것. 비로그인이면 NULL이 되어 예외 없이 통과한다.
+  `auth.uid() is distinct from a and auth.uid() is distinct from b`를 쓴다
 
 ## 테스트
 - 도메인 로직(판정, 상태 전이)은 반드시 유닛 테스트

@@ -11,6 +11,7 @@ import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/domain/battle_recruit.dart';
+import 'package:todododo/features/battle/domain/battle_summary.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
@@ -83,7 +84,10 @@ void main() {
   testWidgets('할 일이 없으면 빈 상태 문구를 보여준다', (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [todosProvider.overrideWith((ref) async => const <Todo>[])],
+        overrides: [
+          todosProvider.overrideWith((ref) async => const <Todo>[]),
+          myBattlesProvider.overrideWith((ref) async => const []),
+        ],
         child: const MaterialApp(home: TodoListScreen()),
       ),
     );
@@ -100,7 +104,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [todosProvider.overrideWith((ref) async => todos)],
+        overrides: [
+          todosProvider.overrideWith((ref) async => todos),
+          myBattlesProvider.overrideWith((ref) async => const []),
+        ],
         child: const MaterialApp(home: TodoListScreen()),
       ),
     );
@@ -111,6 +118,38 @@ void main() {
 
     final doneText = tester.widget<Text>(find.text('빨래하기'));
     expect(doneText.style?.decoration, TextDecoration.lineThrough);
+  });
+
+  testWidgets('홈 화면 상단에 대결 영역, 하단에 할 일 영역이 함께 보인다', (WidgetTester tester) async {
+    final battle = Battle(
+      id: 'b1',
+      type: 'speed',
+      status: 'active',
+      title: '아침 운동하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      createdAt: DateTime(2026, 8, 20),
+    );
+    final todos = [
+      Todo(id: '1', title: '설거지하기', isDone: false, createdAt: DateTime(2026, 8, 19)),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          todosProvider.overrideWith((ref) async => todos),
+          myBattlesProvider.overrideWith(
+            (ref) async => [BattleSummary(battle: battle, otherPartyName: '친구')],
+          ),
+        ],
+        child: const MaterialApp(home: TodoListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.battleMyBattles), findsOneWidget);
+    expect(find.text('아침 운동하기'), findsOneWidget);
+    expect(find.text('설거지하기'), findsOneWidget);
   });
 
   testWidgets('대결 만들기 화면에 유형/제목 입력이 바로 보이고, 제목을 입력하면 등록 버튼이 활성화된다',

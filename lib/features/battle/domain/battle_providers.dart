@@ -11,7 +11,9 @@ final battleRepositoryProvider = Provider<BattleRepository>((ref) {
   return BattleRepository(supabase);
 });
 
-final openRecruitsProvider = FutureProvider<List<BattleRecruit>>((ref) async {
+// 대결 목록류 provider는 화면을 떠나면 캐시를 비우는 autoDispose를 쓴다.
+// 그래야 상대가 참가/제출하는 등 서버 쪽 변화가 있어도 화면에 다시 들어올 때 최신 상태를 가져온다.
+final openRecruitsProvider = FutureProvider.autoDispose<List<BattleRecruit>>((ref) async {
   final repo = ref.watch(battleRepositoryProvider);
   final battles = await repo.fetchOpenRecruits();
   final names = await repo.fetchDisplayNames(battles.map((b) => b.creatorId));
@@ -20,11 +22,11 @@ final openRecruitsProvider = FutureProvider<List<BattleRecruit>>((ref) async {
       .toList();
 });
 
-final myRecruitsProvider = FutureProvider<List<Battle>>((ref) async {
+final myRecruitsProvider = FutureProvider.autoDispose<List<Battle>>((ref) async {
   return ref.watch(battleRepositoryProvider).fetchMyRecruits();
 });
 
-final myBattlesProvider = FutureProvider<List<BattleSummary>>((ref) async {
+final myBattlesProvider = FutureProvider.autoDispose<List<BattleSummary>>((ref) async {
   final repo = ref.watch(battleRepositoryProvider);
   final myId = supabase.auth.currentUser!.id;
   final battles = await repo.fetchMyBattles();
@@ -36,7 +38,7 @@ final myBattlesProvider = FutureProvider<List<BattleSummary>>((ref) async {
   }).toList();
 });
 
-final battleDetailProvider = FutureProvider.family<BattleDetail, String>((ref, battleId) async {
+final battleDetailProvider = FutureProvider.autoDispose.family<BattleDetail, String>((ref, battleId) async {
   final repo = ref.watch(battleRepositoryProvider);
   final myId = supabase.auth.currentUser!.id;
   final battle = await repo.fetchBattle(battleId);

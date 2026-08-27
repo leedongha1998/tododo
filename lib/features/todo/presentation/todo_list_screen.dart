@@ -5,13 +5,48 @@ import '../../../core/strings.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../battle/presentation/battle_recruits_screen.dart';
 import '../../battle/presentation/create_battle_screen.dart';
-import '../../battle/presentation/my_battles_screen.dart';
+import '../../battle/presentation/home_battle_section.dart';
 import '../../profile/presentation/profile_screen.dart';
 import '../data/todo.dart';
 import '../domain/todo_providers.dart';
 
+enum _AddChoice { todo, battle }
+
 class TodoListScreen extends ConsumerWidget {
   const TodoListScreen({super.key});
+
+  Future<void> _openAddMenu(BuildContext context, WidgetRef ref) async {
+    final choice = await showModalBottomSheet<_AddChoice>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.check_box_outlined),
+              title: const Text(AppStrings.addTodo),
+              onTap: () => Navigator.of(context).pop(_AddChoice.todo),
+            ),
+            ListTile(
+              leading: const Icon(Icons.sports_kabaddi),
+              title: const Text(AppStrings.battleCreate),
+              onTap: () => Navigator.of(context).pop(_AddChoice.battle),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!context.mounted || choice == null) return;
+    switch (choice) {
+      case _AddChoice.todo:
+        await _openAddDialog(context, ref);
+      case _AddChoice.battle:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
+        );
+    }
+  }
 
   Future<void> _openAddDialog(BuildContext context, WidgetRef ref) async {
     final title = await _showTodoInputDialog(context, dialogTitle: AppStrings.addTodo);
@@ -84,20 +119,6 @@ class TodoListScreen extends ConsumerWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.list_alt),
-            tooltip: AppStrings.battleMyBattles,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const MyBattlesScreen()),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.sports_kabaddi),
-            tooltip: AppStrings.battleCreate,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
-            ),
-          ),
-          IconButton(
             icon: const Icon(Icons.person_outline),
             tooltip: AppStrings.profileTitle,
             onPressed: () => Navigator.of(context).push(
@@ -111,46 +132,55 @@ class TodoListScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: todosAsync.when(
-        data: (todos) {
-          if (todos.isEmpty) {
-            return Center(
-              child: Text(AppStrings.emptyTodos, textAlign: TextAlign.center),
-            );
-          }
-          return ListView.builder(
-            itemCount: todos.length,
-            itemBuilder: (context, index) {
-              final todo = todos[index];
-              return ListTile(
-                leading: Checkbox(
-                  value: todo.isDone,
-                  onChanged: (_) => _toggleDone(context, ref, todo),
-                ),
-                title: Text(
-                  todo.title,
-                  style: todo.isDone
-                      ? const TextStyle(decoration: TextDecoration.lineThrough)
-                      : null,
-                ),
-                onTap: () => _openEditDialog(context, ref, todo),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: AppStrings.delete,
-                  onPressed: () => _deleteTodo(context, ref, todo),
-                ),
-              );
-            },
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) {
-          debugPrint('todosProvider error: $error');
-          return Center(child: Text(AppStrings.loadTodosFailed));
-        },
+      body: Column(
+        children: [
+          const Expanded(flex: 2, child: HomeBattleSection()),
+          const Divider(height: 1),
+          Expanded(
+            flex: 3,
+            child: todosAsync.when(
+              data: (todos) {
+                if (todos.isEmpty) {
+                  return Center(
+                    child: Text(AppStrings.emptyTodos, textAlign: TextAlign.center),
+                  );
+                }
+                return ListView.builder(
+                  itemCount: todos.length,
+                  itemBuilder: (context, index) {
+                    final todo = todos[index];
+                    return ListTile(
+                      leading: Checkbox(
+                        value: todo.isDone,
+                        onChanged: (_) => _toggleDone(context, ref, todo),
+                      ),
+                      title: Text(
+                        todo.title,
+                        style: todo.isDone
+                            ? const TextStyle(decoration: TextDecoration.lineThrough)
+                            : null,
+                      ),
+                      onTap: () => _openEditDialog(context, ref, todo),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: AppStrings.delete,
+                        onPressed: () => _deleteTodo(context, ref, todo),
+                      ),
+                    );
+                  },
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, stackTrace) {
+                debugPrint('todosProvider error: $error');
+                return Center(child: Text(AppStrings.loadTodosFailed));
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _openAddDialog(context, ref),
+        onPressed: () => _openAddMenu(context, ref),
         child: const Icon(Icons.add),
       ),
     );

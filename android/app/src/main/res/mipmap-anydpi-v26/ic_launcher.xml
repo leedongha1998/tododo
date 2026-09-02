@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 26+ 적응형 아이콘. 기기가 모양(원/사각/스쿼클)을 정하므로 전경은 가운데 72dp 안에만 그린다.
+     monochrome은 안드로이드 13+ 테마 아이콘용으로, 전경의 알파만 쓰인다. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

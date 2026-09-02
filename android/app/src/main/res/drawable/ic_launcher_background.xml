@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 적응형 아이콘(API 26+)의 배경. mipmap-*/ic_launcher.png의 그라디언트와 같은 색이다.
+     색을 바꾸려면 tool/generate_launcher_icons.dart의 상수와 여기를 같이 고칠 것. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:startColor="#FFFF7A3D"
+        android:endColor="#FFE04A16"
+        android:type="linear" />
+</shape>

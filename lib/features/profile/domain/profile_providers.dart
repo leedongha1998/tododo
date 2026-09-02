@@ -8,11 +8,11 @@ final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
   return ProfileRepository(supabase);
 });
 
-final myProfileProvider = FutureProvider((ref) {
+final myProfileProvider = FutureProvider.autoDispose((ref) {
   return ref.watch(profileRepositoryProvider).fetchMyProfile();
 });
 
-final battleRecordsProvider = FutureProvider<List<BattleRecord>>((ref) async {
+final battleRecordsProvider = FutureProvider.autoDispose<List<BattleRecord>>((ref) async {
   final repo = ref.watch(profileRepositoryProvider);
   final myId = supabase.auth.currentUser!.id;
   final battles = await repo.fetchCompletedBattles();

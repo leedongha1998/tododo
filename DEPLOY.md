@@ -107,10 +107,14 @@ flutter build appbundle --release --dart-define-from-file=env.json
       `flutter test tool/generate_launcher_icons.dart`로 전부 다시 뽑는다
       (적응형 배경색은 `res/drawable/ic_launcher_background.xml`에도 같은 값이 있으니 함께 고칠 것)
 - [ ] **그래픽 이미지(feature graphic)** 1024×500 PNG
-- [ ] **스크린샷** 최소 2장 (폰 기준) — 홈(내 대결 + 투두), 대결 진행(증거 제출), 결과 화면이 앱을 잘 보여준다
-- [ ] **짧은 설명** 80자 이내
-- [ ] **자세한 설명** 4000자 이내
-- [ ] 앱 이름 (`투두두두`), 카테고리, 콘텐츠 등급 설문
+- [x] ~~**스크린샷**~~ — `store/screenshots/` 4장 (1080×1920). 실제 앱을 profile 빌드로 에뮬레이터에
+      올려 찍었고, 샘플 데이터는 찍은 뒤 원격 DB에서 전부 정리했다. 재촬영 절차는 `store/listing-ko.md`
+- [x] ~~**짧은 설명** 80자 이내~~ / ~~**자세한 설명** 4000자 이내~~ / ~~앱 이름, 카테고리, 콘텐츠 등급 답안~~
+      — `store/listing-ko.md`에 붙여넣기용으로 정리
+- [ ] 위 문구를 Play Console에 입력 (사용자 직접)
+
+> **심사 리스크**: 사용자끼리 사진을 주고받는 앱이라 Play UGC 정책상 신고·차단 수단이 필요할 수 있다.
+> 현재 둘 다 없다. 자세한 내용과 최소 대응안은 `store/listing-ko.md` 하단 참고.
 
 ---
 

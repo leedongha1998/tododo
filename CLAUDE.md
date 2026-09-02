@@ -25,7 +25,7 @@ flutter pub get
 flutter run
 flutter analyze
 flutter test
-flutter build appbundle --release
+flutter build appbundle --release --dart-define-from-file=env.json  # env.json 없으면 죽은 앱이 나온다
 supabase start            # 로컬 DB
 supabase db reset         # 마이그레이션 재적용
 ```
@@ -126,5 +126,5 @@ test/
 
 ## 배포
 - 타깃: Google Play 내부 테스트 트랙 → 프로덕션
-- 빌드: `flutter build appbundle --release`
+- 빌드: `flutter build appbundle --release --dart-define-from-file=env.json`
 - 서명 키, 스토어 자산, 개인정보처리방침은 별도 체크리스트(`DEPLOY.md`)로 관리

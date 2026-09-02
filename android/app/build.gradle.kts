@@ -1,7 +1,40 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// 릴리스 서명 키. 키스토어와 비밀번호는 저장소 밖에 두고 android/key.properties로만 참조한다
+// (key.properties와 *.jks는 gitignore됨). 작성법은 저장소 루트의 DEPLOY.md 1번 참고.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val hasReleaseKeystore = keystorePropertiesFile.exists()
+val keystoreProperties = Properties().apply {
+    if (hasReleaseKeystore) {
+        FileInputStream(keystorePropertiesFile).use { load(it) }
+    }
+}
+
+fun requiredKeystoreProperty(name: String): String {
+    val value = keystoreProperties.getProperty(name)
+    if (value.isNullOrBlank()) {
+        throw GradleException("android/key.properties에 $name 값이 없습니다. DEPLOY.md 1번을 참고하세요.")
+    }
+    return value
+}
+
+// 디버그 키로 서명된 AAB는 Play가 거부한다. 키 없이 릴리스를 만들려 하면 조용히 디버그 키로
+// 넘어가지 않고 여기서 즉시 실패시킨다.
+gradle.taskGraph.whenReady {
+    if (!hasReleaseKeystore && allTasks.any { it.name.contains("Release") }) {
+        throw GradleException(
+            "릴리스 빌드에 필요한 android/key.properties가 없습니다. " +
+                "업로드 키를 만들고 key.properties를 작성하세요 (DEPLOY.md 1번). " +
+                "디버그 키로 서명된 빌드는 Play에 올릴 수 없습니다."
+        )
+    }
 }
 
 android {
@@ -29,11 +62,20 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            create("release") {
+                keyAlias = requiredKeystoreProperty("keyAlias")
+                keyPassword = requiredKeystoreProperty("keyPassword")
+                storeFile = file(requiredKeystoreProperty("storeFile"))
+                storePassword = requiredKeystoreProperty("storePassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release") else null
         }
     }
 }

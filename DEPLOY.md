@@ -13,9 +13,10 @@ Google Play 내부 테스트 → 프로덕션까지의 절차. 한 번 하고 �
       `signingConfigs.getByName("debug")`를 그대로 쓴다. 디버그 키로 서명된 AAB는 Play가 거부한다. → 1번
 - [ ] **런처 아이콘이 Flutter 기본 아이콘이다** (`android/app/src/main/res/mipmap-*/ic_launcher.png`) → 4번
 - [x] ~~앱 내 계정 삭제 수단이 없다~~ — 프로필 화면에 계정 삭제(탈퇴)를 추가했다.
-      `delete_account()` RPC가 투두·증거 사진·표시 이름을 지우고 auth 계정을 삭제하며,
-      대결 기록은 "탈퇴한 사용자" 묘비로 남는다. **원격에 `supabase db push` 후 실제 탈퇴를
-      한 번 돌려서 확인할 것** (`delete from auth.users`가 권한 문제로 막히지 않는지).
+      `delete_account()` RPC가 투두·증거·표시 이름을 지우고 auth 계정을 삭제하며,
+      대결 기록은 "탈퇴한 사용자" 묘비로 남는다. 원격에 push하고 스모크 테스트
+      (`supabase db query --linked -f supabase/tests/delete_account_smoke.sql`)로
+      실제 탈퇴까지 확인 완료. 남은 확인은 실기기에서의 앱 경로(증거 사진 삭제 포함) → 7번
 - [ ] **웹 계정 삭제 요청 URL이 없다** — Play 정책상 앱 밖(웹)에서도 접근 가능한 삭제 요청
       경로가 필요하다. 개인정보처리방침과 같은 페이지에 삭제 요청 안내를 넣으면 된다. → 5번
 - [ ] **개인정보처리방침 URL이 없다** → 5번
@@ -173,6 +174,10 @@ supabase migration list          # local/remote 마이그레이션이 전부 일
       (빠지면 로그인 후 `localhost:3000`으로 튕긴다 — 실제로 겪은 문제)
 - [ ] 릴리스 빌드를 **실기기**에 설치해 로그인 → 대결 생성 → 증거 사진 촬영 → 판정까지 확인
       (에뮬레이터 기본 카메라는 셔터가 동작하지 않아 촬영 경로 검증이 안 된다)
+- [ ] 실기기에서 **탈퇴 한 번** — 증거 사진이 있는 계정으로 프로필 → 계정 삭제까지 해보고,
+      Storage 대시보드의 `battle_evidence` 버킷에서 그 계정 폴더가 비었는지 확인
+      (RPC 자체는 스모크 테스트로 검증됐지만, 사진 삭제는 앱이 Storage API로 하는 부분이라
+      실제로 돌려봐야 확인된다)
 - [ ] `targetSdk`가 Play의 현재 최소 요구치를 만족하는지 확인
       (Flutter가 정하는 값이라 SDK 버전에 따라 달라진다)
 

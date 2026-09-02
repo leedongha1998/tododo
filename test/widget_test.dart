@@ -3,8 +3,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/features/auth/data/auth_repository.dart';
+import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/auth/presentation/login_screen.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
@@ -67,6 +70,27 @@ class _FakeBattleRepository implements BattleRepository {
 
   @override
   Future<void> decideEvidence(String battleId, String targetUserId, String decision) async {}
+}
+
+class _FakeAuthRepository implements AuthRepository {
+  int deleteAccountCount = 0;
+
+  @override
+  Stream<AuthState> get authStateChanges => const Stream.empty();
+
+  @override
+  User? get currentUser => null;
+
+  @override
+  Future<void> signInWithGoogle() async {}
+
+  @override
+  Future<void> signOut() async {}
+
+  @override
+  Future<void> deleteAccount() async {
+    deleteAccountCount++;
+  }
 }
 
 void main() {
@@ -397,5 +421,40 @@ void main() {
     expect(find.text('방 청소하기'), findsOneWidget);
     expect(find.text(AppStrings.battleRecordWin), findsOneWidget);
     expect(find.text(AppStrings.battleStatusDisputed), findsOneWidget);
+  });
+
+  testWidgets('계정 삭제는 확인 다이얼로그를 거쳐야 실행된다', (WidgetTester tester) async {
+    final authRepository = _FakeAuthRepository();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(authRepository),
+          myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          battleRecordsProvider.overrideWith((ref) async => <BattleRecord>[]),
+        ],
+        child: const MaterialApp(home: ProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 취소하면 삭제되지 않는다.
+    await tester.tap(find.text(AppStrings.accountDelete));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.accountDeleteConfirmTitle), findsOneWidget);
+    await tester.tap(find.text(AppStrings.cancel));
+    await tester.pumpAndSettle();
+    expect(authRepository.deleteAccountCount, 0);
+
+    // 확인해야 실제로 삭제된다.
+    await tester.tap(find.text(AppStrings.accountDelete));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.accountDeleteConfirm));
+    // 삭제 중에는 진행 표시가 계속 돌기 때문에 pumpAndSettle을 쓸 수 없다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500)); // 스낵바 등장
+    expect(authRepository.deleteAccountCount, 1);
+    expect(find.text(AppStrings.accountDeleteDone), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5)); // 스낵바 타이머 소진
   });
 }

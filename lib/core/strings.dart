@@ -99,4 +99,12 @@ class AppStrings {
   static const profileLoadRecordFailed = '전적을 불러오지 못했습니다.';
   static const battleRecordWin = '승';
   static const battleRecordLose = '패';
+
+  static const accountDelete = '계정 삭제';
+  static const accountDeleteConfirmTitle = '정말 계정을 삭제할까요?';
+  static const accountDeleteConfirmMessage = '할 일, 증거 사진, 표시 이름이 모두 삭제되고 되돌릴 수 없어요.\n'
+      '진행 중인 대결은 승자 없이 취소되고, 이미 끝난 대결 기록에는 "탈퇴한 사용자"로 남습니다.';
+  static const accountDeleteConfirm = '삭제하기';
+  static const accountDeleteDone = '계정을 삭제했습니다.';
+  static const accountDeleteFailed = '계정 삭제에 실패했습니다. 다시 시도해주세요.';
 }

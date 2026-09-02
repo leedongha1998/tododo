@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../auth/domain/auth_providers.dart';
 import '../domain/battle_record.dart';
 import '../domain/profile_providers.dart';
 
@@ -68,7 +69,81 @@ class ProfileScreen extends ConsumerWidget {
               return Text(AppStrings.profileLoadRecordFailed);
             },
           ),
+          const SizedBox(height: 32),
+          const Divider(),
+          const _DeleteAccountButton(),
         ],
+      ),
+    );
+  }
+}
+
+/// 탈퇴 버튼. Google 계정으로 로그인하는 앱은 앱 안에 계정 삭제 경로가 있어야 한다(Play 정책).
+class _DeleteAccountButton extends ConsumerStatefulWidget {
+  const _DeleteAccountButton();
+
+  @override
+  ConsumerState<_DeleteAccountButton> createState() => _DeleteAccountButtonState();
+}
+
+class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
+  bool _isDeleting = false;
+
+  Future<void> _confirmAndDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.accountDeleteConfirmTitle),
+        content: const Text(AppStrings.accountDeleteConfirmMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.accountDeleteConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    // 삭제 성공 시 이 위젯이 사라지므로 messenger/navigator를 미리 잡아둔다.
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
+    setState(() => _isDeleting = true);
+    try {
+      await ref.read(authRepositoryProvider).deleteAccount();
+      // AuthGate가 로그인 화면으로 바뀌므로 그 위에 쌓여 있던 화면을 걷어낸다.
+      navigator.popUntil((route) => route.isFirst);
+      messenger.showSnackBar(const SnackBar(content: Text(AppStrings.accountDeleteDone)));
+    } catch (error) {
+      debugPrint('deleteAccount error: $error');
+      if (mounted) setState(() => _isDeleting = false);
+      messenger.showSnackBar(const SnackBar(content: Text(AppStrings.accountDeleteFailed)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: _isDeleting ? null : _confirmAndDelete,
+        style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+        icon: _isDeleting
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.person_remove_outlined),
+        label: const Text(AppStrings.accountDelete),
       ),
     );
   }

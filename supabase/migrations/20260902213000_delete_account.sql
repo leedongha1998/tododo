@@ -76,7 +76,14 @@ begin
   where id = v_user_id;
 
   -- 실제 계정 삭제. 세션/토큰/소셜 연결은 auth 스키마 cascade로 함께 사라진다.
+  -- 이 함수의 소유자(postgres)는 auth.users에 delete 권한이 있고 RLS도 우회하지만,
+  -- 훗날 권한이 바뀌어 한 행도 못 지우게 되면 "데이터만 지워지고 계정은 살아있는" 상태가
+  -- 남는다. 그래서 0행이면 예외를 던져 트랜잭션 전체를 되돌린다.
   delete from auth.users where id = v_user_id;
+
+  if not found then
+    raise exception '계정을 삭제하지 못했습니다.';
+  end if;
 end;
 $$;
 

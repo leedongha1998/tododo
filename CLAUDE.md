@@ -26,6 +26,7 @@ flutter run
 flutter analyze
 flutter test
 flutter build appbundle --release --dart-define-from-file=env.json  # env.json 없으면 죽은 앱이 나온다
+flutter test tool/generate_launcher_icons.dart  # 런처/스토어 아이콘 다시 생성
 supabase start            # 로컬 DB
 supabase db reset         # 마이그레이션 재적용
 ```

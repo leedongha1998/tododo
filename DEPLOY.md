@@ -9,9 +9,13 @@ Google Play 내부 테스트 → 프로덕션까지의 절차. 한 번 하고 �
 
 ## 0. 지금 막혀 있는 것 (배포 전 반드시 해결)
 
-- [ ] **릴리스 빌드가 디버그 키로 서명된다** — `android/app/build.gradle.kts`의 `buildTypes.release`가
-      `signingConfigs.getByName("debug")`를 그대로 쓴다. 디버그 키로 서명된 AAB는 Play가 거부한다. → 1번
-- [ ] **런처 아이콘이 Flutter 기본 아이콘이다** (`android/app/src/main/res/mipmap-*/ic_launcher.png`) → 4번
+- [ ] **업로드 키가 아직 없다** — Gradle 배선은 끝났다(키가 있으면 release 서명을 쓰고, 없으면
+      릴리스 빌드가 즉시 실패한다 — 디버그 키로 서명된 AAB가 나갈 일은 이제 없다).
+      남은 것은 키스토어 생성과 `android/key.properties` 작성뿐이고, **비밀번호가 들어가므로
+      직접 하셔야 한다** → 1번
+- [x] ~~런처 아이콘이 Flutter 기본 아이콘이다~~ — 자체 아이콘으로 교체했다(적응형 아이콘 포함).
+      그림은 `tool/generate_launcher_icons.dart`에 코드로 들어 있고, 다시 뽑으려면
+      `flutter test tool/generate_launcher_icons.dart` → 4번
 - [x] ~~앱 내 계정 삭제 수단이 없다~~ — 프로필 화면에 계정 삭제(탈퇴)를 추가했다.
       `delete_account()` RPC가 투두·증거·표시 이름을 지우고 auth 계정을 삭제하며,
       대결 기록은 "탈퇴한 사용자" 묘비로 남는다. 원격에 push하고 스모크 테스트
@@ -42,40 +46,16 @@ keyAlias=upload
 storeFile=C:\\workspaces\\todododo-upload.jks
 ```
 
-`android/app/build.gradle.kts` 수정 — `android { }` 블록 앞에 로드 코드를 넣고 release 서명을 교체한다:
+`android/app/build.gradle.kts`는 **이미 이 파일을 읽도록 배선돼 있다.** 키가 있으면 release 서명에
+쓰고, 없으면 릴리스 빌드를 이런 메시지와 함께 즉시 실패시킨다(디버그 키로 서명된 AAB 방지):
 
-```kotlin
-import java.util.Properties
-import java.io.FileInputStream
+> 릴리스 빌드에 필요한 android/key.properties가 없습니다. 업로드 키를 만들고 key.properties를 작성하세요 (DEPLOY.md 1번).
 
-val keystoreProperties = Properties()
-val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-}
-
-android {
-    // ...
-    signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["storePassword"] as String
-        }
-    }
-    buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("release")
-        }
-    }
-}
-```
-
-- [ ] 키스토어 생성 및 저장소 밖에 보관 + 백업
+- [ ] 키스토어 생성 및 저장소 밖에 보관 + 백업 (비밀번호는 비밀번호 관리자에)
 - [ ] `key.properties` 작성 (커밋 안 됨 확인: `git status`에 안 뜨는지)
-- [ ] `build.gradle.kts` release 서명 교체
-- [ ] `flutter build appbundle --release`가 성공하는지 확인
+- [ ] `flutter build appbundle --release --dart-define-from-file=env.json`이 성공하는지 확인
+- [ ] 서명 확인: `keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab`로
+      나온 지문이 디버그 키가 아니라 방금 만든 업로드 키인지
 
 > **Play 앱 서명 참고:** Play가 업로드 키와 별개의 앱 서명 키로 재서명한다. 이 앱의 구글 로그인은
 > `signInWithOAuth`(브라우저 리디렉션 방식)라 앱 서명 SHA-1을 어디에도 등록하지 않는다. 즉 재서명돼도
@@ -121,9 +101,11 @@ flutter build appbundle --release --dart-define-from-file=env.json
 
 ## 4. 스토어 자산
 
-- [ ] **앱 아이콘** 512×512 PNG — 앱 내 런처 아이콘도 같이 교체할 것
-      (`flutter_launcher_icons` 패키지를 쓰면 mipmap 전 해상도를 한 번에 생성한다. 새 패키지이므로
-      추가 시 이유를 커밋 메시지에 남길 것)
+- [x] ~~**앱 아이콘** 512×512 PNG~~ — `store/icon-512.png`. Play Console에 이 파일을 올린다.
+      런처 아이콘(mipmap 전 해상도 + API 26+ 적응형 + 안드로이드 13 테마 아이콘)도 같이 만들어져 있다.
+      그림은 `tool/generate_launcher_icons.dart`에 코드로 있고, 색이나 모양을 바꾸면
+      `flutter test tool/generate_launcher_icons.dart`로 전부 다시 뽑는다
+      (적응형 배경색은 `res/drawable/ic_launcher_background.xml`에도 같은 값이 있으니 함께 고칠 것)
 - [ ] **그래픽 이미지(feature graphic)** 1024×500 PNG
 - [ ] **스크린샷** 최소 2장 (폰 기준) — 홈(내 대결 + 투두), 대결 진행(증거 제출), 결과 화면이 앱을 잘 보여준다
 - [ ] **짧은 설명** 80자 이내
@@ -182,6 +164,8 @@ supabase migration list          # local/remote 마이그레이션이 전부 일
       (빠지면 로그인 후 `localhost:3000`으로 튕긴다 — 실제로 겪은 문제)
 - [ ] 릴리스 빌드를 **실기기**에 설치해 로그인 → 대결 생성 → 증거 사진 촬영 → 판정까지 확인
       (에뮬레이터 기본 카메라는 셔터가 동작하지 않아 촬영 경로 검증이 안 된다)
+- [ ] 런처에 아이콘이 제대로 보이는지 (홈 화면·앱 서랍·최근 앱). 기기 모양 설정을 원형으로 바꿔도
+      체크 표시가 잘리지 않는지 — 적응형 아이콘은 가장자리가 기기마다 다르게 깎인다
 - [ ] 실기기에서 **탈퇴 한 번** — 증거 사진이 있는 계정으로 프로필 → 계정 삭제까지 해보고,
       Storage 대시보드의 `battle_evidence` 버킷에서 그 계정 폴더가 비었는지 확인
       (RPC 자체는 스모크 테스트로 검증됐지만, 사진 삭제는 앱이 Storage API로 하는 부분이라

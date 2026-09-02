@@ -17,9 +17,9 @@ Google Play 내부 테스트 → 프로덕션까지의 절차. 한 번 하고 �
       대결 기록은 "탈퇴한 사용자" 묘비로 남는다. 원격에 push하고 스모크 테스트
       (`supabase db query --linked -f supabase/tests/delete_account_smoke.sql`)로
       실제 탈퇴까지 확인 완료. 남은 확인은 실기기에서의 앱 경로(증거 사진 삭제 포함) → 7번
-- [ ] **웹 계정 삭제 요청 URL이 없다** — Play 정책상 앱 밖(웹)에서도 접근 가능한 삭제 요청
-      경로가 필요하다. 개인정보처리방침과 같은 페이지에 삭제 요청 안내를 넣으면 된다. → 5번
-- [ ] **개인정보처리방침 URL이 없다** → 5번
+- [ ] **개인정보처리방침·계정 삭제 요청 페이지가 아직 게시되지 않았다** — 문서 자체는 다 썼다.
+      `C:\workspaces\todododo-legal`(별도 저장소, 커밋까지 완료)를 GitHub에 공개 저장소로
+      올리고 Pages를 켜면 끝난다. 절차는 그 저장소의 `README.md` → 5번
 
 ---
 
@@ -137,15 +137,23 @@ flutter build appbundle --release --dart-define-from-file=env.json
 이 앱이 수집하는 것: **Google 계정 이메일·이름**(프로필 표시용), **사용자가 올린 증거 사진**,
 **투두/대결 내용**. 전부 Supabase(외부 서버)에 저장되고 HTTPS로 전송된다.
 
-- [ ] **개인정보처리방침** 작성 후 공개 URL로 호스팅 (GitHub Pages, Notion 공개 페이지 등 무료로 가능)
-      — 수집 항목, 이용 목적, 보관 기간, 제3자(Supabase/Google) 제공, 삭제 요청 방법을 포함
-- [ ] **Play Console → 데이터 보안(Data safety)** 양식 작성 — 위 수집 항목과 개인정보처리방침이
-      서로 어긋나면 심사에서 걸린다
+문서는 **별도 공개 저장소** `C:\workspaces\todododo-legal`에 작성해뒀다(앱 소스는 비공개로 두고
+문서만 공개하기 위함). 게시 절차는 그 저장소의 `README.md`에 있다.
+
+- [x] ~~개인정보처리방침 작성~~ — `privacy.html`. 수집 항목, 이용 목적, 보유 기간(탈퇴 시 처리 표),
+      위탁(Supabase/Google), 이용자 권리, 안전성 확보 조치, 보호책임자까지 포함
 - [x] ~~앱 내 계정 삭제 경로~~ — 프로필 화면 → 계정 삭제 (0번 참고)
-- [ ] **웹 계정 삭제 요청 URL** — 개인정보처리방침 페이지에 "탈퇴는 앱 내 프로필 → 계정 삭제,
-      앱을 지운 뒤라면 이 메일로 요청" 형태로 안내하고 그 URL을 Play Console에 등록한다.
-      앱 내 삭제가 지우는 범위(투두·증거 사진·표시 이름·auth 계정)와 남기는 범위(익명 처리된
-      대결 기록)를 그대로 적어야 데이터 보안 양식과 어긋나지 않는다
+- [x] ~~웹 계정 삭제 요청 안내 작성~~ — `account-deletion.html`. 앱 내 경로 + 이메일 요청 양식,
+      삭제/보존 데이터 표를 `delete_account()` RPC의 실제 동작대로 적었다
+- [ ] **GitHub에 공개 저장소 `todododo-legal` 생성 후 push, Pages 켜기** (사용자 직접 — 계정 작업)
+- [ ] **Play Console에 URL 2개 등록**
+      — 앱 콘텐츠 → 개인정보처리방침: `https://<사용자명>.github.io/todododo-legal/privacy.html`
+      — 데이터 보안 → 계정 삭제: `https://<사용자명>.github.io/todododo-legal/account-deletion.html`
+- [ ] **Play Console → 데이터 보안(Data safety)** 양식 작성 — 아래 내용과 어긋나면 심사에서 걸린다.
+      수집: 이메일 주소, 이름, 사용자 생성 콘텐츠(투두·대결 제목·증거 텍스트), 사진.
+      목적: 앱 기능 제공. 전송 중 암호화: 예. 삭제 요청 가능: 예.
+      광고·분석 SDK 없음, 제3자 판매 없음
+- [ ] 정책 문서 내용이 앱 동작과 계속 일치하는지 — 기능을 바꾸면 `privacy.html`의 시행일과 함께 갱신
 
 ---
 

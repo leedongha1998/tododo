@@ -13,10 +13,13 @@ class AuthRepository {
 
   User? get currentUser => _client.auth.currentUser;
 
+  /// 브라우저에 이미 로그인된 구글 계정이 있으면 선택 없이 그대로 통과해버린다.
+  /// 계정을 여러 개 쓰는 사용자가 원하는 계정을 고를 수 없으므로 항상 선택 화면을 띄운다.
   Future<void> signInWithGoogle() {
     return _client.auth.signInWithOAuth(
       OAuthProvider.google,
       redirectTo: _googleRedirectUrl,
+      queryParams: const {'prompt': 'select_account'},
     );
   }
 

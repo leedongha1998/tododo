@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/strings.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
+import 'battle_summary_list.dart';
 
 class BattleDetailScreen extends ConsumerWidget {
   const BattleDetailScreen({super.key, required this.battleId});
@@ -104,22 +105,19 @@ class BattleDetailScreen extends ConsumerWidget {
     final detailAsync = ref.watch(battleDetailProvider(battleId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.battleMyBattles)),
+      // 어느 대결을 보고 있는지가 제목이어야 한다. 목록으로 돌아가지 않아도 구분된다.
+      appBar: AppBar(
+        title: Text(detailAsync.value?.battle.title ?? AppStrings.battleMyBattles),
+      ),
       body: detailAsync.when(
         data: (detail) => RefreshIndicator(
           onRefresh: () => ref.refresh(battleDetailProvider(battleId).future),
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Text(detail.battle.title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 4),
-              Text(
-                detail.battle.type == 'speed'
-                    ? AppStrings.battleTypeSpeed
-                    : AppStrings.battleTypeQuality,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              _BattleHeader(detail: detail),
               const SizedBox(height: 16),
+              _ResultBanner(detail: detail),
               _EvidenceSection(
                 battleId: battleId,
                 detail: detail,
@@ -253,7 +251,6 @@ class _EvidenceSectionState extends State<_EvidenceSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ..._buildResultBanner(context, detail),
         Text('${AppStrings.battleMe} (${detail.myName})', style: textTheme.titleSmall),
         const SizedBox(height: 8),
         if (_showForm) ..._buildForm(context, detail) else ..._buildMyEvidence(context, detail),
@@ -263,41 +260,6 @@ class _EvidenceSectionState extends State<_EvidenceSection> {
         ..._buildOpponentEvidence(context, detail),
       ],
     );
-  }
-
-  List<Widget> _buildResultBanner(BuildContext context, BattleDetail detail) {
-    final style = Theme.of(context).textTheme.titleMedium;
-    final String? headline;
-    final String? reason;
-
-    if (detail.isQualityFinished) {
-      headline = AppStrings.battleQualityFinished;
-      reason = null;
-    } else if (detail.didIWinSpeedBattle) {
-      headline = AppStrings.battleYouWon;
-      reason = detail.wasOpponentEvidenceDisputed
-          ? AppStrings.battleWonByOpponentDisputed
-          : AppStrings.battleWonBySpeed;
-    } else if (detail.didILoseSpeedBattle) {
-      headline = AppStrings.battleYouLost;
-      reason = detail.wasMyEvidenceDisputed
-          ? AppStrings.battleLostByDisputed
-          : AppStrings.battleLostBySpeed;
-    } else if (detail.isSpeedDisputed) {
-      headline = AppStrings.battleSpeedDisputedMessage;
-      reason = null;
-    } else if (detail.isDisputed) {
-      headline = AppStrings.battleDisputedMessage;
-      reason = null;
-    } else {
-      return const [];
-    }
-
-    return [
-      Text(headline, style: style),
-      if (reason != null) ...[const SizedBox(height: 4), Text(reason)],
-      const SizedBox(height: 16),
-    ];
   }
 
   List<Widget> _buildForm(BuildContext context, BattleDetail detail) {
@@ -367,6 +329,10 @@ class _EvidenceSectionState extends State<_EvidenceSection> {
         evidenceType: detail.me.evidenceType,
         evidenceContent: detail.me.evidenceContent,
       ),
+      if (detail.me.evidenceSubmittedAt != null) ...[
+        const SizedBox(height: 4),
+        _SubmittedAt(time: detail.me.evidenceSubmittedAt!),
+      ],
       const SizedBox(height: 8),
       Text(statusText),
       if (detail.isAwaitingBothDecisions) ...[
@@ -396,6 +362,10 @@ class _EvidenceSectionState extends State<_EvidenceSection> {
         evidenceType: opponent.evidenceType,
         evidenceContent: opponent.evidenceContent,
       ),
+      if (opponent.evidenceSubmittedAt != null) ...[
+        const SizedBox(height: 4),
+        _SubmittedAt(time: opponent.evidenceSubmittedAt!),
+      ],
       const SizedBox(height: 8),
       if (detail.canReviewOpponentEvidence)
         Row(
@@ -500,4 +470,203 @@ class _EvidencePhotoState extends ConsumerState<_EvidencePhoto> {
       ],
     );
   }
+}
+
+/// 유형과 현재 상태, 그리고 속도전이면 누가 얼마나 앞섰는지를 한 줄로 보여준다.
+class _BattleHeader extends StatelessWidget {
+  const _BattleHeader({required this.detail});
+
+  final BattleDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final lead = _speedLeadText(detail);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(battleTypeLabel(detail.battle.type), style: textTheme.bodyMedium),
+            const SizedBox(width: 8),
+            _StatusChip(status: detail.battle.status),
+          ],
+        ),
+        if (lead != null) ...[
+          const SizedBox(height: 8),
+          Text(lead, style: textTheme.bodyMedium),
+        ],
+      ],
+    );
+  }
+}
+
+/// 진행중/판정중/종료/미결을 색으로도 구분한다. 문장만으로는 지금 상태가 눈에 안 들어온다.
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final (Color background, Color foreground) = switch (status) {
+      'active' => (scheme.primaryContainer, scheme.onPrimaryContainer),
+      'judging' => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
+      'finished' => (scheme.secondaryContainer, scheme.onSecondaryContainer),
+      'disputed' => (scheme.errorContainer, scheme.onErrorContainer),
+      _ => (scheme.surfaceContainerHighest, scheme.onSurfaceVariant),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        battleStatusLabel(status),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: foreground),
+      ),
+    );
+  }
+}
+
+/// 끝난 대결의 결과. 본문에 섞인 한 줄이 아니라 눈에 띄는 블록으로 보여준다.
+/// 진행 중이면 아무것도 그리지 않는다.
+class _ResultBanner extends StatelessWidget {
+  const _ResultBanner({required this.detail});
+
+  final BattleDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    final String headline;
+    final String? reason;
+    final IconData icon;
+    final Color background;
+    final Color foreground;
+
+    if (detail.isQualityFinished) {
+      headline = AppStrings.battleQualityFinished;
+      reason = null;
+      icon = Icons.check_circle_outline;
+      background = scheme.secondaryContainer;
+      foreground = scheme.onSecondaryContainer;
+    } else if (detail.didIWinSpeedBattle) {
+      headline = AppStrings.battleYouWon;
+      reason = detail.wasOpponentEvidenceDisputed
+          ? AppStrings.battleWonByOpponentDisputed
+          : AppStrings.battleWonBySpeed;
+      icon = Icons.emoji_events_outlined;
+      background = scheme.primaryContainer;
+      foreground = scheme.onPrimaryContainer;
+    } else if (detail.didILoseSpeedBattle) {
+      headline = AppStrings.battleYouLost;
+      reason = detail.wasMyEvidenceDisputed
+          ? AppStrings.battleLostByDisputed
+          : AppStrings.battleLostBySpeed;
+      icon = Icons.sentiment_dissatisfied_outlined;
+      background = scheme.surfaceContainerHighest;
+      foreground = scheme.onSurfaceVariant;
+    } else if (detail.isSpeedDisputed) {
+      headline = AppStrings.battleSpeedDisputedMessage;
+      reason = null;
+      icon = Icons.report_problem_outlined;
+      background = scheme.errorContainer;
+      foreground = scheme.onErrorContainer;
+    } else if (detail.isDisputed) {
+      headline = AppStrings.battleDisputedMessage;
+      reason = null;
+      icon = Icons.report_problem_outlined;
+      background = scheme.errorContainer;
+      foreground = scheme.onErrorContainer;
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: foreground),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  headline,
+                  style: textTheme.titleMedium
+                      ?.copyWith(color: foreground, fontWeight: FontWeight.bold),
+                ),
+                if (reason != null) ...[
+                  const SizedBox(height: 4),
+                  Text(reason, style: textTheme.bodyMedium?.copyWith(color: foreground)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 증거를 언제 냈는지. 속도전에서는 이 값이 곧 승부 기준이라 반드시 보여야 한다.
+class _SubmittedAt extends StatelessWidget {
+  const _SubmittedAt({required this.time});
+
+  final DateTime time;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      '${AppStrings.battleEvidenceSubmittedLabel} ${_formatSubmittedAt(time)}',
+      style: Theme.of(context).textTheme.bodySmall,
+    );
+  }
+}
+
+// 서버가 준 UTC 시각을 기기 시간대로 바꿔 보여준다. 연도는 대결 주기상 군더더기라 뺀다.
+String _formatSubmittedAt(DateTime time) {
+  final local = time.toLocal();
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${local.month}월 ${local.day}일 $hour:$minute';
+}
+
+// 속도전에서 양쪽이 다 냈을 때만 격차를 말한다. 재제출로 순서가 뒤집혀도 이 줄이 바로 알려준다.
+String? _speedLeadText(BattleDetail detail) {
+  if (detail.battle.type != 'speed') return null;
+
+  final mine = detail.me.evidenceSubmittedAt;
+  final theirs = detail.opponent.evidenceSubmittedAt;
+  if (mine == null || theirs == null) return null;
+
+  final gap = mine.difference(theirs);
+  if (gap.inSeconds == 0) return null;
+
+  final label = _formatGap(gap.abs());
+  return gap.isNegative
+      ? AppStrings.battleSpeedLeadMine(label)
+      : AppStrings.battleSpeedLeadOpponent(label);
+}
+
+String _formatGap(Duration gap) {
+  if (gap.inDays > 0) return '${gap.inDays}일';
+  if (gap.inHours > 0) return '${gap.inHours}시간';
+  if (gap.inMinutes > 0) return '${gap.inMinutes}분';
+  return '${gap.inSeconds}초';
 }

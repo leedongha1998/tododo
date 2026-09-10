@@ -56,6 +56,10 @@ class AppStrings {
   static const battleYouLost = '아쉽지만 패배했어요.';
 
   static const battleMyEvidence = '내가 제출한 증거';
+  static const battleEvidenceSubmittedLabel = '제출';
+  // 속도전은 제출 시각이 승부 기준이라 누가 얼마나 앞섰는지를 화면에서 바로 읽을 수 있어야 한다.
+  static String battleSpeedLeadMine(String gap) => '내가 $gap 먼저 제출했어요.';
+  static String battleSpeedLeadOpponent(String gap) => '상대가 $gap 먼저 제출했어요.';
   static const battleEvidenceHint = '완료했다는 증거를 남겨주세요';
   static const battleEvidenceSubmit = '증거 제출하고 완료 주장하기';
   static const battleEvidenceResubmit = '증거 다시 제출하기';

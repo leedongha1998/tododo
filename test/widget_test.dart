@@ -375,6 +375,58 @@ void main() {
     expect(find.text(AppStrings.battleDispute), findsOneWidget);
   });
 
+  testWidgets('끝난 속도전은 상태 칩, 결과 배너, 제출 격차를 함께 보여준다', (WidgetTester tester) async {
+    final battle = Battle(
+      id: 'b3',
+      type: 'speed',
+      status: 'finished',
+      title: '아침 운동하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      createdAt: DateTime(2026, 8, 20),
+      winnerId: 'me',
+    );
+    final detail = BattleDetail(
+      battle: battle,
+      me: BattleParticipant(
+        battleId: 'b3',
+        userId: 'me',
+        evidenceType: 'text',
+        evidenceContent: '내 증거',
+        evidenceSubmittedAt: DateTime(2026, 8, 20, 7, 0),
+        decision: 'approve',
+      ),
+      opponent: BattleParticipant(
+        battleId: 'b3',
+        userId: 'friend',
+        evidenceType: 'text',
+        evidenceContent: '상대 증거',
+        evidenceSubmittedAt: DateTime(2026, 8, 20, 7, 30),
+        decision: 'approve',
+      ),
+      myName: '나',
+      opponentName: '친구',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [battleDetailProvider('b3').overrideWith((ref) async => detail)],
+        child: const MaterialApp(home: BattleDetailScreen(battleId: 'b3')),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 제목은 앱바로 올라갔고, 상태는 문장이 아니라 칩으로 드러난다.
+    expect(find.text('아침 운동하기'), findsOneWidget);
+    expect(find.text(AppStrings.battleStatusFinished), findsOneWidget);
+    expect(find.text(AppStrings.battleYouWon), findsOneWidget);
+    expect(find.text(AppStrings.battleWonBySpeed), findsOneWidget);
+    // 속도전 승부 기준인 제출 시각과 격차가 화면에 드러나야 한다.
+    expect(find.text(AppStrings.battleSpeedLeadMine('30분')), findsOneWidget);
+    expect(find.textContaining('${AppStrings.battleEvidenceSubmittedLabel} 8월 20일 07:00'),
+        findsOneWidget);
+  });
+
   testWidgets('프로필 화면에 이름과 대결 전적이 보인다', (WidgetTester tester) async {
     final speedWin = Battle(
       id: 'b1',

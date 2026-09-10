@@ -96,6 +96,16 @@ class AppStrings {
   static const battleLostBySpeed = '상대방이 먼저 완료를 증명했어요.';
   static const battleLostByDisputed = '내 증거가 이의제기로 무효가 되어 졌어요.';
 
+  static const battleForfeit = '대결 포기';
+  static const battleForfeitConfirmTitle = '대결을 포기할까요?';
+  static const battleForfeitConfirmSpeed = '포기하면 상대의 승리로 기록돼요. 되돌릴 수 없어요.';
+  static const battleForfeitConfirmQuality = '포기하면 이 대결은 미결로 끝나요. 되돌릴 수 없어요.';
+  static const battleForfeitDone = '대결을 포기했습니다.';
+  static const battleForfeitFailed = '포기에 실패했습니다. 다시 시도해주세요.';
+  static const battleLostByForfeit = '내가 기권해서 졌어요.';
+  static const battleWonByForfeit = '상대가 기권해서 이겼어요.';
+  static const battleQualityForfeited = '한쪽이 기권해서 미결로 끝났어요.';
+
   static const battleDisputeConfirmTitle = '이의제기할까요?';
   static const battleDisputeConfirmSpeed = '이의제기하면 상대방의 완료가 무효가 돼요. 되돌릴 수 없어요.';
   static const battleDisputeConfirmQuality = '이의제기하면 이 대결은 미결로 끝나요. 되돌릴 수 없어요.';

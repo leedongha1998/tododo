@@ -111,6 +111,11 @@ class BattleRepository {
     });
   }
 
+  // 포기(기권). 속도전이면 상대 승리로, 품질전이면 승자 없이 미결로 끝난다.
+  Future<void> forfeitBattle(String battleId) {
+    return _client.rpc('forfeit_battle', params: {'p_battle_id': battleId});
+  }
+
   Future<void> decideEvidence(String battleId, String targetUserId, String decision) {
     return _client.rpc('decide_evidence', params: {
       'p_battle_id': battleId,

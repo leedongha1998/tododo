@@ -70,6 +70,45 @@ class BattleDetailScreen extends ConsumerWidget {
     }
   }
 
+  // 포기는 곧 패배(품질전은 미결)라 되돌릴 수 없다. 반드시 한 번 확인받는다.
+  Future<void> _forfeit(BuildContext context, WidgetRef ref, BattleDetail detail) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.battleForfeitConfirmTitle),
+        content: Text(
+          detail.battle.type == 'speed'
+              ? AppStrings.battleForfeitConfirmSpeed
+              : AppStrings.battleForfeitConfirmQuality,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.battleForfeit),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await ref.read(battleRepositoryProvider).forfeitBattle(battleId);
+      ref.invalidate(battleDetailProvider(battleId));
+      ref.invalidate(myBattlesProvider);
+      if (context.mounted) _showSnackBar(context, AppStrings.battleForfeitDone);
+    } catch (e) {
+      debugPrint('forfeitBattle failed: $e');
+      if (context.mounted) _showSnackBar(context, AppStrings.battleForfeitFailed);
+    }
+  }
+
   // 이의제기는 되돌릴 수 없고 유형에 따라 결과가 다르므로 한 번 확인받는다.
   Future<bool> _confirmDispute(BuildContext context, BattleDetail detail) async {
     final confirmed = await showDialog<bool>(
@@ -125,6 +164,20 @@ class BattleDetailScreen extends ConsumerWidget {
                     _submitEvidence(context, ref, photoBytes: photoBytes, text: text),
                 onDecide: (decision) => _decide(context, ref, detail, decision),
               ),
+              if (detail.canForfeit) ...[
+                const Divider(height: 32),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => _forfeit(context, ref, detail),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                    icon: const Icon(Icons.flag_outlined),
+                    label: const Text(AppStrings.battleForfeit),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -528,17 +581,21 @@ class _ResultBanner extends StatelessWidget {
       foreground = scheme.onSecondaryContainer;
     } else if (detail.didIWinSpeedBattle) {
       headline = AppStrings.battleYouWon;
-      reason = detail.wasOpponentEvidenceDisputed
-          ? AppStrings.battleWonByOpponentDisputed
-          : AppStrings.battleWonBySpeed;
+      reason = switch (detail) {
+        _ when detail.didOpponentForfeit => AppStrings.battleWonByForfeit,
+        _ when detail.wasOpponentEvidenceDisputed => AppStrings.battleWonByOpponentDisputed,
+        _ => AppStrings.battleWonBySpeed,
+      };
       icon = Icons.emoji_events_outlined;
       background = scheme.primaryContainer;
       foreground = scheme.onPrimaryContainer;
     } else if (detail.didILoseSpeedBattle) {
       headline = AppStrings.battleYouLost;
-      reason = detail.wasMyEvidenceDisputed
-          ? AppStrings.battleLostByDisputed
-          : AppStrings.battleLostBySpeed;
+      reason = switch (detail) {
+        _ when detail.didIForfeit => AppStrings.battleLostByForfeit,
+        _ when detail.wasMyEvidenceDisputed => AppStrings.battleLostByDisputed,
+        _ => AppStrings.battleLostBySpeed,
+      };
       icon = Icons.sentiment_dissatisfied_outlined;
       background = scheme.surfaceContainerHighest;
       foreground = scheme.onSurfaceVariant;
@@ -549,7 +606,10 @@ class _ResultBanner extends StatelessWidget {
       background = scheme.errorContainer;
       foreground = scheme.onErrorContainer;
     } else if (detail.isDisputed) {
-      headline = AppStrings.battleDisputedMessage;
+      // 품질전은 기권해도 승자를 두지 않는다. 다만 왜 미결인지는 말해준다.
+      headline = detail.battle.forfeitedBy != null
+          ? AppStrings.battleQualityForfeited
+          : AppStrings.battleDisputedMessage;
       reason = null;
       icon = Icons.report_problem_outlined;
       background = scheme.errorContainer;

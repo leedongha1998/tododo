@@ -11,6 +11,7 @@ BattleDetail _buildDetail({
   String? meDecision,
   DateTime? opponentEvidenceSubmittedAt,
   String? opponentDecision,
+  String? forfeitedBy,
 }) {
   final battle = Battle(
     id: 'b1',
@@ -21,6 +22,7 @@ BattleDetail _buildDetail({
     opponentId: 'friend',
     winnerId: winnerId,
     createdAt: DateTime(2026, 8, 20),
+    forfeitedBy: forfeitedBy,
   );
   return BattleDetail(
     battle: battle,
@@ -220,6 +222,59 @@ void main() {
     test('속도전은 finished여도 isQualityFinished가 아니다', () {
       final detail = _buildDetail(type: 'speed', status: 'finished', winnerId: 'me');
       expect(detail.isQualityFinished, isFalse);
+    });
+  });
+
+  // 매칭된 대결에서 빠져나가는 유일한 길. 포기한 쪽이 지고, 승부는 서버가 정한다.
+  group('포기(기권)', () {
+    for (final type in ['speed', 'quality']) {
+      test('$type: 진행 중이면 포기할 수 있다', () {
+        expect(_buildDetail(type: type, status: 'active').canForfeit, isTrue);
+        expect(_buildDetail(type: type, status: 'judging').canForfeit, isTrue);
+      });
+
+      test('$type: 종결된 대결은 포기할 수 없다', () {
+        for (final status in ['finished', 'disputed']) {
+          expect(_buildDetail(type: type, status: status).canForfeit, isFalse);
+        }
+      });
+    }
+
+    test('내가 기권하면 속도전은 상대 승리로 끝난다', () {
+      final detail = _buildDetail(
+        type: 'speed',
+        status: 'finished',
+        winnerId: 'friend',
+        forfeitedBy: 'me',
+      );
+      expect(detail.didIForfeit, isTrue);
+      expect(detail.didOpponentForfeit, isFalse);
+      expect(detail.didILoseSpeedBattle, isTrue);
+    });
+
+    test('상대가 기권하면 내 승리로 끝난다', () {
+      final detail = _buildDetail(
+        type: 'speed',
+        status: 'finished',
+        winnerId: 'me',
+        forfeitedBy: 'friend',
+      );
+      expect(detail.didOpponentForfeit, isTrue);
+      expect(detail.didIWinSpeedBattle, isTrue);
+    });
+
+    test('품질전은 기권해도 승자가 없다', () {
+      final detail = _buildDetail(type: 'quality', status: 'disputed', forfeitedBy: 'me');
+      expect(detail.didIForfeit, isTrue);
+      expect(detail.isDisputed, isTrue);
+      expect(detail.didIWinSpeedBattle, isFalse);
+      expect(detail.didILoseSpeedBattle, isFalse);
+    });
+
+    test('기권 없이 끝난 대결은 기권 판별에 걸리지 않는다', () {
+      final detail = _buildDetail(type: 'speed', status: 'finished', winnerId: 'me');
+      expect(detail.didIForfeit, isFalse);
+      expect(detail.didOpponentForfeit, isFalse);
     });
   });
 }

@@ -53,6 +53,9 @@ class _FakeBattleRepository implements BattleRepository {
   Future<void> cancelBattle(String battleId) async {}
 
   @override
+  Future<void> forfeitBattle(String battleId) async {}
+
+  @override
   Future<List<Battle>> fetchMyBattles() async => const [];
 
   @override

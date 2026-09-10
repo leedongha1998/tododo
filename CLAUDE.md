@@ -83,6 +83,7 @@ test/
 - `disputed`로 끝난 대결은 MVP에서 "미결"(승자 없음)로 남긴다. AI 심판은 나중에 붙인다. 단, 속도전에서 한쪽만 이의제기당한 경우는 `disputed`가 아니라 상대 승리로 종결된다.
 - 대결 상태 전이: `pending`(모집 중, 상대 없음) → `active`(참가자가 매칭됨) → `judging`(증거 제출 후 상호 판정 대기 — 속도전/품질전 모두 거침) → `finished` | `disputed` | `cancelled`
 - 대결 생성은 특정 상대 지목 초대가 아니라 주제 모집 방식이다. 유형/제목만 정해 올리면 누구든 먼저 참가하는 사람과 자동 매칭된다(opponent_id는 매칭 전까지 null).
+- 매칭된 대결에서 빠져나가는 길은 포기(기권, `forfeit_battle`)뿐이다. 포기한 쪽이 진다 — 속도전은 상대가 `winner_id`로 기록되며 `finished`, 품질전은 승자를 두지 않으므로 `disputed`. 누가 포기했는지는 `battles.forfeited_by`에 남는다. 승자 없이 취소로 끝내지 않는 이유는 "질 것 같으면 포기"가 패배 회피 수단이 되기 때문이다. 모집 취소(`cancel_battle`)는 여전히 상대가 없는 `pending`에서만 가능하다.
 - 대결은 2인만. 3인 이상 구조를 미리 만들지 말 것.
 - 판정 로직은 클라이언트가 아니라 DB(RLS/트리거) 또는 Edge Function에서 처리한다.
 - 계정 삭제(탈퇴)는 `auth.users` 행을 실제로 지우되 `profiles` 행은 "탈퇴한 사용자" 묘비로 남긴다(`profiles.deleted_at`). 상대방의 대결 전적이 통째로 사라지지 않게 하기 위함이다. 그래서 사용자 FK는 `auth.users`가 아니라 `public.profiles`를 가리킨다 — 새 테이블도 반드시 profiles를 참조할 것. 탈퇴 시 끝나지 않은 대결(`pending`/`active`/`judging`)은 승자 없이 `cancelled`가 된다.

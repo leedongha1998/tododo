@@ -63,6 +63,13 @@ class BattleDetail {
       opponent.decision != null &&
       me.decision == null;
 
+  // 매칭된 대결에서 빠져나가는 유일한 길. 끝난 대결은 서버도 거부한다.
+  bool get canForfeit => _isOngoing;
+
+  bool get didIForfeit => battle.forfeitedBy == me.userId;
+
+  bool get didOpponentForfeit => battle.forfeitedBy == opponent.userId;
+
   bool get isFinished => battle.status == 'finished';
 
   bool get isDisputed => battle.status == 'disputed';

@@ -217,6 +217,38 @@ void main() {
     expect(find.text(AppStrings.todoTitle), findsWidgets);
   });
 
+  testWidgets('할 일 탭의 추가 버튼은 곧장 입력창을 연다', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [todosProvider.overrideWith((ref) async => [])],
+        child: const MaterialApp(home: TodoListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+
+    // 무엇을 추가할지 고르는 단계는 탭이 대신하므로 사라졌다.
+    expect(find.text(AppStrings.addTodo), findsOneWidget);
+    expect(find.text(AppStrings.battleCreate), findsNothing);
+  });
+
+  testWidgets('대결 찾기 화면에 대결 만들기 버튼이 있다', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          openRecruitsProvider.overrideWith((ref) async => []),
+          myRecruitsProvider.overrideWith((ref) async => []),
+        ],
+        child: const MaterialApp(home: BattleRecruitsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FloatingActionButton, AppStrings.battleCreate), findsOneWidget);
+  });
+
   testWidgets('대결 만들기 화면에 유형/제목 입력이 바로 보이고, 제목을 입력하면 등록 버튼이 활성화된다',
       (WidgetTester tester) async {
     await tester.pumpWidget(
@@ -509,6 +541,10 @@ void main() {
     expect(find.text('방 청소하기'), findsOneWidget);
     expect(find.text(AppStrings.battleRecordWin), findsOneWidget);
     expect(find.text(AppStrings.battleStatusDisputed), findsOneWidget);
+    // 앱바 아이콘이 사라진 뒤 계정 관련 동작은 전부 이 화면에 모인다.
+    expect(find.text(AppStrings.accountSection), findsOneWidget);
+    expect(find.text(AppStrings.logout), findsOneWidget);
+    expect(find.text(AppStrings.accountDelete), findsOneWidget);
   });
 
   testWidgets('전적 항목을 탭하면 지난 대결 상세로 들어간다', (WidgetTester tester) async {

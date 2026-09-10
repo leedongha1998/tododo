@@ -7,35 +7,28 @@ import '../../features/battle/presentation/my_battles_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/todo/presentation/todo_list_screen.dart';
 import '../strings.dart';
+import 'app_tab.dart';
 
 /// 로그인 후 앱의 뼈대. 탭 전환만 맡고, 각 탭은 자기 앱바와 FAB를 그대로 갖는다.
-class MainShell extends ConsumerStatefulWidget {
+class MainShell extends ConsumerWidget {
   const MainShell({super.key});
 
   @override
-  ConsumerState<MainShell> createState() => _MainShellState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tab = ref.watch(selectedTabProvider);
 
-class _MainShellState extends ConsumerState<MainShell> {
-  static const _myBattlesTab = 0;
+    // 상대가 증거를 내거나 판정해도 알림이 없다. 내 대결 탭으로 돌아오는 순간에만
+    // 목록을 다시 읽어 최신 상태를 보여준다.
+    ref.listen(selectedTabProvider, (previous, next) {
+      if (next == AppTab.myBattles && previous != AppTab.myBattles) {
+        ref.invalidate(myBattlesProvider);
+      }
+    });
 
-  int _index = _myBattlesTab;
-
-  void _selectTab(int index) {
-    // 상대가 증거를 내거나 판정해도 알림이 없다. 대결 탭으로 돌아올 때 한 번 다시 읽어
-    // 최신 상태를 보여준다.
-    if (index == _myBattlesTab && _index != _myBattlesTab) {
-      ref.invalidate(myBattlesProvider);
-    }
-    setState(() => _index = index);
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       // IndexedStack이라 탭을 오가도 스크롤 위치와 입력 중이던 내용이 남는다.
       body: IndexedStack(
-        index: _index,
+        index: tab.index,
         children: const [
           MyBattlesScreen(),
           BattleRecruitsScreen(),
@@ -44,8 +37,9 @@ class _MainShellState extends ConsumerState<MainShell> {
         ],
       ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _selectTab,
+        selectedIndex: tab.index,
+        onDestinationSelected: (index) =>
+            ref.read(selectedTabProvider.notifier).select(AppTab.values[index]),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.sports_kabaddi),

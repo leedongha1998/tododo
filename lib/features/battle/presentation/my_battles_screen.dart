@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/navigation/app_tab.dart';
 import '../../../core/strings.dart';
 import '../domain/battle_providers.dart';
 import 'battle_summary_list.dart';
@@ -21,9 +22,15 @@ class MyBattlesScreen extends ConsumerWidget {
         onRefresh: () => ref.refresh(myBattlesProvider.future),
         child: battlesAsync.when(
           data: (summaries) => summaries.isEmpty
-              ? const _ScrollableMessage(
+              ? _ScrollableMessage(
                   message: AppStrings.battleMyBattlesEmpty,
                   hint: AppStrings.battleFinishedInProfile,
+                  // 대결이 없을 때 할 일은 하나뿐이다 - 상대를 찾으러 가는 것.
+                  action: FilledButton(
+                    onPressed: () =>
+                        ref.read(selectedTabProvider.notifier).select(AppTab.find),
+                    child: const Text(AppStrings.battleFind),
+                  ),
                 )
               : BattleSummaryList(summaries: summaries),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -31,7 +38,10 @@ class MyBattlesScreen extends ConsumerWidget {
             debugPrint('myBattlesProvider error: $error');
             return _ScrollableMessage(
               message: AppStrings.battleLoadListFailed,
-              onRetry: () => ref.invalidate(myBattlesProvider),
+              action: TextButton(
+                onPressed: () => ref.invalidate(myBattlesProvider),
+                child: const Text(AppStrings.retry),
+              ),
             );
           },
         ),
@@ -42,11 +52,11 @@ class MyBattlesScreen extends ConsumerWidget {
 
 /// 당겨 새로고침이 먹으려면 안내 문구도 스크롤 가능한 위젯이어야 한다.
 class _ScrollableMessage extends StatelessWidget {
-  const _ScrollableMessage({required this.message, this.hint, this.onRetry});
+  const _ScrollableMessage({required this.message, this.hint, this.action});
 
   final String message;
   final String? hint;
-  final VoidCallback? onRetry;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -63,9 +73,9 @@ class _ScrollableMessage extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
-        if (onRetry != null) ...[
-          const SizedBox(height: 8),
-          Center(child: TextButton(onPressed: onRetry, child: const Text(AppStrings.retry))),
+        if (action != null) ...[
+          const SizedBox(height: 12),
+          Center(child: action),
         ],
       ],
     );

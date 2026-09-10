@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../domain/battle_providers.dart';
+import 'create_battle_screen.dart';
 
 class BattleRecruitsScreen extends ConsumerWidget {
   const BattleRecruitsScreen({super.key});
@@ -53,6 +54,14 @@ class BattleRecruitsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.battleFind)),
+      // 등록한 모집이 바로 아래 목록에 뜨므로 만들기 버튼도 이 화면에 있는 게 맞다.
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
+        ),
+        icon: const Icon(Icons.sports_kabaddi),
+        label: const Text(AppStrings.battleCreate),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

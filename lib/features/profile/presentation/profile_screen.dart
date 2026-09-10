@@ -72,6 +72,17 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 32),
           const Divider(),
+          // 탭바가 생기면서 앱바 아이콘이 사라졌다. 계정 관련 동작은 전부 여기로 모은다.
+          Text(AppStrings.accountSection, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => ref.read(authRepositoryProvider).signOut(),
+              icon: const Icon(Icons.logout),
+              label: const Text(AppStrings.logout),
+            ),
+          ),
           const _DeleteAccountButton(),
         ],
       ),

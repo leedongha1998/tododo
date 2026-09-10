@@ -3,47 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../auth/domain/auth_providers.dart';
-import '../../battle/presentation/create_battle_screen.dart';
 import '../data/todo.dart';
 import '../domain/todo_providers.dart';
 
-enum _AddChoice { todo, battle }
-
 class TodoListScreen extends ConsumerWidget {
   const TodoListScreen({super.key});
-
-  Future<void> _openAddMenu(BuildContext context, WidgetRef ref) async {
-    final choice = await showModalBottomSheet<_AddChoice>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.check_box_outlined),
-              title: const Text(AppStrings.addTodo),
-              onTap: () => Navigator.of(context).pop(_AddChoice.todo),
-            ),
-            ListTile(
-              leading: const Icon(Icons.sports_kabaddi),
-              title: const Text(AppStrings.battleCreate),
-              onTap: () => Navigator.of(context).pop(_AddChoice.battle),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (!context.mounted || choice == null) return;
-    switch (choice) {
-      case _AddChoice.todo:
-        await _openAddDialog(context, ref);
-      case _AddChoice.battle:
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
-        );
-    }
-  }
 
   Future<void> _openAddDialog(BuildContext context, WidgetRef ref) async {
     final title = await _showTodoInputDialog(context, dialogTitle: AppStrings.addTodo);
@@ -105,17 +69,7 @@ class TodoListScreen extends ConsumerWidget {
     final todosAsync = ref.watch(todosProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(AppStrings.todoTitle),
-        actions: [
-          // 모집함과 프로필은 탭바로 옮겼다. 로그아웃은 C3b에서 프로필 탭으로 간다.
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: AppStrings.logout,
-            onPressed: () => ref.read(authRepositoryProvider).signOut(),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text(AppStrings.todoTitle)),
       body: todosAsync.when(
         data: (todos) {
           if (todos.isEmpty) {
@@ -155,7 +109,7 @@ class TodoListScreen extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _openAddMenu(context, ref),
+        onPressed: () => _openAddDialog(context, ref),
         child: const Icon(Icons.add),
       ),
     );

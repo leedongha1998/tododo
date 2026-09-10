@@ -52,7 +52,7 @@ class BattleRecruitsScreen extends ConsumerWidget {
     final myRecruits = ref.watch(myRecruitsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.battleRecruits)),
+      appBar: AppBar(title: const Text(AppStrings.battleFind)),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

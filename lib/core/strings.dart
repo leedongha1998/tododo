@@ -29,7 +29,8 @@ class AppStrings {
   static const battleRecruitSubmitted = '모집을 등록했습니다.';
   static const battleRecruitSubmitFailed = '모집 등록에 실패했습니다. 다시 시도해주세요.';
 
-  static const battleRecruits = '모집함';
+  static const todoTitle = '할 일';
+  static const battleFind = '대결 찾기';
   static const battleOpenRecruits = '모집 중인 대결';
   static const battleMyRecruits = '내가 등록한 모집';
   static const battleJoin = '참가하기';

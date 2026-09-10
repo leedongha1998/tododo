@@ -18,7 +18,9 @@ import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/domain/battle_recruit.dart';
 import 'package:todododo/features/battle/domain/battle_summary.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
+import 'package:todododo/core/navigation/main_shell.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
+import 'package:todododo/features/battle/presentation/my_battles_screen.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
 import 'package:todododo/features/profile/domain/battle_record.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
@@ -149,7 +151,7 @@ void main() {
     expect(doneText.style?.decoration, TextDecoration.lineThrough);
   });
 
-  testWidgets('홈 화면 상단에 대결 영역, 하단에 할 일 영역이 함께 보인다', (WidgetTester tester) async {
+  testWidgets('내 대결 화면에는 진행 중인 대결만, 할 일 화면에는 할 일만 보인다', (WidgetTester tester) async {
     final battle = Battle(
       id: 'b1',
       type: 'speed',
@@ -162,23 +164,57 @@ void main() {
     final todos = [
       Todo(id: '1', title: '설거지하기', isDone: false, createdAt: DateTime(2026, 8, 19)),
     ];
+    final overrides = [
+      todosProvider.overrideWith((ref) async => todos),
+      myBattlesProvider.overrideWith(
+        (ref) async => [BattleSummary(battle: battle, otherPartyName: '친구')],
+      ),
+    ];
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          todosProvider.overrideWith((ref) async => todos),
-          myBattlesProvider.overrideWith(
-            (ref) async => [BattleSummary(battle: battle, otherPartyName: '친구')],
-          ),
-        ],
+        overrides: overrides,
+        child: const MaterialApp(home: MyBattlesScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('아침 운동하기'), findsOneWidget);
+    expect(find.text('설거지하기'), findsNothing);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overrides,
         child: const MaterialApp(home: TodoListScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleMyBattles), findsOneWidget);
-    expect(find.text('아침 운동하기'), findsOneWidget);
+    // 두 목록이 한 화면을 나눠 쓰던 구조를 없앴다. 할 일 화면에 대결이 섞이면 안 된다.
     expect(find.text('설거지하기'), findsOneWidget);
+    expect(find.text('아침 운동하기'), findsNothing);
+  });
+
+  testWidgets('로그인하면 탭 네 개짜리 탭바가 있는 화면으로 들어간다', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          todosProvider.overrideWith((ref) async => []),
+          myBattlesProvider.overrideWith((ref) async => []),
+          openRecruitsProvider.overrideWith((ref) async => []),
+          myRecruitsProvider.overrideWith((ref) async => []),
+          myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          battleRecordsProvider.overrideWith((ref) async => []),
+        ],
+        child: const MaterialApp(home: MainShell()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(NavigationDestination), findsNWidgets(4));
+    expect(find.text(AppStrings.battleFind), findsWidgets);
+    expect(find.text(AppStrings.todoTitle), findsWidgets);
   });
 
   testWidgets('대결 만들기 화면에 유형/제목 입력이 바로 보이고, 제목을 입력하면 등록 버튼이 활성화된다',

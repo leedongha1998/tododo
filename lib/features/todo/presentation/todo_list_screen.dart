@@ -3,10 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../auth/domain/auth_providers.dart';
-import '../../battle/presentation/battle_recruits_screen.dart';
 import '../../battle/presentation/create_battle_screen.dart';
-import '../../battle/presentation/home_battle_section.dart';
-import '../../profile/presentation/profile_screen.dart';
 import '../data/todo.dart';
 import '../domain/todo_providers.dart';
 
@@ -109,22 +106,9 @@ class TodoListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.appName),
+        title: const Text(AppStrings.todoTitle),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.mail_outline),
-            tooltip: AppStrings.battleRecruits,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const BattleRecruitsScreen()),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            tooltip: AppStrings.profileTitle,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
-            ),
-          ),
+          // 모집함과 프로필은 탭바로 옮겼다. 로그아웃은 C3b에서 프로필 탭으로 간다.
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: AppStrings.logout,
@@ -132,52 +116,43 @@ class TodoListScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          const Expanded(flex: 2, child: HomeBattleSection()),
-          const Divider(height: 1),
-          Expanded(
-            flex: 3,
-            child: todosAsync.when(
-              data: (todos) {
-                if (todos.isEmpty) {
-                  return Center(
-                    child: Text(AppStrings.emptyTodos, textAlign: TextAlign.center),
-                  );
-                }
-                return ListView.builder(
-                  itemCount: todos.length,
-                  itemBuilder: (context, index) {
-                    final todo = todos[index];
-                    return ListTile(
-                      leading: Checkbox(
-                        value: todo.isDone,
-                        onChanged: (_) => _toggleDone(context, ref, todo),
-                      ),
-                      title: Text(
-                        todo.title,
-                        style: todo.isDone
-                            ? const TextStyle(decoration: TextDecoration.lineThrough)
-                            : null,
-                      ),
-                      onTap: () => _openEditDialog(context, ref, todo),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        tooltip: AppStrings.delete,
-                        onPressed: () => _deleteTodo(context, ref, todo),
-                      ),
-                    );
-                  },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stackTrace) {
-                debugPrint('todosProvider error: $error');
-                return Center(child: Text(AppStrings.loadTodosFailed));
-              },
-            ),
-          ),
-        ],
+      body: todosAsync.when(
+        data: (todos) {
+          if (todos.isEmpty) {
+            return Center(
+              child: Text(AppStrings.emptyTodos, textAlign: TextAlign.center),
+            );
+          }
+          return ListView.builder(
+            itemCount: todos.length,
+            itemBuilder: (context, index) {
+              final todo = todos[index];
+              return ListTile(
+                leading: Checkbox(
+                  value: todo.isDone,
+                  onChanged: (_) => _toggleDone(context, ref, todo),
+                ),
+                title: Text(
+                  todo.title,
+                  style: todo.isDone
+                      ? const TextStyle(decoration: TextDecoration.lineThrough)
+                      : null,
+                ),
+                onTap: () => _openEditDialog(context, ref, todo),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: AppStrings.delete,
+                  onPressed: () => _deleteTodo(context, ref, todo),
+                ),
+              );
+            },
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stackTrace) {
+          debugPrint('todosProvider error: $error');
+          return Center(child: Text(AppStrings.loadTodosFailed));
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openAddMenu(context, ref),

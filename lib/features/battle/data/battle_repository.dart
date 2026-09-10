@@ -62,13 +62,15 @@ class BattleRepository {
     return _client.rpc('cancel_battle', params: {'p_battle_id': battleId});
   }
 
+  // 진행 중인 대결만 돌려준다. 끝난 대결(finished/disputed)은 프로필 전적에서 본다 —
+  // 여기에 계속 쌓이면 지금 뭘 해야 하는지가 목록에서 묻힌다.
   Future<List<Battle>> fetchMyBattles() async {
     final myId = _client.auth.currentUser!.id;
     final rows = await _client
         .from('battles')
         .select()
         .or('creator_id.eq.$myId,opponent_id.eq.$myId')
-        .not('status', 'in', '(pending,cancelled)')
+        .inFilter('status', ['active', 'judging'])
         .order('created_at', ascending: false);
     return rows.map(Battle.fromMap).toList();
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../auth/domain/auth_providers.dart';
+import '../../battle/presentation/battle_detail_screen.dart';
 import '../domain/battle_record.dart';
 import '../domain/profile_providers.dart';
 
@@ -149,6 +150,7 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
   }
 }
 
+/// 끝난 대결은 홈 목록에서 빠지므로, 지난 증거와 결과를 다시 볼 경로는 여기뿐이다.
 class _BattleRecordTile extends StatelessWidget {
   const _BattleRecordTile({required this.record, required this.typeLabel});
 
@@ -162,6 +164,9 @@ class _BattleRecordTile extends StatelessWidget {
       title: Text(record.battle.title),
       subtitle: Text('${record.otherPartyName} · ${typeLabel(record.battle.type)}'),
       trailing: Text(record.resultLabel, style: Theme.of(context).textTheme.titleMedium),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => BattleDetailScreen(battleId: record.battle.id)),
+      ),
     );
   }
 }

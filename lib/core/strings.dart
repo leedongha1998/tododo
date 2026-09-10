@@ -43,6 +43,7 @@ class AppStrings {
 
   static const battleMyBattles = '내 대결';
   static const battleMyBattlesEmpty = '진행 중인 대결이 없어요.';
+  static const battleFinishedInProfile = '지난 대결은 프로필에서 볼 수 있어요.';
   static const battleLoadListFailed = '대결 목록을 불러오지 못했습니다.';
   static const battleLoadDetailFailed = '대결 정보를 불러오지 못했습니다.';
   static const battleStatusActive = '진행중';

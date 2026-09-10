@@ -475,6 +475,67 @@ void main() {
     expect(find.text(AppStrings.battleStatusDisputed), findsOneWidget);
   });
 
+  testWidgets('전적 항목을 탭하면 지난 대결 상세로 들어간다', (WidgetTester tester) async {
+    final battle = Battle(
+      id: 'b1',
+      type: 'speed',
+      status: 'finished',
+      title: '아침 운동하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      winnerId: 'me',
+      createdAt: DateTime(2026, 8, 18),
+    );
+    final detail = BattleDetail(
+      battle: battle,
+      me: BattleParticipant(
+        battleId: 'b1',
+        userId: 'me',
+        evidenceType: 'text',
+        evidenceContent: '내 증거',
+        evidenceSubmittedAt: DateTime(2026, 8, 18, 7, 0),
+        decision: 'approve',
+      ),
+      opponent: BattleParticipant(
+        battleId: 'b1',
+        userId: 'friend',
+        evidenceType: 'text',
+        evidenceContent: '상대 증거',
+        evidenceSubmittedAt: DateTime(2026, 8, 18, 8, 0),
+        decision: 'approve',
+      ),
+      myName: '나',
+      opponentName: '친구',
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          battleRecordsProvider.overrideWith(
+            (ref) async => [
+              BattleRecord(
+                battle: battle,
+                otherPartyName: '친구',
+                resultLabel: AppStrings.battleRecordWin,
+              ),
+            ],
+          ),
+          battleDetailProvider('b1').overrideWith((ref) async => detail),
+        ],
+        child: const MaterialApp(home: ProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('아침 운동하기'));
+    await tester.pumpAndSettle();
+
+    // 끝난 대결은 내 대결 목록에서 빠지므로 이 경로가 지난 증거를 보는 유일한 길이다.
+    expect(find.text(AppStrings.battleYouWon), findsOneWidget);
+    expect(find.text('상대 증거'), findsOneWidget);
+  });
+
   testWidgets('계정 삭제는 확인 다이얼로그를 거쳐야 실행된다', (WidgetTester tester) async {
     final authRepository = _FakeAuthRepository();
 

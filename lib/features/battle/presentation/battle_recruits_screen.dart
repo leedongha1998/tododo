@@ -3,14 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../domain/battle_providers.dart';
+import 'battle_chips.dart';
 import 'create_battle_screen.dart';
 
 class BattleRecruitsScreen extends ConsumerWidget {
   const BattleRecruitsScreen({super.key});
-
-  String _typeLabel(String type) {
-    return type == 'speed' ? AppStrings.battleTypeSpeed : AppStrings.battleTypeQuality;
-  }
 
   Future<void> _join(BuildContext context, WidgetRef ref, String battleId) async {
     try {
@@ -77,8 +74,18 @@ class BattleRecruitsScreen extends ConsumerWidget {
                         .map(
                           (recruit) => ListTile(
                             title: Text(recruit.battle.title),
-                            subtitle:
-                                Text('${recruit.creatorName} · ${_typeLabel(recruit.battle.type)}'),
+                            subtitle: Row(
+                              children: [
+                                BattleTypeBadge(type: recruit.battle.type),
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    recruit.creatorName,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                             trailing: FilledButton(
                               onPressed: () => _join(context, ref, recruit.battle.id),
                               child: const Text(AppStrings.battleJoin),
@@ -112,7 +119,10 @@ class BattleRecruitsScreen extends ConsumerWidget {
                         .map(
                           (battle) => ListTile(
                             title: Text(battle.title),
-                            subtitle: Text(_typeLabel(battle.type)),
+                            subtitle: Align(
+                              alignment: Alignment.centerLeft,
+                              child: BattleTypeBadge(type: battle.type),
+                            ),
                             trailing: TextButton(
                               onPressed: () => _cancel(context, ref, battle.id),
                               child: const Text(AppStrings.battleRecruitCancel),

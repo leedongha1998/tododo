@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/strings.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
-import 'battle_summary_list.dart';
+import 'battle_chips.dart';
 
 class BattleDetailScreen extends ConsumerWidget {
   const BattleDetailScreen({super.key, required this.battleId});
@@ -488,9 +488,9 @@ class _BattleHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(battleTypeLabel(detail.battle.type), style: textTheme.bodyMedium),
+            BattleTypeBadge(type: detail.battle.type),
             const SizedBox(width: 8),
-            _StatusChip(status: detail.battle.status),
+            BattleStatusChip(status: detail.battle.status),
           ],
         ),
         if (lead != null) ...[
@@ -498,37 +498,6 @@ class _BattleHeader extends StatelessWidget {
           Text(lead, style: textTheme.bodyMedium),
         ],
       ],
-    );
-  }
-}
-
-/// 진행중/판정중/종료/미결을 색으로도 구분한다. 문장만으로는 지금 상태가 눈에 안 들어온다.
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final String status;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final (Color background, Color foreground) = switch (status) {
-      'active' => (scheme.primaryContainer, scheme.onPrimaryContainer),
-      'judging' => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
-      'finished' => (scheme.secondaryContainer, scheme.onSecondaryContainer),
-      'disputed' => (scheme.errorContainer, scheme.onErrorContainer),
-      _ => (scheme.surfaceContainerHighest, scheme.onSurfaceVariant),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        battleStatusLabel(status),
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: foreground),
-      ),
     );
   }
 }

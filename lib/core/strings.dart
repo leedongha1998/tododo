@@ -52,6 +52,7 @@ class AppStrings {
   static const battleStatusFinished = '종료';
   static const battleStatusDisputed = '미결';
 
+  static const battleVersus = 'vs';
   static const battleMe = '나';
   static const battleOpponent = '상대';
   static const battleYouWon = '승리했습니다!';

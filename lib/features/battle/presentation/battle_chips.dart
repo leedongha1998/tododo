@@ -19,6 +19,8 @@ String battleStatusLabel(String status) {
       return AppStrings.battleStatusFinished;
     case 'disputed':
       return AppStrings.battleStatusDisputed;
+    case 'draw':
+      return AppStrings.battleStatusDraw;
     default:
       return status;
   }
@@ -71,6 +73,8 @@ class BattleStatusChip extends StatelessWidget {
       'judging' => (scheme.tertiaryContainer, scheme.onTertiaryContainer),
       'finished' => (scheme.secondaryContainer, scheme.onSecondaryContainer),
       'disputed' => (scheme.errorContainer, scheme.onErrorContainer),
+      // 무승부는 이의제기로 끝난 미결과 달리 잘못된 일이 아니다. 중립색으로 둔다.
+      'draw' => (scheme.surfaceContainerHighest, scheme.onSurfaceVariant),
       _ => (scheme.surfaceContainerHighest, scheme.onSurfaceVariant),
     };
 

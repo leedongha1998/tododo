@@ -16,12 +16,14 @@ class BattleRepository {
   Future<void> createBattle({
     required String type,
     required String title,
+    required int durationHours,
   }) {
     final myId = _client.auth.currentUser!.id;
     return _client.from('battles').insert({
       'creator_id': myId,
       'type': type,
       'title': title,
+      'duration_hours': durationHours,
     });
   }
 

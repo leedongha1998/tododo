@@ -35,6 +35,7 @@ class _FakeBattleRepository implements BattleRepository {
   Future<void> createBattle({
     required String type,
     required String title,
+    required int durationHours,
   }) async {}
 
   @override

@@ -20,7 +20,10 @@ class BattleRecord {
     required String otherPartyName,
   }) {
     final String resultLabel;
-    if (battle.type == 'quality') {
+    // 마감까지 아무도 끝내지 못한 대결. 유형과 상관없이 무승부다.
+    if (battle.status == 'draw') {
+      resultLabel = AppStrings.battleRecordDraw;
+    } else if (battle.type == 'quality') {
       resultLabel = battle.status == 'finished'
           ? AppStrings.battleStatusFinished
           : AppStrings.battleStatusDisputed;

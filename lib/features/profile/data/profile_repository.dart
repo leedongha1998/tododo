@@ -20,7 +20,7 @@ class ProfileRepository {
         .from('battles')
         .select()
         .or('creator_id.eq.$myId,opponent_id.eq.$myId')
-        .inFilter('status', ['finished', 'disputed'])
+        .inFilter('status', ['finished', 'disputed', 'draw'])
         .order('created_at', ascending: false);
     return rows.map(Battle.fromMap).toList();
   }

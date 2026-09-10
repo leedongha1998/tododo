@@ -271,6 +271,19 @@ void main() {
       expect(detail.didILoseSpeedBattle, isFalse);
     });
 
+    test('마감으로 무승부가 된 대결은 승패 어느 쪽도 아니다', () {
+      for (final type in ['speed', 'quality']) {
+        final detail = _buildDetail(type: type, status: 'draw');
+        expect(detail.isDraw, isTrue);
+        expect(detail.isDisputed, isFalse);
+        expect(detail.didIWinSpeedBattle, isFalse);
+        expect(detail.didILoseSpeedBattle, isFalse);
+        // 이미 끝난 대결이므로 포기도 증거 제출도 할 수 없다.
+        expect(detail.canForfeit, isFalse);
+        expect(detail.canSubmitEvidence, isFalse);
+      }
+    });
+
     test('기권 없이 끝난 대결은 기권 판별에 걸리지 않는다', () {
       final detail = _buildDetail(type: 'speed', status: 'finished', winnerId: 'me');
       expect(detail.didIForfeit, isFalse);

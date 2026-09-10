@@ -51,6 +51,17 @@ class AppStrings {
   static const battleStatusJudging = '판정중';
   static const battleStatusFinished = '종료';
   static const battleStatusDisputed = '미결';
+  static const battleStatusDraw = '무승부';
+
+  static const battleDuration = '기간';
+  static const battleDuration1Day = '1일';
+  static const battleDuration3Days = '3일';
+  static const battleDuration7Days = '7일';
+  static const battleDurationNotice = '마감은 상대가 매칭되는 순간부터 시작돼요.';
+  static const battleDeadlineLabel = '마감';
+  static const battleDeadlinePassed = '마감이 지났어요. 곧 결과가 정리돼요.';
+  static const battleDrawMessage = '시간 안에 끝내지 못해 무승부로 끝났어요.';
+  static String battleDeadlineLeft(String remaining) => '$remaining 남음';
 
   static const battleVersus = 'vs';
   static const battleMe = '나';
@@ -116,6 +127,7 @@ class AppStrings {
   static const profileLoadRecordFailed = '전적을 불러오지 못했습니다.';
   static const battleRecordWin = '승';
   static const battleRecordLose = '패';
+  static const battleRecordDraw = '무';
 
   static const accountSection = '계정';
   static const accountDelete = '계정 삭제';

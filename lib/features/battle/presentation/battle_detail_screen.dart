@@ -535,6 +535,7 @@ class _BattleHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final lead = _speedLeadText(detail);
+    final deadline = _deadlineText(detail);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -546,6 +547,10 @@ class _BattleHeader extends StatelessWidget {
             BattleStatusChip(status: detail.battle.status),
           ],
         ),
+        if (deadline != null) ...[
+          const SizedBox(height: 8),
+          Text(deadline, style: textTheme.bodySmall),
+        ],
         if (lead != null) ...[
           const SizedBox(height: 8),
           Text(lead, style: textTheme.bodyMedium),
@@ -597,6 +602,12 @@ class _ResultBanner extends StatelessWidget {
         _ => AppStrings.battleLostBySpeed,
       };
       icon = Icons.sentiment_dissatisfied_outlined;
+      background = scheme.surfaceContainerHighest;
+      foreground = scheme.onSurfaceVariant;
+    } else if (detail.isDraw) {
+      headline = AppStrings.battleDrawMessage;
+      reason = null;
+      icon = Icons.timer_off_outlined;
       background = scheme.surfaceContainerHighest;
       foreground = scheme.onSurfaceVariant;
     } else if (detail.isSpeedDisputed) {
@@ -674,6 +685,18 @@ String _formatSubmittedAt(DateTime time) {
   final hour = local.hour.toString().padLeft(2, '0');
   final minute = local.minute.toString().padLeft(2, '0');
   return '${local.month}월 ${local.day}일 $hour:$minute';
+}
+
+// 진행 중인 대결에만 마감을 말한다. 끝난 대결에서는 결과가 이미 답이다.
+String? _deadlineText(BattleDetail detail) {
+  final deadline = detail.battle.deadlineAt;
+  if (deadline == null || !detail.isOngoing) return null;
+
+  final left = deadline.difference(DateTime.now());
+  if (left.isNegative) return AppStrings.battleDeadlinePassed;
+
+  return '${AppStrings.battleDeadlineLabel} ${_formatSubmittedAt(deadline)}'
+      ' · ${AppStrings.battleDeadlineLeft(_formatGap(left))}';
 }
 
 // 속도전에서 양쪽이 다 냈을 때만 격차를 말한다. 재제출로 순서가 뒤집혀도 이 줄이 바로 알려준다.

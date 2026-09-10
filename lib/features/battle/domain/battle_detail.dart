@@ -23,7 +23,9 @@ class BattleDetail {
   final String myName;
   final String opponentName;
 
-  bool get _isOngoing => battle.status == 'active' || battle.status == 'judging';
+  bool get isOngoing => battle.status == 'active' || battle.status == 'judging';
+
+  bool get _isOngoing => isOngoing;
 
   // 품질전은 사진 없이는 증거로 인정하지 않는다. 속도전은 사진 또는 텍스트 중 최소 하나.
   bool get requiresPhotoEvidence => battle.type == 'quality';
@@ -73,6 +75,9 @@ class BattleDetail {
   bool get isFinished => battle.status == 'finished';
 
   bool get isDisputed => battle.status == 'disputed';
+
+  // 마감까지 아무도 유효한 완료를 만들지 못한 경우. 서버가 정하고 여기서는 읽기만 한다.
+  bool get isDraw => battle.status == 'draw';
 
   bool get isQualityFinished => battle.type == 'quality' && isFinished;
 

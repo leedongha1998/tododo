@@ -47,13 +47,28 @@ class ProfileScreen extends ConsumerWidget {
               final qualityDisputed = records
                   .where((r) => r.battle.type == 'quality' && r.battle.status == 'disputed')
                   .length;
+              // 마감까지 아무도 끝내지 못한 대결. 승도 패도 아니라 따로 센다.
+              final speedDraws = records
+                  .where((r) => r.battle.type == 'speed' && r.battle.status == 'draw')
+                  .length;
+              final qualityDraws = records
+                  .where((r) => r.battle.type == 'quality' && r.battle.status == 'draw')
+                  .length;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${AppStrings.battleTypeSpeed} $speedWins${AppStrings.battleRecordWin} $speedLosses${AppStrings.battleRecordLose}'
-                    ' · ${AppStrings.battleTypeQuality} $qualityFinished${AppStrings.battleStatusFinished} $qualityDisputed${AppStrings.battleStatusDisputed}',
+                    '${AppStrings.battleTypeSpeed} $speedWins${AppStrings.battleRecordWin}'
+                    ' $speedLosses${AppStrings.battleRecordLose}'
+                    ' $speedDraws${AppStrings.battleRecordDraw}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${AppStrings.battleTypeQuality} $qualityFinished${AppStrings.battleStatusFinished}'
+                    ' $qualityDisputed${AppStrings.battleStatusDisputed}'
+                    ' $qualityDraws${AppStrings.battleRecordDraw}',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 16),

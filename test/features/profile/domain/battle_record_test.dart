@@ -52,6 +52,14 @@ void main() {
       expect(record.resultLabel, AppStrings.battleStatusDisputed);
     });
 
+    test('마감까지 아무도 끝내지 못한 대결은 유형과 상관없이 무승부다', () {
+      for (final type in ['speed', 'quality']) {
+        final battle = _buildBattle(type: type, status: 'draw');
+        final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');
+        expect(record.resultLabel, AppStrings.battleRecordDraw);
+      }
+    });
+
     test('otherPartyName과 battle은 그대로 보존된다', () {
       final battle = _buildBattle(type: 'speed', status: 'finished', winnerId: 'me');
       final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');

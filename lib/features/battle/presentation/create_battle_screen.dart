@@ -15,6 +15,8 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
   final _titleController = TextEditingController();
 
   String _type = 'speed';
+  // 기본 3일. 하루는 촉박하고 일주일은 늘어진다.
+  int _durationHours = 72;
   bool _isSubmitting = false;
 
   @override
@@ -29,7 +31,11 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
 
     setState(() => _isSubmitting = true);
     try {
-      await ref.read(battleRepositoryProvider).createBattle(type: _type, title: title);
+      await ref.read(battleRepositoryProvider).createBattle(
+            type: _type,
+            title: title,
+            durationHours: _durationHours,
+          );
       ref.invalidate(openRecruitsProvider);
       ref.invalidate(myRecruitsProvider);
       if (!mounted) return;
@@ -69,6 +75,23 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
             controller: _titleController,
             decoration: const InputDecoration(hintText: AppStrings.battleTitleHint),
             onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 24),
+          Text(AppStrings.battleDuration, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          SegmentedButton<int>(
+            segments: const [
+              ButtonSegment(value: 24, label: Text(AppStrings.battleDuration1Day)),
+              ButtonSegment(value: 72, label: Text(AppStrings.battleDuration3Days)),
+              ButtonSegment(value: 168, label: Text(AppStrings.battleDuration7Days)),
+            ],
+            selected: {_durationHours},
+            onSelectionChanged: (selection) => setState(() => _durationHours = selection.first),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            AppStrings.battleDurationNotice,
+            style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 24),
           FilledButton(

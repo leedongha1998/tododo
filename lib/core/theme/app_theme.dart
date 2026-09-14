@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../widgets/pixel_icon.dart';
 import 'pixel_border.dart';
+import 'pixel_icons.dart';
 import 'retro_palette.dart';
 import 'retro_text.dart';
 
@@ -76,6 +78,10 @@ class AppTheme {
       highlightColor: Colors.transparent,
       materialTapTargetSize: MaterialTapTargetSize.padded,
       visualDensity: VisualDensity.standard,
+      // Material이 안에서 그리는 아이콘도 픽셀로.
+      actionIconTheme: ActionIconThemeData(
+        backButtonIconBuilder: (context) => const PixelIcon(PixelIcons.back),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: RetroPalette.paper,
         foregroundColor: RetroPalette.ink,
@@ -261,6 +267,7 @@ class AppTheme {
         selectionHandleColor: RetroPalette.ink,
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
+        selectedIcon: const PixelIcon(PixelIcons.check),
         style: ButtonStyle(
           backgroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.disabled)) return RetroPalette.sunken;

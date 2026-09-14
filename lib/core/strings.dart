@@ -14,6 +14,7 @@ class AppStrings {
   static const save = '저장';
   static const cancel = '취소';
   static const retry = '다시 시도';
+  static const loading = '불러오는 중';
   static const delete = '삭제';
   static const emptyTodos = '아직 할 일이 없어요.\n오른쪽 아래 버튼으로 추가해보세요.';
   static const loadTodosFailed = '할 일을 불러오지 못했습니다.';

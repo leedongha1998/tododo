@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/theme/pixel_icons.dart';
+import '../../../core/widgets/pixel_icon.dart';
+import '../../../core/widgets/pixel_loader.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../profile/domain/profile_providers.dart';
 import '../domain/battle_providers.dart';
@@ -90,7 +93,7 @@ class BattleRecruitsScreen extends ConsumerWidget {
         onPressed: () => Navigator.of(context).push(
           MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
         ),
-        icon: const Icon(Icons.sports_kabaddi),
+        icon: const PixelIcon(PixelIcons.battle),
         label: const Text(AppStrings.battleCreate),
       ),
       body: ListView(
@@ -130,7 +133,7 @@ class BattleRecruitsScreen extends ConsumerWidget {
                   ),
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: PixelLoader.medium()),
             ),
             error: (error, stackTrace) {
               debugPrint('openRecruitsProvider error: $error');
@@ -167,7 +170,7 @@ class BattleRecruitsScreen extends ConsumerWidget {
                   ),
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: CircularProgressIndicator()),
+              child: Center(child: PixelLoader.medium()),
             ),
             error: (error, stackTrace) {
               debugPrint('myRecruitsProvider error: $error');

@@ -5,6 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/theme/pixel_icons.dart';
+import '../../../core/theme/retro_palette.dart';
+import '../../../core/widgets/evidence_photo_frame.dart';
+import '../../../core/widgets/pixel_frame.dart';
+import '../../../core/widgets/pixel_icon.dart';
+import '../../../core/widgets/pixel_loader.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
 import 'battle_chips.dart';
@@ -176,7 +182,7 @@ class BattleDetailScreen extends ConsumerWidget {
                     style: TextButton.styleFrom(
                       foregroundColor: Theme.of(context).colorScheme.error,
                     ),
-                    icon: const Icon(Icons.flag_outlined),
+                    icon: const PixelIcon(PixelIcons.flag),
                     label: const Text(AppStrings.battleForfeit),
                   ),
                 ),
@@ -184,7 +190,7 @@ class BattleDetailScreen extends ConsumerWidget {
             ],
           ),
         ),
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(child: PixelLoader.medium()),
         error: (error, stackTrace) {
           debugPrint('battleDetailProvider error: $error');
           return Center(child: Text(AppStrings.battleLoadDetailFailed));
@@ -248,12 +254,12 @@ class _EvidenceSectionState extends State<_EvidenceSection> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
+              leading: const PixelIcon(PixelIcons.camera),
               title: const Text(AppStrings.battleEvidencePhotoFromCamera),
               onTap: () => Navigator.of(context).pop(ImageSource.camera),
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
+              leading: const PixelIcon(PixelIcons.gallery),
               title: const Text(AppStrings.battleEvidencePhotoFromGallery),
               onTap: () => Navigator.of(context).pop(ImageSource.gallery),
             ),
@@ -329,15 +335,13 @@ class _EvidenceSectionState extends State<_EvidenceSection> {
         const SizedBox(height: 8),
       ],
       if (_photoBytes != null) ...[
-        ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.memory(_photoBytes!, height: 160, fit: BoxFit.cover),
-        ),
+        // 고른 사진도 제출될 원본 그대로 틀 안에 보여 준다(자르지 않음).
+        EvidencePhotoFrame.thumbnail(image: MemoryImage(_photoBytes!)),
         const SizedBox(height: 8),
       ],
       OutlinedButton.icon(
         onPressed: _submitting ? null : _pickPhoto,
-        icon: const Icon(Icons.photo_camera_outlined),
+        icon: const PixelIcon(PixelIcons.camera),
         label: Text(
           _photoBytes == null
               ? AppStrings.battleEvidencePhotoAdd
@@ -358,11 +362,7 @@ class _EvidenceSectionState extends State<_EvidenceSection> {
       FilledButton(
         onPressed: _canSubmitNow ? _submit : null,
         child: _submitting
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const PixelLoader.small()
             : const Text(AppStrings.battleEvidenceSubmit),
       ),
     ];
@@ -494,38 +494,20 @@ class _EvidencePhotoState extends ConsumerState<_EvidencePhoto> {
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           debugPrint('createEvidencePhotoUrl failed: ${snapshot.error}');
-          return _failed();
+          return EvidencePhotoFrame.thumbnail(failed: true, onRetry: _retry);
         }
         if (!snapshot.hasData) {
-          return const SizedBox(height: 160, child: Center(child: CircularProgressIndicator()));
+          return const EvidencePhotoFrame.thumbnail();
         }
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            snapshot.data!,
-            height: 160,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              debugPrint('evidence image load failed: $error');
-              return _failed();
-            },
-          ),
+        // 사진 로딩·디코딩 실패도 같은 틀 안에서 처리한다(원본 가공 없음, 잘림 없음).
+        return EvidencePhotoFrame.thumbnail(
+          image: NetworkImage(snapshot.data!),
+          onRetry: _retry,
         );
       },
     );
   }
 
-  Widget _failed() {
-    return Row(
-      children: [
-        const Icon(Icons.broken_image_outlined),
-        const SizedBox(width: 8),
-        Text(AppStrings.battleEvidencePhotoLoadFailed),
-        const SizedBox(width: 8),
-        TextButton(onPressed: _retry, child: const Text(AppStrings.retry)),
-      ],
-    );
-  }
 }
 
 /// 유형과 현재 상태, 그리고 속도전이면 누가 얼마나 앞섰는지를 한 줄로 보여준다.
@@ -572,21 +554,19 @@ class _ResultBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     final String headline;
     final String? reason;
-    final IconData icon;
-    final Color background;
-    final Color foreground;
+    final PixelIconData icon;
+    // null이면 떠 있는 프레임(승리 — 가장 강한 결과). 나머지는 성격별 안내 블록.
+    final PixelTone? tone;
 
     if (detail.isQualityFinished) {
       headline = AppStrings.battleQualityFinished;
       reason = null;
-      icon = Icons.check_circle_outline;
-      background = scheme.secondaryContainer;
-      foreground = scheme.onSecondaryContainer;
+      icon = PixelIcons.check;
+      tone = PixelTone.success;
     } else if (detail.didIWinSpeedBattle) {
       headline = AppStrings.battleYouWon;
       reason = switch (detail) {
@@ -594,9 +574,8 @@ class _ResultBanner extends StatelessWidget {
         _ when detail.wasOpponentEvidenceDisputed => AppStrings.battleWonByOpponentDisputed,
         _ => AppStrings.battleWonBySpeed,
       };
-      icon = Icons.emoji_events_outlined;
-      background = scheme.primaryContainer;
-      foreground = scheme.onPrimaryContainer;
+      icon = PixelIcons.trophy;
+      tone = null;
     } else if (detail.didILoseSpeedBattle) {
       headline = AppStrings.battleYouLost;
       reason = switch (detail) {
@@ -604,64 +583,69 @@ class _ResultBanner extends StatelessWidget {
         _ when detail.wasMyEvidenceDisputed => AppStrings.battleLostByDisputed,
         _ => AppStrings.battleLostBySpeed,
       };
-      icon = Icons.sentiment_dissatisfied_outlined;
-      background = scheme.surfaceContainerHighest;
-      foreground = scheme.onSurfaceVariant;
+      // 얼굴 아이콘 금지 규칙 때문에 표정 대신 아래로 꺾인 화살표.
+      icon = PixelIcons.lose;
+      tone = PixelTone.neutral;
     } else if (detail.isDraw) {
       headline = AppStrings.battleDrawMessage;
       reason = null;
-      icon = Icons.timer_off_outlined;
-      background = scheme.surfaceContainerHighest;
-      foreground = scheme.onSurfaceVariant;
+      icon = PixelIcons.hourglass;
+      // 무승부는 잘못된 일이 아니다. 위험색이 아니라 중립.
+      tone = PixelTone.neutral;
     } else if (detail.isSpeedDisputed) {
       headline = AppStrings.battleSpeedDisputedMessage;
       reason = null;
-      icon = Icons.report_problem_outlined;
-      background = scheme.errorContainer;
-      foreground = scheme.onErrorContainer;
+      icon = PixelIcons.warning;
+      tone = PixelTone.danger;
     } else if (detail.isDisputed) {
       // 품질전은 기권해도 승자를 두지 않는다. 다만 왜 미결인지는 말해준다.
       headline = detail.battle.forfeitedBy != null
           ? AppStrings.battleQualityForfeited
           : AppStrings.battleDisputedMessage;
       reason = null;
-      icon = Icons.report_problem_outlined;
-      background = scheme.errorContainer;
-      foreground = scheme.onErrorContainer;
+      icon = PixelIcons.warning;
+      tone = PixelTone.danger;
     } else {
       return const SizedBox.shrink();
     }
 
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: foreground),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  headline,
-                  style: textTheme.titleMedium
-                      ?.copyWith(color: foreground, fontWeight: FontWeight.bold),
-                ),
-                if (reason != null) ...[
-                  const SizedBox(height: 4),
-                  Text(reason, style: textTheme.bodyMedium?.copyWith(color: foreground)),
-                ],
-              ],
-            ),
-          ),
+    // 헤드라인은 문장이라 픽셀 글꼴이 아니라 본문 글꼴이다(결정 A).
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          headline,
+          style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        if (reason != null) ...[
+          const SizedBox(height: 4),
+          Text(reason, style: textTheme.bodyMedium),
         ],
+      ],
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: SizedBox(
+        width: double.infinity,
+        child: tone == null
+            ? PixelFrame.raised(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    PixelIcon(icon, color: RetroPalette.ink),
+                    const SizedBox(width: 12),
+                    Expanded(child: content),
+                  ],
+                ),
+              )
+            : PixelFrame.tone(
+                tone: tone,
+                icon: icon,
+                padding: const EdgeInsets.all(16),
+                child: content,
+              ),
       ),
     );
   }

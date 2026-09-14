@@ -146,7 +146,11 @@ class _PixelFrameState extends State<PixelFrame> {
                 ),
               ),
             ),
-          Padding(padding: widget.padding, child: content),
+          // 면을 장식으로 칠하므로 안에 든 ListTile·InkWell이 겹침 색을 그릴 Material을 따로 둔다.
+          Material(
+            type: MaterialType.transparency,
+            child: Padding(padding: widget.padding, child: content),
+          ),
         ],
       ),
     );

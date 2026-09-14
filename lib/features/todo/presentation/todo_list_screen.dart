@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/theme/pixel_icons.dart';
+import '../../../core/theme/retro_palette.dart';
+import '../../../core/widgets/pixel_frame.dart';
+import '../../../core/widgets/pixel_icon.dart';
+import '../../../core/widgets/status_message.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../data/todo.dart';
 import '../domain/todo_providers.dart';
@@ -73,15 +78,18 @@ class TodoListScreen extends ConsumerWidget {
       body: todosAsync.when(
         data: (todos) {
           if (todos.isEmpty) {
-            return Center(
-              child: Text(AppStrings.emptyTodos, textAlign: TextAlign.center),
+            return const StatusMessage.empty(
+              icon: PixelIcons.todo,
+              message: AppStrings.emptyTodos,
+              fill: true,
             );
           }
           return ListView.builder(
+            padding: const EdgeInsets.all(16),
             itemCount: todos.length,
             itemBuilder: (context, index) {
               final todo = todos[index];
-              return ListTile(
+              final tile = ListTile(
                 leading: Checkbox(
                   value: todo.isDone,
                   onChanged: (_) => _toggleDone(context, ref, todo),
@@ -89,28 +97,38 @@ class TodoListScreen extends ConsumerWidget {
                 title: Text(
                   todo.title,
                   style: todo.isDone
-                      ? const TextStyle(decoration: TextDecoration.lineThrough)
+                      ? const TextStyle(
+                          decoration: TextDecoration.lineThrough,
+                          color: RetroPalette.inkMuted,
+                        )
                       : null,
                 ),
                 onTap: () => _openEditDialog(context, ref, todo),
                 trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const PixelIcon(PixelIcons.delete),
                   tooltip: AppStrings.delete,
                   onPressed: () => _deleteTodo(context, ref, todo),
                 ),
               );
+              // 안 한 일은 떠 있고, 끝낸 일은 가라앉는다. 면색·높낮이·체크·취소선으로 한눈에 갈린다.
+              return Padding(
+                padding: EdgeInsets.only(bottom: index == todos.length - 1 ? 0 : 8),
+                child: todo.isDone
+                    ? PixelFrame.inset(padding: EdgeInsets.zero, child: tile)
+                    : PixelFrame.raised(padding: EdgeInsets.zero, child: tile),
+              );
             },
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const StatusMessage.loading(fill: true),
         error: (error, stackTrace) {
           debugPrint('todosProvider error: $error');
-          return Center(child: Text(AppStrings.loadTodosFailed));
+          return const StatusMessage.error(message: AppStrings.loadTodosFailed, fill: true);
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openAddDialog(context, ref),
-        child: const Icon(Icons.add),
+        child: const PixelIcon(PixelIcons.add),
       ),
     );
   }

@@ -67,6 +67,9 @@ class AppStrings {
   static const battleVersus = 'vs';
   static const battleMe = '나';
   static const battleOpponent = '상대';
+  static const vsIntroVersus = 'VS';
+  // 화면 읽기 사용자에게 인트로를 한 번에 읽어 준다.
+  static String vsIntroSemantics(String me, String opponent) => '$me 대 $opponent';
   static const battleYouWon = '승리했습니다!';
   static const battleYouLost = '아쉽지만 패배했어요.';
 

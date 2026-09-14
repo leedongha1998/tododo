@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/supabase/supabase_init.dart';
 import '../data/battle.dart';
 import '../data/battle_repository.dart';
+import '../data/vs_intro_seen_store.dart';
 import 'battle_detail.dart';
 import 'battle_recruit.dart';
 import 'battle_summary.dart';
@@ -54,3 +55,6 @@ final battleDetailProvider = FutureProvider.autoDispose.family<BattleDetail, Str
     opponentName: names[opponent.userId] ?? '알 수 없음',
   );
 });
+
+/// VS 인트로 "봤음" 기록. 위젯 테스트에서 가짜로 바꿀 수 있게 provider로 둔다.
+final vsIntroSeenStoreProvider = Provider<VsIntroSeenStore>((ref) => const VsIntroSeenStore());

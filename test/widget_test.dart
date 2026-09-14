@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/auth/presentation/login_screen.dart';
@@ -13,6 +14,7 @@ import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/profile.dart';
+import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/domain/battle_recruit.dart';
@@ -22,6 +24,7 @@ import 'package:todododo/core/navigation/main_shell.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/features/battle/presentation/my_battles_screen.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
+import 'package:todododo/features/battle/presentation/vs_intro.dart';
 import 'package:todododo/features/profile/domain/battle_record.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 import 'package:todododo/features/profile/presentation/profile_screen.dart';
@@ -96,6 +99,33 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   Future<void> deleteAccount() async {
     deleteAccountCount++;
+  }
+}
+
+/// 모든 대결의 VS 인트로를 이미 봤다고 답하는 저장소.
+class _SeenAllStore extends VsIntroSeenStore {
+  const _SeenAllStore();
+
+  @override
+  Future<bool> hasSeen(String userId, String battleId) async => true;
+
+  @override
+  Future<void> markSeen(String userId, String battleId) async {}
+}
+
+/// 기기 저장소 대신 메모리에 "봤음"을 기록한다.
+class _MemorySeenStore extends VsIntroSeenStore {
+  _MemorySeenStore();
+
+  final seen = <String>{};
+
+  @override
+  Future<bool> hasSeen(String userId, String battleId) async =>
+      seen.contains(VsIntroSeenStore.keyFor(userId, battleId));
+
+  @override
+  Future<void> markSeen(String userId, String battleId) async {
+    seen.add(VsIntroSeenStore.keyFor(userId, battleId));
   }
 }
 
@@ -323,7 +353,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [battleDetailProvider('b1').overrideWith((ref) async => detail)],
+        overrides: [
+          battleDetailProvider('b1').overrideWith((ref) async => detail),
+          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
+          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
+        ],
         child: const MaterialApp(home: BattleDetailScreen(battleId: 'b1')),
       ),
     );
@@ -355,7 +389,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [battleDetailProvider('bq').overrideWith((ref) async => detail)],
+        overrides: [
+          battleDetailProvider('bq').overrideWith((ref) async => detail),
+          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
+          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
+        ],
         child: const MaterialApp(home: BattleDetailScreen(battleId: 'bq')),
       ),
     );
@@ -393,7 +431,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [battleDetailProvider('bd').overrideWith((ref) async => detail)],
+        overrides: [
+          battleDetailProvider('bd').overrideWith((ref) async => detail),
+          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
+          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
+        ],
         child: const MaterialApp(home: BattleDetailScreen(battleId: 'bd')),
       ),
     );
@@ -436,7 +478,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [battleDetailProvider('b2').overrideWith((ref) async => detail)],
+        overrides: [
+          battleDetailProvider('b2').overrideWith((ref) async => detail),
+          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
+          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
+        ],
         child: const MaterialApp(home: BattleDetailScreen(battleId: 'b2')),
       ),
     );
@@ -482,7 +528,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [battleDetailProvider('b3').overrideWith((ref) async => detail)],
+        overrides: [
+          battleDetailProvider('b3').overrideWith((ref) async => detail),
+          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
+          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
+        ],
         child: const MaterialApp(home: BattleDetailScreen(battleId: 'b3')),
       ),
     );
@@ -645,5 +695,116 @@ void main() {
     expect(authRepository.deleteAccountCount, 1);
     expect(find.text(AppStrings.accountDeleteDone), findsOneWidget);
     await tester.pump(const Duration(seconds: 5)); // 스낵바 타이머 소진
+  });
+  testWidgets('매칭된 대결에 처음 들어가면 VS 인트로가 뜨고, 다시 들어가면 뜨지 않는다', (WidgetTester tester) async {
+    final store = _MemorySeenStore();
+    final battle = Battle(
+      id: 'bv',
+      type: 'speed',
+      status: 'active',
+      title: '아침 운동하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      createdAt: DateTime(2026, 8, 20),
+    );
+    final detail = BattleDetail(
+      battle: battle,
+      me: const BattleParticipant(battleId: 'bv', userId: 'me'),
+      opponent: const BattleParticipant(battleId: 'bv', userId: 'friend'),
+      myName: '나',
+      opponentName: '친구',
+    );
+    Widget screen() => ProviderScope(
+          overrides: [
+            battleDetailProvider('bv').overrideWith((ref) async => detail),
+            vsIntroSeenStoreProvider.overrideWithValue(store),
+          ],
+          child: MaterialApp(theme: AppTheme.light, home: const BattleDetailScreen(battleId: 'bv')),
+        );
+
+    await tester.pumpWidget(screen());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+
+    expect(find.byType(VsIntro), findsOneWidget);
+    // 인트로 route가 뜬 다음 프레임부터 연출 시간이 흐른다.
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(find.text(AppStrings.vsIntroVersus), findsOneWidget);
+    expect(store.seen, contains(VsIntroSeenStore.keyFor('me', 'bv')));
+
+    // 누르면 즉시 닫히고 이미 그려진 상세 화면이 보인다.
+    await tester.tap(find.byType(VsIntro));
+    await tester.pump();
+    expect(find.byType(VsIntro), findsNothing);
+    expect(find.text(AppStrings.battleEvidenceSubmit), findsOneWidget);
+
+    // 같은 대결에 다시 들어가면 뜨지 않는다.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(screen());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+    expect(find.byType(VsIntro), findsNothing);
+  });
+
+  testWidgets('애니메이션 줄이기면 VS 인트로 첫 프레임부터 이름·이니셜·VS가 보이고 누르면 닫힌다',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showVsIntro(context, myName: '홍길동', opponentName: '탈퇴한 사용자'),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pump();
+
+    expect(find.text(AppStrings.vsIntroVersus), findsOneWidget);
+    expect(find.text('홍길동'), findsOneWidget);
+    expect(find.text('탈퇴한 사용자'), findsOneWidget);
+    expect(find.text('홍'), findsOneWidget);
+    expect(find.text('탈'), findsOneWidget);
+
+    await tester.tap(find.byType(VsIntro));
+    await tester.pump();
+    expect(find.byType(VsIntro), findsNothing);
+  });
+
+  testWidgets('이름이 60자이고 글자 크기가 상한(1.3)이어도 VS 인트로가 넘치지 않고 1.5초 뒤 스스로 닫힌다',
+      (WidgetTester tester) async {
+    final longName = '가' * 60;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: child!,
+        ),
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showVsIntro(context, myName: longName, opponentName: '가'),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(tester.takeException(), isNull);
+    expect(find.text(longName), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    expect(find.byType(VsIntro), findsNothing);
   });
 }

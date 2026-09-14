@@ -8,6 +8,7 @@ import '../../../core/strings.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
 import 'battle_chips.dart';
+import 'vs_intro.dart';
 
 class BattleDetailScreen extends ConsumerWidget {
   const BattleDetailScreen({super.key, required this.battleId});
@@ -154,6 +155,8 @@ class BattleDetailScreen extends ConsumerWidget {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              // 화면에 보이지 않는 판단 전용 조각. 배치는 바뀌지 않는다.
+              _VsIntroOnFirstEntry(detail: detail),
               _BattleHeader(detail: detail),
               const SizedBox(height: 16),
               _ResultBanner(detail: detail),
@@ -677,6 +680,47 @@ class _SubmittedAt extends StatelessWidget {
       style: Theme.of(context).textTheme.bodySmall,
     );
   }
+}
+
+/// 매칭된 대결에 이번 진입에서 처음 데이터가 도착했을 때 한 번만 VS 인트로를 판단한다.
+/// 모집을 올린 사람의 모든 진입 경로(내 대결 카드 등)를 이 한 곳이 덮는다. 참가자는 참가 직후
+/// 이미 기록했으므로 여기서 다시 뜨지 않는다. 새로고침으로 다시 그려져도 상태가 남아 재판단하지 않는다.
+class _VsIntroOnFirstEntry extends ConsumerStatefulWidget {
+  const _VsIntroOnFirstEntry({required this.detail});
+
+  final BattleDetail detail;
+
+  @override
+  ConsumerState<_VsIntroOnFirstEntry> createState() => _VsIntroOnFirstEntryState();
+}
+
+class _VsIntroOnFirstEntryState extends ConsumerState<_VsIntroOnFirstEntry> {
+  bool _checked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 상세 화면이 먼저 그려진 뒤 띄워, 인트로가 닫히면 곧바로 상세가 보인다.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _check());
+  }
+
+  void _check() {
+    if (_checked || !mounted) return;
+    _checked = true;
+    final detail = widget.detail;
+    maybeShowVsIntro(
+      context,
+      store: ref.read(vsIntroSeenStoreProvider),
+      userId: detail.me.userId,
+      battleId: detail.battle.id,
+      status: detail.battle.status,
+      myName: detail.myName,
+      opponentName: detail.opponentName,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 // 서버가 준 UTC 시각을 기기 시간대로 바꿔 보여준다. 연도는 대결 주기상 군더더기라 뺀다.

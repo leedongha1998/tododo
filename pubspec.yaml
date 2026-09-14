@@ -37,6 +37,8 @@ dependencies:
   flutter_riverpod: ^3.4.2
   supabase_flutter: ^2.17.2
   image_picker: ^1.2.3
+  # supabase_flutter가 이미 쓰는 전이 의존성을 직접 명시 — VS 인트로 "봤음" 기록(기기 로컬).
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:

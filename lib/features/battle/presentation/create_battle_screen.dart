@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/widgets/pixel_loader.dart';
 import '../domain/battle_providers.dart';
 
 class CreateBattleScreen extends ConsumerStatefulWidget {
@@ -97,11 +98,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
           FilledButton(
             onPressed: canSubmit ? _submit : null,
             child: _isSubmitting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const PixelLoader.small()
                 : const Text(AppStrings.battleRecruitSubmit),
           ),
         ],

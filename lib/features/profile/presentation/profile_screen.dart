@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/theme/pixel_icons.dart';
+import '../../../core/widgets/pixel_frame.dart';
+import '../../../core/widgets/pixel_icon.dart';
+import '../../../core/widgets/pixel_loader.dart';
+import '../../../core/widgets/retro_button_styles.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../battle/presentation/battle_chips.dart';
 import '../../battle/presentation/battle_detail_screen.dart';
@@ -24,7 +29,7 @@ class ProfileScreen extends ConsumerWidget {
           profileAsync.when(
             data: (profile) =>
                 Text(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: PixelLoader.medium()),
             error: (error, stackTrace) {
               debugPrint('myProfileProvider error: $error');
               return Text(AppStrings.profileLoadFailed);
@@ -76,26 +81,43 @@ class ProfileScreen extends ConsumerWidget {
                 ],
               );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: PixelLoader.medium()),
             error: (error, stackTrace) {
               debugPrint('battleRecordsProvider error: $error');
               return Text(AppStrings.profileLoadRecordFailed);
             },
           ),
           const SizedBox(height: 32),
-          const Divider(),
-          // 탭바가 생기면서 앱바 아이콘이 사라졌다. 계정 관련 동작은 전부 여기로 모은다.
-          Text(AppStrings.accountSection, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => ref.read(authRepositoryProvider).signOut(),
-              icon: const Icon(Icons.logout),
-              label: const Text(AppStrings.logout),
+          // 탭바가 생기면서 앱바 아이콘이 사라졌다. 계정 관련 동작은 전부 이 창 하나에 모은다.
+          PixelFrame.flat(
+            title: AppStrings.accountSection,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => ref.read(authRepositoryProvider).signOut(),
+                  icon: const PixelIcon(PixelIcons.logout),
+                  label: const Text(AppStrings.logout),
+                ),
+                const SizedBox(height: 8),
+                // 번들한 갈무리 글꼴(OFL)의 고지를 사용자가 찾을 수 있는 자리.
+                TextButton.icon(
+                  style: TextButton.styleFrom(alignment: Alignment.centerLeft),
+                  onPressed: () => showLicensePage(
+                    context: context,
+                    applicationName: AppStrings.appName,
+                  ),
+                  icon: const PixelIcon(PixelIcons.document),
+                  label: const Text(AppStrings.openSourceLicenses),
+                ),
+                const SizedBox(height: 8),
+                const Divider(),
+                const SizedBox(height: 8),
+                // 위험 동작은 구분선 뒤 맨 아래에 따로 둔다.
+                const _DeleteAccountButton(),
+              ],
             ),
           ),
-          const _DeleteAccountButton(),
         ],
       ),
     );
@@ -125,9 +147,7 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
             child: const Text(AppStrings.cancel),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
+            style: RetroButtonStyles.danger,
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text(AppStrings.accountDeleteConfirm),
           ),
@@ -155,20 +175,12 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: TextButton.icon(
-        onPressed: _isDeleting ? null : _confirmAndDelete,
-        style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-        icon: _isDeleting
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.person_remove_outlined),
-        label: const Text(AppStrings.accountDelete),
-      ),
+    return FilledButton.icon(
+      style: RetroButtonStyles.danger,
+      // 진행 중에는 누를 수 없는 모양 + 라벨 자리 로더(버튼 크기 유지).
+      onPressed: _isDeleting ? null : _confirmAndDelete,
+      icon: const PixelIcon(PixelIcons.accountDelete),
+      label: _isDeleting ? const PixelLoader.small() : const Text(AppStrings.accountDelete),
     );
   }
 }
@@ -196,10 +208,7 @@ class _BattleRecordTile extends StatelessWidget {
           ),
         ],
       ),
-      trailing: Text(
-        record.resultLabel,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-      ),
+      trailing: ResultLabel.small(label: record.resultLabel),
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => BattleDetailScreen(battleId: record.battle.id)),
       ),

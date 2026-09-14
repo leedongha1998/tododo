@@ -131,6 +131,7 @@ class AppStrings {
   static const battleRecordDraw = '무';
 
   static const accountSection = '계정';
+  static const openSourceLicenses = '오픈소스 라이선스';
   static const accountDelete = '계정 삭제';
   static const accountDeleteConfirmTitle = '정말 계정을 삭제할까요?';
   static const accountDeleteConfirmMessage = '할 일, 증거 사진, 표시 이름이 모두 삭제되고 되돌릴 수 없어요.\n'

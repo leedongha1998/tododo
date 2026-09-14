@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/strings.dart';
+import '../../../core/widgets/pixel_loader.dart';
 import '../domain/battle_providers.dart';
 import 'battle_summary_list.dart';
 
@@ -33,7 +34,7 @@ class MyBattlesScreen extends ConsumerWidget {
                   ),
                 )
               : BattleSummaryList(summaries: summaries),
-          loading: () => const Center(child: CircularProgressIndicator()),
+          loading: () => const Center(child: PixelLoader.medium()),
           error: (error, stackTrace) {
             debugPrint('myBattlesProvider error: $error');
             return _ScrollableMessage(

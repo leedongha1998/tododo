@@ -53,7 +53,8 @@ class _BattleCard extends StatelessWidget {
                   children: [
                     Text(
                       battle.title,
-                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                      // 대결 제목은 목록 본문이라 픽셀 글꼴이 아니라 본문 글꼴이다.
+                      style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
                     Row(

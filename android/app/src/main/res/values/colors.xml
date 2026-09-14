@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- tool/generate_launcher_icons.dart가 생성한다. 직접 고치지 말 것 —
+     색은 lib/core/theme/retro_palette.dart에서 온다. -->
+<resources>
+    <!-- 적응형 아이콘 배경 = 앱 주 강조색 -->
+    <color name="ic_launcher_background">#FF2F48B8</color>
+    <!-- 시작 창 배경 = 앱 화면 배경. 다크 모드 기기에서도 같다. -->
+    <color name="launch_background">#FFF3EAD3</color>
+</resources>

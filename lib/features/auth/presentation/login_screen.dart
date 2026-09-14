@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/theme/app_mark.dart';
 import '../../../core/theme/pixel_border.dart';
 import '../../../core/theme/pixel_icons.dart';
 import '../../../core/theme/retro_palette.dart';
@@ -71,23 +72,48 @@ class LoginScreen extends ConsumerWidget {
   }
 }
 
-/// 런처 아이콘과 이어지는 마크. 런처 비트맵이 생기기 전까지는 할 일 픽셀 아이콘을 쓴다.
+/// 런처 아이콘과 같은 16×16 마크를 셀 6dp(= 96dp)로, 주 강조색 계단 사각 위에 그린다.
+/// 아이콘을 누르고 앱이 열렸을 때 색과 모양이 이어진다.
 class _AppMark extends StatelessWidget {
   const _AppMark();
 
+  static const _cell = 6.0;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 96,
-      height: 96,
-      alignment: Alignment.center,
-      decoration: const ShapeDecoration(
-        color: RetroPalette.primary,
-        shape: PixelBorder(side: BorderSide(color: RetroPalette.primary, width: 6)),
+    return ExcludeSemantics(
+      child: Container(
+        width: _cell * AppMark.size,
+        height: _cell * AppMark.size,
+        decoration: const ShapeDecoration(
+          color: RetroPalette.primary,
+          shape: PixelBorder(side: BorderSide(color: RetroPalette.primary, width: _cell)),
+        ),
+        child: const CustomPaint(painter: _AppMarkPainter()),
       ),
-      child: const PixelIcon(PixelIcons.todo, size: 72, color: RetroPalette.surface),
     );
   }
+}
+
+class _AppMarkPainter extends CustomPainter {
+  const _AppMarkPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cell = size.width / AppMark.size;
+    final paint = Paint()..isAntiAlias = false;
+    for (var y = 0; y < AppMark.size; y++) {
+      for (var x = 0; x < AppMark.size; x++) {
+        final color = AppMark.colorOf(AppMark.rows[y][x]);
+        if (color == null) continue;
+        paint.color = color;
+        canvas.drawRect(Rect.fromLTWH(x * cell, y * cell, cell, cell), paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_AppMarkPainter oldDelegate) => false;
 }
 
 /// 타이틀 화면의 ▶ 커서. 500ms 켜짐/꺼짐, 애니메이션 줄이기면 켜진 채 멈춘다.

@@ -105,7 +105,8 @@ flutter build appbundle --release --dart-define-from-file=env.json
       런처 아이콘(mipmap 전 해상도 + API 26+ 적응형 + 안드로이드 13 테마 아이콘)도 같이 만들어져 있다.
       그림은 `tool/generate_launcher_icons.dart`에 코드로 있고, 색이나 모양을 바꾸면
       `flutter test tool/generate_launcher_icons.dart`로 전부 다시 뽑는다
-      (적응형 배경색은 `res/drawable/ic_launcher_background.xml`에도 같은 값이 있으니 함께 고칠 것)
+      (색은 앱 팔레트 `lib/core/theme/retro_palette.dart`에서 가져오며, 적응형 배경·시작 창 색을 담은
+      `res/values/colors.xml`도 같은 명령이 다시 쓴다)
 - [ ] **그래픽 이미지(feature graphic)** 1024×500 PNG
 - [x] ~~**스크린샷**~~ — `store/screenshots/` 4장 (1080×1920). 실제 앱을 profile 빌드로 에뮬레이터에
       올려 찍었고, 샘플 데이터는 찍은 뒤 원격 DB에서 전부 정리했다. 재촬영 절차는 `store/listing-ko.md`

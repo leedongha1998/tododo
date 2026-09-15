@@ -118,7 +118,7 @@
 
 ### 파일
 - `supabase/config.toml`(신규, `[functions.judge-quality] verify_jwt = false`는 6단계에 추가 — 3단계는 파일만), `supabase/functions/_shared/{gemini,schemas,prompts,auth,errors}.ts`, `supabase/functions/battle-criteria/index.ts`, `supabase/functions/_shared/*_test.ts`.
-- 마이그레이션 `..._criteria_checks.sql`: `battles`에 `min_criteria jsonb`·`superiority_criteria jsonb`(+유형 제약)·`criteria_version`, 모집 1개 부분 유니크 인덱스, insert 정책 drop(2단계에서 이름이 `"consented creator can create a pending battle"`로 바뀌었다 — 그 이름으로 drop한다), `criteria_checks`·`ai_criteria_calls`(+RLS), `begin/finish/fail_criteria_call`(service), `create_battle(uuid,int)`, `update_battle_criteria(uuid,uuid)`, `get_my_limits()`, `delete_account`에 기준 원장 삭제, 2분 넘은 `in_progress` 정리 함수.
+- 마이그레이션 `supabase/migrations/20260916130000_ai_criteria.sql`: `battles`에 `min_criteria jsonb`·`superiority_criteria jsonb`(+유형 제약)·`criteria_version`, 모집 1개 부분 유니크 인덱스, insert 정책 drop(2단계에서 이름이 `"consented creator can create a pending battle"`로 바뀌었다 — 그 이름으로 drop한다), `criteria_checks`·`ai_criteria_calls`(+RLS), `begin/finish/fail_criteria_call`(service), `create_battle(uuid,int)`, `update_battle_criteria(uuid,uuid)`, `get_my_limits()`, `delete_account`에 기준 원장 삭제, 2분 넘은 `in_progress` 정리 함수.
   - `min_criteria not null`은 기존 행이 없고(1단계 정리) 앱이 같은 커밋에서 `create_battle` RPC로 바뀌므로 이 단계에서 not null로 둔다. 원격 적용과 앱 배포 사이에 옛 앱이 대결을 만들면 실패한다(배포 전이라 허용).
 - SQL 테스트 `supabase/tests/criteria_smoke.sql`: 10회 산입(성공+2분 내 진행 중), 실패 미산입, 11번째 `CRITERIA_CALL_LIMIT`, `PENDING_EXISTS`, 차단/사용됨/만료/타인 check `CHECK_INVALID`, 유형별 우열 기준 제약, `update_battle_criteria` version+1·`NOT_PENDING`.
 - Dart: `BattleCriteriaRepository`, `CriteriaCheckResult`, `Battle` 기준 필드, `BattleRepository.createBattle(checkId, duration)`, `create_battle_screen.dart` 2단계 교체, 기준 편집 위젯(내 모집 수정에서 재사용), `strings.dart`.
@@ -233,6 +233,24 @@
   - `battle_outcome_rules.sql`에 설계 18케이스 외 `outcome_score_delta` 5케이스를 더해 23행.
   - 제거한 UI 전용 문자열(승인/이의제기·텍스트 증거·갤러리·제출 격차 등)을 7단계까지 미루지 않고 1단계에서 삭제. 참조가 모두 사라져 남기면 옛 규칙 문구가 되살아날 여지만 생긴다. 공용 칩이 쓰는 `battleStatusFinished`/`battleStatusDisputed`는 유지.
   - `battle_chips.dart`에 `voided` 상태 라벨과 `무효` 결과 라벨 매핑을 추가(기존 매핑 불변).
+
+### 3단계 (로컬 구현 완료, 원격 미적용·미배포·미커밋, 2026-09-16)
+- 순서 변경 없음.
+- 로컬 검증: `flutter analyze` 이슈 0, `flutter test` 218개 통과(2단계 201 + 기준 규칙 유닛 10 + 대결 만들기 위젯 7).
+- `deno test supabase/functions/_shared/` **11개 통과**(`schemas_test.ts` 6개, `prompts_test.ts` 5개). Gemini를 부르지 않는 순수 함수 테스트다.
+  - 실행 시점에 오너가 이미 Deno 2.9.6을 `C:\workspaces\devtools\deno\deno.exe`에 설치하고 CLAUDE.md 개발 명령어에 `deno test`를 적어 둔 상태였다(아직 커밋되지 않은 변경). 설치는 내가 하지 않았다.
+  - PATH 등록이 실행 중인 셸에 반영되지 않아 절대 경로로 불렀다. 새 셸에서는 `deno test supabase/functions/_shared/`로 된다.
+- 원격 읽기 확인: `battles` 0행 → `min_criteria`를 not null로 추가해도 안전하고, 이 마이그레이션은 기존 행을 바꾸지 않는다.
+- Gemini는 한 번도 부르지 않았다(키가 Edge 환경에만 있고 배포 후 오너 승인 아래 호출한다).
+- 설계와 달라진 점
+  - `finish_criteria_call`·`fail_criteria_call`이 설계의 `uuid`/void 대신 **jsonb**를 돌려준다(`check_id`, `calls_left`). 남은 횟수를 알려고 Edge가 RPC를 한 번 더 부르지 않게 하려는 것이다(`get_my_limits`는 `auth.uid()` 기반이라 service 롤에서는 쓸 수 없다).
+  - `finish_criteria_call`에 `p_ai_model` 인자를 더해 `criteria_checks.ai_model`에 `모델명/프롬프트버전`을 남긴다(design "프롬프트 설계 원칙" 7의 사후 추적을 기준 생성에도 적용).
+  - 기준 목록 모양(1~5개, 각 1~100자)을 `is_criteria_list(jsonb)` immutable 함수로 만들어 `battles`와 `criteria_checks` 체크 제약에서 함께 쓴다(설계는 모양 검사 방법을 정하지 않았다).
+  - **2분 넘은 `in_progress` 정리 함수는 만들지 않았다.** 한도 계산(`criteria_calls_used`)이 2분이 지난 `in_progress`를 세지 않으므로 한도에는 영향이 없다. 행을 `failed`로 바꾸는 청소는 설계대로 5단계 `sweep_stale_submissions`에 함께 넣는다.
+  - `begin_criteria_call`의 사전 검사는 설계 표 그대로다(generate → `PENDING_EXISTS`·`MY_DAILY_LIMIT`, check+battle_id → `NOT_PENDING`). 생성 흐름 중의 재검사(battle_id 없음)는 동의와 10회 한도만 본다 — 최종 판단은 `create_battle`이 다시 한다.
+  - `create_battle`은 생성용 증서만 받는다(`battle_id is not null`인 수정용 증서는 `CHECK_INVALID`). 반대로 `update_battle_criteria`는 그 대결 id가 박힌 증서만 받는다.
+  - 개인정보처리방침 링크는 2단계 그대로 비워 두었다(건드리지 않음).
+- 화면: 대결 만들기를 입력 → 생성 중 → 결과(읽기/수정/차단/AI 실패) 3단계로 바꿨고, 내 모집 카드에 "기준 수정"을 더했다. 모집 목록 카드의 기준 미리보기와 생성자 전적은 설계대로 4단계 몫이다.
 
 ### 2단계 (로컬 구현 완료, 원격 미적용·미커밋, 2026-09-16)
 - 순서 변경 없음.

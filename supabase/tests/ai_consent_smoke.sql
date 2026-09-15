@@ -12,7 +12,7 @@
 --   join_no_consent    동의 없는 참가는 CONSENT_REQUIRED로 막힌다
 --   join_after_consent 동의하면 참가가 성립한다(active)
 --   insert_no_consent  동의 없는 사용자의 대결 생성은 RLS 정책이 막는다(42501)
---   insert_consented   동의한 사용자는 만들 수 있다
+--   insert_consented   동의해도 테이블 직접 생성은 막힌다(3단계부터 create_battle RPC로만)
 --   anon_denied        anon 롤은 give_ai_consent 실행 권한이 없다
 --   impact             철회 전 영향 조회 = 진행 중 2, 모집 중 1
 --   withdraw           진행 중 2개는 포기(-3, 상대 승), 모집 중 1개는 취소
@@ -59,11 +59,11 @@ begin
 
   update public.player_stats set score = 10 where user_id in (v_a, v_b);
 
-  -- B가 올린 모집 두 개(직접 insert라 정책을 거치지 않는다 — 정책은 아래에서 따로 본다).
-  insert into public.battles (type, status, title, creator_id, duration_hours)
-  values ('speed', 'pending', '모집 1', v_b, 72) returning id into v_p1;
-  insert into public.battles (type, status, title, creator_id, duration_hours)
-  values ('speed', 'pending', '모집 2', v_b, 72) returning id into v_p2;
+  -- B와 C가 모집을 하나씩 올린다(3단계부터 모집은 1인당 1개라 한 사람이 둘을 올릴 수 없다).
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '모집 1', v_b, 72) returning id into v_p1;
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '모집 2', v_c, 72) returning id into v_p2;
 
   -- 1. 동의하지 않은 C의 참가는 막힌다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_c, 'role', 'authenticated')::text, true);
@@ -78,13 +78,14 @@ begin
   perform public.give_ai_consent('2026-09-14');
   perform public.join_battle(v_p1);
 
-  -- 3. 대결 생성 정책: 동의하지 않은 D는 막히고, 동의하면 만들 수 있다.
+  -- 3. 대결 생성: 3단계에서 정책이 사라지고 create_battle RPC로만 만들 수 있다.
+  --    동의 여부와 관계없이 테이블 직접 insert는 막혀야 한다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_d, 'role', 'authenticated')::text, true);
   begin
     -- 이 블록에서 예외가 나면 set local role도 함께 되돌아간다.
     execute 'set local role authenticated';
-    insert into public.battles (type, status, title, creator_id, duration_hours)
-    values ('speed', 'pending', '동의 없이 생성', v_d, 72);
+    insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
+    values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '동의 없이 생성', v_d, 72);
     execute 'reset role';
   exception when insufficient_privilege then
     v_insert_no_consent := 'RLS 차단';
@@ -93,13 +94,15 @@ begin
   perform public.give_ai_consent('2026-09-14');
   begin
     execute 'set local role authenticated';
-    insert into public.battles (type, status, title, creator_id, duration_hours)
-    values ('speed', 'pending', '동의 후 생성', v_d, 72);
+    insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
+    values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '동의 후 생성', v_d, 72);
     execute 'reset role';
-    v_insert_consented := '성공';
-  exception when others then
+    v_insert_consented := '성공(정책이 남아 있음)';
+  exception when insufficient_privilege then
+    v_insert_consented := 'RLS 차단';
+  when others then
     execute 'reset role';
-    v_insert_consented := '실패: ' || sqlerrm;
+    v_insert_consented := '다른 오류: ' || sqlerrm;
   end;
 
   -- 4. anon 롤에는 실행 권한이 없다.
@@ -118,18 +121,18 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
   perform public.give_ai_consent('2026-09-14');
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('speed', 'active', '진행 중 속도전', v_a, v_b, 72, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '진행 중 속도전', v_a, v_b, 72, now(), now() + interval '3 days')
   returning id into v_w1;
   insert into public.battle_participants (battle_id, user_id) values (v_w1, v_b);
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('quality', 'judging', '판정 중 품질전', v_b, v_a, 72, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'judging', '판정 중 품질전', v_b, v_a, 72, now(), now() + interval '3 days')
   returning id into v_w2;
   insert into public.battle_participants (battle_id, user_id) values (v_w2, v_a);
 
-  insert into public.battles (type, status, title, creator_id, duration_hours)
-  values ('speed', 'pending', '내 모집', v_a, 72) returning id into v_w3;
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '내 모집', v_a, 72) returning id into v_w3;
 
   -- 오늘 매칭된 대결의 한도. 포기로 끝나면 돌려받지 못해야 한다.
   insert into public.daily_battle_slots (user_id, kst_date, battle_id) values (v_a, v_today, v_w1);
@@ -190,7 +193,7 @@ begin
     'join_no_consent', 'CONSENT_REQUIRED',
     'join_after_consent', 'active',
     'insert_no_consent', 'RLS 차단',
-    'insert_consented', '성공',
+    'insert_consented', 'RLS 차단',
     'anon_denied', '권한 없음',
     'impact', jsonb_build_object('active_count', 2, 'pending_count', 1),
     'withdraw', jsonb_build_object('forfeited', 2, 'cancelled', 1),

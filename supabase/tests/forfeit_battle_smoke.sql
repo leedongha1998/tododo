@@ -40,16 +40,16 @@ begin
   -- A는 0점(하한 확인), B는 4점.
   update public.player_stats set score = 4 where user_id = v_b;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('speed', 'active', '속도전 포기', v_a, v_b, 72, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '속도전 포기', v_a, v_b, 72, now(), now() + interval '3 days')
   returning id into v_f_speed;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('quality', 'judging', '품질전 포기', v_a, v_b, 72, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'judging', '품질전 포기', v_a, v_b, 72, now(), now() + interval '3 days')
   returning id into v_f_quality;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('speed', 'active', '남의 대결', v_a, v_b, 72, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '남의 대결', v_a, v_b, 72, now(), now() + interval '3 days')
   returning id into v_f_other;
 
   insert into public.battle_participants (battle_id, user_id)

@@ -46,36 +46,36 @@ begin
   -- 하한에 걸리지 않게 10점에서 시작한다(하한은 forfeit_battle_smoke.sql에서 본다).
   update public.player_stats set score = 10 where user_id in (v_a, v_b);
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('speed', 'active', 'A만 통과', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', 'A만 통과', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
   returning id into v_s_one;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('speed', 'active', '아무도 안 냄', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '아무도 안 냄', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
   returning id into v_s_none;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('speed', 'active', 'AI 실패만', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', 'AI 실패만', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
   returning id into v_s_errors;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('speed', 'active', '판정 중 대기', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '판정 중 대기', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
   returning id into v_s_wait;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('quality', 'active', '품질전 A만', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'active', '품질전 A만', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
   returning id into v_q_one;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('quality', 'active', '품질전 없음', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'active', '품질전 없음', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
   returning id into v_q_none;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('quality', 'judging', '품질전 판정 중', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'judging', '품질전 판정 중', v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
   returning id into v_q_judging;
 
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('speed', 'active', '마감 전', v_a, v_b, 24, now(), now() + interval '1 day')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '마감 전', v_a, v_b, 24, now(), now() + interval '1 day')
   returning id into v_fresh;
 
   -- creator 참가자 행은 트리거가 만든다. opponent 행만 직접 넣는다.

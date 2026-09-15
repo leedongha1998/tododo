@@ -31,6 +31,7 @@ flutter analyze
 flutter test
 flutter build appbundle --release --dart-define-from-file=env.json  # env.json 없으면 죽은 앱이 나온다
 flutter test tool/generate_launcher_icons.dart  # 런처/스토어 아이콘 다시 생성
+deno test supabase/functions/_shared/   # Edge Function 순수 함수 테스트
 supabase start            # 로컬 DB
 supabase db reset         # 마이그레이션 재적용
 ```
@@ -51,6 +52,8 @@ supabase db reset         # 마이그레이션 재적용
 - 로컬에 Docker가 없어 `supabase start`(로컬 DB)는 아직 실행 불가. 클라우드 프로젝트를
   만들고 `supabase link`로 연결하는 방식을 쓰거나, Docker Desktop을 설치해야 함(설치는
   Windows 가상화 기능 활성화가 필요해 사용자가 직접 진행).
+- Deno 2.9.6은 `C:\workspaces\devtools\deno\deno.exe`에 설치됨(공식 GitHub 릴리스 zip), PATH 등록됨.
+  Edge Function의 순수 함수 테스트(`deno test`)에 쓴다. 한글 경로를 피해 devtools 아래에 둔다.
 - Supabase CLI(v2.115.0)는 `C:\workspaces\devtools\supabase-cli\supabase.exe`에 설치됨, PATH 등록됨.
   `supabase login`은 브라우저 인증이 필요해 계정 소유자(사용자)가 직접 실행해야 함.
 - Android 에뮬레이터(AVD) `todododo_avd`(Pixel 6, API 36, google_apis x86_64) 생성됨.

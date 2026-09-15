@@ -1,0 +1,242 @@
+# ai-judge 구현 계획
+
+입력: `spec.md`, `design.md`(승인), `decisions.md` 1~72. 순서는 design.md "구현 단계 분할" 7단계를 따른다.
+화면 규칙은 `docs/specs/retro-theme/design.md` 3장(구성 요소·ai-judge 대조표)을 그대로 쓴다. 같은 역할의 요소를 새로 모양 짓지 않는다.
+
+## 공통 규칙
+- 각 커밋 전: `flutter analyze` 이슈 0 + `flutter test` 전부 통과.
+- **원격 DB 적용은 단계마다 오너 확인 후**(결정 72). 에이전트는 `supabase db push`, `supabase migration up`, 쓰기가 섞인 `supabase db query --linked`, `supabase storage rm`, `supabase functions deploy`, `supabase secrets set`을 실행하지 않는다. 읽기 전용(`supabase migration list --linked`, 파일 읽기)만 한다.
+- 단계 순서: 로컬 구현 → analyze/test → **오너 승인 → 오너가 원격 적용 → 오너가 SQL 테스트 실행 → 통과하면 커밋.** SQL 테스트가 실패하면 고치는 마이그레이션을 새 파일로 추가한다(적용된 파일은 수정하지 않는다).
+- SQL 테스트는 로컬 Docker가 없어 원격에서만 돈다. 쓰기가 있는 스모크는 마지막에 `raise exception`으로 전체 롤백하고 결과를 예외 메시지로 돌려준다. 규칙 테스트(`battle_outcome_rules.sql`)는 SELECT만 한다.
+- 커밋: `<type>: <한국어 설명>` + 이유 본문 + `Co-Authored-By` 줄. 새 화면 하나 = 커밋 하나. push 없음.
+- 시크릿 값은 파일·로그·커밋·보고에 쓰지 않는다. `GEMINI_API_KEY`는 이미 Supabase 시크릿으로 등록돼 있다.
+- `docs/specs/retro-theme/`와 `lib/core/widgets/`·`lib/core/theme/` 공용 위젯의 기존 동작은 바꾸지 않는다. 필요한 변형은 추가만 하고 진행 기록에 적는다.
+
+## 착수 전 확인 (2026-09-15)
+- `supabase migration list --linked`: 로컬 12개 = 원격 12개(마지막 `20260910140000_battle_deadline`). 미적용 없음.
+- 기준선: retro-theme 최종 상태(analyze 0, test 194).
+- 작업 트리: `.claude/agent-memory/`만 미추적.
+
+## CLAUDE.md·dev-standards와의 관계 (충돌 점검 결과)
+- **오너가 이미 해소한 충돌**: CLAUDE.md "도메인 규칙"의 상호 승인·텍스트 증거·재제출·품질전 무승자·"마감은 판정을 대신한다"·품질전 포기 `disputed`, "범위 밖"의 AI 심판·푸시 알림은 spec.md "폐기되는 기존 결정" 표(오너 승인)가 대체한다. CLAUDE.md 문구 갱신은 7단계. 1~6단계 동안 CLAUDE.md 해당 문구와 코드가 어긋나는 것은 의도된 과도기다.
+- **service 전용 함수의 `auth.uid()` 가드 예외**: design.md가 기존 `settle_expired_battles` 선례로 명시했다(오너 승인). 1단계에서는 이 예외를 더 넓히지 않기 위해 내부 전용 함수(`finalize_battle`, `void_battle`, `resolve_battle`)를 **SECURITY INVOKER**로 만들고 EXECUTE를 `public, anon, authenticated`에서 회수했다. SECURITY DEFINER 함수(`forfeit_battle`, `delete_account`) 안에서만 호출되므로 소유자 권한으로 실행된다. 새 SECURITY DEFINER 함수 중 가드가 없는 것은 1단계에 없다(`settle_expired_battles`는 기존 함수 재작성). Edge Function이 service_role로 직접 불러야 하는 함수는 5·6단계에서 설계대로 DEFINER + service_role grant로 만든다.
+- "테스트 없이 판정 로직 수정 금지": 판정 규칙은 SQL 테스트로 덮는다(design.md "판정 로직의 위치와 테스트 대상"). 원격 적용 후 SQL 테스트가 통과해야 커밋하므로 테스트 없는 판정 로직이 커밋되지 않는다.
+
+---
+
+## 1단계 — 스키마·상태 전이·점수 기반 (AI 없음)
+
+### 마이그레이션 (적용 순서대로)
+1. `supabase/migrations/20260915120000_ai_judge_reset.sql` — `delete from public.battles`(cascade로 `battle_participants` 전부). 되돌릴 수 없음.
+2. `supabase/migrations/20260915120100_ai_judge_schema.sql`
+   - `battles.status` 체크에 `voided` 추가, `battles_finished_has_winner` 체크(finished면 winner_id not null).
+   - `battle_participants`: `evidence_type`, `evidence_content`, `evidence_submitted_at`, `decision`, `decision_at` drop / `first_submitted_at`, `attempts_used`, `last_verdict`, `passed_at`, `outcome`, `score_delta_applied` add + 주석.
+   - 신규 `battle_submissions`(+부분 유니크 3개, RLS select 1개), `player_stats`(RLS select 본인), `daily_battle_slots`(RLS select 본인).
+   - `handle_new_user` 교체(`player_stats` 행 생성) + 기존 사용자 백필.
+   - `submit_evidence(uuid,text,text)`, `decide_evidence(uuid,uuid,text)` drop.
+3. `supabase/migrations/20260915120200_ai_judge_outcome_rules.sql` — 순수 함수 `speed_outcome`, `quality_outcome`, `quality_deadline_outcome`, `outcome_score_delta`(immutable, EXECUTE 회수).
+4. `supabase/migrations/20260915120300_ai_judge_transitions.sql` — `finalize_battle`, `void_battle`, `resolve_battle`(invoker, EXECUTE 회수) / `forfeit_battle`, `settle_expired_battles`, `delete_account` 재작성.
+
+1단계에 넣지 않는 것(설계 단계 배정 그대로): `min_criteria`·`superiority_criteria`·`criteria_version`(3단계 — 지금 not null로 넣으면 현재 앱의 대결 생성이 깨진다), `verdict_reason`(6단계), battles insert 정책 drop·모집 1개 인덱스(3단계), `join_battle(uuid,int)`·슬롯 insert(4단계), Storage 정책 교체(5단계), cron `ai-judge-tick`(5단계).
+
+### SQL 테스트 (`supabase/tests/`)
+- 신규 `battle_outcome_rules.sql` — design.md 필수 규칙 18케이스 + `outcome_score_delta` 5케이스. SELECT만.
+- 재작성 `settle_expired_battles_smoke.sql` — 속도전 한쪽 통과·아무도 없음·error만·판정 중 대기, 품질전 한쪽 제출·제출 없음·judging 대기, 마감 전 미변경, outcome·점수·전적 카운터, disputed 0.
+- 신규 `resolve_battle_smoke.sql` — 마감 전 즉시 종결 R1(시각)·R1(동률 seq)·R2·R3, 계속(통과+실패3), 역전 대기(판정 중 제출), 종결 대결 재호출 시 점수 이중 반영 없음, `void_battle`의 오늘 슬롯만 삭제·점수 불변, 종결 대결 무효화 거부.
+- 신규 `forfeit_battle_smoke.sql` — 속도전·품질전 모두 finished + 상대 승 + `forfeited_by`, 점수 하한(0점 -3 → 0, applied 0), 카운터, 비참가자·종결 대결 거부.
+- 재작성 `delete_account_smoke.sql` — active 대결 cancelled, 남은 상대 점수 불변, 오늘 매칭 슬롯만 반환(어제 매칭 유지), 내 제출 `object_path` null·사유 유지, 내 `player_stats`·슬롯 삭제, 묘비화.
+
+### Dart
+- `lib/features/battle/data/battle_participant.dart`: 증거·decision 필드 제거, 요약·outcome 필드 추가.
+- `lib/features/battle/data/battle_repository.dart`: `submitEvidence`·`decideEvidence`·`uploadEvidencePhoto` 제거(업로드는 5단계에서 새 경로 규칙으로 다시 추가). `createEvidencePhotoUrl` 유지.
+- `lib/features/battle/domain/battle_detail.dart`: 새 상태 기준 getter로 재작성(진행 중, 포기, 승/패/무/무효, 완료한 패배).
+- `lib/features/battle/presentation/battle_detail_screen.dart`: 승인/이의제기·텍스트 증거·갤러리/카메라 선택 시트·제출 격차 제거, 진행 중이면 `PixelFrame.tone(info)` "준비 중" 안내, 결과 배너를 승/패/무/무효로, 포기 확인 문구 통일.
+- `lib/features/battle/presentation/battle_chips.dart`: `voided` 라벨·결과 라벨 매핑 **추가만**(retro-theme가 ai-judge 몫으로 남긴 자리).
+- `lib/features/profile/data/profile_repository.dart`: 기록 필터 `finished, draw, voided`.
+- `lib/features/profile/domain/battle_record.dart`: 승/패/무/무효 라벨.
+- `lib/features/profile/presentation/profile_screen.dart`: 유형별 요약 두 줄을 둘 다 승/패/무로(배치 그대로, 점수 표시는 7단계).
+- `lib/features/auth/data/auth_repository.dart`: 사진 경로를 `battle_submissions.object_path`(본인 행)에서 조회.
+- `lib/core/strings.dart`: 제거된 UI 전용 문자열 삭제, 준비 중·무효·포기 확인 문자열 추가.
+- 테스트: `test/features/battle/domain/battle_detail_test.dart`, `test/features/profile/domain/battle_record_test.dart` 재작성, `test/widget_test.dart`·`test/features/battle/battle_join_vs_intro_test.dart` 가짜 저장소·상세 화면 테스트 갱신.
+
+### 커밋 단위 (원격 적용·SQL 테스트 통과 후)
+1. `feat: AI 심판 전환을 위한 대결 스키마·판정 규칙·점수 기반` — 마이그레이션 4개 + `supabase/tests/*`.
+2. `feat: 대결 상세에서 상호 승인·텍스트 증거·갤러리 제거` — Dart 전체(모델·저장소·도메인·화면·테스트). 새 화면이 아니라 기존 화면 축소라 한 커밋.
+   - 1과 2는 같은 원격 상태를 전제로 하므로 연달아 커밋한다(1만 원격에 있고 2가 없으면 앱이 없는 컬럼을 읽는다).
+
+### 로컬 검증
+- `flutter analyze` 이슈 0, `flutter test` 전부 통과.
+- grep: `lib/`에 `decide_evidence`·`submit_evidence`·`decideEvidence`·`ImageSource.gallery`·`evidence_content` 없음, `supabase/migrations/2026091512*`에서 `'disputed'`를 쓰는(update/insert) 코드 없음.
+
+### 원격 적용 (오너)
+1. `supabase db push --dry-run` — 4개 파일만 나오는지 확인.
+2. `supabase db push`
+3. `supabase migration list --linked` — 16개 일치.
+4. SQL 테스트(각각 결과 확인):
+   - `supabase db query --linked -f supabase/tests/battle_outcome_rules.sql` → 23행 모두 `ok = true`
+   - `supabase db query --linked -f supabase/tests/resolve_battle_smoke.sql` → `SMOKE RESULT ok=true`
+   - `supabase db query --linked -f supabase/tests/settle_expired_battles_smoke.sql` → `ok=true`
+   - `supabase db query --linked -f supabase/tests/forfeit_battle_smoke.sql` → `ok=true`
+   - `supabase db query --linked -f supabase/tests/delete_account_smoke.sql` → `ok=true`
+5. Storage 정리(오너 확인 후): `supabase storage rm -r ss:///battle_evidence/ --linked --experimental`
+   - 버킷 자체는 남긴다(5단계에서 새 정책으로 재사용).
+
+### 에뮬레이터 수동 확인 (원격 적용 후)
+- 내 대결·대결 찾기·프로필이 오류 없이 열림(기존 대결은 모두 사라져 빈 상태).
+- 두 계정으로 모집 등록 → 참가 → 대결 상세: 승인/이의제기·텍스트 입력·갤러리 선택이 없고 "준비 중" 안내만.
+- 포기 → 확인 문구 "포기하면 패배로 끝나고 3점이 깎여요…" → 결과 배너 패배/승리, 프로필 기록에 승/패.
+- 탈퇴(테스트 계정) → 성공, 상대 대결이 취소로 사라짐.
+
+### 오너 할 일
+- 원격 적용 승인, 위 적용·SQL 테스트·Storage 정리 명령 실행(또는 실행 허락).
+
+---
+
+## 2단계 — AI 데이터 제공 동의
+
+### 파일
+- 마이그레이션 `2026MMDD..._ai_consent.sql`: `ai_consents`, `ai_consent_events`(+RLS 본인 select), `give_ai_consent(text)`, `withdraw_ai_consent()`, `get_consent_withdrawal_impact()`, `join_battle(uuid)`에 동의 검사(`CONSENT_REQUIRED` hint) 추가, `delete_account`에 동의 기록 삭제 추가.
+- SQL 테스트 `supabase/tests/ai_consent_smoke.sql`: 철회 시 active 포기(-3·상대 승)·pending 취소·슬롯 미반환·동의 행 삭제·이벤트 기록, 미동의 참가 `CONSENT_REQUIRED`, 탈퇴 시 동의·이벤트 삭제, anon 권한 오류.
+- Dart: `features/battle/data/ai_consent_repository.dart`, `domain/ai_consent_providers.dart`(`myAiConsentProvider`), `presentation/ai_consent_screen.dart`(신규 화면), 프로필 동의 섹션 + 철회 다이얼로그, 대결 만들기·참가 진입 시 동의 유도, `strings.dart`.
+- 테스트: 동의 필요 판단 getter 유닛 테스트, 위젯 테스트(동의 화면 필수 항목 5개 문구, 거부 시 pop false, 철회 다이얼로그 N/M 문구).
+
+### 커밋
+1. `feat: AI 데이터 제공 동의 스키마와 철회 처리` (마이그레이션 + SQL 테스트)
+2. `feat: AI 데이터 제공 동의 화면` (새 화면)
+3. `feat: 프로필 동의 상태와 동의 철회` (프로필 섹션)
+
+### 원격 적용 후 검증
+- `supabase db query --linked -f supabase/tests/ai_consent_smoke.sql` → ok
+- 에뮬레이터: 미동의 계정으로 참가 → 동의 화면, 거부 → 스낵바, 동의 → 참가 진행, 철회 → 진행 중 대결 패배 처리, 개인 투두 영향 없음.
+
+### 오너 할 일
+- 동의 문구의 개인정보처리방침 링크 URL 확정(정책 문서 게시 전이면 임시 URL 결정).
+
+---
+
+## 3단계 — Edge Function 공통 + 기준 생성·검사 + 대결 만들기
+
+### 파일
+- `supabase/config.toml`(신규, `[functions.judge-quality] verify_jwt = false`는 6단계에 추가 — 3단계는 파일만), `supabase/functions/_shared/{gemini,schemas,prompts,auth,errors}.ts`, `supabase/functions/battle-criteria/index.ts`, `supabase/functions/_shared/*_test.ts`.
+- 마이그레이션 `..._criteria_checks.sql`: `battles`에 `min_criteria jsonb`·`superiority_criteria jsonb`(+유형 제약)·`criteria_version`, 모집 1개 부분 유니크 인덱스, insert 정책 drop, `criteria_checks`·`ai_criteria_calls`(+RLS), `begin/finish/fail_criteria_call`(service), `create_battle(uuid,int)`, `update_battle_criteria(uuid,uuid)`, `get_my_limits()`, `delete_account`에 기준 원장 삭제, 2분 넘은 `in_progress` 정리 함수.
+  - `min_criteria not null`은 기존 행이 없고(1단계 정리) 앱이 같은 커밋에서 `create_battle` RPC로 바뀌므로 이 단계에서 not null로 둔다. 원격 적용과 앱 배포 사이에 옛 앱이 대결을 만들면 실패한다(배포 전이라 허용).
+- SQL 테스트 `supabase/tests/criteria_smoke.sql`: 10회 산입(성공+2분 내 진행 중), 실패 미산입, 11번째 `CRITERIA_CALL_LIMIT`, `PENDING_EXISTS`, 차단/사용됨/만료/타인 check `CHECK_INVALID`, 유형별 우열 기준 제약, `update_battle_criteria` version+1·`NOT_PENDING`.
+- Dart: `BattleCriteriaRepository`, `CriteriaCheckResult`, `Battle` 기준 필드, `BattleRepository.createBattle(checkId, duration)`, `create_battle_screen.dart` 2단계 교체, 기준 편집 위젯(내 모집 수정에서 재사용), `strings.dart`.
+
+### 커밋
+1. `feat: 판정 기준 원장과 기준 검사 증서 스키마`
+2. `feat: Gemini 기준 생성·검사 Edge Function` (Deno 코드 + `deno test`)
+3. `feat: 대결 만들기를 AI 기준 생성·승인 흐름으로 교체` (화면)
+4. `feat: 내 모집 기준 수정` (내 모집 카드 → 편집 화면)
+
+### 로컬 검증
+- `deno test supabase/functions/_shared/`(Deno는 `C:\workspaces\devtools\deno`에 설치 — 설치는 오너 확인 후), analyze/test.
+
+### 원격 적용 후 검증
+- `supabase db query --linked -f supabase/tests/criteria_smoke.sql`
+- 오너가 `supabase functions deploy battle-criteria` 실행 후 에뮬레이터: 속도전 최소 기준만 / 품질전 두 목록, 수정 → 재검사 → 차단(우열 기준만 증명 불가로 고쳐도 차단) → 되돌리기 → 올리기, 원장에 두 목록 재검사가 1회, 실패 호출 미산입, 미동의 시 Edge 로그에 Gemini 호출 없음.
+
+### 오너 할 일
+- `supabase functions deploy battle-criteria`, (선택) `supabase secrets set GEMINI_MODEL=...`. 키 값은 에이전트에게 전달하지 않는다.
+- Deno 설치 허락.
+
+---
+
+## 4단계 — 모집 목록·참가·하루 1대결·상대 카드
+
+### 파일
+- 마이그레이션 `..._daily_limit_and_cards.sql`: `list_open_recruits()`, `join_battle(uuid,int)`(version·동의·내 슬롯·생성자 슬롯·슬롯 2행 insert) + 기존 `join_battle(uuid)` drop, `get_player_card(uuid)`, KST 날짜를 인자로 받는 내부 헬퍼(경계 테스트용), `create_battle`·`begin_criteria_call`에 오늘 슬롯 검사.
+- SQL 테스트 `supabase/tests/join_battle_smoke.sql`: `CRITERIA_CHANGED`(우열 기준만 바꾼 경우 포함), `MY_DAILY_LIMIT`, `CREATOR_DAILY_LIMIT`, 양쪽 슬롯 생성, KST 자정 경계, `ALREADY_MATCHED`, 임의 사용자 `get_player_card` 거부.
+- Dart: `PlayerCard`, `BattleRepository.listOpenRecruits`/`joinBattle(id, version)`/`fetchPlayerCard`, 모집 목록 카드·모집 상세 바텀시트(오류 코드 분기), 대결 상세 상대 카드. VS 인트로 연결(`maybeShowVsIntro`)은 시트의 참가 성공 경로로 옮겨 재사용.
+- 테스트: 오류 코드 → 문구 매핑 유닛 테스트, `battle_join_vs_intro_test.dart`를 시트 경로로 갱신(인트로 후 토스트 순서 유지).
+
+### 커밋
+1. `feat: 하루 1대결 원장과 기준 버전 확인 참가`
+2. `feat: 모집 목록 생성자 전적과 모집 상세 시트` (화면)
+3. `feat: 대결 상세 상대 카드` (화면 일부)
+
+### 원격 적용 후 검증
+- `supabase db query --linked -f supabase/tests/join_battle_smoke.sql`
+- 에뮬레이터(두 계정): 기준 확인 후 생성자가 수정 → 참가 시 배너와 갱신, 하루 두 번째 참가 차단 문구(유료 예고), 참가 성공 → VS 인트로 → 토스트.
+
+---
+
+## 5단계 — 증거 제출·속도전 판정·증거 비공개
+
+### 파일
+- 마이그레이션 `..._speed_submissions.sql`: Storage 정책 4개 교체, `accept_submission`·`record_speed_verdict`·`sweep_stale_submissions`(service, DEFINER + service_role grant, 가드 예외 주석), cron `ai-judge-tick`(`* * * * *`, sweep만).
+- `supabase/functions/submit-evidence/index.ts`(속도전 경로), `_shared` 판정 스키마·프롬프트 추가 + 테스트.
+- SQL 테스트 `supabase/tests/ai_judge_flow_smoke.sql`(속도전 부분): 거부 3종 행 없음, 5회 소진 즉시 종결, 양쪽 통과 즉시 종결, error 미산입, sweep 3분, 판정 중 제출 있는 대결 settle 건너뜀, 진행 중 상대 행 0건(RLS, authenticated 위장).
+- Dart: `BattleSubmission`, `BattleRepository.uploadEvidencePhoto`(`{battle}/{user}/{uuid}.jpg`, upsert 없음)·`submitEvidence`(invoke)·`fetchSubmissions`, `BattleDetail` 제출 가능/남은 횟수/잠금/판정 중 getter, 대결 상세 내 영역(카메라 전용·미리보기·제출·결과·이력)·상대 영역 요약, 1단계 "준비 중" 안내 제거.
+
+### 커밋
+1. `feat: 속도전 제출 수락·판정 기록과 증거 비공개 정책`
+2. `feat: 증거 제출 Edge Function(속도전)`
+3. `feat: 대결 상세 카메라 촬영 제출과 속도전 판정 결과` (화면)
+
+### 원격 적용 후 검증
+- `supabase db query --linked -f supabase/tests/ai_judge_flow_smoke.sql`
+- 오너가 `supabase functions deploy submit-evidence` 후 두 계정: 진행 중 상대 사진 서명 URL 발급 실패, 합격/불합격/사유 표시(상대에게는 결과만), 10분 지난 사진 거부 문구.
+
+---
+
+## 6단계 — 품질전 판정 잡·자동 재시도·마감 대기
+
+### 파일
+- 마이그레이션 `..._quality_judgments.sql`: `battles.verdict_reason`, `quality_judgments`(+RLS 켬·정책 없음), `claim_quality_judgment`·`record_quality_verdict`·`record_quality_failure`·`dispatch_quality_judgments`(pg_net + Vault 이름 참조), `accept_submission` 품질전 경로, `void_battle`·`forfeit_battle`·`delete_account`에 잡 삭제, cron `ai-judge-tick`에 dispatch 추가.
+- `supabase/functions/judge-quality/index.ts`, `submit-evidence`의 품질전 경로 + `EdgeRuntime.waitUntil`, `config.toml` `verify_jwt = false`.
+- SQL 테스트: `ai_judge_flow_smoke.sql`에 품질전(4회 실패 → voided + 오늘 슬롯만 반환, 임대 만료 = 실패 1회, 성공 종결, 판정 중 마감 대기 후 확정).
+- Dart: 품질전 제출(한 번만 확인 다이얼로그), 판정 중·무효 표시.
+
+### 커밋
+1. `feat: 품질전 판정 잡과 자동 재시도`
+2. `feat: 품질전 판정 Edge Function`
+3. `feat: 대결 상세 품질전 제출과 판정 대기` (화면)
+
+### 오너 할 일
+- `supabase secrets set JUDGE_CRON_SECRET=...`, Vault에 `judge_function_url`·`judge_cron_secret` 입력, `supabase functions deploy judge-quality submit-evidence`.
+- 재시도 간격 관찰용으로 잠시 틀린 키를 쓸지 결정(운영 키를 바꾸는 일이라 오너 판단).
+
+---
+
+## 7단계 — 결과·점수·전적 표시와 정리
+
+### 파일
+- Dart: 결과 배너(부제·점수 변화·사유), 종결 후 양쪽 이력 공개, 프로필 점수 + 승/패/무(`myPlayerStatsProvider`)·무효 라벨, 내 대결 목록 상태 줄, `main_shell.dart` 프로필 탭 복귀 시 `battleRecordsProvider` invalidate, `battle_chips.dart` 결과 라벨 매핑을 outcome 기준으로(종료·미결 행 제거), 미사용 문자열 정리.
+- 문서: `CLAUDE.md` 범위 밖·도메인 규칙·코딩 규칙(service 전용 함수 예외 한 줄)·개발 명령어(`supabase functions deploy`, `supabase secrets set`, `deno test`), `TODO_BACKLOG.md`.
+
+### 커밋
+1. `feat: 대결 결과 배너 점수 변화와 판정 사유` (대결 상세)
+2. `feat: 프로필 점수와 승패무 전적` (프로필)
+3. `feat: 내 대결 목록 상태 줄` (내 대결)
+4. `docs: AI 심판 기준으로 CLAUDE.md 도메인 규칙 갱신`
+
+### 검증
+- spec 수용 기준 "결과·점수·전적", "최종성·포기", "알림 대상 정의", "데이터·문서"를 수동 체크리스트로 확인. 원격 적용 없음(스키마 변경이 생기면 그 지점에서 멈추고 확인).
+
+---
+
+## 진행 기록
+
+### 1단계 (로컬 구현 완료, 원격 미적용·미커밋)
+- 순서 변경 없음.
+- 로컬 검증: `flutter analyze` 이슈 0, `flutter test` 189개 통과(retro-theme 기준선 194에서 상호 승인·텍스트 증거·제출 격차 테스트를 지우고 준비 중 안내·무효·포기 문구 통일·유형 공통 승패 테스트를 더함).
+- grep 확인: `lib/`에 `decide_evidence`·`submit_evidence`·`decideEvidence`·`submitEvidence`·`ImageSource`·`evidence_content`·`'approve'`·`'dispute'` 0건. 새 마이그레이션의 `disputed`는 상태 제약·주석·RLS 읽기 조건뿐이고 쓰는 곳 없음.
+- SQL 테스트는 로컬 실행 수단이 없어 **미실행**(원격 적용 후 오너가 실행).
+- 위젯 테스트 수정 중 발견: 프로필 기록이 세 장이면 계정 창 버튼이 목록의 그리기 범위 밖으로 밀려 `find.text`가 못 찾음 → 테스트에서 `scrollUntilVisible`로 내려 확인(앱 동작 문제 아님).
+- 설계와 달라진 점
+  - 내부 전용 `finalize_battle`/`void_battle`/`resolve_battle`을 SECURITY INVOKER로 만듦(위 "충돌 점검 결과"). 앱·anon·authenticated는 부를 수 없음은 설계와 같다.
+  - `battles_finished_has_winner` 체크 제약 추가: 설계의 "finished면 winner_id 항상 채워짐"을 DB가 강제. 정리 마이그레이션 뒤라 기존 행 위반 없음.
+  - `resolve_battle`이 품질전 `active` 마감(Q8/Q9)도 처리하고 `settle_expired_battles`는 대상 대결마다 `resolve_battle`만 부른다(설계는 settle 안에서 품질전을 직접 처리). 규칙 적용 지점을 한 곳으로 모으려는 것이며 결과는 같다.
+  - `resolve_battle`은 요약 컬럼(`attempts_used`, `passed_at`)이 아니라 `battle_submissions` 원본에서 통과 시각·횟수·판정 중 여부를 센다(요약 컬럼은 5단계 `record_speed_verdict`가 표시용으로 갱신).
+  - `quality_deadline_outcome`에 양쪽 제출(원래 `judging`이어야 하는 불일치 상태)이 들어오면 모든 값을 null로 돌려 "결정하지 않음"으로 둔다 — cron이 예외로 전체 정산을 멈추지 않게.
+  - `battle_outcome_rules.sql`에 설계 18케이스 외 `outcome_score_delta` 5케이스를 더해 23행.
+  - 제거한 UI 전용 문자열(승인/이의제기·텍스트 증거·갤러리·제출 격차 등)을 7단계까지 미루지 않고 1단계에서 삭제. 참조가 모두 사라져 남기면 옛 규칙 문구가 되살아날 여지만 생긴다. 공용 칩이 쓰는 `battleStatusFinished`/`battleStatusDisputed`는 유지.
+  - `battle_chips.dart`에 `voided` 상태 라벨과 `무효` 결과 라벨 매핑을 추가(기존 매핑 불변).
+
+## 1단계 원격 적용 기록 (2026-09-15)
+- 오너 승인 후 `supabase db push`로 마이그레이션 4개 적용. `supabase migration list --linked` 16개 일치.
+- 적용 전 원격 데이터: 대결 4, 참가자 8, 증거 사진 6, 활성 프로필 3. 적용 후 대결·참가자 0, `player_stats` 3행 백필.
+- `battle_outcome_rules.sql` 23케이스 + 요약 전부 `ok=true`.
+- 스모크 4개는 처음에 `RAISE` 문구의 `%%`(퍼센트 글자)가 값 자리로 인식되지 않아 컴파일 오류로 한 줄도 실행되지 않았다. `ok=% %`로 고친 뒤 4개 모두 `ok=t`, 롤백 후 잔여 행 0 확인.
+- **증거 사진 6장이 버킷에 남아 있다.** `supabase storage rm`(버킷 경로 `-r`, 파일 경로 지정 둘 다)이 오류 없이 `deleted: []`로 끝났다. SQL 직접 삭제는 `storage.protect_delete()`가 막는다. 어느 대결에도 연결되지 않아 앱에는 보이지 않는다. 오너가 대시보드 Storage 화면에서 지우거나 5단계 Storage 정책 교체 때 함께 정리한다.

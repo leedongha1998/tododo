@@ -47,23 +47,15 @@ class ProfileScreen extends ConsumerWidget {
                 );
               }
 
-              final speedWins =
-                  records.where((r) => r.battle.type == 'speed' && r.resultLabel == AppStrings.battleRecordWin).length;
-              final speedLosses =
-                  records.where((r) => r.battle.type == 'speed' && r.resultLabel == AppStrings.battleRecordLose).length;
-              final qualityFinished = records
-                  .where((r) => r.battle.type == 'quality' && r.battle.status == 'finished')
-                  .length;
-              final qualityDisputed = records
-                  .where((r) => r.battle.type == 'quality' && r.battle.status == 'disputed')
-                  .length;
-              // 마감까지 아무도 끝내지 못한 대결. 승도 패도 아니라 따로 센다.
-              final speedDraws = records
-                  .where((r) => r.battle.type == 'speed' && r.battle.status == 'draw')
-                  .length;
-              final qualityDraws = records
-                  .where((r) => r.battle.type == 'quality' && r.battle.status == 'draw')
-                  .length;
+              // 품질전도 승자가 있으므로 두 유형 모두 승/패/무로 센다. 무효는 어디에도 세지 않는다.
+              // (점수와 합산 전적은 ai-judge 7단계에서 서버 player_stats로 바뀐다.)
+              String summaryOf(String type) {
+                final typed = records.where((r) => r.battle.type == type);
+                int count(String label) => typed.where((r) => r.resultLabel == label).length;
+                return '${count(AppStrings.battleRecordWin)}${AppStrings.battleRecordWin}'
+                    ' ${count(AppStrings.battleRecordLose)}${AppStrings.battleRecordLose}'
+                    ' ${count(AppStrings.battleRecordDraw)}${AppStrings.battleRecordDraw}';
+              }
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -73,19 +65,9 @@ class ProfileScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _RecordSummaryRow(
-                          type: 'speed',
-                          summary: '$speedWins${AppStrings.battleRecordWin}'
-                              ' $speedLosses${AppStrings.battleRecordLose}'
-                              ' $speedDraws${AppStrings.battleRecordDraw}',
-                        ),
+                        _RecordSummaryRow(type: 'speed', summary: summaryOf('speed')),
                         const SizedBox(height: 8),
-                        _RecordSummaryRow(
-                          type: 'quality',
-                          summary: '$qualityFinished${AppStrings.battleStatusFinished}'
-                              ' $qualityDisputed${AppStrings.battleStatusDisputed}'
-                              ' $qualityDraws${AppStrings.battleRecordDraw}',
-                        ),
+                        _RecordSummaryRow(type: 'quality', summary: summaryOf('quality')),
                       ],
                     ),
                   ),

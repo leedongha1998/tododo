@@ -20,7 +20,8 @@ class ProfileRepository {
         .from('battles')
         .select()
         .or('creator_id.eq.$myId,opponent_id.eq.$myId')
-        .inFilter('status', ['finished', 'disputed', 'draw'])
+        // 무효(voided)는 내 기록에만 보인다. 취소(cancelled)는 기록 목록에 넣지 않는다.
+        .inFilter('status', ['finished', 'draw', 'voided'])
         .order('created_at', ascending: false);
     return rows.map(Battle.fromMap).toList();
   }

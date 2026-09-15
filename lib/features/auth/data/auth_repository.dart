@@ -38,14 +38,15 @@ class AuthRepository {
     }
 
     try {
+      // 내 제출 행만 읽힌다(RLS). 경로가 null인 행은 이미 정리된 것이다.
       final rows = await _client
-          .from('battle_participants')
-          .select('evidence_content')
-          .eq('user_id', userId)
-          .eq('evidence_type', 'photo');
+          .from('battle_submissions')
+          .select('object_path')
+          .eq('user_id', userId);
       final paths = rows
-          .map((row) => row['evidence_content'] as String?)
+          .map((row) => row['object_path'] as String?)
           .whereType<String>()
+          .toSet()
           .toList();
       if (paths.isNotEmpty) {
         await _client.storage.from('battle_evidence').remove(paths);

@@ -53,6 +53,7 @@ class AppStrings {
   static const battleStatusFinished = '종료';
   static const battleStatusDisputed = '미결';
   static const battleStatusDraw = '무승부';
+  static const battleStatusVoided = '무효';
 
   static const battleDuration = '기간';
   static const battleDuration1Day = '1일';
@@ -73,57 +74,21 @@ class AppStrings {
   static const battleYouWon = '승리했습니다!';
   static const battleYouLost = '아쉽지만 패배했어요.';
 
-  static const battleMyEvidence = '내가 제출한 증거';
-  static const battleEvidenceSubmittedLabel = '제출';
-  // 속도전은 제출 시각이 승부 기준이라 누가 얼마나 앞섰는지를 화면에서 바로 읽을 수 있어야 한다.
-  static String battleSpeedLeadMine(String gap) => '내가 $gap 먼저 제출했어요.';
-  static String battleSpeedLeadOpponent(String gap) => '상대가 $gap 먼저 제출했어요.';
-  static const battleEvidenceHint = '완료했다는 증거를 남겨주세요';
-  static const battleEvidenceSubmit = '증거 제출하고 완료 주장하기';
-  static const battleEvidenceResubmit = '증거 다시 제출하기';
-  static const battleEvidenceSubmitted = '증거를 제출했습니다.';
-  static const battleEvidenceSubmitFailed = '증거 제출에 실패했습니다. 다시 시도해주세요.';
-  static const battleEvidenceWaitingOpponentSubmit = '상대방의 증거 제출을 기다리는 중이에요.';
-  static const battleEvidenceReview = '상대방이 제출한 증거';
-  static const battleApprove = '승인';
-  static const battleDispute = '이의제기';
-  static const battleDecisionFailed = '판정에 실패했습니다. 다시 시도해주세요.';
-  static const battleDecisionDone = '판정을 등록했습니다.';
-  static const battleDecisionWaiting = '상대방의 판정을 기다리는 중이에요.';
-  static const battleDecisionApproved = '상대방이 승인했어요.';
-  static const battleQualityFinished = '모두 승인되어 대결이 종료됐어요.';
-  static const battleDisputedMessage = '이의제기가 있어 아직 미결 상태예요.';
-
-  static const battleEvidencePhotoAdd = '사진 첨부하기';
-  static const battleEvidencePhotoChange = '사진 다시 고르기';
-  static const battleEvidencePhotoFromCamera = '카메라로 찍기';
-  static const battleEvidencePhotoFromGallery = '갤러리에서 고르기';
-  static const battleEvidencePhotoPickFailed = '사진을 불러오지 못했습니다. 다시 시도해주세요.';
   static const battleEvidencePhotoLoadFailed = '사진을 불러오지 못했어요.';
-  static const battleEvidencePhotoRequired = '품질전은 사진 증거가 필수예요.';
 
-  static const battleSpeedEvidenceNotice = '지금 제출한 시각이 승부 기준이 돼요. 상대가 승인해야 완료로 인정됩니다.';
-  static const battleMyEvidenceDisputed = '상대방이 내 증거에 이의를 제기했어요. 내 완료는 무효로 처리돼요.';
-  static const battleAwaitingBothDecisions = '상대방이 내 증거를 판정하면 결과가 확정돼요.';
-  static const battleSpeedDisputedMessage = '양쪽 모두 이의제기를 받아 유효한 완료가 없어요. 승자 없이 미결로 끝났어요.';
-  static const battleWonBySpeed = '먼저 완료를 증명해서 이겼어요.';
-  static const battleWonByOpponentDisputed = '상대방의 증거가 이의제기로 무효가 되어 이겼어요.';
-  static const battleLostBySpeed = '상대방이 먼저 완료를 증명했어요.';
-  static const battleLostByDisputed = '내 증거가 이의제기로 무효가 되어 졌어요.';
+  // 사진 제출과 AI 판정이 붙기 전까지 대결 상세의 제출 자리에 두는 안내(ai-judge 1단계).
+  static const battleSubmissionPreparingTitle = '사진 제출 준비 중';
+  static const battleSubmissionPreparing = '앱 카메라로 찍은 사진을 AI 심판이 판정하는 기능을 준비하고 있어요.';
+  static const battleVoidedMessage = 'AI 판정이 계속 실패해 무효가 됐어요. 점수·전적에 반영되지 않아요.';
 
   static const battleForfeit = '대결 포기';
   static const battleForfeitConfirmTitle = '대결을 포기할까요?';
-  static const battleForfeitConfirmSpeed = '포기하면 상대의 승리로 기록돼요. 되돌릴 수 없어요.';
-  static const battleForfeitConfirmQuality = '포기하면 이 대결은 미결로 끝나요. 되돌릴 수 없어요.';
+  // 속도전·품질전 모두 포기한 쪽이 지고 상대가 이긴다.
+  static const battleForfeitConfirm = '포기하면 패배로 끝나고 3점이 깎여요. 상대가 승리해요.';
   static const battleForfeitDone = '대결을 포기했습니다.';
   static const battleForfeitFailed = '포기에 실패했습니다. 다시 시도해주세요.';
   static const battleLostByForfeit = '내가 기권해서 졌어요.';
   static const battleWonByForfeit = '상대가 기권해서 이겼어요.';
-  static const battleQualityForfeited = '한쪽이 기권해서 미결로 끝났어요.';
-
-  static const battleDisputeConfirmTitle = '이의제기할까요?';
-  static const battleDisputeConfirmSpeed = '이의제기하면 상대방의 완료가 무효가 돼요. 되돌릴 수 없어요.';
-  static const battleDisputeConfirmQuality = '이의제기하면 이 대결은 미결로 끝나요. 되돌릴 수 없어요.';
 
   static const profileTitle = '프로필';
   static const profileLoadFailed = '프로필을 불러오지 못했습니다.';
@@ -134,6 +99,8 @@ class AppStrings {
   static const battleRecordWin = '승';
   static const battleRecordLose = '패';
   static const battleRecordDraw = '무';
+  // AI 판정 실패로 끝난 대결. 내 기록에만 보이고 승/패/무 집계에 들어가지 않는다.
+  static const battleRecordVoided = '무효';
 
   static const accountSection = '계정';
   static const openSourceLicenses = '오픈소스 라이선스';

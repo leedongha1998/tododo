@@ -7,6 +7,7 @@ Battle _buildBattle({
   required String type,
   required String status,
   String? winnerId,
+  String? forfeitedBy,
 }) {
   return Battle(
     id: 'b1',
@@ -16,49 +17,48 @@ Battle _buildBattle({
     creatorId: 'me',
     opponentId: 'friend',
     winnerId: winnerId,
-    createdAt: DateTime(2026, 8, 20),
+    forfeitedBy: forfeitedBy,
+    createdAt: DateTime(2026, 9, 15),
   );
 }
 
+String _label(Battle battle) =>
+    BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구').resultLabel;
+
 void main() {
   group('BattleRecord.fromBattle 결과 라벨', () {
-    test('속도전에서 내가 winner면 승리로 표시한다', () {
-      final battle = _buildBattle(type: 'speed', status: 'finished', winnerId: 'me');
-      final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');
-      expect(record.resultLabel, AppStrings.battleRecordWin);
-    });
+    // 품질전도 승자가 있으므로 두 유형 모두 승/패로 표시한다.
+    for (final type in ['speed', 'quality']) {
+      test('$type: 내가 winner면 승이다', () {
+        expect(_label(_buildBattle(type: type, status: 'finished', winnerId: 'me')),
+            AppStrings.battleRecordWin);
+      });
 
-    test('속도전에서 상대가 winner면 패배로 표시한다', () {
-      final battle = _buildBattle(type: 'speed', status: 'finished', winnerId: 'friend');
-      final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');
-      expect(record.resultLabel, AppStrings.battleRecordLose);
-    });
+      test('$type: 상대가 winner면 패다', () {
+        expect(_label(_buildBattle(type: type, status: 'finished', winnerId: 'friend')),
+            AppStrings.battleRecordLose);
+      });
 
-    test('속도전도 양쪽 다 이의제기당하면 승자가 없어 미결로 표시한다', () {
-      final battle = _buildBattle(type: 'speed', status: 'disputed');
-      final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');
-      expect(record.resultLabel, AppStrings.battleStatusDisputed);
-    });
+      test('$type: 내가 포기해서 끝난 대결은 패다', () {
+        final battle = _buildBattle(
+          type: type,
+          status: 'finished',
+          winnerId: 'friend',
+          forfeitedBy: 'me',
+        );
+        expect(_label(battle), AppStrings.battleRecordLose);
+      });
 
-    test('품질전은 승자를 두지 않는다 — finished면 완료로만 표시한다', () {
-      final battle = _buildBattle(type: 'quality', status: 'finished');
-      final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');
-      expect(record.resultLabel, AppStrings.battleStatusFinished);
-    });
+      test('$type: 무승부는 무다', () {
+        expect(_label(_buildBattle(type: type, status: 'draw')), AppStrings.battleRecordDraw);
+      });
 
-    test('품질전이 disputed면 미결로 표시한다', () {
-      final battle = _buildBattle(type: 'quality', status: 'disputed');
-      final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');
-      expect(record.resultLabel, AppStrings.battleStatusDisputed);
-    });
-
-    test('마감까지 아무도 끝내지 못한 대결은 유형과 상관없이 무승부다', () {
-      for (final type in ['speed', 'quality']) {
-        final battle = _buildBattle(type: type, status: 'draw');
-        final record = BattleRecord.fromBattle(battle, myId: 'me', otherPartyName: '친구');
-        expect(record.resultLabel, AppStrings.battleRecordDraw);
-      }
-    });
+      test('$type: AI 판정 실패로 끝난 대결은 무승부와 구분해 무효로 표시한다', () {
+        final label = _label(_buildBattle(type: type, status: 'voided'));
+        expect(label, AppStrings.battleRecordVoided);
+        expect(label, isNot(AppStrings.battleRecordDraw));
+      });
+    }
 
     test('otherPartyName과 battle은 그대로 보존된다', () {
       final battle = _buildBattle(type: 'speed', status: 'finished', winnerId: 'me');

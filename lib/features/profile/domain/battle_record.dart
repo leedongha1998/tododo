@@ -12,28 +12,21 @@ class BattleRecord {
   final String otherPartyName;
   final String resultLabel;
 
-  // 속도전은 서버가 정한 winnerId로 승/패를, 품질전은 상태(finished/disputed)로 결과 라벨을 정한다.
-  // CLAUDE.md 도메인 규칙: 품질전은 승자를 두지 않으므로 승/패가 아니라 완료/미결로만 표시한다.
+  /// 서버가 정한 상태와 승자를 결과 라벨로 옮긴다. 승패를 계산하지 않는다.
+  ///
+  /// 기록 목록은 `finished`/`draw`/`voided`만 받는다(`ProfileRepository.fetchCompletedBattles`).
+  /// 품질전도 승자가 있으므로 유형과 상관없이 같은 규칙이다.
   factory BattleRecord.fromBattle(
     Battle battle, {
     required String myId,
     required String otherPartyName,
   }) {
-    final String resultLabel;
-    // 마감까지 아무도 끝내지 못한 대결. 유형과 상관없이 무승부다.
-    if (battle.status == 'draw') {
-      resultLabel = AppStrings.battleRecordDraw;
-    } else if (battle.type == 'quality') {
-      resultLabel = battle.status == 'finished'
-          ? AppStrings.battleStatusFinished
-          : AppStrings.battleStatusDisputed;
-    } else if (battle.winnerId == null) {
-      // 속도전도 양쪽 다 이의제기당하면 유효한 완료가 없어 승자 없이 미결로 끝난다.
-      resultLabel = AppStrings.battleStatusDisputed;
-    } else {
-      resultLabel =
-          battle.winnerId == myId ? AppStrings.battleRecordWin : AppStrings.battleRecordLose;
-    }
+    final resultLabel = switch (battle.status) {
+      'draw' => AppStrings.battleRecordDraw,
+      // AI 판정 실패. 내 기록에만 보이고 승/패/무 집계에는 들어가지 않는다.
+      'voided' => AppStrings.battleRecordVoided,
+      _ => battle.winnerId == myId ? AppStrings.battleRecordWin : AppStrings.battleRecordLose,
+    };
     return BattleRecord(battle: battle, otherPartyName: otherPartyName, resultLabel: resultLabel);
   }
 }

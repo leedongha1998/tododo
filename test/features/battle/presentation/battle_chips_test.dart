@@ -156,6 +156,13 @@ void main() {
       );
     });
 
+    test('무효 결과 라벨은 무효 모양으로, 무효 상태 칩은 무효 글자로 보인다', () {
+      expect(resultTagStyle(AppStrings.battleRecordVoided), voidedResultTagStyle);
+      expect(resultTagStyle(AppStrings.battleRecordVoided),
+          isNot(resultTagStyle(AppStrings.battleRecordDraw)));
+      expect(battleStatusLabel('voided'), AppStrings.battleStatusVoided);
+    });
+
     test('무효는 면 없음·점선·흐린 글자로 가장 약하다', () {
       expect(voidedResultTagStyle.fill, Colors.transparent);
       expect(voidedResultTagStyle.dashed, isTrue);

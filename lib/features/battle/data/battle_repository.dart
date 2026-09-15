@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'battle.dart';
@@ -64,7 +62,7 @@ class BattleRepository {
     return _client.rpc('cancel_battle', params: {'p_battle_id': battleId});
   }
 
-  // 진행 중인 대결만 돌려준다. 끝난 대결(finished/disputed)은 프로필 전적에서 본다 —
+  // 진행 중인 대결만 돌려준다. 끝난 대결(finished/draw/voided)은 프로필 전적에서 본다 —
   // 여기에 계속 쌓이면 지금 뭘 해야 하는지가 목록에서 묻힌다.
   Future<List<Battle>> fetchMyBattles() async {
     final myId = _client.auth.currentUser!.id;
@@ -87,42 +85,14 @@ class BattleRepository {
     return rows.map(BattleParticipant.fromMap).toList();
   }
 
-  // 사진 증거를 비공개 버킷에 올리고 오브젝트 경로를 돌려준다.
-  // 이 경로가 그대로 evidence_content에 저장된다. 재제출이 허용되므로 upsert.
-  Future<String> uploadEvidencePhoto(String battleId, Uint8List bytes) async {
-    final myId = _client.auth.currentUser!.id;
-    final path = '$battleId/$myId/evidence.jpg';
-    await _client.storage.from(_evidenceBucket).uploadBinary(
-          path,
-          bytes,
-          fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
-        );
-    return path;
-  }
-
   // 비공개 버킷이라 매번 짧은 수명의 서명 URL을 받아 화면에 그린다.
+  // 서명 URL 발급도 Storage 조회 정책을 거치므로, 서버가 가린 사진은 여기서 실패한다.
   Future<String> createEvidencePhotoUrl(String path) {
     return _client.storage.from(_evidenceBucket).createSignedUrl(path, _signedUrlSeconds);
   }
 
-  Future<void> submitEvidence(String battleId, String evidenceType, String content) {
-    return _client.rpc('submit_evidence', params: {
-      'p_battle_id': battleId,
-      'p_evidence_type': evidenceType,
-      'p_evidence_content': content,
-    });
-  }
-
-  // 포기(기권). 속도전이면 상대 승리로, 품질전이면 승자 없이 미결로 끝난다.
+  // 포기(기권). 유형과 상관없이 포기한 쪽이 지고 상대가 이긴다. 결과와 점수는 서버가 정한다.
   Future<void> forfeitBattle(String battleId) {
     return _client.rpc('forfeit_battle', params: {'p_battle_id': battleId});
-  }
-
-  Future<void> decideEvidence(String battleId, String targetUserId, String decision) {
-    return _client.rpc('decide_evidence', params: {
-      'p_battle_id': battleId,
-      'p_target_user_id': targetUserId,
-      'p_decision': decision,
-    });
   }
 }

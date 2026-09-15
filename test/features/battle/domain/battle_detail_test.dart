@@ -7,11 +7,9 @@ BattleDetail _buildDetail({
   required String type,
   required String status,
   String? winnerId,
-  DateTime? meEvidenceSubmittedAt,
-  String? meDecision,
-  DateTime? opponentEvidenceSubmittedAt,
-  String? opponentDecision,
   String? forfeitedBy,
+  String? myOutcome,
+  String? opponentOutcome,
 }) {
   final battle = Battle(
     id: 'b1',
@@ -21,268 +19,125 @@ BattleDetail _buildDetail({
     creatorId: 'me',
     opponentId: 'friend',
     winnerId: winnerId,
-    createdAt: DateTime(2026, 8, 20),
+    createdAt: DateTime(2026, 9, 15),
     forfeitedBy: forfeitedBy,
   );
   return BattleDetail(
     battle: battle,
-    me: BattleParticipant(
-      battleId: 'b1',
-      userId: 'me',
-      evidenceSubmittedAt: meEvidenceSubmittedAt,
-      decision: meDecision,
-    ),
-    opponent: BattleParticipant(
-      battleId: 'b1',
-      userId: 'friend',
-      evidenceSubmittedAt: opponentEvidenceSubmittedAt,
-      decision: opponentDecision,
-    ),
+    me: BattleParticipant(battleId: 'b1', userId: 'me', outcome: myOutcome),
+    opponent: BattleParticipant(battleId: 'b1', userId: 'friend', outcome: opponentOutcome),
     myName: '나',
     opponentName: '친구',
   );
 }
 
+const _types = ['speed', 'quality'];
+
 void main() {
-  // 속도전/품질전은 증거 제출 -> 상호 판정이라는 절차를 공유한다.
-  group('증거 제출 (유형 공통)', () {
-    for (final type in ['speed', 'quality']) {
-      test('$type: active 상태에서 아직 제출 전이면 제출할 수 있다', () {
-        final detail = _buildDetail(type: type, status: 'active');
-        expect(detail.canSubmitEvidence, isTrue);
-        expect(detail.canResubmitEvidence, isFalse);
+  group('진행 중 여부와 포기 가능', () {
+    for (final type in _types) {
+      test('$type: active와 judging은 진행 중이고 포기할 수 있다', () {
+        for (final status in ['active', 'judging']) {
+          final detail = _buildDetail(type: type, status: status);
+          expect(detail.isOngoing, isTrue, reason: status);
+          expect(detail.canForfeit, isTrue, reason: status);
+        }
       });
 
-      test('$type: judging 상태에서도 아직 제출 전이면 제출할 수 있다', () {
-        expect(_buildDetail(type: type, status: 'judging').canSubmitEvidence, isTrue);
-      });
-
-      test('$type: 이미 제출했으면 신규 제출이 아니라 재제출이 된다', () {
-        final detail = _buildDetail(
-          type: type,
-          status: 'judging',
-          meEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        );
-        expect(detail.canSubmitEvidence, isFalse);
-        expect(detail.canResubmitEvidence, isTrue);
-        expect(detail.isWaitingMyEvidenceDecision, isTrue);
-      });
-
-      test('$type: 종결된 대결에는 제출도 재제출도 할 수 없다', () {
-        for (final status in ['finished', 'disputed']) {
-          final detail = _buildDetail(
-            type: type,
-            status: status,
-            meEvidenceSubmittedAt: DateTime(2026, 8, 21),
-          );
-          expect(detail.canSubmitEvidence, isFalse);
-          expect(detail.canResubmitEvidence, isFalse);
+      test('$type: 모집 중이거나 종결된 대결은 진행 중이 아니고 포기할 수 없다', () {
+        for (final status in ['pending', 'finished', 'draw', 'voided', 'cancelled', 'disputed']) {
+          final detail = _buildDetail(type: type, status: status, winnerId: 'me');
+          expect(detail.isOngoing, isFalse, reason: status);
+          expect(detail.canForfeit, isFalse, reason: status);
         }
       });
     }
 
-    test('이의제기당한 뒤에도 재제출로 복구할 수 있다', () {
-      final detail = _buildDetail(
-        type: 'speed',
-        status: 'judging',
-        meEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        meDecision: 'dispute',
-      );
-      expect(detail.wasMyEvidenceDisputed, isTrue);
-      expect(detail.isWaitingMyEvidenceDecision, isFalse);
-      expect(detail.canResubmitEvidence, isTrue);
-    });
-
-    test('품질전만 사진 증거가 필수다', () {
-      expect(_buildDetail(type: 'quality', status: 'active').requiresPhotoEvidence, isTrue);
-      expect(_buildDetail(type: 'speed', status: 'active').requiresPhotoEvidence, isFalse);
+    test('속도전에서 한쪽이 먼저 통과해도 서버가 종결하기 전까지는 진행 중이다', () {
+      final detail = _buildDetail(type: 'speed', status: 'active');
+      expect(detail.isOngoing, isTrue);
+      expect(detail.didIWin, isFalse);
+      expect(detail.didILose, isFalse);
     });
   });
 
-  group('상대 증거 판정 (유형 공통)', () {
-    test('judging이고 상대가 제출했고 아직 판정 전이면 판정할 수 있다', () {
-      final detail = _buildDetail(
-        type: 'speed',
-        status: 'judging',
-        opponentEvidenceSubmittedAt: DateTime(2026, 8, 21),
-      );
-      expect(detail.canReviewOpponentEvidence, isTrue);
-    });
-
-    test('상대가 제출하지 않았으면 판정할 수 없다', () {
-      final detail = _buildDetail(type: 'quality', status: 'judging');
-      expect(detail.canReviewOpponentEvidence, isFalse);
-      expect(detail.isWaitingOpponentSubmit, isTrue);
-    });
-
-    test('이미 판정했으면 다시 판정할 수 없다', () {
-      final detail = _buildDetail(
-        type: 'quality',
-        status: 'judging',
-        opponentEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        opponentDecision: 'approve',
-      );
-      expect(detail.canReviewOpponentEvidence, isFalse);
-    });
-
-    test('종결된 대결에서는 판정 버튼을 내보내지 않는다 (서버도 거부한다)', () {
-      for (final status in ['finished', 'disputed']) {
-        final detail = _buildDetail(
-          type: 'speed',
-          status: status,
-          opponentEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        );
-        expect(detail.canReviewOpponentEvidence, isFalse);
-      }
-    });
-  });
-
-  group('속도전 결과 판정', () {
-    test('내가 상대를 판정했어도 상대가 나를 판정하기 전엔 결과가 미확정이다', () {
-      final detail = _buildDetail(
-        type: 'speed',
-        status: 'judging',
-        meEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        opponentEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        opponentDecision: 'dispute',
-      );
-      expect(detail.isAwaitingBothDecisions, isTrue);
-      expect(detail.wasOpponentEvidenceDisputed, isTrue);
-      expect(detail.isFinished, isFalse);
-    });
-
-    test('양쪽 판정이 모두 내려졌으면 더 이상 대기 상태가 아니다', () {
-      final detail = _buildDetail(
-        type: 'speed',
-        status: 'judging',
-        meEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        meDecision: 'approve',
-        opponentEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        opponentDecision: 'approve',
-      );
-      expect(detail.isAwaitingBothDecisions, isFalse);
-    });
-
-    test('품질전에는 양쪽 판정 대기라는 개념이 없다 (dispute 즉시 종결)', () {
-      final detail = _buildDetail(
-        type: 'quality',
-        status: 'judging',
-        meEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        opponentEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        opponentDecision: 'dispute',
-      );
-      expect(detail.isAwaitingBothDecisions, isFalse);
-    });
-
-    test('finished이고 내가 winner면 승리, 상대가 winner면 패배로 판정한다', () {
-      expect(
-        _buildDetail(type: 'speed', status: 'finished', winnerId: 'me').didIWinSpeedBattle,
-        isTrue,
-      );
-      expect(
-        _buildDetail(type: 'speed', status: 'finished', winnerId: 'friend').didILoseSpeedBattle,
-        isTrue,
-      );
-    });
-
-    test('이의제기로 상대 완료가 무효가 되어 이긴 경우도 승리로 판정한다', () {
-      final detail = _buildDetail(
-        type: 'speed',
-        status: 'finished',
-        winnerId: 'me',
-        opponentEvidenceSubmittedAt: DateTime(2026, 8, 21),
-        opponentDecision: 'dispute',
-      );
-      expect(detail.didIWinSpeedBattle, isTrue);
-      expect(detail.wasOpponentEvidenceDisputed, isTrue);
-    });
-
-    test('양쪽 다 이의제기당하면 승자 없이 미결로 끝난다', () {
-      final detail = _buildDetail(type: 'speed', status: 'disputed');
-      expect(detail.isSpeedDisputed, isTrue);
-      expect(detail.didIWinSpeedBattle, isFalse);
-      expect(detail.didILoseSpeedBattle, isFalse);
-    });
-  });
-
-  group('품질전 결과 판정', () {
-    test('품질전은 승자를 두지 않는다', () {
-      final detail = _buildDetail(type: 'quality', status: 'finished');
-      expect(detail.isQualityFinished, isTrue);
-      expect(detail.didIWinSpeedBattle, isFalse);
-      expect(detail.didILoseSpeedBattle, isFalse);
-    });
-
-    test('disputed는 isDisputed로 판별되고, 속도전 전용 미결 문구는 쓰지 않는다', () {
-      final detail = _buildDetail(type: 'quality', status: 'disputed');
-      expect(detail.isDisputed, isTrue);
-      expect(detail.isSpeedDisputed, isFalse);
-    });
-
-    test('속도전은 finished여도 isQualityFinished가 아니다', () {
-      final detail = _buildDetail(type: 'speed', status: 'finished', winnerId: 'me');
-      expect(detail.isQualityFinished, isFalse);
-    });
-  });
-
-  // 매칭된 대결에서 빠져나가는 유일한 길. 포기한 쪽이 지고, 승부는 서버가 정한다.
-  group('포기(기권)', () {
-    for (final type in ['speed', 'quality']) {
-      test('$type: 진행 중이면 포기할 수 있다', () {
-        expect(_buildDetail(type: type, status: 'active').canForfeit, isTrue);
-        expect(_buildDetail(type: type, status: 'judging').canForfeit, isTrue);
+  // 품질전도 승자가 있다. 승패는 서버가 기록한 winner_id를 그대로 읽는다.
+  group('승패 판별 (유형 공통)', () {
+    for (final type in _types) {
+      test('$type: finished이고 내가 winner면 승리다', () {
+        final detail = _buildDetail(type: type, status: 'finished', winnerId: 'me');
+        expect(detail.isFinished, isTrue);
+        expect(detail.didIWin, isTrue);
+        expect(detail.didILose, isFalse);
       });
 
-      test('$type: 종결된 대결은 포기할 수 없다', () {
-        for (final status in ['finished', 'disputed']) {
-          expect(_buildDetail(type: type, status: status).canForfeit, isFalse);
-        }
+      test('$type: finished이고 상대가 winner면 패배다', () {
+        final detail = _buildDetail(type: type, status: 'finished', winnerId: 'friend');
+        expect(detail.didIWin, isFalse);
+        expect(detail.didILose, isTrue);
+      });
+
+      test('$type: 무승부는 승패 어느 쪽도 아니다', () {
+        final detail = _buildDetail(type: type, status: 'draw');
+        expect(detail.isDraw, isTrue);
+        expect(detail.isVoided, isFalse);
+        expect(detail.didIWin, isFalse);
+        expect(detail.didILose, isFalse);
+      });
+
+      test('$type: 무효는 무승부와 구분되고 승패 어느 쪽도 아니다', () {
+        final detail = _buildDetail(type: type, status: 'voided');
+        expect(detail.isVoided, isTrue);
+        expect(detail.isDraw, isFalse);
+        expect(detail.didIWin, isFalse);
+        expect(detail.didILose, isFalse);
       });
     }
 
-    test('내가 기권하면 속도전은 상대 승리로 끝난다', () {
+    test('속도전 완료한 패배도 결과 판별은 패배다(감면은 점수에만)', () {
       final detail = _buildDetail(
         type: 'speed',
         status: 'finished',
         winnerId: 'friend',
-        forfeitedBy: 'me',
+        myOutcome: 'completed_loss',
+        opponentOutcome: 'win',
       );
-      expect(detail.didIForfeit, isTrue);
-      expect(detail.didOpponentForfeit, isFalse);
-      expect(detail.didILoseSpeedBattle, isTrue);
+      expect(detail.didILose, isTrue);
+      expect(detail.me.outcome, 'completed_loss');
     });
+  });
 
-    test('상대가 기권하면 내 승리로 끝난다', () {
-      final detail = _buildDetail(
-        type: 'speed',
-        status: 'finished',
-        winnerId: 'me',
-        forfeitedBy: 'friend',
-      );
-      expect(detail.didOpponentForfeit, isTrue);
-      expect(detail.didIWinSpeedBattle, isTrue);
-    });
+  // 매칭된 대결에서 빠져나가는 유일한 길. 유형과 상관없이 포기한 쪽이 진다.
+  group('포기(기권) 판별', () {
+    for (final type in _types) {
+      test('$type: 내가 기권하면 상대 승리로 끝난다', () {
+        final detail = _buildDetail(
+          type: type,
+          status: 'finished',
+          winnerId: 'friend',
+          forfeitedBy: 'me',
+          myOutcome: 'forfeit',
+          opponentOutcome: 'win',
+        );
+        expect(detail.didIForfeit, isTrue);
+        expect(detail.didOpponentForfeit, isFalse);
+        expect(detail.didILose, isTrue);
+      });
 
-    test('품질전은 기권해도 승자가 없다', () {
-      final detail = _buildDetail(type: 'quality', status: 'disputed', forfeitedBy: 'me');
-      expect(detail.didIForfeit, isTrue);
-      expect(detail.isDisputed, isTrue);
-      expect(detail.didIWinSpeedBattle, isFalse);
-      expect(detail.didILoseSpeedBattle, isFalse);
-    });
-
-    test('마감으로 무승부가 된 대결은 승패 어느 쪽도 아니다', () {
-      for (final type in ['speed', 'quality']) {
-        final detail = _buildDetail(type: type, status: 'draw');
-        expect(detail.isDraw, isTrue);
-        expect(detail.isDisputed, isFalse);
-        expect(detail.didIWinSpeedBattle, isFalse);
-        expect(detail.didILoseSpeedBattle, isFalse);
-        // 이미 끝난 대결이므로 포기도 증거 제출도 할 수 없다.
-        expect(detail.canForfeit, isFalse);
-        expect(detail.canSubmitEvidence, isFalse);
-      }
-    });
+      test('$type: 상대가 기권하면 내 승리로 끝난다', () {
+        final detail = _buildDetail(
+          type: type,
+          status: 'finished',
+          winnerId: 'me',
+          forfeitedBy: 'friend',
+          myOutcome: 'win',
+          opponentOutcome: 'forfeit',
+        );
+        expect(detail.didOpponentForfeit, isTrue);
+        expect(detail.didIForfeit, isFalse);
+        expect(detail.didIWin, isTrue);
+      });
+    }
 
     test('기권 없이 끝난 대결은 기권 판별에 걸리지 않는다', () {
       final detail = _buildDetail(type: 'speed', status: 'finished', winnerId: 'me');

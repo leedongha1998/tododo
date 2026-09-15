@@ -28,6 +28,8 @@ String battleStatusLabel(String status) {
       return AppStrings.battleStatusDisputed;
     case 'draw':
       return AppStrings.battleStatusDraw;
+    case 'voided':
+      return AppStrings.battleStatusVoided;
     default:
       return status;
   }
@@ -122,6 +124,7 @@ PixelTagStyle resultTagStyle(String label) {
         textColor: RetroPalette.ink,
         borderColor: RetroPalette.danger,
       ),
+    AppStrings.battleRecordVoided => voidedResultTagStyle,
     _ => _neutralStyle,
   };
 }

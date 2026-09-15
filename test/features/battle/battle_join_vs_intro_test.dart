@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -65,16 +63,7 @@ class _JoinOnlyBattleRepository implements BattleRepository {
   Future<List<BattleParticipant>> fetchParticipants(String battleId) async => const [];
 
   @override
-  Future<String> uploadEvidencePhoto(String battleId, Uint8List bytes) async => 'path';
-
-  @override
   Future<String> createEvidencePhotoUrl(String path) async => 'https://example.com/$path';
-
-  @override
-  Future<void> submitEvidence(String battleId, String evidenceType, String content) async {}
-
-  @override
-  Future<void> decideEvidence(String battleId, String targetUserId, String decision) async {}
 }
 
 /// 로그인한 사용자 `me`를 돌려주는 인증 저장소.

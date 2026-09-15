@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -69,16 +67,7 @@ class _FakeBattleRepository implements BattleRepository {
   Future<List<BattleParticipant>> fetchParticipants(String battleId) async => const [];
 
   @override
-  Future<String> uploadEvidencePhoto(String battleId, Uint8List bytes) async => 'path';
-
-  @override
   Future<String> createEvidencePhotoUrl(String path) async => 'https://example.com/$path';
-
-  @override
-  Future<void> submitEvidence(String battleId, String evidenceType, String content) async {}
-
-  @override
-  Future<void> decideEvidence(String battleId, String targetUserId, String decision) async {}
 }
 
 class _FakeAuthRepository implements AuthRepository {
@@ -127,6 +116,44 @@ class _MemorySeenStore extends VsIntroSeenStore {
   Future<void> markSeen(String userId, String battleId) async {
     seen.add(VsIntroSeenStore.keyFor(userId, battleId));
   }
+}
+
+BattleDetail _detail({
+  required String id,
+  required String type,
+  required String status,
+  String? winnerId,
+  String? forfeitedBy,
+}) {
+  return BattleDetail(
+    battle: Battle(
+      id: id,
+      type: type,
+      status: status,
+      title: '아침 운동하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      winnerId: winnerId,
+      forfeitedBy: forfeitedBy,
+      createdAt: DateTime(2026, 9, 15),
+    ),
+    me: BattleParticipant(battleId: id, userId: 'me'),
+    opponent: BattleParticipant(battleId: id, userId: 'friend'),
+    myName: '나',
+    opponentName: '친구',
+  );
+}
+
+Widget _detailScreen(BattleDetail detail) {
+  return ProviderScope(
+    overrides: [
+      battleDetailProvider(detail.battle.id).overrideWith((ref) async => detail),
+      battleRepositoryProvider.overrideWithValue(_FakeBattleRepository()),
+      // 인트로가 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
+      vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
+    ],
+    child: MaterialApp(home: BattleDetailScreen(battleId: detail.battle.id)),
+  );
 }
 
 void main() {
@@ -333,208 +360,33 @@ void main() {
     expect(find.text(AppStrings.battleJoin), findsOneWidget);
   });
 
-  testWidgets('속도전 진행 화면에서 내가 제출 전이면 증거 제출 폼이 보인다', (WidgetTester tester) async {
-    final battle = Battle(
-      id: 'b1',
-      type: 'speed',
-      status: 'active',
-      title: '아침 운동하기',
-      creatorId: 'me',
-      opponentId: 'friend',
-      createdAt: DateTime(2026, 8, 20),
-    );
-    final detail = BattleDetail(
-      battle: battle,
-      me: const BattleParticipant(battleId: 'b1', userId: 'me'),
-      opponent: const BattleParticipant(battleId: 'b1', userId: 'friend'),
-      myName: '나',
-      opponentName: '친구',
-    );
+  // spec 수용 기준: "어떤 화면에도 상대 증거를 승인/이의제기하는 수단이 없다",
+  // "증거 제출 경로에서 갤러리 사진을 고를 방법이 없다", "텍스트만으로는 제출할 수 없다".
+  testWidgets('진행 중인 대결 상세에는 준비 중 안내와 포기만 있고 승인·이의제기·텍스트 입력·사진 선택이 없다',
+      (WidgetTester tester) async {
+    for (final type in ['speed', 'quality']) {
+      for (final status in ['active', 'judging']) {
+        await tester.pumpWidget(_detailScreen(_detail(id: '$type-$status', type: type, status: status)));
+        await tester.pumpAndSettle();
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          battleDetailProvider('b1').overrideWith((ref) async => detail),
-          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
-          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
-        ],
-        child: const MaterialApp(home: BattleDetailScreen(battleId: 'b1')),
-      ),
-    );
-    await tester.pumpAndSettle();
+        final reason = '$type/$status';
+        expect(find.text(AppStrings.battleSubmissionPreparing), findsOneWidget, reason: reason);
+        expect(find.text(AppStrings.battleForfeit), findsOneWidget, reason: reason);
+        expect(find.byType(TextField), findsNothing, reason: reason);
+        expect(find.text('승인'), findsNothing, reason: reason);
+        expect(find.text('이의제기'), findsNothing, reason: reason);
+        expect(find.textContaining('갤러리'), findsNothing, reason: reason);
+        // 진행 중에는 결과 배너가 없다.
+        expect(find.text(AppStrings.battleYouWon), findsNothing, reason: reason);
 
-    // 속도전도 자기 신고가 아니라 증거 제출로 완료를 주장한다.
-    expect(find.text(AppStrings.battleEvidenceSubmit), findsOneWidget);
-    expect(find.text(AppStrings.battleSpeedEvidenceNotice), findsOneWidget);
-    expect(find.byType(TextField), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      }
+    }
   });
 
-  testWidgets('품질전 제출 폼은 사진이 필수라 텍스트 입력란이 없다', (WidgetTester tester) async {
-    final battle = Battle(
-      id: 'bq',
-      type: 'quality',
-      status: 'active',
-      title: '방 청소하기',
-      creatorId: 'me',
-      opponentId: 'friend',
-      createdAt: DateTime(2026, 8, 20),
-    );
-    final detail = BattleDetail(
-      battle: battle,
-      me: const BattleParticipant(battleId: 'bq', userId: 'me'),
-      opponent: const BattleParticipant(battleId: 'bq', userId: 'friend'),
-      myName: '나',
-      opponentName: '친구',
-    );
-
+  testWidgets('끝난 품질전도 승패가 있어 승리 배너와 종료 칩을 보여준다', (WidgetTester tester) async {
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          battleDetailProvider('bq').overrideWith((ref) async => detail),
-          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
-          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
-        ],
-        child: const MaterialApp(home: BattleDetailScreen(battleId: 'bq')),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text(AppStrings.battleEvidencePhotoRequired), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidencePhotoAdd), findsOneWidget);
-    expect(find.byType(TextField), findsNothing);
-  });
-
-  testWidgets('내 증거가 이의제기당하면 완료가 무효라고 알려준다', (WidgetTester tester) async {
-    final battle = Battle(
-      id: 'bd',
-      type: 'speed',
-      status: 'judging',
-      title: '아침 운동하기',
-      creatorId: 'me',
-      opponentId: 'friend',
-      createdAt: DateTime(2026, 8, 20),
-    );
-    final detail = BattleDetail(
-      battle: battle,
-      me: BattleParticipant(
-        battleId: 'bd',
-        userId: 'me',
-        evidenceType: 'text',
-        evidenceContent: '내 증거',
-        evidenceSubmittedAt: DateTime(2026, 8, 20),
-        decision: 'dispute',
-      ),
-      opponent: const BattleParticipant(battleId: 'bd', userId: 'friend'),
-      myName: '나',
-      opponentName: '친구',
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          battleDetailProvider('bd').overrideWith((ref) async => detail),
-          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
-          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
-        ],
-        child: const MaterialApp(home: BattleDetailScreen(battleId: 'bd')),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text(AppStrings.battleMyEvidenceDisputed), findsOneWidget);
-    // 이의제기당해도 재제출로 복구할 수 있다.
-    expect(find.text(AppStrings.battleEvidenceResubmit), findsOneWidget);
-  });
-
-  testWidgets('진행 화면에서 상대 증거가 있으면 승인/이의제기 버튼이 보인다', (WidgetTester tester) async {
-    final battle = Battle(
-      id: 'b2',
-      type: 'speed',
-      status: 'judging',
-      title: '방 청소하기',
-      creatorId: 'me',
-      opponentId: 'friend',
-      createdAt: DateTime(2026, 8, 20),
-    );
-    final detail = BattleDetail(
-      battle: battle,
-      me: BattleParticipant(
-        battleId: 'b2',
-        userId: 'me',
-        evidenceType: 'text',
-        evidenceContent: '내 증거',
-        evidenceSubmittedAt: DateTime(2026, 8, 20),
-      ),
-      opponent: BattleParticipant(
-        battleId: 'b2',
-        userId: 'friend',
-        evidenceType: 'text',
-        evidenceContent: '상대 증거',
-        evidenceSubmittedAt: DateTime(2026, 8, 20),
-      ),
-      myName: '나',
-      opponentName: '친구',
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          battleDetailProvider('b2').overrideWith((ref) async => detail),
-          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
-          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
-        ],
-        child: const MaterialApp(home: BattleDetailScreen(battleId: 'b2')),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('상대 증거'), findsOneWidget);
-    expect(find.text(AppStrings.battleApprove), findsOneWidget);
-    expect(find.text(AppStrings.battleDispute), findsOneWidget);
-  });
-
-  testWidgets('끝난 속도전은 상태 칩, 결과 배너, 제출 격차를 함께 보여준다', (WidgetTester tester) async {
-    final battle = Battle(
-      id: 'b3',
-      type: 'speed',
-      status: 'finished',
-      title: '아침 운동하기',
-      creatorId: 'me',
-      opponentId: 'friend',
-      createdAt: DateTime(2026, 8, 20),
-      winnerId: 'me',
-    );
-    final detail = BattleDetail(
-      battle: battle,
-      me: BattleParticipant(
-        battleId: 'b3',
-        userId: 'me',
-        evidenceType: 'text',
-        evidenceContent: '내 증거',
-        evidenceSubmittedAt: DateTime(2026, 8, 20, 7, 0),
-        decision: 'approve',
-      ),
-      opponent: BattleParticipant(
-        battleId: 'b3',
-        userId: 'friend',
-        evidenceType: 'text',
-        evidenceContent: '상대 증거',
-        evidenceSubmittedAt: DateTime(2026, 8, 20, 7, 30),
-        decision: 'approve',
-      ),
-      myName: '나',
-      opponentName: '친구',
-    );
-
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          battleDetailProvider('b3').overrideWith((ref) async => detail),
-          // 인트로가 기존 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
-          vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
-        ],
-        child: const MaterialApp(home: BattleDetailScreen(battleId: 'b3')),
-      ),
+      _detailScreen(_detail(id: 'bq', type: 'quality', status: 'finished', winnerId: 'me')),
     );
     await tester.pumpAndSettle();
 
@@ -542,14 +394,55 @@ void main() {
     expect(find.text('아침 운동하기'), findsOneWidget);
     expect(find.text(AppStrings.battleStatusFinished), findsOneWidget);
     expect(find.text(AppStrings.battleYouWon), findsOneWidget);
-    expect(find.text(AppStrings.battleWonBySpeed), findsOneWidget);
-    // 속도전 승부 기준인 제출 시각과 격차가 화면에 드러나야 한다.
-    expect(find.text(AppStrings.battleSpeedLeadMine('30분')), findsOneWidget);
-    expect(find.textContaining('${AppStrings.battleEvidenceSubmittedLabel} 8월 20일 07:00'),
-        findsOneWidget);
+    // 끝난 대결에는 준비 중 안내도 포기 버튼도 없다.
+    expect(find.text(AppStrings.battleSubmissionPreparing), findsNothing);
+    expect(find.text(AppStrings.battleForfeit), findsNothing);
   });
 
-  testWidgets('프로필 화면에 이름과 대결 전적이 보인다', (WidgetTester tester) async {
+  testWidgets('상대가 포기해 끝난 대결은 승리 배너에 기권 사유를 보여준다', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      _detailScreen(
+        _detail(id: 'bf', type: 'speed', status: 'finished', winnerId: 'me', forfeitedBy: 'friend'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.battleYouWon), findsOneWidget);
+    expect(find.text(AppStrings.battleWonByForfeit), findsOneWidget);
+  });
+
+  testWidgets('무효로 끝난 대결은 무효 칩과 무효 배너를 보여준다', (WidgetTester tester) async {
+    await tester.pumpWidget(_detailScreen(_detail(id: 'bv', type: 'quality', status: 'voided')));
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.battleStatusVoided), findsOneWidget);
+    expect(find.text(AppStrings.battleVoidedMessage), findsOneWidget);
+    expect(find.text(AppStrings.battleYouWon), findsNothing);
+    expect(find.text(AppStrings.battleYouLost), findsNothing);
+    expect(find.text(AppStrings.battleDrawMessage), findsNothing);
+  });
+
+  testWidgets('포기 확인 문구는 속도전·품질전이 같고, 취소하면 포기하지 않는다', (WidgetTester tester) async {
+    for (final type in ['speed', 'quality']) {
+      await tester.pumpWidget(_detailScreen(_detail(id: 'ff-$type', type: type, status: 'active')));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text(AppStrings.battleForfeit));
+      await tester.tap(find.text(AppStrings.battleForfeit));
+      await tester.pumpAndSettle();
+
+      expect(find.text(AppStrings.battleForfeitConfirmTitle), findsOneWidget, reason: type);
+      expect(find.text(AppStrings.battleForfeitConfirm), findsOneWidget, reason: type);
+
+      await tester.tap(find.text(AppStrings.cancel));
+      await tester.pumpAndSettle();
+      expect(find.text(AppStrings.battleForfeitConfirmTitle), findsNothing, reason: type);
+
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets('프로필 화면에 이름과 유형별 승/패/무 전적이 보인다', (WidgetTester tester) async {
     final speedWin = Battle(
       id: 'b1',
       type: 'speed',
@@ -560,14 +453,24 @@ void main() {
       winnerId: 'me',
       createdAt: DateTime(2026, 8, 18),
     );
-    final qualityDisputed = Battle(
+    final qualityLoss = Battle(
       id: 'b2',
       type: 'quality',
-      status: 'disputed',
+      status: 'finished',
       title: '방 청소하기',
       creatorId: 'friend',
       opponentId: 'me',
+      winnerId: 'friend',
       createdAt: DateTime(2026, 8, 19),
+    );
+    final qualityVoided = Battle(
+      id: 'b3',
+      type: 'quality',
+      status: 'voided',
+      title: '책상 정리하기',
+      creatorId: 'friend',
+      opponentId: 'me',
+      createdAt: DateTime(2026, 8, 20),
     );
 
     await tester.pumpWidget(
@@ -578,9 +481,14 @@ void main() {
             (ref) async => [
               BattleRecord(battle: speedWin, otherPartyName: '친구', resultLabel: AppStrings.battleRecordWin),
               BattleRecord(
-                battle: qualityDisputed,
+                battle: qualityLoss,
                 otherPartyName: '친구',
-                resultLabel: AppStrings.battleStatusDisputed,
+                resultLabel: AppStrings.battleRecordLose,
+              ),
+              BattleRecord(
+                battle: qualityVoided,
+                otherPartyName: '친구',
+                resultLabel: AppStrings.battleRecordVoided,
               ),
             ],
           ),
@@ -593,46 +501,23 @@ void main() {
     expect(find.text('나'), findsOneWidget);
     expect(find.text('아침 운동하기'), findsOneWidget);
     expect(find.text('방 청소하기'), findsOneWidget);
+    expect(find.text('책상 정리하기'), findsOneWidget);
     expect(find.text(AppStrings.battleRecordWin), findsOneWidget);
-    expect(find.text(AppStrings.battleStatusDisputed), findsOneWidget);
+    expect(find.text(AppStrings.battleRecordLose), findsOneWidget);
+    expect(find.text(AppStrings.battleRecordVoided), findsOneWidget);
+    // 품질전도 승/패/무로 센다. 무효는 어느 칸에도 들어가지 않는다.
+    expect(find.text('1승 0패 0무'), findsOneWidget);
+    expect(find.text('0승 1패 0무'), findsOneWidget);
     // 앱바 아이콘이 사라진 뒤 계정 관련 동작은 전부 이 화면에 모인다.
+    // 기록이 세 장이라 계정 창이 첫 화면 아래로 밀린다. 목록은 보이는 곳만 그리므로 내려서 확인한다.
+    await tester.scrollUntilVisible(find.text(AppStrings.accountDelete), 200);
     expect(find.text(AppStrings.accountSection), findsOneWidget);
     expect(find.text(AppStrings.logout), findsOneWidget);
     expect(find.text(AppStrings.accountDelete), findsOneWidget);
   });
 
   testWidgets('전적 항목을 탭하면 지난 대결 상세로 들어간다', (WidgetTester tester) async {
-    final battle = Battle(
-      id: 'b1',
-      type: 'speed',
-      status: 'finished',
-      title: '아침 운동하기',
-      creatorId: 'me',
-      opponentId: 'friend',
-      winnerId: 'me',
-      createdAt: DateTime(2026, 8, 18),
-    );
-    final detail = BattleDetail(
-      battle: battle,
-      me: BattleParticipant(
-        battleId: 'b1',
-        userId: 'me',
-        evidenceType: 'text',
-        evidenceContent: '내 증거',
-        evidenceSubmittedAt: DateTime(2026, 8, 18, 7, 0),
-        decision: 'approve',
-      ),
-      opponent: BattleParticipant(
-        battleId: 'b1',
-        userId: 'friend',
-        evidenceType: 'text',
-        evidenceContent: '상대 증거',
-        evidenceSubmittedAt: DateTime(2026, 8, 18, 8, 0),
-        decision: 'approve',
-      ),
-      myName: '나',
-      opponentName: '친구',
-    );
+    final detail = _detail(id: 'b1', type: 'speed', status: 'finished', winnerId: 'me');
 
     await tester.pumpWidget(
       ProviderScope(
@@ -641,7 +526,7 @@ void main() {
           battleRecordsProvider.overrideWith(
             (ref) async => [
               BattleRecord(
-                battle: battle,
+                battle: detail.battle,
                 otherPartyName: '친구',
                 resultLabel: AppStrings.battleRecordWin,
               ),
@@ -657,9 +542,8 @@ void main() {
     await tester.tap(find.text('아침 운동하기'));
     await tester.pumpAndSettle();
 
-    // 끝난 대결은 내 대결 목록에서 빠지므로 이 경로가 지난 증거를 보는 유일한 길이다.
+    // 끝난 대결은 내 대결 목록에서 빠지므로 이 경로가 지난 결과를 보는 유일한 길이다.
     expect(find.text(AppStrings.battleYouWon), findsOneWidget);
-    expect(find.text('상대 증거'), findsOneWidget);
   });
 
   testWidgets('계정 삭제는 확인 다이얼로그를 거쳐야 실행된다', (WidgetTester tester) async {
@@ -698,22 +582,7 @@ void main() {
   });
   testWidgets('매칭된 대결에 처음 들어가면 VS 인트로가 뜨고, 다시 들어가면 뜨지 않는다', (WidgetTester tester) async {
     final store = _MemorySeenStore();
-    final battle = Battle(
-      id: 'bv',
-      type: 'speed',
-      status: 'active',
-      title: '아침 운동하기',
-      creatorId: 'me',
-      opponentId: 'friend',
-      createdAt: DateTime(2026, 8, 20),
-    );
-    final detail = BattleDetail(
-      battle: battle,
-      me: const BattleParticipant(battleId: 'bv', userId: 'me'),
-      opponent: const BattleParticipant(battleId: 'bv', userId: 'friend'),
-      myName: '나',
-      opponentName: '친구',
-    );
+    final detail = _detail(id: 'bv', type: 'speed', status: 'active');
     Widget screen() => ProviderScope(
           overrides: [
             battleDetailProvider('bv').overrideWith((ref) async => detail),
@@ -736,7 +605,7 @@ void main() {
     await tester.tap(find.byType(VsIntro));
     await tester.pump();
     expect(find.byType(VsIntro), findsNothing);
-    expect(find.text(AppStrings.battleEvidenceSubmit), findsOneWidget);
+    expect(find.text(AppStrings.battleSubmissionPreparing), findsOneWidget);
 
     // 같은 대결에 다시 들어가면 뜨지 않는다.
     await tester.pumpWidget(const SizedBox());

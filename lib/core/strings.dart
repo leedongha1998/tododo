@@ -129,6 +129,8 @@ class AppStrings {
   static const profileLoadFailed = '프로필을 불러오지 못했습니다.';
   static const profileRecordEmpty = '아직 완료된 대결이 없어요.';
   static const profileLoadRecordFailed = '전적을 불러오지 못했습니다.';
+  static const profileRecordSection = '전적';
+  static const profileHistorySection = '지난 대결';
   static const battleRecordWin = '승';
   static const battleRecordLose = '패';
   static const battleRecordDraw = '무';

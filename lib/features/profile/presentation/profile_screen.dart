@@ -38,8 +38,13 @@ class ProfileScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           recordsAsync.when(
             data: (records) {
+              // 요약과 목록이 이름 아래 맨바닥에 이어 붙어 있으면 어디까지가 요약인지 안 보인다.
+              // 요약은 제목 띠가 있는 창으로, 지난 대결은 한 장씩 떠 있는 카드로 나눈다.
               if (records.isEmpty) {
-                return Text(AppStrings.profileRecordEmpty);
+                return const PixelFrame.flat(
+                  title: AppStrings.profileRecordSection,
+                  child: Text(AppStrings.profileRecordEmpty),
+                );
               }
 
               final speedWins =
@@ -61,23 +66,39 @@ class ProfileScreen extends ConsumerWidget {
                   .length;
 
               return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    '${AppStrings.battleTypeSpeed} $speedWins${AppStrings.battleRecordWin}'
-                    ' $speedLosses${AppStrings.battleRecordLose}'
-                    ' $speedDraws${AppStrings.battleRecordDraw}',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                  PixelFrame.flat(
+                    title: AppStrings.profileRecordSection,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _RecordSummaryRow(
+                          type: 'speed',
+                          summary: '$speedWins${AppStrings.battleRecordWin}'
+                              ' $speedLosses${AppStrings.battleRecordLose}'
+                              ' $speedDraws${AppStrings.battleRecordDraw}',
+                        ),
+                        const SizedBox(height: 8),
+                        _RecordSummaryRow(
+                          type: 'quality',
+                          summary: '$qualityFinished${AppStrings.battleStatusFinished}'
+                              ' $qualityDisputed${AppStrings.battleStatusDisputed}'
+                              ' $qualityDraws${AppStrings.battleRecordDraw}',
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 24),
                   Text(
-                    '${AppStrings.battleTypeQuality} $qualityFinished${AppStrings.battleStatusFinished}'
-                    ' $qualityDisputed${AppStrings.battleStatusDisputed}'
-                    ' $qualityDraws${AppStrings.battleRecordDraw}',
-                    style: Theme.of(context).textTheme.bodyMedium,
+                    AppStrings.profileHistorySection,
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 16),
-                  ...records.map((record) => _BattleRecordTile(record: record)),
+                  const SizedBox(height: 8),
+                  for (final record in records) ...[
+                    _BattleRecordTile(record: record),
+                    const SizedBox(height: 8),
+                  ],
                 ],
               );
             },
@@ -185,7 +206,29 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
   }
 }
 
+/// 전적 창 안의 한 줄. 유형은 배지로 떼어 두어 숫자만 읽으면 되게 한다.
+class _RecordSummaryRow extends StatelessWidget {
+  const _RecordSummaryRow({required this.type, required this.summary});
+
+  final String type;
+  final String summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        BattleTypeBadge(type: type),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(summary, style: Theme.of(context).textTheme.bodyMedium),
+        ),
+      ],
+    );
+  }
+}
+
 /// 끝난 대결은 내 대결 탭에서 빠지므로, 지난 증거와 결과를 다시 볼 경로는 여기뿐이다.
+/// 한 대결을 떠 있는 카드 한 장으로 그려 항목끼리의 경계가 보이게 한다.
 class _BattleRecordTile extends StatelessWidget {
   const _BattleRecordTile({required this.record});
 
@@ -193,24 +236,44 @@ class _BattleRecordTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(record.battle.title),
-      subtitle: Row(
-        children: [
-          BattleTypeBadge(type: record.battle.type),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              '${AppStrings.battleVersus} ${record.otherPartyName}',
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-      trailing: ResultLabel.small(label: record.resultLabel),
+    final textTheme = Theme.of(context).textTheme;
+    final mutedColor = Theme.of(context).colorScheme.onSurfaceVariant;
+
+    return PixelFrame.raised(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => BattleDetailScreen(battleId: record.battle.id)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
+                Text(
+                  record.battle.title,
+                  style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    BattleTypeBadge(type: record.battle.type),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        '${AppStrings.battleVersus} ${record.otherPartyName}',
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodyMedium?.copyWith(color: mutedColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          ResultLabel.small(label: record.resultLabel),
+        ],
       ),
     );
   }

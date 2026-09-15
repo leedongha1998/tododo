@@ -7,8 +7,11 @@ import '../../../core/widgets/pixel_icon.dart';
 import '../../../core/widgets/pixel_loader.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../profile/domain/profile_providers.dart';
+import '../domain/ai_consent_providers.dart';
+import '../domain/ai_consent_rules.dart';
 import '../domain/battle_providers.dart';
 import '../domain/battle_recruit.dart';
+import 'ai_consent_screen.dart';
 import 'battle_chips.dart';
 import 'create_battle_screen.dart';
 import 'vs_intro.dart';
@@ -16,7 +19,24 @@ import 'vs_intro.dart';
 class BattleRecruitsScreen extends ConsumerWidget {
   const BattleRecruitsScreen({super.key});
 
-  Future<void> _join(BuildContext context, WidgetRef ref, BattleRecruit recruit) async {
+  // 대결을 만들기 전에도 동의를 받는다. 제목과 기준이 AI로 넘어가기 때문이다(3단계 기준 생성).
+  Future<void> _openCreate(BuildContext context, WidgetRef ref) async {
+    if (!await ensureAiConsent(context, ref)) return;
+    if (!context.mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
+    );
+  }
+
+  Future<void> _join(
+    BuildContext context,
+    WidgetRef ref,
+    BattleRecruit recruit, {
+    bool retried = false,
+  }) async {
+    if (!await ensureAiConsent(context, ref)) return;
+    if (!context.mounted) return;
+
     final battleId = recruit.battle.id;
     try {
       await ref.read(battleRepositoryProvider).joinBattle(battleId);
@@ -24,6 +44,14 @@ class BattleRecruitsScreen extends ConsumerWidget {
       ref.invalidate(myBattlesProvider);
     } catch (e) {
       debugPrint('joinBattle failed: $e');
+      // 앱이 알던 동의 상태가 서버와 어긋난 경우(다른 기기에서 철회 등). 다시 읽고 한 번만 재시도한다.
+      if (isConsentRequiredError(e) && !retried) {
+        ref.invalidate(myAiConsentProvider);
+        if (context.mounted) {
+          await _join(context, ref, recruit, retried: true);
+        }
+        return;
+      }
       if (context.mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text(AppStrings.battleJoinFailed)));
@@ -90,9 +118,7 @@ class BattleRecruitsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text(AppStrings.battleFind)),
       // 등록한 모집이 바로 아래 목록에 뜨므로 만들기 버튼도 이 화면에 있는 게 맞다.
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
-        ),
+        onPressed: () => _openCreate(context, ref),
         icon: const PixelIcon(PixelIcons.battle),
         label: const Text(AppStrings.battleCreate),
       ),

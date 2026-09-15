@@ -12,6 +12,7 @@ import '../../battle/presentation/battle_chips.dart';
 import '../../battle/presentation/battle_detail_screen.dart';
 import '../domain/battle_record.dart';
 import '../domain/profile_providers.dart';
+import 'ai_consent_section.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -91,6 +92,9 @@ class ProfileScreen extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 32),
+          // 대결 참여의 전제 조건이라 계정 섹션 위에 둔다.
+          const AiConsentSection(),
+          const SizedBox(height: 16),
           // 탭바가 생기면서 앱바 아이콘이 사라졌다. 계정 관련 동작은 전부 이 창 하나에 모은다.
           PixelFrame.flat(
             title: AppStrings.accountSection,

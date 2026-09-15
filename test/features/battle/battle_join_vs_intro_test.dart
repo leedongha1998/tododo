@@ -11,6 +11,8 @@ import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
+import 'package:todododo/features/battle/data/ai_consent.dart';
+import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/domain/battle_recruit.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
@@ -123,6 +125,10 @@ Future<void> _pumpRecruits(
     ProviderScope(
       overrides: [
         battleRepositoryProvider.overrideWithValue(repository),
+        // 동의 절차는 ai_consent_test.dart에서 따로 본다. 여기서는 이미 동의한 사용자로 둔다.
+        myAiConsentProvider.overrideWith(
+          (ref) async => AiConsent(version: '2026-09-14', consentedAt: DateTime(2026, 9, 16)),
+        ),
         authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
         vsIntroSeenStoreProvider.overrideWithValue(store),
         myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '민지')),

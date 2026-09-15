@@ -13,6 +13,7 @@ import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
+import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/domain/battle_recruit.dart';
@@ -264,6 +265,8 @@ void main() {
           myBattlesProvider.overrideWith((ref) async => []),
           openRecruitsProvider.overrideWith((ref) async => []),
           myRecruitsProvider.overrideWith((ref) async => []),
+          // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
+          myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
           battleRecordsProvider.overrideWith((ref) async => []),
         ],
@@ -476,6 +479,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
+          myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
           battleRecordsProvider.overrideWith(
             (ref) async => [
@@ -522,6 +527,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
+          myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
           battleRecordsProvider.overrideWith(
             (ref) async => [
@@ -553,6 +560,8 @@ void main() {
       ProviderScope(
         overrides: [
           authRepositoryProvider.overrideWithValue(authRepository),
+          // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
+          myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
           battleRecordsProvider.overrideWith((ref) async => <BattleRecord>[]),
         ],
@@ -560,6 +569,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    // 동의 섹션이 생겨 계정 창이 첫 화면 아래로 밀린다. 목록은 보이는 곳만 그리므로 내려서 확인한다.
+    await tester.scrollUntilVisible(find.text(AppStrings.accountDelete), 200);
 
     // 취소하면 삭제되지 않는다.
     await tester.tap(find.text(AppStrings.accountDelete));

@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/supabase/supabase_init.dart';
 import '../data/battle.dart';
+import '../data/battle_criteria_repository.dart';
 import '../data/battle_repository.dart';
+import '../data/criteria_check_result.dart';
 import '../data/vs_intro_seen_store.dart';
 import 'battle_detail.dart';
 import 'battle_recruit.dart';
@@ -10,6 +12,15 @@ import 'battle_summary.dart';
 
 final battleRepositoryProvider = Provider<BattleRepository>((ref) {
   return BattleRepository(supabase);
+});
+
+final battleCriteriaRepositoryProvider = Provider<BattleCriteriaRepository>((ref) {
+  return BattleCriteriaRepository(supabase);
+});
+
+/// 오늘 남은 기준 생성 횟수와 모집·대결 한도. 대결 만들기 화면의 사전 안내용.
+final myLimitsProvider = FutureProvider.autoDispose<MyLimits>((ref) {
+  return ref.watch(battleRepositoryProvider).fetchMyLimits();
 });
 
 // 대결 목록류 provider는 화면을 떠나면 캐시를 비우는 autoDispose를 쓴다.

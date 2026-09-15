@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'battle.dart';
 import 'battle_participant.dart';
+import 'criteria_check_result.dart';
 
 class BattleRepository {
   BattleRepository(this._client);
@@ -11,18 +12,28 @@ class BattleRepository {
 
   final SupabaseClient _client;
 
-  Future<void> createBattle({
-    required String type,
-    required String title,
-    required int durationHours,
-  }) {
-    final myId = _client.auth.currentUser!.id;
-    return _client.from('battles').insert({
-      'creator_id': myId,
-      'type': type,
-      'title': title,
-      'duration_hours': durationHours,
-    });
+  /// 검사를 통과한 기준 증서로만 대결을 만든다. 제목·유형·기준은 서버가 증서에서 복사하므로
+  /// 클라이언트가 보낸 텍스트는 쓰이지 않는다.
+  Future<String> createBattle({required String checkId, required int durationHours}) async {
+    final id = await _client.rpc(
+      'create_battle',
+      params: {'p_check_id': checkId, 'p_duration_hours': durationHours},
+    );
+    return id as String;
+  }
+
+  /// 모집 중(상대 없음)인 내 대결의 기준을 바꾼다. 새 버전 번호를 돌려준다.
+  Future<int> updateBattleCriteria({required String battleId, required String checkId}) async {
+    final version = await _client.rpc(
+      'update_battle_criteria',
+      params: {'p_battle_id': battleId, 'p_check_id': checkId},
+    );
+    return (version as num).toInt();
+  }
+
+  Future<MyLimits> fetchMyLimits() async {
+    final row = await _client.rpc('get_my_limits');
+    return MyLimits.fromMap(Map<String, dynamic>.from(row as Map));
   }
 
   Future<List<Battle>> fetchOpenRecruits() async {

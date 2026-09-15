@@ -13,6 +13,7 @@ import 'package:todododo/features/battle/data/ai_consent_repository.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
+import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
 import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
@@ -67,11 +68,19 @@ class _JoinOnlyBattleRepository implements BattleRepository {
   }
 
   @override
-  Future<void> createBattle({
-    required String type,
-    required String title,
-    required int durationHours,
-  }) async {}
+  Future<String> createBattle({required String checkId, required int durationHours}) async =>
+      'new-battle';
+
+  @override
+  Future<int> updateBattleCriteria({required String battleId, required String checkId}) async => 1;
+
+  @override
+  Future<MyLimits> fetchMyLimits() async => const MyLimits(
+        consented: true,
+        hasPending: false,
+        dailyBattleUsed: false,
+        criteriaCallsLeft: 10,
+      );
 
   @override
   Future<List<Battle>> fetchOpenRecruits() async => const [];

@@ -11,6 +11,7 @@ import 'package:todododo/features/auth/presentation/login_screen.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
+import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
 import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
@@ -22,7 +23,6 @@ import 'package:todododo/features/battle/presentation/battle_detail_screen.dart'
 import 'package:todododo/core/navigation/main_shell.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/features/battle/presentation/my_battles_screen.dart';
-import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
 import 'package:todododo/features/battle/presentation/vs_intro.dart';
 import 'package:todododo/features/profile/domain/battle_record.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
@@ -34,11 +34,19 @@ import 'package:todododo/main.dart';
 
 class _FakeBattleRepository implements BattleRepository {
   @override
-  Future<void> createBattle({
-    required String type,
-    required String title,
-    required int durationHours,
-  }) async {}
+  Future<String> createBattle({required String checkId, required int durationHours}) async =>
+      'new-battle';
+
+  @override
+  Future<int> updateBattleCriteria({required String battleId, required String checkId}) async => 1;
+
+  @override
+  Future<MyLimits> fetchMyLimits() async => const MyLimits(
+        consented: true,
+        hasPending: false,
+        dailyBattleUsed: false,
+        criteriaCallsLeft: 10,
+      );
 
   @override
   Future<List<Battle>> fetchOpenRecruits() async => const [];
@@ -313,27 +321,7 @@ void main() {
     expect(find.widgetWithText(FloatingActionButton, AppStrings.battleCreate), findsOneWidget);
   });
 
-  testWidgets('대결 만들기 화면에 유형/제목 입력이 바로 보이고, 제목을 입력하면 등록 버튼이 활성화된다',
-      (WidgetTester tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [battleRepositoryProvider.overrideWithValue(_FakeBattleRepository())],
-        child: const MaterialApp(home: CreateBattleScreen()),
-      ),
-    );
-
-    expect(find.text(AppStrings.battleTypeSpeed), findsOneWidget);
-    expect(find.text(AppStrings.battleTypeQuality), findsOneWidget);
-
-    final initialButton = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(initialButton.onPressed, isNull);
-
-    await tester.enterText(find.byType(TextField), '아침 운동하기');
-    await tester.pumpAndSettle();
-
-    final filledButton = tester.widget<FilledButton>(find.byType(FilledButton));
-    expect(filledButton.onPressed, isNotNull);
-  });
+  // 대결 만들기 화면은 AI 기준 생성·승인 2단계로 바뀌어 create_battle_test.dart에서 따로 본다.
 
   testWidgets('모집 중인 대결이 보이고 참가 버튼이 있다', (WidgetTester tester) async {
     final battle = Battle(

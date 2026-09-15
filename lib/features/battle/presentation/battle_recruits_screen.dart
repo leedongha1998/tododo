@@ -14,6 +14,7 @@ import '../domain/battle_recruit.dart';
 import 'ai_consent_screen.dart';
 import 'battle_chips.dart';
 import 'create_battle_screen.dart';
+import 'edit_recruit_criteria_screen.dart';
 import 'vs_intro.dart';
 
 class BattleRecruitsScreen extends ConsumerWidget {
@@ -186,9 +187,23 @@ class BattleRecruitsScreen extends ConsumerWidget {
                               alignment: Alignment.centerLeft,
                               child: BattleTypeBadge(type: battle.type),
                             ),
-                            trailing: TextButton(
-                              onPressed: () => _cancel(context, ref, battle.id),
-                              child: const Text(AppStrings.battleRecruitCancel),
+                            // 매칭 전까지는 기준을 고칠 수 있다. 매칭된 뒤에는 서버가 거부한다.
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                OutlinedButton(
+                                  onPressed: () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => EditRecruitCriteriaScreen(battle: battle),
+                                    ),
+                                  ),
+                                  child: const Text(AppStrings.battleCriteriaEditRecruit),
+                                ),
+                                TextButton(
+                                  onPressed: () => _cancel(context, ref, battle.id),
+                                  child: const Text(AppStrings.battleRecruitCancel),
+                                ),
+                              ],
                             ),
                           ),
                         )

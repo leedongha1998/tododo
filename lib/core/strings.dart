@@ -125,6 +125,43 @@ class AppStrings {
   static const aiConsentWithdrawDone = '동의를 철회했습니다.';
   static const aiConsentWithdrawFailed = '동의 철회에 실패했습니다. 다시 시도해주세요.';
 
+  // AI 판정 기준(생성·수정·차단).
+  static const battleCriteriaGenerate = 'AI 기준 만들기';
+  static const battleCriteriaGenerating = 'AI가 판정 기준을 만들고 있어요';
+  static const battleCriteriaGeneratingDetail = '최대 30초 정도 걸려요';
+  static const battleCriteriaMinTitle = '최소 기준';
+  static const battleCriteriaMinHint = '이걸 모두 만족하면 통과예요';
+  static const battleCriteriaSuperiorityTitle = '우열 기준';
+  static const battleCriteriaSuperiorityHint = '둘 다 통과하면 이걸로 승자를 가려요';
+  static const battleCriteriaEdit = '수정';
+  static const battleCriteriaSubmit = '이 기준으로 올리기';
+  static const battleCriteriaRecheck = '다시 검사하기(1회 차감)';
+  static const battleCriteriaRevert = '원래 기준으로 되돌리기';
+  static const battleCriteriaBlocked = '사진으로 증명할 수 없는 미션이라 대결로 만들 수 없어요';
+  static const battleCriteriaFixTitle = '제목 고치기';
+  static const battleCriteriaAdd = '기준 추가';
+  static const battleCriteriaRemove = '기준 삭제';
+  static String battleCriteriaCallsLeft(int left) => '오늘 남은 기준 생성 $left/10회';
+  static const battleCriteriaTooFew = '기준은 최소 1개가 필요해요.';
+  static const battleCriteriaTooMany = '기준은 최대 5개까지예요.';
+  static const battleCriteriaItemEmpty = '비어 있는 기준이 있어요.';
+  static const battleCriteriaItemTooLong = '기준 하나는 100자까지 쓸 수 있어요.';
+  static const battleCriteriaEditRecruit = '기준 수정';
+  static const battleCriteriaApply = '기준 바꾸기';
+  static const battleCriteriaApplied = '기준을 바꿨습니다.';
+  static const battleCriteriaApplyFailed = '기준을 바꾸지 못했습니다. 다시 시도해주세요.';
+
+  // 서버 오류 코드별 문구. 서버 메시지를 그대로 보여 주지 않는다.
+  static const battleErrorPendingExists = '모집 중인 대결은 한 번에 1개만 올릴 수 있어요.';
+  static const battleErrorDailyLimit = '오늘은 이미 대결을 했어요. 지금은 하루에 한 번 대결할 수 있어요.\n'
+      '(유료 사용자는 더 할 수 있게 될 예정이에요)';
+  static const battleErrorCriteriaCallLimit = '오늘 기준 만들기 횟수를 다 썼어요. 내일 다시 시도해주세요.';
+  static const battleErrorCheckInvalid = '기준 확인이 만료됐어요. 기준을 다시 만들어 주세요.';
+  static const battleErrorNotPending = '이미 매칭되어 기준을 바꿀 수 없어요.';
+  static const battleErrorAiFailed = 'AI가 응답하지 않았어요. 잠시 후 다시 시도해 주세요.\n'
+      '(횟수는 차감되지 않았어요)';
+  static const battleErrorUnknown = '요청을 처리하지 못했습니다. 다시 시도해주세요.';
+
   static const profileTitle = '프로필';
   static const profileLoadFailed = '프로필을 불러오지 못했습니다.';
   static const profileRecordEmpty = '아직 완료된 대결이 없어요.';

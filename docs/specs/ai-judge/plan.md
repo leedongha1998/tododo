@@ -95,10 +95,10 @@
 ## 2단계 — AI 데이터 제공 동의
 
 ### 파일
-- 마이그레이션 `2026MMDD..._ai_consent.sql`: `ai_consents`, `ai_consent_events`(+RLS 본인 select), `give_ai_consent(text)`, `withdraw_ai_consent()`, `get_consent_withdrawal_impact()`, `join_battle(uuid)`에 동의 검사(`CONSENT_REQUIRED` hint) 추가, `delete_account`에 동의 기록 삭제 추가.
-- SQL 테스트 `supabase/tests/ai_consent_smoke.sql`: 철회 시 active 포기(-3·상대 승)·pending 취소·슬롯 미반환·동의 행 삭제·이벤트 기록, 미동의 참가 `CONSENT_REQUIRED`, 탈퇴 시 동의·이벤트 삭제, anon 권한 오류.
-- Dart: `features/battle/data/ai_consent_repository.dart`, `domain/ai_consent_providers.dart`(`myAiConsentProvider`), `presentation/ai_consent_screen.dart`(신규 화면), 프로필 동의 섹션 + 철회 다이얼로그, 대결 만들기·참가 진입 시 동의 유도, `strings.dart`.
-- 테스트: 동의 필요 판단 getter 유닛 테스트, 위젯 테스트(동의 화면 필수 항목 5개 문구, 거부 시 pop false, 철회 다이얼로그 N/M 문구).
+- 마이그레이션 `supabase/migrations/20260916120000_ai_consent.sql`: `ai_consents`, `ai_consent_events`(+RLS 본인 select), `give_ai_consent(text)`, `withdraw_ai_consent()`, `get_consent_withdrawal_impact()`, `join_battle(uuid)`에 동의 검사(`CONSENT_REQUIRED` hint) 추가, battles insert 정책을 동의 조건이 붙은 `"consented creator can create a pending battle"`로 교체, `delete_account`에 동의 기록 삭제 추가.
+- SQL 테스트 `supabase/tests/ai_consent_smoke.sql`: 철회 시 active 포기(-3·상대 승)·pending 취소·슬롯 미반환·동의 행 삭제·이벤트 기록, 미동의 참가 `CONSENT_REQUIRED`, 미동의 생성 RLS 차단, 탈퇴 시 동의·이벤트 삭제, anon 권한 오류.
+- Dart: `core/app_links.dart`(정책 문서 주소 상수), `features/battle/data/ai_consent.dart`·`ai_consent_repository.dart`, `domain/ai_consent_providers.dart`·`ai_consent_rules.dart`, `presentation/ai_consent_screen.dart`(신규 화면 + `ensureAiConsent`), `features/profile/presentation/ai_consent_section.dart`(프로필 섹션 + 철회 대화상자), 대결 만들기·참가 진입 시 동의 유도, `strings.dart`.
+- 테스트: `test/features/battle/domain/ai_consent_rules_test.dart`(오류 코드 판별·철회 문구), `test/features/battle/ai_consent_test.dart`(동의 화면 항목, 참가·생성 유도, 철회 흐름).
 
 ### 커밋
 1. `feat: AI 데이터 제공 동의 스키마와 철회 처리` (마이그레이션 + SQL 테스트)
@@ -118,7 +118,7 @@
 
 ### 파일
 - `supabase/config.toml`(신규, `[functions.judge-quality] verify_jwt = false`는 6단계에 추가 — 3단계는 파일만), `supabase/functions/_shared/{gemini,schemas,prompts,auth,errors}.ts`, `supabase/functions/battle-criteria/index.ts`, `supabase/functions/_shared/*_test.ts`.
-- 마이그레이션 `..._criteria_checks.sql`: `battles`에 `min_criteria jsonb`·`superiority_criteria jsonb`(+유형 제약)·`criteria_version`, 모집 1개 부분 유니크 인덱스, insert 정책 drop, `criteria_checks`·`ai_criteria_calls`(+RLS), `begin/finish/fail_criteria_call`(service), `create_battle(uuid,int)`, `update_battle_criteria(uuid,uuid)`, `get_my_limits()`, `delete_account`에 기준 원장 삭제, 2분 넘은 `in_progress` 정리 함수.
+- 마이그레이션 `..._criteria_checks.sql`: `battles`에 `min_criteria jsonb`·`superiority_criteria jsonb`(+유형 제약)·`criteria_version`, 모집 1개 부분 유니크 인덱스, insert 정책 drop(2단계에서 이름이 `"consented creator can create a pending battle"`로 바뀌었다 — 그 이름으로 drop한다), `criteria_checks`·`ai_criteria_calls`(+RLS), `begin/finish/fail_criteria_call`(service), `create_battle(uuid,int)`, `update_battle_criteria(uuid,uuid)`, `get_my_limits()`, `delete_account`에 기준 원장 삭제, 2분 넘은 `in_progress` 정리 함수.
   - `min_criteria not null`은 기존 행이 없고(1단계 정리) 앱이 같은 커밋에서 `create_battle` RPC로 바뀌므로 이 단계에서 not null로 둔다. 원격 적용과 앱 배포 사이에 옛 앱이 대결을 만들면 실패한다(배포 전이라 허용).
 - SQL 테스트 `supabase/tests/criteria_smoke.sql`: 10회 산입(성공+2분 내 진행 중), 실패 미산입, 11번째 `CRITERIA_CALL_LIMIT`, `PENDING_EXISTS`, 차단/사용됨/만료/타인 check `CHECK_INVALID`, 유형별 우열 기준 제약, `update_battle_criteria` version+1·`NOT_PENDING`.
 - Dart: `BattleCriteriaRepository`, `CriteriaCheckResult`, `Battle` 기준 필드, `BattleRepository.createBattle(checkId, duration)`, `create_battle_screen.dart` 2단계 교체, 기준 편집 위젯(내 모집 수정에서 재사용), `strings.dart`.
@@ -233,6 +233,19 @@
   - `battle_outcome_rules.sql`에 설계 18케이스 외 `outcome_score_delta` 5케이스를 더해 23행.
   - 제거한 UI 전용 문자열(승인/이의제기·텍스트 증거·갤러리·제출 격차 등)을 7단계까지 미루지 않고 1단계에서 삭제. 참조가 모두 사라져 남기면 옛 규칙 문구가 되살아날 여지만 생긴다. 공용 칩이 쓰는 `battleStatusFinished`/`battleStatusDisputed`는 유지.
   - `battle_chips.dart`에 `voided` 상태 라벨과 `무효` 결과 라벨 매핑을 추가(기존 매핑 불변).
+
+### 2단계 (로컬 구현 완료, 원격 미적용·미커밋, 2026-09-16)
+- 순서 변경 없음.
+- 로컬 검증: `flutter analyze` 이슈 0, `flutter test` 201개 통과(1단계 189 + 동의 규칙 유닛 5 + 동의 위젯 7).
+- 원격 읽기 확인(`supabase db query --linked "select status, count(*) ..."`): `battles` 0행. 동의 제도가 생기기 전에 만들어진 모집(= 생성자가 동의하지 않은 모집)이 없으므로 **이 마이그레이션은 기존 행을 지우거나 바꾸지 않는다.** 이후에는 insert 정책(동의 필요)과 철회 시 모집 취소가 "모집 중 대결의 생성자는 항상 동의 상태"를 유지한다.
+- SQL 스모크(`ai_consent_smoke.sql`)는 로컬 실행 수단이 없어 **미실행**(원격 적용 후 오너가 실행). `%%` 대신 `ok=% %` 형식을 썼다.
+- 설계와 달라진 점
+  - **개인정보처리방침 링크**: 정책 문서가 아직 게시되지 않아 주소가 없다. `lib/core/app_links.dart`의 `privacyPolicyUrl`을 빈 문자열로 두고, 비어 있으면 동의 화면에서 링크 영역을 그리지 않는다. 주소를 채우면 복사할 수 있는 글자로 보여 준다 — `url_launcher`가 pubspec에 없어 브라우저 열기는 넣지 않았다(패키지 추가는 오너 판단).
+  - **battles insert 정책**: 3단계에서 drop될 정책이지만 그때까지 동의 없이 만든 모집이 생기면 안 되므로, drop 대신 동의 조건을 붙인 `"consented creator can create a pending battle"`로 교체했다. 정책 위반은 `CONSENT_REQUIRED` 힌트가 아니라 RLS 오류(42501)로 떨어진다 — 앱은 생성 화면에 들어가기 전에 동의를 확인하므로 정상 경로에서는 보이지 않는다.
+  - **철회 구현**: 포기 규칙을 복제하지 않으려고 `withdraw_ai_consent`가 대결마다 기존 `forfeit_battle`을 그대로 부른다. 잠금 순서는 "내 동의 행 → 내 대결"이고 `join_battle`도 같은 순서라 교착이 없다. 모집 취소를 먼저 하고 진행 중 대결을 나중에 처리해, 그 사이에 매칭된 대결도 포기로 잡힌다.
+  - **동의 기록이 없을 때의 철회**: `CONSENT_REQUIRED` 힌트로 거부한다(설계에 명시되지 않은 지점).
+  - 프로필 동의 섹션은 계정 섹션 **위**에 둔다(design.md 화면 2 그대로).
+- 위젯 테스트에서 배운 것: 조회가 끝나지 않은 대화상자에는 `PixelLoader`가 계속 돌아 `pumpAndSettle`이 끝나지 않는다(`pump`로 확인). 프로필에 섹션이 하나 늘어 계정 창이 첫 화면 밖으로 밀리므로 탈퇴 테스트도 `scrollUntilVisible`이 필요하다.
 
 ## 1단계 원격 적용 기록 (2026-09-15)
 - 오너 승인 후 `supabase db push`로 마이그레이션 4개 적용. `supabase migration list --linked` 16개 일치.

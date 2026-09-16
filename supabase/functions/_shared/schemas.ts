@@ -247,6 +247,142 @@ export function parseSpeedVerdictResponse(value: unknown): SpeedVerdictResult {
   return { passed: raw.passed, reason };
 }
 
+/// ④ 품질전 2단계 판정 응답 스키마.
+///
+/// a/b는 **보낸 사진의 순서**일 뿐 참가자가 아니다. 순서는 매 시도마다 섞이고,
+/// 응답을 참가자로 되돌리는 일은 [mapQualityVerdictToParticipants]가 한다.
+export const qualityVerdictResponseSchema = {
+  type: 'object',
+  properties: {
+    a: {
+      type: 'object',
+      properties: { meets_criteria: { type: 'boolean' }, reason: { type: 'string' } },
+      required: ['meets_criteria', 'reason'],
+    },
+    b: {
+      type: 'object',
+      properties: { meets_criteria: { type: 'boolean' }, reason: { type: 'string' } },
+      required: ['meets_criteria', 'reason'],
+    },
+    winner: { type: 'string', nullable: true },
+    winner_reason: { type: 'string', nullable: true },
+  },
+  required: ['a', 'b'],
+};
+
+export interface QualityPhotoVerdict {
+  /// 1단계: 이 사진이 최소 기준을 충족하는가.
+  meetsCriteria: boolean;
+  /// 최소 기준에 근거한 한 줄 사유.
+  reason: string;
+}
+
+export interface QualityVerdictResult {
+  a: QualityPhotoVerdict;
+  b: QualityPhotoVerdict;
+  /// 2단계: 둘 다 충족했을 때의 승자(사진 순서 기준). 그 밖에는 null.
+  winner: 'a' | 'b' | null;
+  /// 우열 기준에 근거한 한 줄 사유. 승자가 있을 때만 있다.
+  winnerReason: string | null;
+}
+
+function parseQualityPhotoVerdict(value: unknown, label: string): QualityPhotoVerdict {
+  if (typeof value !== 'object' || value === null) {
+    throw new ValidationError(`${label} 판정이 객체가 아닙니다.`);
+  }
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.meets_criteria !== 'boolean') {
+    throw new ValidationError(`${label} 판정에 meets_criteria가 없습니다.`);
+  }
+  if (typeof raw.reason !== 'string' || raw.reason.trim().length === 0) {
+    throw new ValidationError(`${label} 판정 사유가 없습니다.`);
+  }
+  const reason = raw.reason.trim();
+  if (reason.length > REASON_MAX) {
+    throw new ValidationError(`${label} 판정 사유가 ${REASON_MAX}자를 넘습니다.`);
+  }
+  return { meetsCriteria: raw.meets_criteria, reason };
+}
+
+/// 품질전 판정 응답 재검증.
+///
+/// **둘 다 최소 기준을 충족했는데 승자가 없거나 a/b가 아니면 실패로 본다**(동점이 없다는 규칙을
+/// 서버가 강제한다). 실패는 재시도 대상이며, 마지막 시도까지 실패하면 대결이 무효가 된다.
+/// 한쪽만 충족하거나 둘 다 미달이면 승자는 무시한다 — 그 경우의 승패는 DB의 quality_outcome이 정한다.
+export function parseQualityVerdictResponse(value: unknown): QualityVerdictResult {
+  if (typeof value !== 'object' || value === null) {
+    throw new ValidationError('응답이 객체가 아닙니다.');
+  }
+  const raw = value as Record<string, unknown>;
+
+  const a = parseQualityPhotoVerdict(raw.a, 'A');
+  const b = parseQualityPhotoVerdict(raw.b, 'B');
+
+  if (!a.meetsCriteria || !b.meetsCriteria) {
+    return { a, b, winner: null, winnerReason: null };
+  }
+
+  if (raw.winner !== 'a' && raw.winner !== 'b') {
+    throw new ValidationError('둘 다 기준을 충족했는데 승자가 없습니다.');
+  }
+  if (typeof raw.winner_reason !== 'string' || raw.winner_reason.trim().length === 0) {
+    throw new ValidationError('승패 사유가 없습니다.');
+  }
+  const winnerReason = raw.winner_reason.trim();
+  if (winnerReason.length > REASON_MAX) {
+    throw new ValidationError(`승패 사유가 ${REASON_MAX}자를 넘습니다.`);
+  }
+
+  return { a, b, winner: raw.winner, winnerReason };
+}
+
+export interface QualityParticipantVerdict {
+  creator: QualityPhotoVerdict;
+  opponent: QualityPhotoVerdict;
+  winner: 'creator' | 'opponent' | null;
+  winnerReason: string | null;
+}
+
+/// 사진 순서(a/b)로 온 판정을 참가자(생성자/참가자)로 되돌린다.
+///
+/// [flipped]가 true이면 A 자리에 참가자 사진을, B 자리에 생성자 사진을 보낸 것이다.
+/// 위치 편향(앞에 온 사진을 더 좋게 보는 경향)을 줄이려고 매 시도마다 순서를 섞기 때문에,
+/// 이 되돌리기가 틀리면 승패가 통째로 뒤집힌다.
+export function mapQualityVerdictToParticipants(
+  result: QualityVerdictResult,
+  flipped: boolean,
+): QualityParticipantVerdict {
+  const creator = flipped ? result.b : result.a;
+  const opponent = flipped ? result.a : result.b;
+
+  let winner: 'creator' | 'opponent' | null = null;
+  if (result.winner === 'a') {
+    winner = flipped ? 'opponent' : 'creator';
+  } else if (result.winner === 'b') {
+    winner = flipped ? 'creator' : 'opponent';
+  }
+
+  return { creator, opponent, winner, winnerReason: result.winnerReason };
+}
+
+export interface JudgeQualityRequest {
+  battleId: string;
+}
+
+/// cron(pg_net)과 submit-evidence가 보내는 판정 요청. 대결 id 하나뿐이다
+/// (기준·사진 경로는 클라이언트 값이 아니라 DB에서 읽는다).
+export function parseJudgeQualityRequest(body: unknown): JudgeQualityRequest {
+  if (typeof body !== 'object' || body === null) {
+    throw new ValidationError('요청 본문이 올바르지 않습니다.');
+  }
+  const raw = body as Record<string, unknown>;
+  const battleId = typeof raw.battle_id === 'string' ? raw.battle_id.trim() : '';
+  if (!UUID_PATTERN.test(battleId)) {
+    throw new ValidationError('battle_id가 올바르지 않습니다.');
+  }
+  return { battleId };
+}
+
 /// 증명 가능성 검사 응답 재검증.
 export function parseCheckResponse(value: unknown): CheckResult {
   if (typeof value !== 'object' || value === null) {

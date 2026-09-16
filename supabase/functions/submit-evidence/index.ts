@@ -18,6 +18,7 @@ import { encodeBase64 } from 'https://deno.land/std@0.224.0/encoding/base64.ts';
 import { getUserId, serviceClient } from '../_shared/auth.ts';
 import { codeFromHint, errorResponse, jsonResponse } from '../_shared/errors.ts';
 import { generateJson, GeminiError, geminiModel } from '../_shared/gemini.ts';
+import { runQualityJudgment } from '../_shared/quality_judge.ts';
 import {
   PROMPT_VERSION,
   SPEED_JUDGE_SYSTEM_INSTRUCTION,
@@ -77,13 +78,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
   const submissionId = accepted.submission_id as number;
 
   if (accepted.type !== 'speed') {
-    // 품질전: 두 사진이 모두 올라온 뒤 대결 단위로 판정한다(6단계).
+    // 품질전: 판정은 제출 단위가 아니라 대결 단위다. 두 사진이 모두 올라왔으면
+    // accept_submission이 이미 대결을 judging으로 넘기고 판정 잡을 만들어 두었다.
     const { data: battle } = await supabase
       .from('battles')
       .select('status')
       .eq('id', request.battleId)
       .single();
-    return jsonResponse({ submission_id: submissionId, battle_status: battle?.status ?? null });
+
+    const response = jsonResponse({
+      submission_id: submissionId,
+      battle_status: battle?.status ?? null,
+    });
+
+    if (accepted.both_submitted === true) {
+      // 응답을 먼저 돌려준 뒤 같은 프로세스에서 판정을 한 번 돌린다 — 사용자가 1분 주기의 cron을
+      // 기다리지 않게 하려는 것뿐이다. 여기서 실패하거나 프로세스가 죽어도 잡은 그대로 남아
+      // cron(dispatch_quality_judgments)이 이어받는다.
+      runInBackground(runQualityJudgment(supabase, request.battleId));
+    }
+
+    return response;
   }
 
   // 3. 사진과 기준을 모아 판정을 맡긴다.
@@ -139,6 +154,20 @@ Deno.serve(async (req: Request): Promise<Response> => {
     battle_status: recorded?.battle_status ?? null,
   });
 });
+
+/// Supabase Edge Runtime의 백그라운드 실행 훅. 응답을 돌려준 뒤에도 작업을 마저 돌려준다.
+/// 로컬 실행처럼 훅이 없는 환경에서는 그냥 응답만 나가고 cron이 이어받는다.
+declare const EdgeRuntime: { waitUntil?: (task: Promise<unknown>) => void } | undefined;
+
+function runInBackground(task: Promise<unknown>): void {
+  // 여기서 새는 예외는 붙잡을 곳이 없으므로 반드시 삼켜서 로그로만 남긴다(잡은 서버에 남아 있다).
+  const guarded = task.catch((error) => {
+    console.error(`품질전 즉시 판정 실패: ${error instanceof Error ? error.message : error}`);
+  });
+
+  const runtime = typeof EdgeRuntime === 'undefined' ? undefined : EdgeRuntime;
+  runtime?.waitUntil?.(guarded);
+}
 
 async function removeObject(
   supabase: ReturnType<typeof serviceClient>,

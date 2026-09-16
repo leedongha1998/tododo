@@ -10,3 +10,8 @@ verify_jwt = true
 [functions.submit-evidence]
 # 같은 이유로 JWT 필수. 제출자는 클라이언트가 보낸 값이 아니라 JWT에서 확인한 id다.
 verify_jwt = true
+
+[functions.judge-quality]
+# 앱이 아니라 cron(pg_net)과 submit-evidence가 부른다. 사용자 JWT가 없으므로 검증을 끈다.
+# 대신 헤더 x-judge-secret을 상수 시간으로 비교하는 것이 유일한 관문이다(불일치는 401).
+verify_jwt = false

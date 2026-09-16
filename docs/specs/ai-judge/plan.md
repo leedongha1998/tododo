@@ -271,3 +271,16 @@
 - `battle_outcome_rules.sql` 23케이스 + 요약 전부 `ok=true`.
 - 스모크 4개는 처음에 `RAISE` 문구의 `%%`(퍼센트 글자)가 값 자리로 인식되지 않아 컴파일 오류로 한 줄도 실행되지 않았다. `ok=% %`로 고친 뒤 4개 모두 `ok=t`, 롤백 후 잔여 행 0 확인.
 - **증거 사진 6장이 버킷에 남아 있다.** `supabase storage rm`(버킷 경로 `-r`, 파일 경로 지정 둘 다)이 오류 없이 `deleted: []`로 끝났다. SQL 직접 삭제는 `storage.protect_delete()`가 막는다. 어느 대결에도 연결되지 않아 앱에는 보이지 않는다. 오너가 대시보드 Storage 화면에서 지우거나 5단계 Storage 정책 교체 때 함께 정리한다.
+
+## 3단계 배포와 첫 실호출 기록 (2026-09-16)
+- `supabase functions deploy battle-criteria` 완료. 상태 ACTIVE, `verify_jwt = true`.
+- 토큰 없이 함수를 부르면 401로 거부되는 것을 확인했다.
+- 오너가 허용해 에뮬레이터에서 AI 데이터 제공 동의를 눌렀다(`ai_consents` 1행, 이력 `given`).
+- 첫 실호출: 품질전, 제목 "clean the desk completely"(에뮬레이터 입력기가 한글을 넣지 못해 영문).
+  - 화면에 최소 기준 3개와 우열 기준 3개가 한국어로 나왔다. 두 목록이 서로 다른 관점이었다
+    (최소: 물건·먼지·얼룩 없음 / 우열: 광택, 다리·프레임, 주변 공간).
+  - `ai_criteria_calls` 1행 `succeeded`, `criteria_checks` 1행, `provable = true`,
+    `ai_model = gemini-2.5-flash/p1`.
+  - "이 기준으로 올리기"는 누르지 않고 빠져나왔다. 대결 0건, 증서는 미사용 상태로 남았다(24시간 뒤 만료).
+- CLI에는 함수 로그 명령이 없다(list/delete/download/deploy/new/serve뿐). 로그는 대시보드에서 본다.
+- 아직 확인하지 않은 것: 증명 불가 미션 차단, 기준 수정 후 재검사, 하루 10회 한도 도달, 모집 1개 제한.

@@ -14,11 +14,12 @@ import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
+import 'package:todododo/features/battle/data/open_recruit.dart';
+import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
 import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
-import 'package:todododo/features/battle/domain/battle_recruit.dart';
 import 'package:todododo/features/battle/presentation/ai_consent_screen.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/features/profile/domain/battle_record.dart';
@@ -63,9 +64,13 @@ class _JoinOnlyBattleRepository implements BattleRepository {
   int joinCount = 0;
 
   @override
-  Future<void> joinBattle(String battleId) async {
+  Future<void> joinBattle(String battleId, int criteriaVersion) async {
     joinCount++;
   }
+
+  @override
+  Future<PlayerCard> fetchPlayerCard(String userId) async =>
+      const PlayerCard(userId: 'creator1', displayName: '도윤');
 
   @override
   Future<String> createBattle({required String checkId, required int durationHours}) async =>
@@ -83,7 +88,7 @@ class _JoinOnlyBattleRepository implements BattleRepository {
       );
 
   @override
-  Future<List<Battle>> fetchOpenRecruits() async => const [];
+  Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
 
   @override
   Future<List<Battle>> fetchMyRecruits() async => const [];
@@ -156,6 +161,7 @@ Future<void> _pumpRecruits(
     title: '아침 운동하기',
     creatorId: 'creator1',
     createdAt: DateTime(2026, 9, 16),
+    minCriteria: const ['운동화를 신고 밖에 있다'],
   );
 
   await tester.pumpWidget(
@@ -167,7 +173,12 @@ Future<void> _pumpRecruits(
         vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
         myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '민지')),
         openRecruitsProvider.overrideWith(
-          (ref) async => [BattleRecruit(battle: battle, creatorName: '도윤')],
+          (ref) async => [
+            OpenRecruit(
+              battle: battle,
+              creator: const PlayerCard(userId: 'creator1', displayName: '도윤'),
+            ),
+          ],
         ),
         myRecruitsProvider.overrideWith((ref) async => const []),
         myBattlesProvider.overrideWith((ref) async => const []),
@@ -230,7 +241,10 @@ void main() {
       battleRepository: battleRepository,
     );
 
-    await tester.tap(find.text(AppStrings.battleJoin));
+    // 참가는 카드를 눌러 연 모집 상세 시트에서 한다.
+    await tester.tap(find.text('아침 운동하기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.aiConsentTitle), findsOneWidget);
@@ -256,7 +270,10 @@ void main() {
       battleRepository: battleRepository,
     );
 
-    await tester.tap(find.text(AppStrings.battleJoin));
+    // 참가는 카드를 눌러 연 모집 상세 시트에서 한다.
+    await tester.tap(find.text('아침 운동하기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
     await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.aiConsentAgree));
     await tester.pumpAndSettle();
@@ -280,7 +297,10 @@ void main() {
       battleRepository: battleRepository,
     );
 
-    await tester.tap(find.text(AppStrings.battleJoin));
+    // 참가는 카드를 눌러 연 모집 상세 시트에서 한다.
+    await tester.tap(find.text('아침 운동하기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.aiConsentTitle), findsNothing);

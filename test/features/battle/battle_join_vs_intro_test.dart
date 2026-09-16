@@ -6,16 +6,17 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
+import 'package:todododo/features/battle/data/ai_consent.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
+import 'package:todododo/features/battle/data/open_recruit.dart';
+import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
-import 'package:todododo/features/battle/data/ai_consent.dart';
 import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
-import 'package:todododo/features/battle/domain/battle_recruit.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/features/battle/presentation/vs_intro.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
@@ -28,7 +29,7 @@ class _JoinOnlyBattleRepository implements BattleRepository {
   int joinCount = 0;
 
   @override
-  Future<void> joinBattle(String battleId) async {
+  Future<void> joinBattle(String battleId, int criteriaVersion) async {
     joinCount++;
     final error = joinError;
     if (error != null) throw error;
@@ -50,7 +51,11 @@ class _JoinOnlyBattleRepository implements BattleRepository {
       );
 
   @override
-  Future<List<Battle>> fetchOpenRecruits() async => const [];
+  Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
+
+  @override
+  Future<PlayerCard> fetchPlayerCard(String userId) async =>
+      const PlayerCard(userId: 'creator1', displayName: '도윤');
 
   @override
   Future<List<Battle>> fetchMyRecruits() async => const [];
@@ -128,6 +133,7 @@ Future<void> _pumpRecruits(
     title: '아침 운동하기',
     creatorId: 'creator1',
     createdAt: DateTime(2026, 9, 15),
+    minCriteria: const ['운동화를 신고 밖에 있다'],
   );
 
   await tester.pumpWidget(
@@ -142,7 +148,12 @@ Future<void> _pumpRecruits(
         vsIntroSeenStoreProvider.overrideWithValue(store),
         myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '민지')),
         openRecruitsProvider.overrideWith(
-          (ref) async => [BattleRecruit(battle: battle, creatorName: '도윤')],
+          (ref) async => [
+            OpenRecruit(
+              battle: battle,
+              creator: const PlayerCard(userId: 'creator1', displayName: '도윤'),
+            ),
+          ],
         ),
         myRecruitsProvider.overrideWith((ref) async => const []),
         myBattlesProvider.overrideWith((ref) async => const []),
@@ -153,6 +164,15 @@ Future<void> _pumpRecruits(
   await tester.pumpAndSettle();
 }
 
+/// 카드를 눌러 모집 상세 시트를 열고 "이 기준으로 참가"를 누른다.
+Future<void> _joinFromSheet(WidgetTester tester) async {
+  await tester.tap(find.text('아침 운동하기'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 100));
+}
+
 void main() {
   // spec 수용 기준: "대결에 참가해 매칭에 성공한 사람에게 VS 인트로가 뜬다",
   // "인트로 때문에 참가 성공 안내가 가려져 사용자가 결과를 모르는 일이 없다".
@@ -161,9 +181,7 @@ void main() {
     final store = _MemorySeenStore();
     await _pumpRecruits(tester, repository: repository, store: store);
 
-    await tester.tap(find.text(AppStrings.battleJoin));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await _joinFromSheet(tester);
 
     expect(repository.joinCount, 1);
     expect(find.byType(VsIntro), findsOneWidget);
@@ -191,13 +209,11 @@ void main() {
     final store = _MemorySeenStore();
     await _pumpRecruits(tester, repository: repository, store: store);
 
-    await tester.tap(find.text(AppStrings.battleJoin));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await _joinFromSheet(tester);
 
     expect(repository.joinCount, 1);
     expect(find.byType(VsIntro), findsNothing);
-    expect(find.text(AppStrings.battleJoinFailed), findsOneWidget);
+    expect(find.text(AppStrings.battleErrorUnknown), findsOneWidget);
     expect(find.text(AppStrings.battleJoined), findsNothing);
     expect(store.seen, isEmpty);
 
@@ -210,9 +226,7 @@ void main() {
     final store = _MemorySeenStore()..seen.add(VsIntroSeenStore.keyFor('me', 'b1'));
     await _pumpRecruits(tester, repository: repository, store: store);
 
-    await tester.tap(find.text(AppStrings.battleJoin));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    await _joinFromSheet(tester);
 
     expect(find.byType(VsIntro), findsNothing);
     expect(find.text(AppStrings.battleJoined), findsOneWidget);

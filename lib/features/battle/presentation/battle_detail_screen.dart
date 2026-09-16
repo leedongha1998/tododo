@@ -7,9 +7,11 @@ import '../../../core/theme/retro_palette.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_icon.dart';
 import '../../../core/widgets/pixel_loader.dart';
+import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
 import 'battle_chips.dart';
+import 'player_card_view.dart';
 import 'vs_intro.dart';
 
 class BattleDetailScreen extends ConsumerWidget {
@@ -145,7 +147,39 @@ class _BattleHeader extends StatelessWidget {
           const SizedBox(height: 8),
           Text(deadline, style: textTheme.bodySmall),
         ],
+        const SizedBox(height: 12),
+        _OpponentCard(detail: detail),
       ],
+    );
+  }
+}
+
+/// 누구와 겨루고 있는지. 전적은 서버가 대결 상대에게만 내준다.
+class _OpponentCard extends ConsumerWidget {
+  const _OpponentCard({required this.detail});
+
+  final BattleDetail detail;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cardAsync = ref.watch(playerCardProvider(detail.opponent.userId));
+
+    return PixelFrame.raised(
+      child: cardAsync.when(
+        data: (card) => PlayerCardView(card: card, label: AppStrings.battleOpponent),
+        // 전적을 못 읽어도 상대가 누구인지는 보여 준다.
+        loading: () => const Center(child: PixelLoader.small()),
+        error: (error, stackTrace) {
+          debugPrint('playerCardProvider error: $error');
+          return PlayerCardView(
+            card: PlayerCard(
+              userId: detail.opponent.userId,
+              displayName: detail.opponentName,
+            ),
+            label: AppStrings.battleOpponent,
+          );
+        },
+      ),
     );
   }
 }

@@ -145,7 +145,7 @@
 ## 4단계 — 모집 목록·참가·하루 1대결·상대 카드
 
 ### 파일
-- 마이그레이션 `..._daily_limit_and_cards.sql`: `list_open_recruits()`, `join_battle(uuid,int)`(version·동의·내 슬롯·생성자 슬롯·슬롯 2행 insert) + 기존 `join_battle(uuid)` drop, `get_player_card(uuid)`, KST 날짜를 인자로 받는 내부 헬퍼(경계 테스트용), `create_battle`·`begin_criteria_call`에 오늘 슬롯 검사.
+- 마이그레이션 `supabase/migrations/20260917120000_join_and_player_cards.sql`: `list_open_recruits()`, `join_battle(uuid,int)`(version·동의·내 슬롯·생성자 슬롯·슬롯 2행 insert) + 기존 `join_battle(uuid)` drop, `get_player_card(uuid)`, KST 날짜를 인자로 받는 내부 헬퍼(경계 테스트용), `create_battle`·`begin_criteria_call`에 오늘 슬롯 검사.
 - SQL 테스트 `supabase/tests/join_battle_smoke.sql`: `CRITERIA_CHANGED`(우열 기준만 바꾼 경우 포함), `MY_DAILY_LIMIT`, `CREATOR_DAILY_LIMIT`, 양쪽 슬롯 생성, KST 자정 경계, `ALREADY_MATCHED`, 임의 사용자 `get_player_card` 거부.
 - Dart: `PlayerCard`, `BattleRepository.listOpenRecruits`/`joinBattle(id, version)`/`fetchPlayerCard`, 모집 목록 카드·모집 상세 바텀시트(오류 코드 분기), 대결 상세 상대 카드. VS 인트로 연결(`maybeShowVsIntro`)은 시트의 참가 성공 경로로 옮겨 재사용.
 - 테스트: 오류 코드 → 문구 매핑 유닛 테스트, `battle_join_vs_intro_test.dart`를 시트 경로로 갱신(인트로 후 토스트 순서 유지).
@@ -233,6 +233,27 @@
   - `battle_outcome_rules.sql`에 설계 18케이스 외 `outcome_score_delta` 5케이스를 더해 23행.
   - 제거한 UI 전용 문자열(승인/이의제기·텍스트 증거·갤러리·제출 격차 등)을 7단계까지 미루지 않고 1단계에서 삭제. 참조가 모두 사라져 남기면 옛 규칙 문구가 되살아날 여지만 생긴다. 공용 칩이 쓰는 `battleStatusFinished`/`battleStatusDisputed`는 유지.
   - `battle_chips.dart`에 `voided` 상태 라벨과 `무효` 결과 라벨 매핑을 추가(기존 매핑 불변).
+
+### 4단계 (구현 완료, 원격 적용·스모크 통과, 2026-09-16)
+- 순서 변경 없음.
+- 로컬 검증: `flutter analyze` 이슈 0, `flutter test` 227개 통과(3단계 218 + 모집 시트 위젯 7 + 오류 코드 유닛 2). Edge Function은 손대지 않아 `deno test`는 3단계 결과(11개) 그대로다.
+- Gemini·원격 쓰기 없음. 읽기 전용 확인만 했다.
+- 설계와 달라진 점
+  - **KST 날짜를 인자로 받는 내부 헬퍼는 만들지 않았다.** `now()`를 조작할 수 없어 경계 테스트에 쓸모가 없고, 규칙 자체는 "슬롯의 `kst_date`가 오늘인가"뿐이다. 스모크에서 어제 날짜 슬롯을 가진 사용자가 오늘 참가에 성공하는 것으로 같은 의미를 덮었다(`yesterday_slot`).
+  - `create_battle`·`begin_criteria_call`의 오늘 슬롯 검사는 3단계에서 이미 넣어 두어 이번에 추가 작업이 없다.
+  - 도메인 `BattleRecruit`를 지우고 데이터 모델 `OpenRecruit`(+`PlayerCard`)로 바꿨다. `list_open_recruits`가 대결·기준·생성자 전적을 한 번에 주므로 provider에서 이름을 따로 붙이던 조합 단계가 사라졌다.
+  - `list_open_recruits`는 `setof jsonb`를 돌려주고 각 행이 `{battle, creator}` 두 덩어리다(Dart에서 그대로 두 모델로 나뉜다).
+  - **모집 목록 카드에서 참가 버튼을 없앴다.** 참가는 기준을 본 뒤 시트에서만 할 수 있다(spec "참가자는 자기가 확인한 기준으로 참가한다").
+  - 시트는 참가에 성공하면 참가한 모집을 `pop`으로 돌려주고, 목록 갱신·VS 인트로·성공 토스트·탭 이동은 화면이 이어서 한다. 시트를 닫은 뒤에는 시트 context가 없어 그 안에서 인트로를 띄울 수 없다.
+  - 기간 칸은 `PixelTag` + `battleStatusTagStyle('draw')`(중립 모양)을 재사용했다. retro-theme가 기간 전용 스타일을 따로 두지 않았다.
+  - `get_player_card`는 탈퇴한 사용자에게 점수 자리를 null로 돌려주고, 화면은 "전적 없음"으로 보여 준다.
+- VS 인트로는 `maybeShowVsIntro`/`shouldShowVsIntro`/`VsIntroSeenStore`/`displayInitial`을 그대로 재사용했다(새로 만든 것 없음). 기존 순서 테스트(인트로 → 토스트)는 시트 경로로 갱신해 그대로 통과한다.
+- 위젯 테스트 메모: 모달 시트가 떠도 뒤의 목록 카드가 살아 있어 첫 기준·생성자 전적 문구가 두 번 잡힌다. 시트에만 있는 요소(우열 기준, 유형 설명, 참가 버튼)는 `findsOneWidget`으로, 겹치는 문구는 `findsWidgets`로 확인한다.
+- 검토에서 고친 것 두 가지.
+  - `join_battle_smoke`가 매칭 결과(`joined`·`slots_after_join`)를 A의 탈퇴 **뒤에** 읽고 있었다. 탈퇴는 그 대결을 취소하고 그날 슬롯을 반납하므로 두 항목이 항상 어긋난다. 탈퇴 전에 변수로 잡아 두도록 옮겼다.
+  - `ai_consent_smoke`의 `join_battle` 호출 3곳을 2인자 시그니처로 고쳤다(직접 insert한 대결은 `criteria_version` 기본값 1).
+- 참가 버튼이 사라져 쓰이지 않게 된 `battleJoin`·`battleJoinFailed` 문자열을 지웠다(오류 문구는 코드별 매핑이 대신한다).
+- 원격 적용 후 `join_battle_smoke`·`ai_consent_smoke` 모두 `ok=t`. 두 스모크 다 마지막에 롤백하므로 원격 데이터는 그대로다.
 
 ### 3단계 (로컬 구현 완료, 원격 미적용·미배포·미커밋, 2026-09-16)
 - 순서 변경 없음.

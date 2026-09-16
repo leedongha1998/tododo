@@ -17,7 +17,8 @@ import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
 import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
-import 'package:todododo/features/battle/domain/battle_recruit.dart';
+import 'package:todododo/features/battle/data/open_recruit.dart';
+import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/domain/battle_summary.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
 import 'package:todododo/core/navigation/main_shell.dart';
@@ -49,7 +50,17 @@ class _FakeBattleRepository implements BattleRepository {
       );
 
   @override
-  Future<List<Battle>> fetchOpenRecruits() async => const [];
+  Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
+
+  @override
+  Future<PlayerCard> fetchPlayerCard(String userId) async => const PlayerCard(
+        userId: 'friend',
+        displayName: '친구',
+        score: 3,
+        wins: 1,
+        losses: 0,
+        draws: 0,
+      );
 
   @override
   Future<List<Battle>> fetchMyRecruits() async => const [];
@@ -58,7 +69,7 @@ class _FakeBattleRepository implements BattleRepository {
   Future<Map<String, String>> fetchDisplayNames(Iterable<String> ids) async => {};
 
   @override
-  Future<void> joinBattle(String battleId) async {}
+  Future<void> joinBattle(String battleId, int criteriaVersion) async {}
 
   @override
   Future<void> cancelBattle(String battleId) async {}
@@ -323,7 +334,7 @@ void main() {
 
   // 대결 만들기 화면은 AI 기준 생성·승인 2단계로 바뀌어 create_battle_test.dart에서 따로 본다.
 
-  testWidgets('모집 중인 대결이 보이고 참가 버튼이 있다', (WidgetTester tester) async {
+  testWidgets('모집 카드에 제목·기간·기준 미리보기·생성자 전적이 보인다', (WidgetTester tester) async {
     final battle = Battle(
       id: 'b1',
       type: 'speed',
@@ -331,13 +342,27 @@ void main() {
       title: '아침 운동하기',
       creatorId: 'creator1',
       createdAt: DateTime(2026, 8, 20),
+      durationHours: 24,
+      minCriteria: const ['운동화를 신고 밖에 있다'],
     );
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           openRecruitsProvider.overrideWith(
-            (ref) async => [BattleRecruit(battle: battle, creatorName: '친구')],
+            (ref) async => [
+              OpenRecruit(
+                battle: battle,
+                creator: const PlayerCard(
+                  userId: 'creator1',
+                  displayName: '친구',
+                  score: 6,
+                  wins: 2,
+                  losses: 1,
+                  draws: 0,
+                ),
+              ),
+            ],
           ),
           myRecruitsProvider.overrideWith((ref) async => const []),
         ],
@@ -347,8 +372,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('아침 운동하기'), findsOneWidget);
-    expect(find.textContaining('친구'), findsOneWidget);
-    expect(find.text(AppStrings.battleJoin), findsOneWidget);
+    expect(find.text('친구'), findsOneWidget);
+    expect(find.text(AppStrings.battleDuration1Day), findsOneWidget);
+    expect(find.text('운동화를 신고 밖에 있다'), findsOneWidget);
+    expect(find.text(AppStrings.playerScoreLabel(6)), findsOneWidget);
+    expect(find.text(AppStrings.playerRecordLabel(2, 1, 0)), findsOneWidget);
+    // 참가는 카드를 눌러 연 시트에서 한다(기준을 보고 참가하도록).
+    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
   });
 
   // spec 수용 기준: "어떤 화면에도 상대 증거를 승인/이의제기하는 수단이 없다",

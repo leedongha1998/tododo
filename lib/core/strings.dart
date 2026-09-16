@@ -34,9 +34,7 @@ class AppStrings {
   static const battleFind = '대결 찾기';
   static const battleOpenRecruits = '모집 중인 대결';
   static const battleMyRecruits = '내가 등록한 모집';
-  static const battleJoin = '참가하기';
   static const battleJoined = '매칭되어 대결이 시작됐습니다.';
-  static const battleJoinFailed = '참가에 실패했습니다. 다시 시도해주세요.';
   static const battleRecruitsEmpty = '모집 중인 대결이 없어요.';
   static const battleLoadRecruitsFailed = '모집 목록을 불러오지 못했습니다.';
   static const battleRecruitCancel = '취소';
@@ -151,7 +149,20 @@ class AppStrings {
   static const battleCriteriaApplied = '기준을 바꿨습니다.';
   static const battleCriteriaApplyFailed = '기준을 바꾸지 못했습니다. 다시 시도해주세요.';
 
+  // 모집 상세 시트와 전적 카드.
+  static const battleRecruitJoinWithCriteria = '이 기준으로 참가';
+  static const battleTypeSpeedTagline = '기준을 먼저 통과한 사람이 이겨요';
+  static const battleTypeQualityTagline = '기간 안에 더 완벽하게 해낸 사람이 이겨요';
+  static const battleRecruitCreatorLabel = '만든 사람';
+  static const battleCriteriaChanged = '생성자가 기준을 바꿨어요. 바뀐 기준을 확인한 뒤 참가해 주세요.';
+  static String playerScoreLabel(int score) => '$score점';
+  static String playerRecordLabel(int wins, int losses, int draws) => '$wins승 $losses패 $draws무';
+  static const playerStatsUnknown = '전적 없음';
+
   // 서버 오류 코드별 문구. 서버 메시지를 그대로 보여 주지 않는다.
+  static const battleErrorAlreadyMatched = '이미 다른 사람이 참가했어요.';
+  static const battleErrorCreatorDailyLimit = '모집한 사람이 오늘 대결 한도를 다 썼어요. 내일 다시 시도해주세요.\n'
+      '(유료 사용자는 더 할 수 있게 될 예정이에요)';
   static const battleErrorPendingExists = '모집 중인 대결은 한 번에 1개만 올릴 수 있어요.';
   static const battleErrorDailyLimit = '오늘은 이미 대결을 했어요. 지금은 하루에 한 번 대결할 수 있어요.\n'
       '(유료 사용자는 더 할 수 있게 될 예정이에요)';

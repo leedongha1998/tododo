@@ -68,7 +68,7 @@ begin
   -- 1. 동의하지 않은 C의 참가는 막힌다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_c, 'role', 'authenticated')::text, true);
   begin
-    perform public.join_battle(v_p1);
+    perform public.join_battle(v_p1, 1);
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
     v_join_no_consent := coalesce(v_hint, '(힌트 없음)');
@@ -76,7 +76,7 @@ begin
 
   -- 2. 동의한 뒤에는 참가가 된다.
   perform public.give_ai_consent('2026-09-14');
-  perform public.join_battle(v_p1);
+  perform public.join_battle(v_p1, 1);
 
   -- 3. 대결 생성: 3단계에서 정책이 사라지고 create_battle RPC로만 만들 수 있다.
   --    동의 여부와 관계없이 테이블 직접 insert는 막혀야 한다.
@@ -142,7 +142,7 @@ begin
 
   -- 6. 철회 뒤에는 다시 막힌다.
   begin
-    perform public.join_battle(v_p2);
+    perform public.join_battle(v_p2, 1);
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
     v_join_after_withdraw := coalesce(v_hint, '(힌트 없음)');

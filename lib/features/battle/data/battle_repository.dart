@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'battle.dart';
 import 'battle_participant.dart';
 import 'criteria_check_result.dart';
+import 'open_recruit.dart';
+import 'player_card.dart';
 
 class BattleRepository {
   BattleRepository(this._client);
@@ -36,15 +38,12 @@ class BattleRepository {
     return MyLimits.fromMap(Map<String, dynamic>.from(row as Map));
   }
 
-  Future<List<Battle>> fetchOpenRecruits() async {
-    final myId = _client.auth.currentUser!.id;
-    final rows = await _client
-        .from('battles')
-        .select()
-        .eq('status', 'pending')
-        .neq('creator_id', myId)
-        .order('created_at');
-    return rows.map(Battle.fromMap).toList();
+  /// 남이 올린 모집 + 기준 두 목록 + 기준 버전 + 생성자 전적을 한 번에 받는다.
+  Future<List<OpenRecruit>> fetchOpenRecruits() async {
+    final rows = await _client.rpc('list_open_recruits');
+    return (rows as List)
+        .map((row) => OpenRecruit.fromMap(Map<String, dynamic>.from(row as Map)))
+        .toList();
   }
 
   Future<List<Battle>> fetchMyRecruits() async {
@@ -65,8 +64,18 @@ class BattleRepository {
     return {for (final row in rows) row['id'] as String: row['display_name'] as String};
   }
 
-  Future<void> joinBattle(String battleId) {
-    return _client.rpc('join_battle', params: {'p_battle_id': battleId});
+  /// 내가 확인한 기준 버전으로만 참가한다. 그 사이 생성자가 기준을 바꿨으면 서버가 거부한다.
+  Future<void> joinBattle(String battleId, int criteriaVersion) {
+    return _client.rpc(
+      'join_battle',
+      params: {'p_battle_id': battleId, 'p_criteria_version': criteriaVersion},
+    );
+  }
+
+  /// 대결 상대나 모집 생성자의 전적. 그 외 사용자는 서버가 거부한다.
+  Future<PlayerCard> fetchPlayerCard(String userId) async {
+    final row = await _client.rpc('get_player_card', params: {'p_user_id': userId});
+    return PlayerCard.fromMap(Map<String, dynamic>.from(row as Map));
   }
 
   Future<void> cancelBattle(String battleId) {

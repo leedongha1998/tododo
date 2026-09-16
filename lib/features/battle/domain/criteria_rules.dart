@@ -38,11 +38,17 @@ String? errorCodeOf(Object error) {
   return null;
 }
 
+/// 참가자가 본 기준이 그 사이 바뀌었는지. 이 경우 시트를 닫지 않고 바뀐 기준을 다시 보여 준다.
+bool isCriteriaChangedError(Object error) => errorCodeOf(error) == 'CRITERIA_CHANGED';
+
 /// 오류 코드 → 사용자 문구. 서버 메시지를 그대로 보여 주지 않는다.
 String criteriaErrorMessage(Object error) {
   return switch (errorCodeOf(error)) {
     'CONSENT_REQUIRED' => AppStrings.aiConsentRequired,
     'PENDING_EXISTS' => AppStrings.battleErrorPendingExists,
+    'CRITERIA_CHANGED' => AppStrings.battleCriteriaChanged,
+    'ALREADY_MATCHED' => AppStrings.battleErrorAlreadyMatched,
+    'CREATOR_DAILY_LIMIT' => AppStrings.battleErrorCreatorDailyLimit,
     'MY_DAILY_LIMIT' => AppStrings.battleErrorDailyLimit,
     'CRITERIA_CALL_LIMIT' => AppStrings.battleErrorCriteriaCallLimit,
     'CHECK_INVALID' => AppStrings.battleErrorCheckInvalid,

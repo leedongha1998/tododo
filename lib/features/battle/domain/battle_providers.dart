@@ -5,9 +5,10 @@ import '../data/battle.dart';
 import '../data/battle_criteria_repository.dart';
 import '../data/battle_repository.dart';
 import '../data/criteria_check_result.dart';
+import '../data/open_recruit.dart';
+import '../data/player_card.dart';
 import '../data/vs_intro_seen_store.dart';
 import 'battle_detail.dart';
-import 'battle_recruit.dart';
 import 'battle_summary.dart';
 
 final battleRepositoryProvider = Provider<BattleRepository>((ref) {
@@ -25,13 +26,13 @@ final myLimitsProvider = FutureProvider.autoDispose<MyLimits>((ref) {
 
 // 대결 목록류 provider는 화면을 떠나면 캐시를 비우는 autoDispose를 쓴다.
 // 그래야 상대가 참가/제출하는 등 서버 쪽 변화가 있어도 화면에 다시 들어올 때 최신 상태를 가져온다.
-final openRecruitsProvider = FutureProvider.autoDispose<List<BattleRecruit>>((ref) async {
-  final repo = ref.watch(battleRepositoryProvider);
-  final battles = await repo.fetchOpenRecruits();
-  final names = await repo.fetchDisplayNames(battles.map((b) => b.creatorId));
-  return battles
-      .map((b) => BattleRecruit(battle: b, creatorName: names[b.creatorId] ?? '알 수 없음'))
-      .toList();
+final openRecruitsProvider = FutureProvider.autoDispose<List<OpenRecruit>>((ref) {
+  return ref.watch(battleRepositoryProvider).fetchOpenRecruits();
+});
+
+/// 상대·모집 생성자의 전적 카드. 서버가 공개 범위를 막으므로 임의 사용자로는 실패한다.
+final playerCardProvider = FutureProvider.autoDispose.family<PlayerCard, String>((ref, userId) {
+  return ref.watch(battleRepositoryProvider).fetchPlayerCard(userId);
 });
 
 final myRecruitsProvider = FutureProvider.autoDispose<List<Battle>>((ref) async {

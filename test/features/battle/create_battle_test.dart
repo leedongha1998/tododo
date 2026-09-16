@@ -8,6 +8,8 @@ import 'package:todododo/features/battle/data/battle_criteria_repository.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
+import 'package:todododo/features/battle/data/open_recruit.dart';
+import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
 
@@ -73,7 +75,11 @@ class _FakeBattleRepository implements BattleRepository {
   Future<int> updateBattleCriteria({required String battleId, required String checkId}) async => 2;
 
   @override
-  Future<List<Battle>> fetchOpenRecruits() async => const [];
+  Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
+
+  @override
+  Future<PlayerCard> fetchPlayerCard(String userId) async =>
+      const PlayerCard(userId: 'creator1', displayName: '친구');
 
   @override
   Future<List<Battle>> fetchMyRecruits() async => const [];
@@ -82,7 +88,7 @@ class _FakeBattleRepository implements BattleRepository {
   Future<Map<String, String>> fetchDisplayNames(Iterable<String> ids) async => {};
 
   @override
-  Future<void> joinBattle(String battleId) async {}
+  Future<void> joinBattle(String battleId, int criteriaVersion) async {}
 
   @override
   Future<void> cancelBattle(String battleId) async {}

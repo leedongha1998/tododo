@@ -79,6 +79,37 @@ void main() {
       );
     });
 
+    test('참가 흐름의 오류 코드도 문구로 바꾼다', () {
+      expect(
+        criteriaErrorMessage(PostgrestException(message: '...', hint: 'CRITERIA_CHANGED')),
+        AppStrings.battleCriteriaChanged,
+      );
+      expect(
+        criteriaErrorMessage(PostgrestException(message: '...', hint: 'ALREADY_MATCHED')),
+        AppStrings.battleErrorAlreadyMatched,
+      );
+      expect(
+        criteriaErrorMessage(PostgrestException(message: '...', hint: 'CREATOR_DAILY_LIMIT')),
+        AppStrings.battleErrorCreatorDailyLimit,
+      );
+      expect(
+        criteriaErrorMessage(PostgrestException(message: '...', hint: 'MY_DAILY_LIMIT')),
+        AppStrings.battleErrorDailyLimit,
+      );
+    });
+
+    test('기준 변경만 따로 가려낸다(시트를 닫지 않고 기준을 다시 보여 주기 위해)', () {
+      expect(
+        isCriteriaChangedError(PostgrestException(message: '...', hint: 'CRITERIA_CHANGED')),
+        isTrue,
+      );
+      expect(
+        isCriteriaChangedError(PostgrestException(message: '...', hint: 'ALREADY_MATCHED')),
+        isFalse,
+      );
+      expect(isCriteriaChangedError(Exception('network')), isFalse);
+    });
+
     test('모르는 오류는 일반 문구로 안내한다', () {
       expect(criteriaErrorMessage(Exception('network')), AppStrings.battleErrorUnknown);
     });

@@ -17,7 +17,10 @@ import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
 import '../domain/submission_rules.dart';
 
-/// 속도전 내 증거 영역: 촬영 → 미리보기 → 제출 → 판정 결과 → 이력.
+/// 내 증거 영역: 촬영 → 미리보기 → 제출 → (속도전) 판정 결과 → 이력.
+///
+/// 속도전은 제출마다 바로 판정이 돌아오고 최대 5회까지 다시 낼 수 있다.
+/// 품질전은 한 번만 낼 수 있고(확인 다이얼로그), 두 사진이 모두 올라오면 대결 단위로 판정된다.
 ///
 /// 활성화 판단은 전부 [BattleDetail]의 getter가 하고, 같은 검사를 서버가 다시 한다.
 /// 이 위젯은 승패를 계산하지 않는다 — 판정 결과와 상태는 서버가 준 값을 그대로 보여 준다.
@@ -97,6 +100,29 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
     }
   }
 
+  /// 품질전은 재제출이 없다(결정 14). 실수로 한 번 누르면 그 사진으로 끝나므로 반드시 확인받는다.
+  Future<void> _confirmAndSubmitQuality() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(AppStrings.battleEvidenceQualityConfirmTitle),
+        content: const Text(AppStrings.battleEvidenceQualityConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.battleEvidenceSubmit),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _submit();
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = widget.detail;
@@ -122,10 +148,14 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         StatusMessage.loading(
           message: _stage == _Stage.uploading
               ? AppStrings.battleEvidenceUploading
-              : AppStrings.battleEvidenceJudging,
+              : detail.isSpeed
+                  ? AppStrings.battleEvidenceJudging
+                  : AppStrings.battleEvidenceQualityJudging,
         ),
       ];
     }
+
+    if (!detail.isSpeed) return _qualityBody(context, detail);
 
     // 서버가 판정 중인 내 제출을 들고 있는 경우(앱을 껐다 켠 뒤 등).
     if (detail.isMyJudgingInProgress) {
@@ -187,6 +217,72 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       const SizedBox(height: 8),
       Text(
         AppStrings.battleEvidenceAttemptsLeft(detail.myAttemptsLeft),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    ];
+  }
+
+  /// 품질전: 한 번 내면 상대를 기다리고, 두 사진이 모두 올라오면 서버가 판정한다.
+  /// 판정 결과(승패·사유)는 종결 뒤 결과 배너가 서버 값으로 보여 준다 — 여기서는 판단하지 않는다.
+  List<Widget> _qualityBody(BuildContext context, BattleDetail detail) {
+    if (detail.isQualityJudging) {
+      return const [
+        PixelFrame.tone(
+          tone: PixelTone.info,
+          title: AppStrings.battleEvidenceQualityJudgingTitle,
+          child: Text(AppStrings.battleEvidenceQualityJudging),
+        ),
+      ];
+    }
+
+    if (detail.hasMyQualitySubmission) {
+      return const [
+        PixelFrame.tone(
+          tone: PixelTone.success,
+          title: AppStrings.battleEvidenceQualitySubmittedTitle,
+          child: Text(AppStrings.battleEvidenceQualityWaiting),
+        ),
+      ];
+    }
+
+    final shot = _shot;
+    if (shot != null) {
+      return [
+        EvidencePhotoFrame.large(image: MemoryImage(shot.bytes)),
+        const SizedBox(height: 12),
+        FilledButton(
+          onPressed: _confirmAndSubmitQuality,
+          child: const Text(AppStrings.battleEvidenceQualitySubmit),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _capture,
+          icon: const PixelIcon(PixelIcons.retry),
+          label: const Text(AppStrings.battleEvidenceRetake),
+        ),
+      ];
+    }
+
+    // 마감이 지났는데 아직 정산 전이면 낼 수 없다(서버도 거부한다).
+    if (!detail.canSubmitEvidence) {
+      return const [
+        PixelFrame.tone(
+          tone: PixelTone.neutral,
+          icon: PixelIcons.clock,
+          child: Text(AppStrings.battleDeadlinePassed),
+        ),
+      ];
+    }
+
+    return [
+      FilledButton.icon(
+        onPressed: _capture,
+        icon: const PixelIcon(PixelIcons.camera),
+        label: const Text(AppStrings.battleEvidenceTakePhoto),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        AppStrings.battleEvidenceQualityOnce,
         style: Theme.of(context).textTheme.bodySmall,
       ),
     ];

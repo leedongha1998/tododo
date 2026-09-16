@@ -55,6 +55,14 @@ class BattleDetail {
 
   bool get isSpeed => battle.type == 'speed';
 
+  bool get isQuality => battle.type == 'quality';
+
+  /// 품질전 AI 판정 대기(두 사진이 모두 올라왔다). 속도전은 이 상태를 쓰지 않는다.
+  bool get isQualityJudging => battle.status == 'judging';
+
+  /// 품질전 판정의 한 줄 사유. 판정과 동시에 종결되므로 종결된 뒤에만 값이 있다.
+  String? get verdictReason => battle.verdictReason;
+
   List<BattleSubmission> get mySubmissions =>
       submissions.where((submission) => submission.userId == me.userId).toList();
 
@@ -75,8 +83,12 @@ class BattleDetail {
 
   bool get didIUseAllAttempts => myAttemptsLeft == 0;
 
-  /// 통과했거나 판정 횟수를 다 썼다. 두 경우 모두 이 대결에서 더 낼 수 없다.
+  /// 통과했거나 판정 횟수를 다 썼다. 두 경우 모두 이 대결에서 더 낼 수 없다(속도전).
   bool get isMySubmissionLocked => didIPass || didIUseAllAttempts;
+
+  /// 품질전 내 제출. 한 번뿐이고 재제출 수단이 없다(결정 14).
+  bool get hasMyQualitySubmission =>
+      mySubmissions.any((submission) => submission.status == 'submitted');
 
   bool isPastDeadline(DateTime now) {
     final deadline = battle.deadlineAt;
@@ -84,13 +96,13 @@ class BattleDetail {
   }
 
   /// 사진을 낼 수 있는지. **활성화 판단이지 승패 계산이 아니다** — 같은 검사를 서버가 다시 한다.
-  /// 품질전은 두 사진을 비교하는 판정 잡이 붙기 전까지 제출을 열지 않는다.
+  ///
+  /// 속도전은 통과·판정 중·5회 소진이면 막히고, 품질전은 이미 냈으면 막힌다.
+  /// 품질전이 `judging`이면 status 검사에서 걸린다(두 사진이 다 올라와 판정 중이다).
   bool canSubmitEvidenceAt(DateTime now) {
-    return isSpeed &&
-        battle.status == 'active' &&
-        !isPastDeadline(now) &&
-        !isMySubmissionLocked &&
-        !isMyJudgingInProgress;
+    if (battle.status != 'active' || isPastDeadline(now)) return false;
+    if (isSpeed) return !isMySubmissionLocked && !isMyJudgingInProgress;
+    return !hasMyQualitySubmission;
   }
 
   bool get canSubmitEvidence => canSubmitEvidenceAt(DateTime.now());

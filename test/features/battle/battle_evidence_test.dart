@@ -311,13 +311,71 @@ void main() {
     expect(find.text(AppStrings.battleEvidenceOpponentWaiting), findsOneWidget);
   });
 
-  testWidgets('품질전은 아직 제출을 열지 않고 준비 중 안내를 보여 준다', (tester) async {
+  testWidgets('품질전은 확인 다이얼로그를 거쳐야 제출된다', (tester) async {
+    final repository = _FakeBattleRepository(
+      result: const SubmissionResult(submissionId: 9, battleStatus: 'judging'),
+    );
+    await tester.pumpWidget(_screen(_detail(type: 'quality'), repository, _FakeCamera()));
+    await tester.pumpAndSettle();
+
+    // 남은 판정 횟수는 속도전 이야기다. 품질전에는 "한 번만" 안내가 붙는다.
+    expect(find.text(AppStrings.battleEvidenceQualityOnce), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidenceAttemptsLeft(5)), findsNothing);
+
+    await tester.tap(find.text(AppStrings.battleEvidenceTakePhoto));
+    await tester.pumpAndSettle();
+
+    final submitButton = find.text(AppStrings.battleEvidenceQualitySubmit);
+    // 미리보기가 길어 제출 버튼이 기본 테스트 화면(800x600) 아래로 밀린다.
+    await tester.ensureVisible(submitButton);
+    await tester.pumpAndSettle();
+    await tester.tap(submitButton);
+    await tester.pumpAndSettle();
+
+    // 확인하기 전에는 제출하지 않는다(재제출 수단이 없으므로).
+    expect(find.text(AppStrings.battleEvidenceQualityConfirm), findsOneWidget);
+    expect(repository.submitCount, 0);
+
+    await tester.tap(find.text(AppStrings.battleEvidenceSubmit));
+    await tester.pumpAndSettle();
+
+    expect(repository.submitCount, 1);
+  });
+
+  testWidgets('품질전은 제출 뒤 상대를 기다리고, 판정 중이면 그 사실을 알린다', (tester) async {
+    final submitted = BattleSubmission(
+      id: 5,
+      battleId: 'b1',
+      userId: 'me',
+      objectPath: null,
+      capturedAt: DateTime.now(),
+      submittedAt: DateTime.now(),
+      status: 'submitted',
+    );
+
     await tester.pumpWidget(
-      _screen(_detail(type: 'quality'), _FakeBattleRepository(), _FakeCamera()),
+      _screen(
+        _detail(type: 'quality', submissions: [submitted]),
+        _FakeBattleRepository(),
+        _FakeCamera(),
+      ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleSubmissionPreparing), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidenceQualityWaiting), findsOneWidget);
+    // 한 번 낸 뒤에는 다시 찍을 수 없다.
     expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      _screen(
+        _detail(type: 'quality', status: 'judging', submissions: [submitted]),
+        _FakeBattleRepository(),
+        _FakeCamera(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(AppStrings.battleEvidenceQualityJudging), findsOneWidget);
   });
 }

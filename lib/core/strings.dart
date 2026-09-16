@@ -74,10 +74,6 @@ class AppStrings {
 
   static const battleEvidencePhotoLoadFailed = '사진을 불러오지 못했어요.';
 
-  // 품질전 제출 자리(ai-judge 6단계에서 두 사진 비교 판정이 붙으면 없어진다).
-  static const battleSubmissionPreparingTitle = '품질전 제출 준비 중';
-  static const battleSubmissionPreparing = '두 사진을 비교하는 AI 판정을 준비하고 있어요. 속도전은 지금 바로 제출할 수 있어요.';
-
   // 증거 사진 제출과 속도전 판정. 증거는 앱 카메라로 찍은 사진만이다(갤러리 경로 없음).
   static const battleEvidenceSectionTitle = '내 증거';
   static const battleEvidenceTakePhoto = '사진 찍기';
@@ -108,6 +104,16 @@ class AppStrings {
   static String battleEvidenceOpponentSubmitted(String time) => '제출했어요 ($time)';
   static String battleEvidenceOpponentVerdict(String verdict, int used) =>
       '최근 판정: $verdict · 판정 $used/5회 사용';
+
+  // 품질전 제출. 한 번만 낼 수 있고 재제출 수단이 없어서 제출 전에 반드시 확인받는다(결정 14).
+  static const battleEvidenceQualityOnce = '품질전은 한 번만 낼 수 있어요. 기간 안에 더 완벽하게 해낸 사람이 이겨요.';
+  static const battleEvidenceQualitySubmit = '제출 (한 번만 가능)';
+  static const battleEvidenceQualityConfirmTitle = '이 사진으로 제출할까요?';
+  static const battleEvidenceQualityConfirm = '품질전은 한 번만 낼 수 있어요. 제출한 뒤에는 다시 찍을 수 없어요.';
+  static const battleEvidenceQualitySubmittedTitle = '제출 완료';
+  static const battleEvidenceQualityWaiting = '상대가 제출하면 AI가 두 사진을 판정해요.';
+  static const battleEvidenceQualityJudgingTitle = 'AI가 판정하는 중';
+  static const battleEvidenceQualityJudging = '두 사진을 비교하고 있어요. 판정에 실패하면 자동으로 다시 시도해요.';
   static const battleVoidedMessage = 'AI 판정이 계속 실패해 무효가 됐어요. 점수·전적에 반영되지 않아요.';
 
   static const battleForfeit = '대결 포기';

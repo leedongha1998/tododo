@@ -194,6 +194,25 @@
 
 ## 6단계 — 품질전 판정 잡·자동 재시도·마감 대기
 
+### 착수 메모 (2026-09-16)
+- 충돌 점검: 새로 생긴 충돌 없음. CLAUDE.md의 상호 승인·품질전 무승자·"마감은 판정을 대신한다"는
+  spec.md "폐기되는 기존 결정" 표(오너 승인)가 대체하며 문구 갱신은 7단계다. service 전용 함수의
+  `auth.uid()` 가드 예외는 기존 `settle_expired_battles`·`accept_submission` 선례와 같고 마이그레이션
+  주석에 이유를 적는다. **판정 규칙은 이미 있는 순수 함수 `quality_outcome`이 정한다** — Edge도
+  클라이언트도 승패를 계산하지 않는다(CLAUDE.md "클라이언트에서 승패 계산" 금지).
+- 작업 순서: (1) 마이그레이션(`verdict_reason`·`quality_judgments` → `claim/record_quality_*` →
+  `dispatch_quality_judgments` → `accept_submission` 품질전 경로 → `void_battle`·`forfeit_battle`·
+  `delete_account` 잡 삭제 → cron 갱신) → (2) `_shared` 품질전 스키마·프롬프트·A/B 역매핑 +
+  `deno test` → (3) `judge-quality` + `submit-evidence` 품질전 경로(`EdgeRuntime.waitUntil`) +
+  `config.toml` → (4) SQL 스모크에 품질전 케이스 추가 → (5) Dart(모델·`BattleDetail`·화면·문자열) →
+  (6) `flutter analyze`/`flutter test`.
+- `accept_submission`은 **인자 시그니처를 그대로 둔 `create or replace`**로 고친다. 시그니처가 달라지면
+  새 오버로드가 생겨 배포된 `submit-evidence`가 옛 함수를 계속 부른다.
+- cron `ai-judge-tick`은 5단계에서 이미 `* * * * *`로 등록돼 있다. 같은 이름으로 `cron.schedule`을
+  다시 부르면 기존 작업이 **갱신**된다(중복 등록 아님). 명령 문자열에 sweep과 dispatch를 함께 넣는다.
+- Vault 시크릿은 **이름만** 참조한다(`judge_function_url`, `judge_cron_secret`). 값 입력은 오너 몫이고
+  값이 없으면 dispatch는 아무것도 보내지 않고 0을 돌려준다(임대 만료 처리는 값 없이도 돈다).
+
 ### 파일
 - 마이그레이션 `..._quality_judgments.sql`: `battles.verdict_reason`, `quality_judgments`(+RLS 켬·정책 없음), `claim_quality_judgment`·`record_quality_verdict`·`record_quality_failure`·`dispatch_quality_judgments`(pg_net + Vault 이름 참조), `accept_submission` 품질전 경로, `void_battle`·`forfeit_battle`·`delete_account`에 잡 삭제, cron `ai-judge-tick`에 dispatch 추가.
 - `supabase/functions/judge-quality/index.ts`, `submit-evidence`의 품질전 경로 + `EdgeRuntime.waitUntil`, `config.toml` `verify_jwt = false`.
@@ -229,6 +248,44 @@
 ---
 
 ## 진행 기록
+
+### 6단계 (구현 완료, 원격 적용·스모크 통과, 배포 대기, 2026-09-16)
+- 착수 메모의 순서대로 진행했고 중간에 바꾸지 않았다.
+- 로컬 검증: `flutter analyze` 이슈 0, `flutter test` **254개 통과**(5단계 251 + 품질전 제출 위젯 2 +
+  `BattleDetail` 품질전 판단 3 − 준비 중 안내 테스트 2). `deno test supabase/functions/_shared/`
+  **26개 통과**(5단계 16 + 품질전 응답·역매핑·요청 5 + 프롬프트 3 + 상수 시간 비교 2).
+  `deno check`로 `judge-quality`·`submit-evidence`도 타입 검사했다.
+- 구현 중에는 Gemini를 한 번도 부르지 않았고 원격 DB에 쓰지 않았다. 원격 적용 후 `ai_judge_flow_smoke` **`ok=t`**(속도전 케이스 그대로 + 품질전 25항목, 마지막에 롤백해 원격 데이터는 그대로다). `pg_net` 생성과 cron `ai-judge-tick` 갱신(sweep + dispatch)도 확인했다. 배포는 오너가 시크릿·Vault 값을 넣은 뒤로 미뤘다 — 값 없이 배포하면 judge-quality가 모든 호출을 401로 막는다.
+- 설계와 달라진 점
+  - `claim_quality_judgment`가 `creator_id`·`opponent_id`도 돌려준다. 설계의
+    `record_quality_verdict(..., p_winner_user_id, ...)` 시그니처를 그대로 쓰려면 Edge가 승자를
+    **사용자 id**로 적어야 하는데, A/B 역매핑 결과는 "생성자/참가자"라서 id가 필요하다.
+  - 내부 헬퍼 `fail_quality_judgment(battle_id, error)`를 새로 뒀다. 실패 1회 규칙(다음 시도 예약 /
+    4회 소진 시 `void_battle`)을 쓰는 곳이 셋(Edge 실패, AI 응답이 규칙과 어긋남, 임대 만료)이라
+    한 곳에 모았다. 설계에는 `record_quality_failure`만 있었다.
+  - `record_quality_verdict`는 `quality_outcome`이 `valid=false`를 주면 그 자리에서 실패 처리까지
+    한다(Edge가 다시 왕복하지 않는다). "둘 다 충족인데 승자 없음 = 재시도"가 한 트랜잭션에서 끝난다.
+  - `verdict_reason` 채우는 규칙을 구체화했다: 둘 다 충족이면 우열 사유, 한쪽만 충족이면 **미달 쪽
+    사진의 사유**, 둘 다 미달이면 null(한 줄로 고를 근거가 없어 화면이 양쪽 제출 사유를 보여 준다).
+  - 판정 실행 로직을 `_shared/quality_judge.ts`(`runQualityJudgment`)로 빼서 `judge-quality`와
+    `submit-evidence`의 즉시 실행이 같은 코드를 쓴다. 설계는 "같은 로직을 한 번 실행"이라고만 했다.
+  - `EdgeRuntime.waitUntil`은 있을 때만 쓴다(`declare const` + 옵셔널 호출). 훅이 없는 환경에서는
+    응답만 나가고 cron이 이어받는다.
+  - `constantTimeEquals`를 `_shared/secret.ts`로 따로 뒀다. `auth.ts`는 모듈 로드 때 `Deno.env`를
+    읽어 권한 없이 도는 `deno test`에서 못 쓴다.
+  - `dispatch_quality_judgments`는 Vault 값이 없으면 **발송만 건너뛰고 0을 돌려준다**. 임대 만료
+    정리는 값 없이도 돌아야 해서 (a) 만료 정리 → (b) 발송 순서로 뒀다.
+  - 결과 배너에 `verdict_reason`을 붙였다. 배너 세부는 7단계 몫이지만, 6단계 완료 조건이
+    "둘 다 통과한 품질전의 사유가 우열 기준 항목을 근거로 표시됨"을 요구한다.
+  - 품질전 화면을 열면서 1단계의 "준비 중" 문자열 두 개(`battleSubmissionPreparing*`)를 지웠다.
+- `accept_submission`은 인자 시그니처를 그대로 둔 `create or replace`다(권한 유지, 오버로드 없음).
+  cron `ai-judge-tick`은 같은 이름으로 다시 `cron.schedule`해 sweep + dispatch로 갱신했다.
+- 스모크 메모: `jsonb_build_object`는 인자 100개가 상한이라 품질전 키를 별도 객체로 만들어 `||`로
+  합쳤다(기존 25키 + 신규 25키 = 100개 초과). 품질전 대결 상태는 종결시키기 **전에** 변수로 잡아 둔다
+  (4단계에서 탈퇴 뒤에 읽어 어긋났던 것과 같은 함정). 한 트랜잭션 안에서는 `now()`가 고정이라
+  재시도 간격을 앞당길 때 `next_attempt_at`을 직접 갱신한다.
+- 가정: `pg_net`은 Supabase 표준대로 `net` 스키마에 설치된다(`net.http_post`). 확장이 다른 스키마에
+  들어가 있으면 dispatch가 첫 tick에서 실패하므로 원격 적용 뒤 첫 1분을 확인해야 한다.
 
 ### 5단계 (구현 완료, 원격 적용·배포·스모크 통과, 2026-09-16)
 - 착수 메모의 순서대로 진행했고 중간에 바꾸지 않았다.

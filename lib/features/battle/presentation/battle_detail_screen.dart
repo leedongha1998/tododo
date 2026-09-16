@@ -80,11 +80,7 @@ class BattleDetailScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               _ResultBanner(detail: detail),
               if (detail.isOngoing) ...[
-                // 품질전은 두 사진을 비교하는 판정 잡이 붙는 6단계까지 제출을 열지 않는다.
-                if (detail.isSpeed)
-                  MyEvidenceSection(detail: detail)
-                else
-                  const _SubmissionPreparing(),
+                MyEvidenceSection(detail: detail),
                 const SizedBox(height: 16),
                 OpponentEvidenceSummary(detail: detail),
               ],
@@ -111,21 +107,6 @@ class BattleDetailScreen extends ConsumerWidget {
           return Center(child: Text(AppStrings.battleLoadDetailFailed));
         },
       ),
-    );
-  }
-}
-
-/// 품질전 제출 자리. 두 사진을 비교하는 AI 판정 잡이 붙기 전까지 이 안내만 둔다
-/// (속도전은 [MyEvidenceSection]이 대신한다).
-class _SubmissionPreparing extends StatelessWidget {
-  const _SubmissionPreparing();
-
-  @override
-  Widget build(BuildContext context) {
-    return const PixelFrame.tone(
-      tone: PixelTone.info,
-      title: AppStrings.battleSubmissionPreparingTitle,
-      child: Text(AppStrings.battleSubmissionPreparing),
     );
   }
 }
@@ -209,20 +190,22 @@ class _ResultBanner extends StatelessWidget {
     // null이면 떠 있는 프레임(승리 — 가장 강한 결과). 나머지는 성격별 안내 블록.
     final PixelTone? tone;
 
+    // 기권이 아니면 서버가 기록한 판정 사유(품질전)를 그대로 보여 준다. 링크·서식 해석 없는
+    // 일반 텍스트다. 속도전 제출별 사유는 제출 이력에 있다.
     if (detail.didIWin) {
       headline = AppStrings.battleYouWon;
-      reason = detail.didOpponentForfeit ? AppStrings.battleWonByForfeit : null;
+      reason = detail.didOpponentForfeit ? AppStrings.battleWonByForfeit : detail.verdictReason;
       icon = PixelIcons.trophy;
       tone = null;
     } else if (detail.didILose) {
       headline = AppStrings.battleYouLost;
-      reason = detail.didIForfeit ? AppStrings.battleLostByForfeit : null;
+      reason = detail.didIForfeit ? AppStrings.battleLostByForfeit : detail.verdictReason;
       // 얼굴 아이콘 금지 규칙 때문에 표정 대신 아래로 꺾인 화살표.
       icon = PixelIcons.lose;
       tone = PixelTone.neutral;
     } else if (detail.isDraw) {
       headline = AppStrings.battleDrawMessage;
-      reason = null;
+      reason = detail.verdictReason;
       icon = PixelIcons.hourglass;
       // 무승부는 잘못된 일이 아니다. 위험색이 아니라 중립.
       tone = PixelTone.neutral;

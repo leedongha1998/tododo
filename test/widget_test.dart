@@ -413,18 +413,15 @@ void main() {
         await tester.pumpAndSettle();
 
         final reason = '$type/$status';
-        if (type == 'quality') {
-          // 품질전 제출은 두 사진을 비교하는 판정 잡이 붙는 6단계에서 열린다.
-          expect(find.text(AppStrings.battleSubmissionPreparing), findsOneWidget, reason: reason);
-          expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing, reason: reason);
-        } else {
-          // 속도전은 active에서만 낼 수 있다(judging은 품질전 전용 상태라 제출 자리가 없다).
-          expect(find.text(AppStrings.battleSubmissionPreparing), findsNothing, reason: reason);
-          expect(
-            find.text(AppStrings.battleEvidenceTakePhoto),
-            status == 'active' ? findsOneWidget : findsNothing,
-            reason: reason,
-          );
+        // 두 유형 모두 active에서만 낼 수 있다. judging은 품질전에서 두 사진이 다 올라와
+        // AI가 판정하는 중인 상태라 제출 자리가 없다.
+        expect(
+          find.text(AppStrings.battleEvidenceTakePhoto),
+          status == 'active' ? findsOneWidget : findsNothing,
+          reason: reason,
+        );
+        if (type == 'quality' && status == 'judging') {
+          expect(find.text(AppStrings.battleEvidenceQualityJudging), findsOneWidget, reason: reason);
         }
         expect(find.text(AppStrings.battleForfeit), findsOneWidget, reason: reason);
         expect(find.byType(TextField), findsNothing, reason: reason);
@@ -449,8 +446,8 @@ void main() {
     expect(find.text('아침 운동하기'), findsOneWidget);
     expect(find.text(AppStrings.battleStatusFinished), findsOneWidget);
     expect(find.text(AppStrings.battleYouWon), findsOneWidget);
-    // 끝난 대결에는 준비 중 안내도 포기 버튼도 없다.
-    expect(find.text(AppStrings.battleSubmissionPreparing), findsNothing);
+    // 끝난 대결에는 제출 자리도 포기 버튼도 없다.
+    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
     expect(find.text(AppStrings.battleForfeit), findsNothing);
   });
 

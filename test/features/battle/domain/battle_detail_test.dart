@@ -149,7 +149,7 @@ void main() {
 
   // 제출 가능 여부는 화면 활성화 판단이다. 같은 검사를 서버가 다시 하므로 여기서 막지 못해도
   // 규칙이 깨지지는 않는다 — 반대로 여기서 열어 두면 사용자가 거부당하는 헛걸음을 한다.
-  group('속도전 제출 가능 판단', () {
+  group('제출 가능 판단', () {
     test('진행 중이고 마감 전이며 통과·판정 중·소진이 아니면 낼 수 있다', () {
       final detail = _speedDetail();
       expect(detail.canSubmitEvidenceAt(_now), isTrue);
@@ -195,9 +195,36 @@ void main() {
       expect(detail.canSubmitEvidenceAt(_now), isTrue);
     });
 
-    test('품질전은 이 단계에서 제출을 열지 않는다', () {
-      final detail = _speedDetail(type: 'quality');
-      expect(detail.isSpeed, isFalse);
+    // 품질전은 제출이 한 번뿐이고 재제출 수단이 없다(결정 14).
+    test('품질전은 아직 내지 않았을 때만 낼 수 있다', () {
+      final before = _speedDetail(type: 'quality');
+      expect(before.isQuality, isTrue);
+      expect(before.hasMyQualitySubmission, isFalse);
+      expect(before.canSubmitEvidenceAt(_now), isTrue);
+
+      final after = _speedDetail(
+        type: 'quality',
+        submissions: [_submission(status: 'submitted')],
+      );
+      expect(after.hasMyQualitySubmission, isTrue);
+      expect(after.canSubmitEvidenceAt(_now), isFalse);
+    });
+
+    test('품질전 판정 중(judging)에는 낼 수 없다', () {
+      final detail = _speedDetail(
+        type: 'quality',
+        status: 'judging',
+        submissions: [_submission(status: 'submitted')],
+      );
+      expect(detail.isQualityJudging, isTrue);
+      expect(detail.canSubmitEvidenceAt(_now), isFalse);
+    });
+
+    test('품질전도 마감이 지나면 낼 수 없다', () {
+      final detail = _speedDetail(
+        type: 'quality',
+        deadlineAt: _now.subtract(const Duration(minutes: 1)),
+      );
       expect(detail.canSubmitEvidenceAt(_now), isFalse);
     });
 

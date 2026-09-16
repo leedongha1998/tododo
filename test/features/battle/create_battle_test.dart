@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,8 @@ import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_criteria_repository.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
+import 'package:todododo/features/battle/data/battle_submission.dart';
+import 'package:todododo/features/battle/data/submission_result.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/data/open_recruit.dart';
@@ -107,6 +111,24 @@ class _FakeBattleRepository implements BattleRepository {
 
   @override
   Future<String> createEvidencePhotoUrl(String path) async => 'https://example.com/$path';
+
+  @override
+  Future<List<BattleSubmission>> fetchSubmissions(String battleId) async => const [];
+
+  @override
+  Future<String> uploadEvidencePhoto({
+    required String battleId,
+    required Uint8List bytes,
+  }) async =>
+      '$battleId/me/photo.jpg';
+
+  @override
+  Future<SubmissionResult> submitEvidence({
+    required String battleId,
+    required String objectPath,
+    required DateTime capturedAt,
+  }) async =>
+      const SubmissionResult(submissionId: 1);
 }
 
 const _qualityResult = CriteriaCheckResult(

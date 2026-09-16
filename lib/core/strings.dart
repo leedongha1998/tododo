@@ -74,9 +74,40 @@ class AppStrings {
 
   static const battleEvidencePhotoLoadFailed = '사진을 불러오지 못했어요.';
 
-  // 사진 제출과 AI 판정이 붙기 전까지 대결 상세의 제출 자리에 두는 안내(ai-judge 1단계).
-  static const battleSubmissionPreparingTitle = '사진 제출 준비 중';
-  static const battleSubmissionPreparing = '앱 카메라로 찍은 사진을 AI 심판이 판정하는 기능을 준비하고 있어요.';
+  // 품질전 제출 자리(ai-judge 6단계에서 두 사진 비교 판정이 붙으면 없어진다).
+  static const battleSubmissionPreparingTitle = '품질전 제출 준비 중';
+  static const battleSubmissionPreparing = '두 사진을 비교하는 AI 판정을 준비하고 있어요. 속도전은 지금 바로 제출할 수 있어요.';
+
+  // 증거 사진 제출과 속도전 판정. 증거는 앱 카메라로 찍은 사진만이다(갤러리 경로 없음).
+  static const battleEvidenceSectionTitle = '내 증거';
+  static const battleEvidenceTakePhoto = '사진 찍기';
+  static const battleEvidenceRetake = '다시 찍기';
+  static const battleEvidenceSubmit = '제출';
+  static const battleEvidenceUploading = '사진을 올리고 있어요';
+  static const battleEvidenceJudging = 'AI가 판정하는 중이에요';
+  static String battleEvidenceAttemptsLeft(int left) => '판정 $left/5회 남음 · AI 실패는 횟수에서 빠져요';
+  static const battleEvidencePassedTitle = '기준 통과!';
+  static String battleEvidencePassedAt(String time) => '통과 시각 $time';
+  static const battleEvidenceFailedTitle = '불합격';
+  static const battleEvidenceErrorTitle = 'AI 판정에 실패했어요';
+  static const battleEvidenceErrorDetail = '횟수는 차감되지 않았어요. 다시 제출해 주세요.';
+  static const battleEvidenceExhausted = '판정 횟수를 모두 썼어요.';
+  // 상대에게 더 이른 판정 중 제출이 있을 수 있으므로 "승리 확정"이라고 말하지 않는다.
+  static const battleEvidencePassedLocked = '기준을 먼저 통과했어요. 마감까지 대결은 진행 중이에요.';
+  static const battleEvidenceHistoryTitle = '내 제출 이력';
+  static const battleEvidenceCaptureFailed = '사진을 찍지 못했어요. 다시 시도해주세요.';
+  static const battleEvidenceSubmitFailed = '제출에 실패했습니다. 다시 시도해주세요.';
+  static const battleEvidenceVerdictPassed = '합격';
+  static const battleEvidenceVerdictFailed = '불합격';
+  static const battleEvidenceVerdictError = '판정 실패';
+  static const battleEvidenceVerdictJudging = '판정 중';
+  static const battleEvidenceVerdictSubmitted = '제출됨';
+  // 상대 영역. 진행 중에는 사진도 사유도 보여 주지 않는다(서버도 내주지 않는다).
+  static const battleEvidenceOpponentTitle = '상대 제출';
+  static const battleEvidenceOpponentWaiting = '아직 제출 전';
+  static String battleEvidenceOpponentSubmitted(String time) => '제출했어요 ($time)';
+  static String battleEvidenceOpponentVerdict(String verdict, int used) =>
+      '최근 판정: $verdict · 판정 $used/5회 사용';
   static const battleVoidedMessage = 'AI 판정이 계속 실패해 무효가 됐어요. 점수·전적에 반영되지 않아요.';
 
   static const battleForfeit = '대결 포기';
@@ -171,6 +202,12 @@ class AppStrings {
   static const battleErrorNotPending = '이미 매칭되어 기준을 바꿀 수 없어요.';
   static const battleErrorAiFailed = 'AI가 응답하지 않았어요. 잠시 후 다시 시도해 주세요.\n'
       '(횟수는 차감되지 않았어요)';
+  static const battleErrorCapturedBeforeStart = '대결이 시작되기 전에 찍은 사진은 낼 수 없어요.';
+  static const battleErrorCaptureTimeMismatch = '찍은 지 10분이 지난 사진이에요. 다시 찍어 주세요.';
+  static const battleErrorDeadlinePassed = '마감이 지나 제출할 수 없어요.';
+  static const battleErrorSubmissionLocked = '더 이상 제출할 수 없어요.';
+  static const battleErrorJudgingInProgress = '앞선 제출을 판정하는 중이에요. 잠시 후 다시 시도해주세요.';
+  static const battleErrorAttemptsExhausted = '판정 횟수를 모두 썼어요.';
   static const battleErrorUnknown = '요청을 처리하지 못했습니다. 다시 시도해주세요.';
 
   static const profileTitle = '프로필';

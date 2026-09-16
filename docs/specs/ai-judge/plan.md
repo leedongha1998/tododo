@@ -163,6 +163,18 @@
 
 ## 5단계 — 증거 제출·속도전 판정·증거 비공개
 
+### 착수 메모 (2026-09-16)
+- 충돌 점검: 새로 생긴 충돌 없음. CLAUDE.md의 상호 승인·텍스트 증거·재제출·"마감은 판정을 대신한다"는
+  spec.md "폐기되는 기존 결정" 표(오너 승인)가 대체하며 문구 갱신은 7단계다. service 전용 함수의
+  `auth.uid()` 가드 예외는 기존 `settle_expired_battles` 선례와 같고 마이그레이션 주석에 이유를 적는다.
+- 작업 순서: (1) 마이그레이션(Storage 정책 교체 → `accept_submission`/`record_speed_verdict`/
+  `sweep_stale_submissions` → cron) → (2) `_shared` 판정 스키마·프롬프트 + `deno test` →
+  (3) `submit-evidence` Edge Function → (4) SQL 스모크 → (5) Dart(모델·저장소·`BattleDetail`·화면) →
+  (6) `flutter analyze`/`flutter test`.
+- 5단계에서 품질전 UI는 열지 않는다. 판정 잡이 6단계라, 지금 품질전 사진을 받으면 대결이 마감까지
+  판정 없이 매달린다. 서버(`accept_submission`)는 설계대로 품질전 제출 행까지 만들되, 화면은
+  품질전에 한해 1단계의 "준비 중" 안내를 남긴다(속도전에서는 제거).
+
 ### 파일
 - 마이그레이션 `..._speed_submissions.sql`: Storage 정책 4개 교체, `accept_submission`·`record_speed_verdict`·`sweep_stale_submissions`(service, DEFINER + service_role grant, 가드 예외 주석), cron `ai-judge-tick`(`* * * * *`, sweep만).
 - `supabase/functions/submit-evidence/index.ts`(속도전 경로), `_shared` 판정 스키마·프롬프트 추가 + 테스트.
@@ -217,6 +229,40 @@
 ---
 
 ## 진행 기록
+
+### 5단계 (구현 완료, 원격 적용·배포·스모크 통과, 2026-09-16)
+- 착수 메모의 순서대로 진행했고 중간에 바꾸지 않았다.
+- 로컬 검증: `flutter analyze` 이슈 0, `flutter test` **251개 통과**(4단계 227 + 증거 제출 위젯 9 +
+  `BattleDetail` 제출 판단 유닛 10 + 제출 규칙 유닛 5). `deno test supabase/functions/_shared/`
+  **16개 통과**(3단계 11 + 제출 요청 경로 검증 1 + 판정 응답 검증 1 + 프롬프트 3).
+- 구현 단계에서는 Gemini를 부르지 않았고 원격 DB에 쓰지 않았다(스모크는 원격 적용 뒤에 돌렸다).
+- 설계와 달라진 점
+  - **품질전 화면은 열지 않았다**(착수 메모). 판정 잡이 6단계라 지금 품질전 사진을 받으면 대결이
+    마감까지 판정 없이 매달린다. 서버(`accept_submission`)와 `submit-evidence`는 설계대로 품질전
+    제출 행까지 만들되, 화면은 품질전에 한해 "준비 중" 안내를 남겼다. 그래서 plan 5단계 파일 목록의
+    "1단계 준비 중 안내 제거"는 속도전에서만 이뤄졌고, 문구는 품질전 기준으로 고쳐 썼다.
+  - `record_speed_verdict`가 `{battle_status}`가 아니라 `{applied, battle_status}`를 돌려준다.
+    sweep이 먼저 `error`로 내렸거나 대결이 이미 끝나 늦게 온 판정을 버린 경우를 Edge가 구분할 수 있다.
+  - `accept_submission`이 경로가 `{battle_id}/{user_id}/`로 시작하는지 서버에서도 본다(Storage 정책과
+    이중 검사). 업로드 정책을 우회한 경로가 제출 행으로 남지 않게 한다.
+  - 마감만 지난 경우(`active`인데 `deadline_at` 경과)를 `SUBMISSION_LOCKED`가 아니라
+    `DEADLINE_PASSED`로 구분해 돌려준다. 사용자에게 "왜 못 내는지"가 달라진다.
+  - `MyEvidenceSection`은 `canSubmitEvidence`가 false면 촬영 버튼을 내리고, 마감이 지난 경우에만
+    그 사실을 알린다(설계가 정하지 않은 지점).
+  - uuid 패키지를 넣지 않고 `Random.secure()` 16바이트 hex로 파일명을 만든다(새 패키지 금지 규칙).
+  - `EvidenceCamera` + `evidenceCameraProvider`를 새로 뒀다. 위젯 테스트에서 카메라를 가짜로 바꾸려면
+    주입 지점이 필요하다(`vsIntroSeenStoreProvider` 선례와 같은 방식).
+  - 종결 후 **양쪽** 이력 공개는 7단계 몫이라 이번에는 내 이력 + 상대 요약까지만 만들었다.
+  - `sweep_stale_submissions`는 3단계에서 미뤄 둔 `ai_criteria_calls`의 2분 경과 `in_progress` 정리를
+    함께 한다(설계 표 그대로).
+- 위젯 테스트 메모: 미리보기 사진이 들어가면 "제출" 버튼이 기본 테스트 화면(800x600) 밖으로 밀린다.
+  `ensureVisible` 없이 `tap`하면 "off-screen" 경고와 함께 실패한다.
+- 1단계 위젯 테스트 두 개가 속도전에서도 "준비 중" 안내를 기대하고 있어 새 규칙(속도전은 촬영 제출,
+  품질전만 준비 중)으로 고쳤다.
+- 원격 적용 후 `ai_judge_flow_smoke` **`ok=t`**(마지막에 롤백하므로 원격 데이터는 그대로다).
+  `if exists` 없이 drop하는 Storage 정책 4개가 실제로 원격에 있는지 먼저 확인하고 적용했다.
+- `supabase functions deploy submit-evidence` 완료. 비인증 호출은 POST·GET 모두 401이다.
+  Gemini 실호출은 아직 하지 않았다(에뮬레이터 수동 검증 때 처음 부른다).
 
 ### 1단계 (로컬 구현 완료, 원격 미적용·미커밋)
 - 순서 변경 없음.

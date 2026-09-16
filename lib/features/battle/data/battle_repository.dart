@@ -1,16 +1,22 @@
+import 'dart:math';
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'battle.dart';
 import 'battle_participant.dart';
+import 'battle_submission.dart';
 import 'criteria_check_result.dart';
 import 'open_recruit.dart';
 import 'player_card.dart';
+import 'submission_result.dart';
 
 class BattleRepository {
   BattleRepository(this._client);
 
   static const _evidenceBucket = 'battle_evidence';
   static const _signedUrlSeconds = 300;
+  static const _submitFunctionName = 'submit-evidence';
 
   final SupabaseClient _client;
 
@@ -109,6 +115,74 @@ class BattleRepository {
   // 서명 URL 발급도 Storage 조회 정책을 거치므로, 서버가 가린 사진은 여기서 실패한다.
   Future<String> createEvidencePhotoUrl(String path) {
     return _client.storage.from(_evidenceBucket).createSignedUrl(path, _signedUrlSeconds);
+  }
+
+  /// 진행 중에는 내 제출만 돌아온다. 상대 제출(사진 경로·판정 사유)은 종결된 뒤에야 서버가 내준다.
+  Future<List<BattleSubmission>> fetchSubmissions(String battleId) async {
+    final rows = await _client
+        .from('battle_submissions')
+        .select()
+        .eq('battle_id', battleId)
+        .order('submitted_at');
+    return rows.map(BattleSubmission.fromMap).toList();
+  }
+
+  /// 촬영한 사진을 내 폴더에 올리고 경로를 돌려준다.
+  ///
+  /// 제출마다 새 이름으로 올린다(덮어쓰기 없음) — 속도전 시도 이력의 사진을 보존해야 하고,
+  /// Storage 정책에도 update가 없다.
+  Future<String> uploadEvidencePhoto({
+    required String battleId,
+    required Uint8List bytes,
+  }) async {
+    final userId = _client.auth.currentUser!.id;
+    final path = '$battleId/$userId/${_randomObjectName()}.jpg';
+    await _client.storage.from(_evidenceBucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: const FileOptions(contentType: 'image/jpeg'),
+        );
+    return path;
+  }
+
+  /// 올린 사진을 제출로 접수시킨다. 속도전이면 같은 호출에서 AI 판정까지 끝나 결과가 돌아온다.
+  /// 촬영 시각은 서버가 수신 시각과 대조하는 데만 쓰고, 승부 시각은 서버가 찍는다.
+  Future<SubmissionResult> submitEvidence({
+    required String battleId,
+    required String objectPath,
+    required DateTime capturedAt,
+  }) async {
+    try {
+      final response = await _client.functions.invoke(
+        _submitFunctionName,
+        body: {
+          'battle_id': battleId,
+          'object_path': objectPath,
+          'captured_at': capturedAt.toUtc().toIso8601String(),
+        },
+      );
+      return SubmissionResult.fromMap(Map<String, dynamic>.from(response.data as Map));
+    } on FunctionException catch (error) {
+      // 함수가 4xx/5xx면 본문의 {error: CODE}로 분기한다(거부 사유도 코드로 온다).
+      final details = error.details;
+      if (details is Map) {
+        final code = details['error'];
+        if (code is String) {
+          return Future.error(SubmissionException(code));
+        }
+      }
+      return Future.error(const SubmissionException('SERVER_ERROR'));
+    }
+  }
+
+  // uuid 패키지를 새로 넣지 않으려고 난수 16바이트를 16진수로 쓴다(파일명 충돌 방지 용도라 충분하다).
+  String _randomObjectName() {
+    final random = Random.secure();
+    final buffer = StringBuffer();
+    for (var i = 0; i < 16; i++) {
+      buffer.write(random.nextInt(256).toRadixString(16).padLeft(2, '0'));
+    }
+    return buffer.toString();
   }
 
   // 포기(기권). 유형과 상관없이 포기한 쪽이 지고 상대가 이긴다. 결과와 점수는 서버가 정한다.

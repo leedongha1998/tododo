@@ -11,6 +11,7 @@ import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
 import 'battle_chips.dart';
+import 'evidence_section.dart';
 import 'player_card_view.dart';
 import 'vs_intro.dart';
 
@@ -78,8 +79,15 @@ class BattleDetailScreen extends ConsumerWidget {
               _BattleHeader(detail: detail),
               const SizedBox(height: 16),
               _ResultBanner(detail: detail),
-              // 사진 제출·AI 판정 영역은 ai-judge 5·6단계에서 이 자리에 들어온다.
-              if (detail.isOngoing) const _SubmissionPreparing(),
+              if (detail.isOngoing) ...[
+                // 품질전은 두 사진을 비교하는 판정 잡이 붙는 6단계까지 제출을 열지 않는다.
+                if (detail.isSpeed)
+                  MyEvidenceSection(detail: detail)
+                else
+                  const _SubmissionPreparing(),
+                const SizedBox(height: 16),
+                OpponentEvidenceSummary(detail: detail),
+              ],
               if (detail.canForfeit) ...[
                 const Divider(height: 32),
                 Align(
@@ -107,8 +115,8 @@ class BattleDetailScreen extends ConsumerWidget {
   }
 }
 
-/// 진행 중인 대결의 제출 자리. 상호 승인·텍스트 증거·갤러리 제출을 걷어낸 뒤
-/// 카메라 촬영 제출과 AI 판정이 붙기 전까지 이 안내만 둔다.
+/// 품질전 제출 자리. 두 사진을 비교하는 AI 판정 잡이 붙기 전까지 이 안내만 둔다
+/// (속도전은 [MyEvidenceSection]이 대신한다).
 class _SubmissionPreparing extends StatelessWidget {
   const _SubmissionPreparing();
 

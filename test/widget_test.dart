@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +12,8 @@ import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/auth/presentation/login_screen.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
+import 'package:todododo/features/battle/data/battle_submission.dart';
+import 'package:todododo/features/battle/data/submission_result.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/data/profile.dart';
@@ -88,6 +92,24 @@ class _FakeBattleRepository implements BattleRepository {
 
   @override
   Future<String> createEvidencePhotoUrl(String path) async => 'https://example.com/$path';
+
+  @override
+  Future<List<BattleSubmission>> fetchSubmissions(String battleId) async => const [];
+
+  @override
+  Future<String> uploadEvidencePhoto({
+    required String battleId,
+    required Uint8List bytes,
+  }) async =>
+      '$battleId/me/photo.jpg';
+
+  @override
+  Future<SubmissionResult> submitEvidence({
+    required String battleId,
+    required String objectPath,
+    required DateTime capturedAt,
+  }) async =>
+      const SubmissionResult(submissionId: 1);
 }
 
 class _FakeAuthRepository implements AuthRepository {
@@ -383,7 +405,7 @@ void main() {
 
   // spec 수용 기준: "어떤 화면에도 상대 증거를 승인/이의제기하는 수단이 없다",
   // "증거 제출 경로에서 갤러리 사진을 고를 방법이 없다", "텍스트만으로는 제출할 수 없다".
-  testWidgets('진행 중인 대결 상세에는 준비 중 안내와 포기만 있고 승인·이의제기·텍스트 입력·사진 선택이 없다',
+  testWidgets('진행 중인 대결 상세에는 카메라 제출과 포기만 있고 승인·이의제기·텍스트 입력·사진 선택이 없다',
       (WidgetTester tester) async {
     for (final type in ['speed', 'quality']) {
       for (final status in ['active', 'judging']) {
@@ -391,7 +413,19 @@ void main() {
         await tester.pumpAndSettle();
 
         final reason = '$type/$status';
-        expect(find.text(AppStrings.battleSubmissionPreparing), findsOneWidget, reason: reason);
+        if (type == 'quality') {
+          // 품질전 제출은 두 사진을 비교하는 판정 잡이 붙는 6단계에서 열린다.
+          expect(find.text(AppStrings.battleSubmissionPreparing), findsOneWidget, reason: reason);
+          expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing, reason: reason);
+        } else {
+          // 속도전은 active에서만 낼 수 있다(judging은 품질전 전용 상태라 제출 자리가 없다).
+          expect(find.text(AppStrings.battleSubmissionPreparing), findsNothing, reason: reason);
+          expect(
+            find.text(AppStrings.battleEvidenceTakePhoto),
+            status == 'active' ? findsOneWidget : findsNothing,
+            reason: reason,
+          );
+        }
         expect(find.text(AppStrings.battleForfeit), findsOneWidget, reason: reason);
         expect(find.byType(TextField), findsNothing, reason: reason);
         expect(find.text('승인'), findsNothing, reason: reason);
@@ -635,7 +669,8 @@ void main() {
     await tester.tap(find.byType(VsIntro));
     await tester.pump();
     expect(find.byType(VsIntro), findsNothing);
-    expect(find.text(AppStrings.battleSubmissionPreparing), findsOneWidget);
+    // 인트로가 닫히면 진행 중인 속도전의 제출 자리가 보인다.
+    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsOneWidget);
 
     // 같은 대결에 다시 들어가면 뜨지 않는다.
     await tester.pumpWidget(const SizedBox());

@@ -5,6 +5,7 @@ import '../data/battle.dart';
 import '../data/battle_criteria_repository.dart';
 import '../data/battle_repository.dart';
 import '../data/criteria_check_result.dart';
+import '../data/evidence_camera.dart';
 import '../data/open_recruit.dart';
 import '../data/player_card.dart';
 import '../data/vs_intro_seen_store.dart';
@@ -59,13 +60,25 @@ final battleDetailProvider = FutureProvider.autoDispose.family<BattleDetail, Str
   final me = participants.firstWhere((p) => p.userId == myId);
   final opponent = participants.firstWhere((p) => p.userId != myId);
   final names = await repo.fetchDisplayNames([me.userId, opponent.userId]);
+  // 진행 중에는 내 제출만 돌아온다. 상대 것을 가리는 일은 서버(RLS)가 한다.
+  final submissions = await repo.fetchSubmissions(battleId);
   return BattleDetail(
     battle: battle,
     me: me,
     opponent: opponent,
     myName: names[me.userId] ?? '나',
     opponentName: names[opponent.userId] ?? '알 수 없음',
+    submissions: submissions,
   );
+});
+
+/// 증거 사진 촬영(카메라 전용). 위젯 테스트에서 가짜로 바꿀 수 있게 provider로 둔다.
+final evidenceCameraProvider = Provider<EvidenceCamera>((ref) => const EvidenceCamera());
+
+/// 증거 사진의 짧은 수명 서명 URL. 발급도 Storage 조회 정책을 거치므로,
+/// 진행 중 상대 사진은 여기서 실패한다(서버가 가린다).
+final evidencePhotoUrlProvider = FutureProvider.autoDispose.family<String, String>((ref, path) {
+  return ref.watch(battleRepositoryProvider).createEvidencePhotoUrl(path);
 });
 
 /// VS 인트로 "봤음" 기록. 위젯 테스트에서 가짜로 바꿀 수 있게 provider로 둔다.

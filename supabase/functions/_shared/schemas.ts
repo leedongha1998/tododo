@@ -175,6 +175,78 @@ export interface CheckResult {
   blockReason: string | null;
 }
 
+export const REASON_MAX = 60;
+
+const UUID_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+export interface SubmitEvidenceRequest {
+  battleId: string;
+  objectPath: string;
+  /// 앱이 보낸 촬영 시각. 서버 대조에만 쓰고 AI로는 보내지 않는다(결정 69).
+  capturedAt: string;
+}
+
+/// 증거 제출 요청 검증. 경로는 JWT로 확인한 호출자의 폴더여야 한다
+/// (클라이언트가 보낸 user id를 믿지 않으므로 [userId]는 호출부가 JWT에서 꺼내 넘긴다).
+export function parseSubmitEvidenceRequest(body: unknown, userId: string): SubmitEvidenceRequest {
+  if (typeof body !== 'object' || body === null) {
+    throw new ValidationError('요청 본문이 올바르지 않습니다.');
+  }
+  const raw = body as Record<string, unknown>;
+
+  const battleId = typeof raw.battle_id === 'string' ? raw.battle_id.trim() : '';
+  if (!UUID_PATTERN.test(battleId)) {
+    throw new ValidationError('battle_id가 올바르지 않습니다.');
+  }
+
+  const objectPath = typeof raw.object_path === 'string' ? raw.object_path.trim() : '';
+  if (!objectPath.startsWith(`${battleId}/${userId}/`) || objectPath.length <= `${battleId}/${userId}/`.length) {
+    throw new ValidationError('사진 경로가 본인 폴더가 아닙니다.');
+  }
+
+  const capturedAt = typeof raw.captured_at === 'string' ? raw.captured_at.trim() : '';
+  if (capturedAt.length === 0 || Number.isNaN(Date.parse(capturedAt))) {
+    throw new ValidationError('촬영 시각이 올바르지 않습니다.');
+  }
+
+  return { battleId, objectPath, capturedAt };
+}
+
+/// ③ 속도전 판정 응답 스키마.
+export const speedVerdictResponseSchema = {
+  type: 'object',
+  properties: {
+    passed: { type: 'boolean' },
+    reason: { type: 'string' },
+  },
+  required: ['passed', 'reason'],
+};
+
+export interface SpeedVerdictResult {
+  passed: boolean;
+  reason: string;
+}
+
+/// 속도전 판정 응답 재검증. 사유가 없거나 60자를 넘으면 AI 실패로 처리한다
+/// (잘라 쓰지 않는다 — 잘린 사유가 오해를 부른다).
+export function parseSpeedVerdictResponse(value: unknown): SpeedVerdictResult {
+  if (typeof value !== 'object' || value === null) {
+    throw new ValidationError('응답이 객체가 아닙니다.');
+  }
+  const raw = value as Record<string, unknown>;
+  if (typeof raw.passed !== 'boolean') {
+    throw new ValidationError('passed가 없습니다.');
+  }
+  if (typeof raw.reason !== 'string' || raw.reason.trim().length === 0) {
+    throw new ValidationError('판정 사유가 없습니다.');
+  }
+  const reason = raw.reason.trim();
+  if (reason.length > REASON_MAX) {
+    throw new ValidationError(`판정 사유가 ${REASON_MAX}자를 넘습니다.`);
+  }
+  return { passed: raw.passed, reason };
+}
+
 /// 증명 가능성 검사 응답 재검증.
 export function parseCheckResponse(value: unknown): CheckResult {
   if (typeof value !== 'object' || value === null) {

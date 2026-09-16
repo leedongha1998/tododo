@@ -9,6 +9,13 @@ export const ERROR_CODES = [
   'CRITERIA_CALL_LIMIT',
   'CHECK_INVALID',
   'NOT_PENDING',
+  // 증거 제출 거부(행을 만들지 않으므로 어떤 횟수에도 들어가지 않는다).
+  'CAPTURED_BEFORE_START',
+  'CAPTURE_TIME_MISMATCH',
+  'DEADLINE_PASSED',
+  'SUBMISSION_LOCKED',
+  'JUDGING_IN_PROGRESS',
+  'ATTEMPTS_EXHAUSTED',
   'BAD_REQUEST',
   'UNAUTHORIZED',
   'AI_FAILED',
@@ -24,6 +31,13 @@ const STATUS: Record<ErrorCode, number> = {
   CRITERIA_CALL_LIMIT: 429,
   CHECK_INVALID: 409,
   NOT_PENDING: 409,
+  // 거부는 요청 형식이 아니라 내용(촬영 시각·상태·횟수) 문제라 422다.
+  CAPTURED_BEFORE_START: 422,
+  CAPTURE_TIME_MISMATCH: 422,
+  DEADLINE_PASSED: 422,
+  SUBMISSION_LOCKED: 422,
+  JUDGING_IN_PROGRESS: 422,
+  ATTEMPTS_EXHAUSTED: 422,
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
   // AI 실패는 우리 잘못도 사용자 잘못도 아니다. 앱은 "다시 시도" 버튼을 보여 준다.

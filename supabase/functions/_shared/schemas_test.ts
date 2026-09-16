@@ -7,8 +7,76 @@ import {
   parseCheckResponse,
   parseCriteriaRequest,
   parseGenerationResponse,
+  parseSpeedVerdictResponse,
+  parseSubmitEvidenceRequest,
   validateCriteriaList,
 } from './schemas.ts';
+
+const battleId = '11111111-2222-3333-4444-555555555555';
+const userId = '66666666-7777-8888-9999-000000000000';
+
+Deno.test('증거 제출 요청은 본인 폴더 경로만 받는다', () => {
+  const request = parseSubmitEvidenceRequest(
+    {
+      battle_id: battleId,
+      object_path: `${battleId}/${userId}/photo.jpg`,
+      captured_at: '2026-09-16T01:02:03.000Z',
+    },
+    userId,
+  );
+  assertEquals(request.battleId, battleId);
+  assertEquals(request.capturedAt, '2026-09-16T01:02:03.000Z');
+
+  // 남의 폴더, 다른 대결 폴더, 폴더만 있고 파일이 없는 경로는 모두 거부한다.
+  const otherUser = '99999999-7777-8888-9999-000000000000';
+  assertThrows(
+    () =>
+      parseSubmitEvidenceRequest(
+        { battle_id: battleId, object_path: `${battleId}/${otherUser}/p.jpg`, captured_at: '2026-09-16T01:02:03Z' },
+        userId,
+      ),
+    ValidationError,
+  );
+  assertThrows(
+    () =>
+      parseSubmitEvidenceRequest(
+        { battle_id: battleId, object_path: `${battleId}/${userId}/`, captured_at: '2026-09-16T01:02:03Z' },
+        userId,
+      ),
+    ValidationError,
+  );
+  assertThrows(
+    () =>
+      parseSubmitEvidenceRequest(
+        { battle_id: 'not-a-uuid', object_path: `not-a-uuid/${userId}/p.jpg`, captured_at: '2026-09-16T01:02:03Z' },
+        userId,
+      ),
+    ValidationError,
+  );
+  assertThrows(
+    () =>
+      parseSubmitEvidenceRequest(
+        { battle_id: battleId, object_path: `${battleId}/${userId}/p.jpg`, captured_at: '어제' },
+        userId,
+      ),
+    ValidationError,
+  );
+});
+
+Deno.test('속도전 판정 응답은 합격 여부와 60자 이내 사유를 요구한다', () => {
+  assertEquals(parseSpeedVerdictResponse({ passed: true, reason: ' 상판이 모두 보인다 ' }), {
+    passed: true,
+    reason: '상판이 모두 보인다',
+  });
+
+  assertThrows(() => parseSpeedVerdictResponse({ passed: 'yes', reason: '사유' }), ValidationError);
+  assertThrows(() => parseSpeedVerdictResponse({ passed: false }), ValidationError);
+  assertThrows(() => parseSpeedVerdictResponse({ passed: false, reason: '   ' }), ValidationError);
+  assertThrows(
+    () => parseSpeedVerdictResponse({ passed: false, reason: '가'.repeat(61) }),
+    ValidationError,
+  );
+});
 
 Deno.test('기준 목록은 1~5개, 각 항목 1~100자여야 한다', () => {
   assertEquals(validateCriteriaList([' 책상이 비어 있다 '], '최소 기준'), ['책상이 비어 있다']);

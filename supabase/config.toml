@@ -6,3 +6,7 @@ project_id = "todododo"
 [functions.battle-criteria]
 # 앱이 사용자 JWT로 부른다. 함수 안에서 한 번 더 getUser()로 확인한다.
 verify_jwt = true
+
+[functions.submit-evidence]
+# 같은 이유로 JWT 필수. 제출자는 클라이언트가 보낸 값이 아니라 JWT에서 확인한 id다.
+verify_jwt = true

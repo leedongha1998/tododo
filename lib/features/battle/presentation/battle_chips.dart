@@ -6,6 +6,7 @@ import '../../../core/theme/pixel_icons.dart';
 import '../../../core/theme/retro_palette.dart';
 import '../../../core/widgets/pixel_icon.dart';
 import '../../../core/widgets/pixel_tag.dart';
+import '../domain/battle_outcome.dart';
 
 /// 대결 카드, 대결 상세, 전적 목록이 유형·상태·결과를 같은 모양으로 보여주기 위한 공용 조각.
 /// 여러 곳이 각자 다르게 그리면 같은 상태가 화면마다 달라 보인다.
@@ -113,34 +114,27 @@ const voidedResultTagStyle = PixelTagStyle(
   dashed: true,
 );
 
-/// 결과 라벨 모양(design.md 3.2 "결과 라벨"). 현재 `BattleRecord.resultLabel`이 문자열이라
-/// `AppStrings` 값을 키로 받는다.
-PixelTagStyle resultTagStyle(String label) {
-  return switch (label) {
+/// 결과 라벨 모양(design.md 3.2 "결과 라벨"). 서버가 정한 결과 키로 고른다.
+///
+/// 종료·미결은 결과가 아니라 상태다(`battleStatusTagStyle`). 기록 목록과 결과 배너에 올라오는
+/// 결과는 승·패·무·무효 넷뿐이라 그 넷만 매핑한다.
+PixelTagStyle resultTagStyle(BattleResult result) {
+  return switch (result) {
     // 가장 강한 결과. 유일하게 떠 있다.
-    AppStrings.battleRecordWin => const PixelTagStyle(
+    BattleResult.win => const PixelTagStyle(
         fill: RetroPalette.amber,
         textColor: RetroPalette.ink,
         borderColor: RetroPalette.ink,
         raised: true,
       ),
-    AppStrings.battleRecordLose => const PixelTagStyle(
+    BattleResult.loss => const PixelTagStyle(
         fill: RetroPalette.inkMuted,
         textColor: RetroPalette.surface,
         borderColor: RetroPalette.ink,
       ),
-    AppStrings.battleStatusFinished => const PixelTagStyle(
-        fill: RetroPalette.success,
-        textColor: RetroPalette.surface,
-        borderColor: RetroPalette.ink,
-      ),
-    AppStrings.battleStatusDisputed => const PixelTagStyle(
-        fill: RetroPalette.dangerPale,
-        textColor: RetroPalette.ink,
-        borderColor: RetroPalette.danger,
-      ),
-    AppStrings.battleRecordVoided => voidedResultTagStyle,
-    _ => _neutralStyle,
+    // 무승부는 잘못된 일이 아니다. 위험색을 쓰지 않는다.
+    BattleResult.draw => _neutralStyle,
+    BattleResult.voided => voidedResultTagStyle,
   };
 }
 
@@ -196,17 +190,21 @@ class BattleStatusChip extends StatelessWidget {
   }
 }
 
-/// 결과 라벨(승/패/무/종료/미결). small은 전적 목록 오른쪽, large는 결과 배너.
+/// 결과 라벨(승/패/무/무효). small은 전적 목록 오른쪽, large는 결과 배너.
 class ResultLabel extends StatelessWidget {
-  const ResultLabel.small({super.key, required this.label}) : size = PixelTagSize.small;
+  const ResultLabel.small({super.key, required this.result}) : size = PixelTagSize.small;
 
-  const ResultLabel.large({super.key, required this.label}) : size = PixelTagSize.large;
+  const ResultLabel.large({super.key, required this.result}) : size = PixelTagSize.large;
 
-  final String label;
+  final BattleResult result;
   final PixelTagSize size;
 
   @override
   Widget build(BuildContext context) {
-    return PixelTag(label: label, style: resultTagStyle(label), size: size);
+    return PixelTag(
+      label: battleResultLabel(result),
+      style: resultTagStyle(result),
+      size: size,
+    );
   }
 }

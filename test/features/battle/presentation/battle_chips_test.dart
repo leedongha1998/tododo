@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/retro_palette.dart';
 import 'package:todododo/core/widgets/pixel_tag.dart';
+import 'package:todododo/features/battle/domain/battle_outcome.dart';
 import 'package:todododo/features/battle/presentation/battle_chips.dart';
 
 void main() {
@@ -103,27 +104,23 @@ void main() {
     });
   });
 
+  // 결과 라벨은 상태가 아니라 서버가 적은 outcome에서 나온다.
+  // 종료·미결은 결과가 아니라 상태라서 이 매핑에 없다.
   group('resultTagStyle', () {
     test('승은 앰버 면에 유일하게 바닥 두께가 있다', () {
-      final win = resultTagStyle(AppStrings.battleRecordWin);
+      final win = resultTagStyle(BattleResult.win);
       expect(win.fill, RetroPalette.amber);
       expect(win.textColor, RetroPalette.ink);
       expect(win.raised, isTrue);
 
-      for (final label in [
-        AppStrings.battleRecordLose,
-        AppStrings.battleRecordDraw,
-        AppStrings.battleStatusFinished,
-        AppStrings.battleStatusDisputed,
-      ]) {
-        expect(resultTagStyle(label).raised, isFalse, reason: label);
+      for (final result in [BattleResult.loss, BattleResult.draw, BattleResult.voided]) {
+        expect(resultTagStyle(result).raised, isFalse, reason: result.name);
       }
-      expect(voidedResultTagStyle.raised, isFalse);
     });
 
-    test('패·무·종료·미결이 설계 표대로 매핑된다', () {
+    test('패·무가 설계 표대로 매핑된다', () {
       expect(
-        resultTagStyle(AppStrings.battleRecordLose),
+        resultTagStyle(BattleResult.loss),
         const PixelTagStyle(
           fill: RetroPalette.inkMuted,
           textColor: RetroPalette.surface,
@@ -131,35 +128,22 @@ void main() {
         ),
       );
       expect(
-        resultTagStyle(AppStrings.battleRecordDraw),
+        resultTagStyle(BattleResult.draw),
         const PixelTagStyle(
           fill: RetroPalette.sunken,
           textColor: RetroPalette.ink,
           borderColor: RetroPalette.ink,
         ),
       );
-      expect(
-        resultTagStyle(AppStrings.battleStatusFinished),
-        const PixelTagStyle(
-          fill: RetroPalette.success,
-          textColor: RetroPalette.surface,
-          borderColor: RetroPalette.ink,
-        ),
-      );
-      expect(
-        resultTagStyle(AppStrings.battleStatusDisputed),
-        const PixelTagStyle(
-          fill: RetroPalette.dangerPale,
-          textColor: RetroPalette.ink,
-          borderColor: RetroPalette.danger,
-        ),
-      );
+    });
+
+    test('네 결과의 모양이 서로 모두 다르다', () {
+      expect(BattleResult.values.map(resultTagStyle).toSet(), hasLength(BattleResult.values.length));
     });
 
     test('무효 결과 라벨은 무효 모양으로, 무효 상태 칩은 무효 글자로 보인다', () {
-      expect(resultTagStyle(AppStrings.battleRecordVoided), voidedResultTagStyle);
-      expect(resultTagStyle(AppStrings.battleRecordVoided),
-          isNot(resultTagStyle(AppStrings.battleRecordDraw)));
+      expect(resultTagStyle(BattleResult.voided), voidedResultTagStyle);
+      expect(resultTagStyle(BattleResult.voided), isNot(resultTagStyle(BattleResult.draw)));
       expect(battleStatusLabel('voided'), AppStrings.battleStatusVoided);
     });
 

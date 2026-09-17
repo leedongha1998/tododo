@@ -29,6 +29,8 @@ import 'package:todododo/core/navigation/main_shell.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/features/battle/presentation/my_battles_screen.dart';
 import 'package:todododo/features/battle/presentation/vs_intro.dart';
+import 'package:todododo/features/profile/data/player_stats.dart';
+import 'package:todododo/features/battle/domain/battle_outcome.dart';
 import 'package:todododo/features/profile/domain/battle_record.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 import 'package:todododo/features/profile/presentation/profile_screen.dart';
@@ -36,6 +38,10 @@ import 'package:todododo/features/todo/data/todo.dart';
 import 'package:todododo/features/todo/domain/todo_providers.dart';
 import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import 'package:todododo/main.dart';
+
+/// 프로필이 보여 주는 점수·전적은 서버 `player_stats` 값이다. 화면이 목록을 세지 않는지
+/// 보려고 기록 목록과 일부러 다른 숫자를 쓴다.
+const _testStats = PlayerStats(score: 3, wins: 1, losses: 1, draws: 0);
 
 class _FakeBattleRepository implements BattleRepository {
   @override
@@ -89,6 +95,10 @@ class _FakeBattleRepository implements BattleRepository {
 
   @override
   Future<List<BattleParticipant>> fetchParticipants(String battleId) async => const [];
+
+  @override
+  Future<List<BattleParticipant>> fetchParticipantsOf(Iterable<String> battleIds) async =>
+      const [];
 
   @override
   Future<String> createEvidencePhotoUrl(String path) async => 'https://example.com/$path';
@@ -309,6 +319,7 @@ void main() {
           // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
           myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          myPlayerStatsProvider.overrideWith((ref) async => _testStats),
           battleRecordsProvider.overrideWith((ref) async => []),
         ],
         child: const MaterialApp(home: MainShell()),
@@ -494,7 +505,7 @@ void main() {
     }
   });
 
-  testWidgets('프로필 화면에 이름과 유형별 승/패/무 전적이 보인다', (WidgetTester tester) async {
+  testWidgets('프로필 화면에 이름과 점수·승/패/무 전적이 보인다', (WidgetTester tester) async {
     final speedWin = Battle(
       id: 'b1',
       type: 'speed',
@@ -531,18 +542,23 @@ void main() {
           // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
           myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          myPlayerStatsProvider.overrideWith((ref) async => _testStats),
           battleRecordsProvider.overrideWith(
             (ref) async => [
-              BattleRecord(battle: speedWin, otherPartyName: '친구', resultLabel: AppStrings.battleRecordWin),
+              BattleRecord(
+                battle: speedWin,
+                otherPartyName: '친구',
+                result: BattleResult.win,
+              ),
               BattleRecord(
                 battle: qualityLoss,
                 otherPartyName: '친구',
-                resultLabel: AppStrings.battleRecordLose,
+                result: BattleResult.loss,
               ),
               BattleRecord(
                 battle: qualityVoided,
                 otherPartyName: '친구',
-                resultLabel: AppStrings.battleRecordVoided,
+                result: BattleResult.voided,
               ),
             ],
           ),
@@ -559,9 +575,11 @@ void main() {
     expect(find.text(AppStrings.battleRecordWin), findsOneWidget);
     expect(find.text(AppStrings.battleRecordLose), findsOneWidget);
     expect(find.text(AppStrings.battleRecordVoided), findsOneWidget);
-    // 품질전도 승/패/무로 센다. 무효는 어느 칸에도 들어가지 않는다.
-    expect(find.text('1승 0패 0무'), findsOneWidget);
-    expect(find.text('0승 1패 0무'), findsOneWidget);
+    // 점수와 승/패/무는 서버 player_stats 값을 그대로 보여 준다(화면이 목록을 세지 않는다).
+    expect(find.text(AppStrings.playerScoreLabel(3)), findsOneWidget);
+    expect(find.text(AppStrings.playerRecordLabel(1, 1, 0)), findsOneWidget);
+    // 무효는 점수·전적에 들어가지 않으므로 목록과 숫자가 어긋나는 이유를 알린다.
+    expect(find.text(AppStrings.profileVoidedExcluded), findsOneWidget);
     // 앱바 아이콘이 사라진 뒤 계정 관련 동작은 전부 이 화면에 모인다.
     // 기록이 세 장이라 계정 창이 첫 화면 아래로 밀린다. 목록은 보이는 곳만 그리므로 내려서 확인한다.
     await tester.scrollUntilVisible(find.text(AppStrings.accountDelete), 200);
@@ -579,12 +597,13 @@ void main() {
           // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
           myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          myPlayerStatsProvider.overrideWith((ref) async => _testStats),
           battleRecordsProvider.overrideWith(
             (ref) async => [
               BattleRecord(
                 battle: detail.battle,
                 otherPartyName: '친구',
-                resultLabel: AppStrings.battleRecordWin,
+                result: BattleResult.win,
               ),
             ],
           ),
@@ -612,6 +631,7 @@ void main() {
           // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
           myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          myPlayerStatsProvider.overrideWith((ref) async => _testStats),
           battleRecordsProvider.overrideWith((ref) async => <BattleRecord>[]),
         ],
         child: const MaterialApp(home: ProfileScreen()),
@@ -619,20 +639,26 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 동의 섹션이 생겨 계정 창이 첫 화면 아래로 밀린다. 목록은 보이는 곳만 그리므로 내려서 확인한다.
-    await tester.scrollUntilVisible(find.text(AppStrings.accountDelete), 200);
+    // 동의 섹션에 점수 창까지 생겨 계정 창이 첫 화면 아래로 밀린다. 목록은 보이는 곳만 그리므로
+    // 내려서 찾고, 화면 가장자리에 걸친 채로 누르면 "off-screen"으로 실패하므로 ensureVisible까지 한다.
+    Future<void> tapDeleteAccount() async {
+      final button = find.text(AppStrings.accountDelete);
+      await tester.scrollUntilVisible(button, 200);
+      await tester.ensureVisible(button);
+      await tester.pumpAndSettle();
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+    }
 
     // 취소하면 삭제되지 않는다.
-    await tester.tap(find.text(AppStrings.accountDelete));
-    await tester.pumpAndSettle();
+    await tapDeleteAccount();
     expect(find.text(AppStrings.accountDeleteConfirmTitle), findsOneWidget);
     await tester.tap(find.text(AppStrings.cancel));
     await tester.pumpAndSettle();
     expect(authRepository.deleteAccountCount, 0);
 
     // 확인해야 실제로 삭제된다.
-    await tester.tap(find.text(AppStrings.accountDelete));
-    await tester.pumpAndSettle();
+    await tapDeleteAccount();
     await tester.tap(find.text(AppStrings.accountDeleteConfirm));
     // 삭제 중에는 진행 표시가 계속 돌기 때문에 pumpAndSettle을 쓸 수 없다.
     await tester.pump();

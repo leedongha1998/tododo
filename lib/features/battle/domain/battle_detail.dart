@@ -3,6 +3,7 @@ import 'dart:math';
 import '../data/battle.dart';
 import '../data/battle_participant.dart';
 import '../data/battle_submission.dart';
+import 'battle_outcome.dart';
 import 'submission_rules.dart';
 
 /// 대결 상세 화면이 쓰는 상태 판별 모음.
@@ -115,4 +116,27 @@ class BattleDetail {
 
   /// 종결된 뒤에만 양쪽 증거와 사유가 열린다.
   bool get areSubmissionsRevealed => !isOngoing && battle.status != 'pending';
+
+  /// 종결 뒤 열린 상대 제출. 진행 중에는 서버가 주지 않으므로 항상 비어 있다.
+  List<BattleSubmission> get opponentSubmissions =>
+      submissions.where((submission) => submission.userId == opponent.userId).toList();
+
+  /// 이 대결이 나에게 어떤 결과였는지. 서버가 기록한 status·outcome을 옮길 뿐이다.
+  BattleResult? get result => battleResultOf(
+        status: battle.status,
+        outcome: me.outcome,
+        winnerId: battle.winnerId,
+        myId: me.userId,
+      );
+
+  /// 서버가 점수 하한(0)까지 적용해 실제로 반영한 점수 변화. 무효·취소면 null이다.
+  int? get myScoreDelta => me.scoreDeltaApplied;
+
+  /// 속도전에서 졌지만 마감 전에 기준을 통과한 경우(감점이 -3이 아니라 -1).
+  /// 전적에는 그냥 "패"로 들어가고 차이는 점수에만 있다.
+  bool get didICompleteButLose => me.outcome == 'completed_loss';
+
+  /// 품질전에서 상대가 끝내 제출하지 않아 AI 판정 없이 이긴 경우.
+  bool get didIWinByOpponentNoShow =>
+      didIWin && isQuality && !didOpponentForfeit && opponent.firstSubmittedAt == null;
 }

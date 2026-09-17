@@ -135,7 +135,10 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
           ..._buildBody(context, detail),
           if (detail.mySubmissions.isNotEmpty) ...[
             const SizedBox(height: 16),
-            _SubmissionHistory(submissions: detail.mySubmissions),
+            _SubmissionHistory(
+              submissions: detail.mySubmissions,
+              title: AppStrings.battleEvidenceHistoryTitle,
+            ),
           ],
         ],
       ),
@@ -387,11 +390,48 @@ class OpponentEvidenceSummary extends StatelessWidget {
   }
 }
 
+/// 종결 뒤 공개되는 양쪽 증거(사진 + 합격/불합격 + 사유).
+///
+/// 진행 중에는 서버(RLS)가 상대 제출 행을 아예 내주지 않으므로 이 위젯이 그릴 것도 없다.
+/// 종결 뒤에 열리는 것도 서버가 정하고, 화면은 받은 행을 그대로 보여 준다.
+class RevealedEvidenceSection extends StatelessWidget {
+  const RevealedEvidenceSection({super.key, required this.detail});
+
+  final BattleDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PixelFrame.flat(
+          title: AppStrings.battleEvidenceSectionTitle,
+          child: _historyOrEmpty(detail.mySubmissions),
+        ),
+        const SizedBox(height: 16),
+        PixelFrame.flat(
+          title: AppStrings.battleEvidenceOpponentTitle,
+          child: _historyOrEmpty(detail.opponentSubmissions),
+        ),
+      ],
+    );
+  }
+
+  // 한 번도 내지 않은 채 끝난 대결(마감 무승부, 포기 등)도 있다.
+  Widget _historyOrEmpty(List<BattleSubmission> submissions) {
+    if (submissions.isEmpty) return const Text(AppStrings.battleEvidenceNoSubmission);
+    return _SubmissionHistory(submissions: submissions);
+  }
+}
+
 /// 내 시도 이력(시각, 합격/불합격/실패, 사유, 사진).
 class _SubmissionHistory extends StatelessWidget {
-  const _SubmissionHistory({required this.submissions});
+  const _SubmissionHistory({required this.submissions, this.title});
 
   final List<BattleSubmission> submissions;
+
+  /// 창 제목이 이미 누구 것인지 말하는 자리(종결 뒤 공개)에서는 null이다.
+  final String? title;
 
   @override
   Widget build(BuildContext context) {
@@ -402,7 +442,7 @@ class _SubmissionHistory extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(AppStrings.battleEvidenceHistoryTitle, style: textTheme.titleSmall),
+        if (title != null) Text(title!, style: textTheme.titleSmall),
         for (final submission in ordered) ...[
           const SizedBox(height: 8),
           Row(

@@ -25,10 +25,7 @@ class AppStrings {
   static const battleTypeSpeed = '속도전';
   static const battleTypeQuality = '품질전';
   static const battleTitleHint = '무엇을 걸고 대결할까요?';
-  static const battleTitleRequired = '대결 내용을 입력해주세요.';
-  static const battleRecruitSubmit = '모집 등록하기';
   static const battleRecruitSubmitted = '모집을 등록했습니다.';
-  static const battleRecruitSubmitFailed = '모집 등록에 실패했습니다. 다시 시도해주세요.';
 
   static const todoTitle = '할 일';
   static const battleFind = '대결 찾기';
@@ -60,8 +57,17 @@ class AppStrings {
   static const battleDurationNotice = '마감은 상대가 매칭되는 순간부터 시작돼요.';
   static const battleDeadlineLabel = '마감';
   static const battleDeadlinePassed = '마감이 지났어요. 곧 결과가 정리돼요.';
-  static const battleDrawMessage = '시간 안에 끝내지 못해 무승부로 끝났어요.';
+  // 속도전 아무도 통과 못함(마감 또는 양쪽 판정 소진), 품질전 제출 없음·둘 다 기준 미달.
+  // 마감 전에 끝나는 경우도 있어서 "시간이 다 됐다"로만 말하지 않는다.
+  static const battleDrawMessage = '승부를 가를 기준 통과가 없어 무승부로 끝났어요.';
   static String battleDeadlineLeft(String remaining) => '$remaining 남음';
+
+  // 내 대결 목록의 상태 한 줄. 푸시가 없는 MVP에서 "알림 대상 사건"을 앱 안에서 확인하는 자리다.
+  static const battleListSettling = '마감됨 · 판정 마무리 중';
+  static const battleListJudging = 'AI가 두 사진을 판정하는 중';
+  static const battleListOpponentPassed = '상대가 기준을 통과했어요';
+  static const battleListOpponentFailed = '상대가 불합격했어요';
+  static const battleListOpponentSubmitted = '상대가 제출했어요';
 
   static const battleVersus = 'vs';
   static const battleMe = '나';
@@ -71,6 +77,13 @@ class AppStrings {
   static String vsIntroSemantics(String me, String opponent) => '$me 대 $opponent';
   static const battleYouWon = '승리했습니다!';
   static const battleYouLost = '아쉽지만 패배했어요.';
+  // 결과 배너 부제와 점수 변화. 값은 전부 서버가 정해 둔 것을 옮긴다.
+  static const battleCompletedLoss = '기준은 통과했지만 상대가 먼저 통과했어요.';
+  static const battleWonByOpponentNoShow = '상대가 제출하지 않아 승리했어요.';
+  static const battleVerdictReasonLabel = 'AI 판정 사유';
+  static const battleScoreChangeLabel = '점수 변화';
+  static String battleScoreDelta(int delta) => delta > 0 ? '+$delta점' : '$delta점';
+  static const battleScoreFloorNote = '점수는 0점 아래로 내려가지 않아요.';
 
   static const battleEvidencePhotoLoadFailed = '사진을 불러오지 못했어요.';
 
@@ -91,6 +104,8 @@ class AppStrings {
   // 상대에게 더 이른 판정 중 제출이 있을 수 있으므로 "승리 확정"이라고 말하지 않는다.
   static const battleEvidencePassedLocked = '기준을 먼저 통과했어요. 마감까지 대결은 진행 중이에요.';
   static const battleEvidenceHistoryTitle = '내 제출 이력';
+  // 종결 뒤에는 양쪽 제출이 사진·사유와 함께 열린다(진행 중에는 서버가 상대 행을 주지 않는다).
+  static const battleEvidenceNoSubmission = '제출한 사진이 없어요.';
   static const battleEvidenceCaptureFailed = '사진을 찍지 못했어요. 다시 시도해주세요.';
   static const battleEvidenceSubmitFailed = '제출에 실패했습니다. 다시 시도해주세요.';
   static const battleEvidenceVerdictPassed = '합격';
@@ -184,7 +199,6 @@ class AppStrings {
   static const battleCriteriaEditRecruit = '기준 수정';
   static const battleCriteriaApply = '기준 바꾸기';
   static const battleCriteriaApplied = '기준을 바꿨습니다.';
-  static const battleCriteriaApplyFailed = '기준을 바꾸지 못했습니다. 다시 시도해주세요.';
 
   // 모집 상세 시트와 전적 카드.
   static const battleRecruitJoinWithCriteria = '이 기준으로 참가';
@@ -221,6 +235,9 @@ class AppStrings {
   static const profileRecordEmpty = '아직 완료된 대결이 없어요.';
   static const profileLoadRecordFailed = '전적을 불러오지 못했습니다.';
   static const profileRecordSection = '전적';
+  static const profileLoadStatsFailed = '점수를 불러오지 못했습니다.';
+  // 무효는 점수에도 승/패/무에도 들어가지 않는다. 목록에만 남아 숫자와 어긋나 보이므로 이유를 적는다.
+  static const profileVoidedExcluded = '무효 대결은 점수와 승/패/무에 넣지 않아요.';
   static const profileHistorySection = '지난 대결';
   static const battleRecordWin = '승';
   static const battleRecordLose = '패';

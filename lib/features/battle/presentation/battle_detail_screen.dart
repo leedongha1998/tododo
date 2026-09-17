@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/pixel_icons.dart';
 import '../../../core/theme/retro_palette.dart';
+import '../../../core/theme/retro_text.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_icon.dart';
 import '../../../core/widgets/pixel_loader.dart';
 import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
+import '../domain/battle_outcome.dart';
 import '../domain/battle_providers.dart';
 import 'battle_chips.dart';
 import 'evidence_section.dart';
@@ -83,7 +85,10 @@ class BattleDetailScreen extends ConsumerWidget {
                 MyEvidenceSection(detail: detail),
                 const SizedBox(height: 16),
                 OpponentEvidenceSummary(detail: detail),
-              ],
+              ]
+              // 종결 뒤에는 서버가 상대 제출까지 내준다. 그때만 양쪽 이력을 함께 보여 준다.
+              else if (detail.areSubmissionsRevealed && detail.submissions.isNotEmpty)
+                RevealedEvidenceSection(detail: detail),
               if (detail.canForfeit) ...[
                 const Divider(height: 32),
                 Align(
@@ -182,42 +187,44 @@ class _ResultBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 결과는 서버가 정한 status·outcome에서 나온다. 진행 중이면 아직 결과가 없다.
+    final result = detail.result;
+    if (result == null) return const SizedBox.shrink();
+
     final textTheme = Theme.of(context).textTheme;
 
     final String headline;
-    final String? reason;
     final PixelIconData icon;
     // null이면 떠 있는 프레임(승리 — 가장 강한 결과). 나머지는 성격별 안내 블록.
     final PixelTone? tone;
 
-    // 기권이 아니면 서버가 기록한 판정 사유(품질전)를 그대로 보여 준다. 링크·서식 해석 없는
-    // 일반 텍스트다. 속도전 제출별 사유는 제출 이력에 있다.
-    if (detail.didIWin) {
-      headline = AppStrings.battleYouWon;
-      reason = detail.didOpponentForfeit ? AppStrings.battleWonByForfeit : detail.verdictReason;
-      icon = PixelIcons.trophy;
-      tone = null;
-    } else if (detail.didILose) {
-      headline = AppStrings.battleYouLost;
-      reason = detail.didIForfeit ? AppStrings.battleLostByForfeit : detail.verdictReason;
-      // 얼굴 아이콘 금지 규칙 때문에 표정 대신 아래로 꺾인 화살표.
-      icon = PixelIcons.lose;
-      tone = PixelTone.neutral;
-    } else if (detail.isDraw) {
-      headline = AppStrings.battleDrawMessage;
-      reason = detail.verdictReason;
-      icon = PixelIcons.hourglass;
-      // 무승부는 잘못된 일이 아니다. 위험색이 아니라 중립.
-      tone = PixelTone.neutral;
-    } else if (detail.isVoided) {
-      headline = AppStrings.battleVoidedMessage;
-      reason = null;
-      icon = PixelIcons.warning;
-      // 사용자 잘못이 아니고 점수에도 반영되지 않는 약한 끝. 위험색을 쓰지 않는다.
-      tone = PixelTone.neutral;
-    } else {
-      return const SizedBox.shrink();
+    switch (result) {
+      case BattleResult.win:
+        headline = AppStrings.battleYouWon;
+        icon = PixelIcons.trophy;
+        tone = null;
+      case BattleResult.loss:
+        headline = AppStrings.battleYouLost;
+        // 얼굴 아이콘 금지 규칙 때문에 표정 대신 아래로 꺾인 화살표.
+        icon = PixelIcons.lose;
+        tone = PixelTone.neutral;
+      case BattleResult.draw:
+        headline = AppStrings.battleDrawMessage;
+        icon = PixelIcons.hourglass;
+        // 무승부는 잘못된 일이 아니다. 위험색이 아니라 중립.
+        tone = PixelTone.neutral;
+      case BattleResult.voided:
+        headline = AppStrings.battleVoidedMessage;
+        icon = PixelIcons.warning;
+        // 사용자 잘못이 아니고 점수에도 반영되지 않는 약한 끝. 위험색을 쓰지 않는다.
+        tone = PixelTone.neutral;
     }
+
+    final subtitle = _subtitleOf(detail);
+    // 서버가 기록한 품질전 판정 사유. 링크·서식 해석 없는 일반 텍스트다.
+    // 속도전 제출별 사유는 아래 제출 이력에 있다.
+    final reason = detail.verdictReason;
+    final scoreDelta = detail.myScoreDelta;
 
     // 헤드라인은 문장이라 픽셀 글꼴이 아니라 본문 글꼴이다(결정 A).
     final content = Column(
@@ -227,9 +234,31 @@ class _ResultBanner extends StatelessWidget {
           headline,
           style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
-        if (reason != null) ...[
+        if (subtitle != null) ...[
           const SizedBox(height: 4),
+          Text(subtitle, style: textTheme.bodyMedium),
+        ],
+        if (reason != null) ...[
+          const SizedBox(height: 8),
+          Text(AppStrings.battleVerdictReasonLabel, style: textTheme.bodySmall),
+          const SizedBox(height: 2),
           Text(reason, style: textTheme.bodyMedium),
+        ],
+        // 점수는 서버가 하한(0)까지 적용해 반영한 값이다. 앱이 다시 계산하지 않는다.
+        if (scoreDelta != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(AppStrings.battleScoreChangeLabel, style: textTheme.bodySmall),
+              const SizedBox(width: 8),
+              Text(AppStrings.battleScoreDelta(scoreDelta), style: RetroText.numeric),
+            ],
+          ),
+          // 0점인 사람은 더 깎이지 않는다. 표가 말하는 -3과 달라 보이므로 이유를 적는다.
+          if (scoreDelta == 0) ...[
+            const SizedBox(height: 2),
+            Text(AppStrings.battleScoreFloorNote, style: textTheme.bodySmall),
+          ],
         ],
       ],
     );
@@ -259,6 +288,18 @@ class _ResultBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 결과 아래에 붙는 한 줄 설명. 전부 서버가 기록한 값(포기자, outcome, 상대 제출 여부)에서 고른다.
+/// 승패를 다시 정하지 않는다.
+String? _subtitleOf(BattleDetail detail) {
+  if (detail.didIForfeit) return AppStrings.battleLostByForfeit;
+  if (detail.didOpponentForfeit) return AppStrings.battleWonByForfeit;
+  // 속도전에서 졌지만 기준은 통과한 경우. 감점이 -3이 아니라 -1인 이유를 말해 준다.
+  if (detail.didICompleteButLose) return AppStrings.battleCompletedLoss;
+  // 품질전에서 상대가 끝내 내지 않아 AI 판정 없이 이긴 경우.
+  if (detail.didIWinByOpponentNoShow) return AppStrings.battleWonByOpponentNoShow;
+  return null;
 }
 
 /// 매칭된 대결에 이번 진입에서 처음 데이터가 도착했을 때 한 번만 VS 인트로를 판단한다.

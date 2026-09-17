@@ -113,6 +113,10 @@ class _FakeBattleRepository implements BattleRepository {
 
   @override
   Future<List<BattleParticipant>> fetchParticipants(String battleId) async => const [];
+
+  @override
+  Future<List<BattleParticipant>> fetchParticipantsOf(Iterable<String> battleIds) async =>
+      const [];
 }
 
 class _SeenAllStore implements VsIntroSeenStore {
@@ -377,5 +381,42 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.battleEvidenceQualityJudging), findsOneWidget);
+  });
+
+  // spec 수용 기준: "종결 후에는 양쪽이 서로의 증거와 판정 사유를 볼 수 있다".
+  // 진행 중에 가리는 일은 서버(RLS)가 하므로, 화면은 받은 행을 그대로 보여 주기만 한다.
+  testWidgets('종결된 뒤에는 양쪽 제출 이력이 사유와 함께 열린다', (tester) async {
+    final when = DateTime.now().subtract(const Duration(hours: 2));
+    BattleSubmission submission(int id, String userId, String status, String reason) =>
+        BattleSubmission(
+          id: id,
+          battleId: 'b1',
+          userId: userId,
+          objectPath: null,
+          capturedAt: when,
+          submittedAt: when,
+          status: status,
+          reason: reason,
+        );
+
+    await tester.pumpWidget(
+      _screen(
+        _detail(
+          status: 'finished',
+          submissions: [
+            submission(1, 'me', 'passed', '상판이 모두 보인다'),
+            submission(2, 'friend', 'failed', '물건이 그대로 남아 있다'),
+          ],
+        ),
+        _FakeBattleRepository(),
+        _FakeCamera(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('상판이 모두 보인다'), findsOneWidget);
+    expect(find.text('물건이 그대로 남아 있다'), findsOneWidget);
+    // 끝난 대결에는 제출 자리가 없다.
+    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
   });
 }

@@ -367,7 +367,8 @@ void main() {
 
   // 대결 만들기 화면은 AI 기준 생성·승인 2단계로 바뀌어 create_battle_test.dart에서 따로 본다.
 
-  testWidgets('모집 카드에 제목·기간·기준 미리보기·생성자 전적이 보인다', (WidgetTester tester) async {
+  testWidgets('모집 카드에 제목·기간·기준 미리보기가 보이고 생성자와 전적은 보이지 않는다',
+      (WidgetTester tester) async {
     final battle = Battle(
       id: 'b1',
       type: 'speed',
@@ -405,11 +406,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('아침 운동하기'), findsOneWidget);
-    expect(find.text('친구'), findsOneWidget);
     expect(find.text(AppStrings.battleDuration1Day), findsOneWidget);
     expect(find.text('운동화를 신고 밖에 있다'), findsOneWidget);
-    expect(find.text(AppStrings.playerScoreLabel(6)), findsOneWidget);
-    expect(find.text(AppStrings.playerRecordLabel(2, 1, 0)), findsOneWidget);
+    // 목록에서 읽어야 하는 것은 무슨 대결인지다. 생성자가 누구이고 전적이 어떤지는
+    // 참가를 결정할 때 보면 되므로 상세 시트에서만 보여 준다.
+    expect(find.text('친구'), findsNothing);
+    expect(find.text(AppStrings.playerScoreLabel(6)), findsNothing);
+    expect(find.text(AppStrings.playerRecordLabel(2, 1, 0)), findsNothing);
     // 참가는 카드를 눌러 연 시트에서 한다(기준을 보고 참가하도록).
     expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
   });

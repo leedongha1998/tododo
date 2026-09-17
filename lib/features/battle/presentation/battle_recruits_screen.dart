@@ -16,7 +16,6 @@ import 'ai_consent_screen.dart';
 import 'battle_chips.dart';
 import 'create_battle_screen.dart';
 import 'edit_recruit_criteria_screen.dart';
-import 'player_card_view.dart';
 import 'recruit_detail_sheet.dart';
 import 'vs_intro.dart';
 
@@ -107,7 +106,8 @@ class BattleRecruitsScreen extends ConsumerWidget {
         label: const Text(AppStrings.battleCreate),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        // 아래 여백은 만들기 버튼(FAB)이 마지막 항목의 기준 수정·취소 버튼을 가리지 않게 하려는 것이다.
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         children: [
           Text(AppStrings.battleOpenRecruits, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -142,6 +142,7 @@ class BattleRecruitsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
           Text(AppStrings.battleMyRecruits, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
           myRecruits.when(
             data: (battles) => battles.isEmpty
                 ? const Padding(
@@ -149,35 +150,58 @@ class BattleRecruitsScreen extends ConsumerWidget {
                     child: Text(AppStrings.battleRecruitsEmpty),
                   )
                 : Column(
-                    children: battles
-                        .map(
-                          (battle) => ListTile(
-                            title: Text(battle.title),
-                            subtitle: Align(
-                              alignment: Alignment.centerLeft,
-                              child: BattleTypeBadge(type: battle.type),
-                            ),
-                            // 매칭 전까지는 기준을 고칠 수 있다. 매칭된 뒤에는 서버가 거부한다.
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                OutlinedButton(
-                                  onPressed: () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => EditRecruitCriteriaScreen(battle: battle),
+                    children: [
+                      // 목록끼리 경계가 없으면 어디까지가 한 모집인지 읽히지 않는다.
+                      // 열린 모집 카드와 같은 떠 있는 창으로 한 건씩 감싼다.
+                      for (final battle in battles) ...[
+                        PixelFrame.raised(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      battle.title,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(fontWeight: FontWeight.w600),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  child: const Text(AppStrings.battleCriteriaEditRecruit),
-                                ),
-                                TextButton(
-                                  onPressed: () => _cancel(context, ref, battle.id),
-                                  child: const Text(AppStrings.battleRecruitCancel),
-                                ),
-                              ],
-                            ),
+                                  const SizedBox(width: 8),
+                                  // 제목 옆에 유형을 붙여 무슨 대결인지 한 줄에서 읽히게 한다.
+                                  BattleTypeBadge(type: battle.type),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              // 매칭 전까지는 기준을 고칠 수 있다. 매칭된 뒤에는 서버가 거부한다.
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  OutlinedButton(
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => EditRecruitCriteriaScreen(battle: battle),
+                                      ),
+                                    ),
+                                    child: const Text(AppStrings.battleCriteriaEditRecruit),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  TextButton(
+                                    onPressed: () => _cancel(context, ref, battle.id),
+                                    child: const Text(AppStrings.battleRecruitCancel),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                        )
-                        .toList(),
+                        ),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
                   ),
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
@@ -197,7 +221,9 @@ class BattleRecruitsScreen extends ConsumerWidget {
   }
 }
 
-/// 열린 모집 카드. 무엇을 걸고 누구와 붙는지까지만 보여 주고, 기준 전체는 시트에서 본다.
+/// 열린 모집 카드. 무슨 대결인지(제목·유형·기간·기준 미리보기)까지만 보여 준다.
+/// 생성자가 누구이고 전적이 어떤지는 목록에서 빼고 상세 시트에서만 본다 — 목록에서는
+/// 대결 내용을 읽는 것이 중요하고, 사람과 전적은 참가를 결정할 때 보면 된다.
 class _OpenRecruitCard extends StatelessWidget {
   const _OpenRecruitCard({required this.recruit, required this.onTap});
 
@@ -228,17 +254,16 @@ class _OpenRecruitCard extends StatelessWidget {
               ),
             ],
           ),
+          // 목록에서 중요한 것은 무슨 대결인지다. 기준 미리보기를 두 줄까지 보여 준다.
           if (preview != null) ...[
             const SizedBox(height: 8),
             Text(
               preview,
               style: textTheme.bodySmall,
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ],
-          const SizedBox(height: 12),
-          PlayerCardView(card: recruit.creator, label: AppStrings.battleRecruitCreatorLabel),
         ],
       ),
     );

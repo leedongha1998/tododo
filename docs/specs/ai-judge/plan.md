@@ -232,6 +232,26 @@
 
 ## 7단계 — 결과·점수·전적 표시와 정리
 
+### 착수 메모 (2026-09-17)
+- 충돌 점검: **막는 충돌 없음.** CLAUDE.md 도메인 규칙(상호 승인·텍스트 증거·재제출 항상 허용·품질전
+  무승자·"마감은 판정을 대신한다"·품질전 포기 `disputed`·`judging` 정의)과 범위 밖 문구("AI 심판",
+  "푸시 알림")는 spec.md "폐기되는 기존 결정" 표(오너 승인)가 대체하며, **그 문구를 실제로 고치는 것이
+  이번 단계의 작업**이다(design.md "CLAUDE.md 도메인 규칙과의 관계 확인"). CLAUDE.md 재작성 범위는
+  그 절의 세 목록(유지·준수 / spec이 대체 / 규칙 예외)으로 한정하고 넓히지 않는다.
+- **스키마 변경 없음.** 표시에 필요한 값이 모두 이미 서버에 있다: 점수 변화
+  `battle_participants.score_delta_applied`(1단계), 결과 `battle_participants.outcome`(1단계),
+  판정 사유 `battles.verdict_reason`(6단계), 점수·전적 `player_stats`(1단계, RLS 본인 select).
+  목록 상태 줄이 쓰는 상대 요약(`first_submitted_at`, `last_verdict`)도 `battle_participants`의
+  기존 select 정책(참가자 둘 다 읽음)으로 이미 읽힌다. 마이그레이션을 새로 쓰지 않는다.
+- 클라이언트는 승패·점수를 **계산하지 않는다**. outcome/status/winner_id/score_delta_applied를
+  라벨과 문장으로 옮기는 표시 변환만 하고, 그 변환은 순수 함수로 빼서 유닛 테스트로 덮는다.
+- 작업 순서: (1) 결과 키 순수 함수(`battle_outcome.dart`)와 `BattleRecord`·`BattleDetail`·
+  `BattleSummary` 도메인 확장 → (2) 데이터 계층(`player_stats` 조회, 참가자 일괄 조회) →
+  (3) 화면(결과 배너·종결 후 양쪽 이력 → 프로필 점수 줄 → 내 대결 상태 줄 → 탭 복귀 invalidate) →
+  (4) `battle_chips` 결과 라벨을 outcome 기준으로 교체(종료·미결 행 제거) → (5) 미사용 문자열 정리 →
+  (6) 테스트 추가·갱신 → (7) `flutter analyze`/`flutter test` → (8) 문서(CLAUDE.md, TODO_BACKLOG).
+- 커밋은 하지 않는다(오너 요청). 원격 적용·배포·Gemini 호출도 없다.
+
 ### 파일
 - Dart: 결과 배너(부제·점수 변화·사유), 종결 후 양쪽 이력 공개, 프로필 점수 + 승/패/무(`myPlayerStatsProvider`)·무효 라벨, 내 대결 목록 상태 줄, `main_shell.dart` 프로필 탭 복귀 시 `battleRecordsProvider` invalidate, `battle_chips.dart` 결과 라벨 매핑을 outcome 기준으로(종료·미결 행 제거), 미사용 문자열 정리.
 - 문서: `CLAUDE.md` 범위 밖·도메인 규칙·코딩 규칙(service 전용 함수 예외 한 줄)·개발 명령어(`supabase functions deploy`, `supabase secrets set`, `deno test`), `TODO_BACKLOG.md`.
@@ -248,6 +268,59 @@
 ---
 
 ## 진행 기록
+
+### 7단계 (구현 완료, 원격 적용 없음·미커밋, 2026-09-17)
+- 착수 메모의 순서대로 진행했고 중간에 바꾸지 않았다.
+- **스키마 변경 없음**(착수 메모대로). 표시에 필요한 값이 모두 이미 서버에 있었다:
+  `battle_participants.outcome`·`score_delta_applied`(1단계), `battles.verdict_reason`(6단계),
+  `player_stats`(1단계). 마이그레이션을 새로 쓰지 않았고 원격 DB에 읽기조차 하지 않았다.
+  배포·`functions deploy`·`secrets set`·Vault 접근·Gemini 호출도 없다. 커밋도 하지 않았다(오너 요청).
+- 로컬 검증: `flutter analyze` 이슈 0, `flutter test` **273개 통과**(6단계 254 + 결과 키 유닛 7 +
+  목록 상태 줄 유닛 7 + 기록 라벨 유닛 3 + 결과 칩 매핑 1 + 종결 후 이력 공개 위젯 1).
+  TypeScript를 건드리지 않아 `deno test`는 6단계 결과(26개) 그대로이며 이번에 실행하지 않았다.
+- 설계와 달라진 점
+  - **결과 키를 도메인 순수 함수로 모았다**(`battle/domain/battle_outcome.dart`의 `BattleResult`
+    enum + `battleResultOf` + `battleResultLabel`). design은 `BattleRecord`의 라벨 매핑만 말했지만
+    같은 매핑을 결과 배너·기록 목록·결과 칩 셋이 함께 써야 해서 한 곳에 두고 유닛 테스트로 덮었다.
+  - 그래서 `battle_chips.resultTagStyle`과 `ResultLabel`이 문자열 라벨이 아니라 `BattleResult`를
+    받는다(종료·미결 행 제거). 종료·미결은 결과가 아니라 상태라 `battleStatusTagStyle`에만 남는다.
+  - `BattleRecord.fromBattle`을 factory에서 **nullable static**으로 바꿨다. 결과가 없는 상태
+    (취소·진행 중)를 억지로 "무승부"로 만들지 않고 기록 목록에서 뺀다.
+  - **점수 변화를 부제와 별도 줄로 보여 준다.** design의 부제 예시는 "기준은 통과했지만 상대가 먼저
+    통과했어요 · -1점"이었지만, `score_delta_applied`를 따로 보여 주면 같은 숫자가 두 번 나온다.
+  - 점수 하한(0) 때문에 `score_delta_applied`가 0이면 "점수는 0점 아래로 내려가지 않아요" 한 줄을
+    덧붙인다. 점수표의 -3과 화면의 0이 달라 보이는 유일한 경우다(design이 정하지 않은 지점).
+  - `battleDrawMessage`를 "시간 안에 끝내지 못해 무승부로…"에서 "승부를 가를 기준 통과가 없어…"로
+    고쳤다. 속도전 양쪽 5회 소진과 품질전 둘 다 미달은 **마감 전에도** `draw`로 끝나 옛 문구가
+    사실과 달랐다.
+  - `myBattlesProvider`가 `fetchParticipantsOf`(신규, 한 번의 질의)로 참가자 행을 함께 읽는다.
+    카드 상태 줄이 상대 요약(`first_submitted_at`, `last_verdict`)을 써야 하는데, 대결마다 따로
+    부르지 않으려고 `fetchDisplayNames` 선례대로 일괄 조회를 더했다.
+  - 프로필 전적 창을 유형별 두 줄에서 **점수 + 합산 승/패/무 한 줄**로 바꿨다(design 화면 8).
+    목록에 무효가 있을 때만 "무효 대결은 점수와 승/패/무에 넣지 않아요" 한 줄을 덧붙인다 —
+    목록과 숫자가 어긋나 보이는 이유를 설명하려는 것으로 design에 없는 보완이다.
+  - 탭 복귀 invalidate에 `battleRecordsProvider`와 함께 `myPlayerStatsProvider`도 넣었다(점수도
+    같은 시점에 서버에서 바뀐다). 동의 철회 성공 경로에도 같은 이유로 추가했다(design 화면 2의
+    invalidate 목록에 이미 있던 항목이다).
+  - 종결 후 공개는 `RevealedEvidenceSection`(내 이력 + 상대 이력, 두 창)으로 만들었고 제출이 하나도
+    없으면 "제출한 사진이 없어요"를 보여 준다. 탈퇴한 상대의 사진 자리 안내("사진 없음(탈퇴한
+    사용자)")는 만들지 않고 `TODO_BACKLOG.md`로 넘겼다(기능이 막히지 않는다).
+  - 미사용 문자열 4개를 지웠다: `battleRecruitSubmit`, `battleRecruitSubmitFailed`,
+    `battleTitleRequired`(모집 등록 시절 잔재), `battleCriteriaApplyFailed`(오류 코드 매핑이 대신).
+    지우기 전 `lib`·`test` 참조 0건을 grep으로 확인했고, 지운 뒤 `AppStrings` 전체를 다시 세어
+    미사용이 0인 것도 확인했다.
+- CLAUDE.md는 design.md "CLAUDE.md 도메인 규칙과의 관계 확인"의 세 목록만 근거로 고쳤다(범위를 넓히지
+  않았다): 도메인 규칙을 AI 심판 기준으로 재작성, 코딩 규칙에 service 전용 함수의 `auth.uid()` 가드
+  예외 한 줄, 개발 명령어에 `supabase functions deploy`·`supabase secrets set`, 현재 단계의
+  범위·범위 밖(푸시·카카오·친구는 배포 전 별도 feature로 분리).
+- 함정 메모
+  - 프로필에 점수 창이 하나 더 생겨 계정 창이 첫 화면 밖으로 더 밀렸다. `scrollUntilVisible`만으로는
+    항목이 화면 가장자리에 걸쳐 `tap`이 "off-screen" 경고와 함께 실패한다 → `ensureVisible`을
+    덧붙였다(5단계와 같은 함정, 이번에는 탈퇴 테스트에서 났다).
+  - `ProfileScreen`을 그리는 위젯 테스트는 전부 `myPlayerStatsProvider`를 override해야 한다. 안 하면
+    `profileRepositoryProvider`가 만들어지며 초기화되지 않은 Supabase에 닿는다(기존
+    `battleRecordsProvider` override와 같은 이유).
+  - `BattleRepository`에 메서드를 더하면 `implements`로 만든 위젯 테스트 가짜 6개가 한꺼번에 깨진다.
 
 ### 6단계 (구현 완료, 원격 적용·스모크 통과, 배포 대기, 2026-09-16)
 - 착수 메모의 순서대로 진행했고 중간에 바꾸지 않았다.

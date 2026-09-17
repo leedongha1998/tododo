@@ -110,6 +110,10 @@ class _FakeBattleRepository implements BattleRepository {
   Future<List<BattleParticipant>> fetchParticipants(String battleId) async => const [];
 
   @override
+  Future<List<BattleParticipant>> fetchParticipantsOf(Iterable<String> battleIds) async =>
+      const [];
+
+  @override
   Future<String> createEvidencePhotoUrl(String path) async => 'https://example.com/$path';
 
   @override

@@ -35,6 +35,7 @@ class _BattleCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final Battle battle = summary.battle;
+    final statusLine = summary.statusLine;
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -70,6 +71,17 @@ class _BattleCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    // 알림이 없으므로 "그 사이 무슨 일이 있었는지"를 이 줄이 알린다.
+                    if (statusLine != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        statusLine,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

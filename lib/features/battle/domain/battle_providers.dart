@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/supabase/supabase_init.dart';
 import '../data/battle.dart';
 import '../data/battle_criteria_repository.dart';
+import '../data/battle_participant.dart';
 import '../data/battle_repository.dart';
 import '../data/criteria_check_result.dart';
 import '../data/evidence_camera.dart';
@@ -46,9 +47,23 @@ final myBattlesProvider = FutureProvider.autoDispose<List<BattleSummary>>((ref) 
   final battles = await repo.fetchMyBattles();
   final otherIds = battles.map((b) => b.creatorId == myId ? b.opponentId! : b.creatorId);
   final names = await repo.fetchDisplayNames(otherIds);
+  // 카드의 상태 줄이 "상대가 제출했다 / 합격했다"를 말하려면 상대 요약 행이 필요하다.
+  final participants = await repo.fetchParticipantsOf(battles.map((b) => b.id));
+
+  BattleParticipant? participantOf(String battleId, String userId) {
+    for (final participant in participants) {
+      if (participant.battleId == battleId && participant.userId == userId) return participant;
+    }
+    return null;
+  }
+
   return battles.map((b) {
     final otherId = b.creatorId == myId ? b.opponentId! : b.creatorId;
-    return BattleSummary(battle: b, otherPartyName: names[otherId] ?? '알 수 없음');
+    return BattleSummary(
+      battle: b,
+      otherPartyName: names[otherId] ?? '알 수 없음',
+      opponent: participantOf(b.id, otherId),
+    );
   }).toList();
 });
 

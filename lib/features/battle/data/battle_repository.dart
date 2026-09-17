@@ -111,6 +111,16 @@ class BattleRepository {
     return rows.map(BattleParticipant.fromMap).toList();
   }
 
+  /// 여러 대결의 참가자 행을 한 번에 읽는다(목록 카드의 상태 줄용).
+  /// 이 행에는 진행 중에도 상대에게 보여도 되는 요약만 있다 — 사진과 사유는 들어 있지 않다.
+  Future<List<BattleParticipant>> fetchParticipantsOf(Iterable<String> battleIds) async {
+    final uniqueIds = battleIds.toSet().toList();
+    if (uniqueIds.isEmpty) return const [];
+    final rows =
+        await _client.from('battle_participants').select().inFilter('battle_id', uniqueIds);
+    return rows.map(BattleParticipant.fromMap).toList();
+  }
+
   // 비공개 버킷이라 매번 짧은 수명의 서명 URL을 받아 화면에 그린다.
   // 서명 URL 발급도 Storage 조회 정책을 거치므로, 서버가 가린 사진은 여기서 실패한다.
   Future<String> createEvidencePhotoUrl(String path) {

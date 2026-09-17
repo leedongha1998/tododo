@@ -26,6 +26,7 @@ import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/presentation/ai_consent_screen.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/features/profile/domain/battle_record.dart';
+import 'package:todododo/features/profile/data/player_stats.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 import 'package:todododo/features/profile/presentation/profile_screen.dart';
 
@@ -113,6 +114,10 @@ class _JoinOnlyBattleRepository implements BattleRepository {
 
   @override
   Future<List<BattleParticipant>> fetchParticipants(String battleId) async => const [];
+
+  @override
+  Future<List<BattleParticipant>> fetchParticipantsOf(Iterable<String> battleIds) async =>
+      const [];
 
   @override
   Future<String> createEvidencePhotoUrl(String path) async => 'https://example.com/$path';
@@ -219,6 +224,7 @@ Future<void> _pumpProfile(
       overrides: [
         aiConsentRepositoryProvider.overrideWithValue(consentRepository),
         myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+        myPlayerStatsProvider.overrideWith((ref) async => PlayerStats.empty),
         battleRecordsProvider.overrideWith((ref) async => <BattleRecord>[]),
       ],
       child: const MaterialApp(home: ProfileScreen()),

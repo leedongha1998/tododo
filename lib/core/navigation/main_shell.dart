@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/battle/domain/battle_providers.dart';
 import '../../features/battle/presentation/battle_recruits_screen.dart';
 import '../../features/battle/presentation/my_battles_screen.dart';
+import '../../features/profile/domain/profile_providers.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/todo/presentation/todo_list_screen.dart';
 import '../strings.dart';
@@ -20,11 +21,16 @@ class MainShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tab = ref.watch(selectedTabProvider);
 
-    // 상대가 증거를 내거나 판정해도 알림이 없다. 내 대결 탭으로 돌아오는 순간에만
-    // 목록을 다시 읽어 최신 상태를 보여준다.
+    // 상대가 증거를 내거나 판정해도 알림이 없다. 탭으로 돌아오는 순간에만 다시 읽어
+    // 최신 상태를 보여준다. 대결은 내가 앱을 보지 않는 동안 서버에서 끝나 있을 수 있다.
     ref.listen(selectedTabProvider, (previous, next) {
       if (next == AppTab.myBattles && previous != AppTab.myBattles) {
         ref.invalidate(myBattlesProvider);
+      }
+      // 점수와 전적도 종결 시점에 서버가 바꾼다. 프로필로 돌아올 때 함께 다시 읽는다.
+      if (next == AppTab.profile && previous != AppTab.profile) {
+        ref.invalidate(battleRecordsProvider);
+        ref.invalidate(myPlayerStatsProvider);
       }
     });
 

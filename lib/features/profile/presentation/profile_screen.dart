@@ -3,13 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../../core/theme/pixel_icons.dart';
+import '../../../core/theme/retro_text.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_icon.dart';
 import '../../../core/widgets/pixel_loader.dart';
 import '../../../core/widgets/retro_button_styles.dart';
 import '../../auth/domain/auth_providers.dart';
+import '../../battle/domain/battle_outcome.dart';
 import '../../battle/presentation/battle_chips.dart';
 import '../../battle/presentation/battle_detail_screen.dart';
+import '../data/player_stats.dart';
 import '../domain/battle_record.dart';
 import '../domain/profile_providers.dart';
 import 'ai_consent_section.dart';
@@ -20,7 +23,11 @@ class ProfileScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(myProfileProvider);
+    final statsAsync = ref.watch(myPlayerStatsProvider);
     final recordsAsync = ref.watch(battleRecordsProvider);
+    // 무효는 점수에도 승/패/무에도 들어가지 않는다. 목록에 무효가 있을 때만 그 이유를 적는다.
+    final hasVoidedRecord =
+        recordsAsync.value?.any((record) => record.result == BattleResult.voided) ?? false;
 
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.profileTitle)),
@@ -37,47 +44,22 @@ class ProfileScreen extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 24),
+          // 점수와 승/패/무는 서버 player_stats가 정답이다. 목록을 세어 만들지 않는다
+          // (무효·취소는 서버가 애초에 세지 않고, 완료한 패배도 전적에서는 그냥 패다).
+          _StatsFrame(statsAsync: statsAsync, hasVoidedRecord: hasVoidedRecord),
+          const SizedBox(height: 24),
+          Text(
+            AppStrings.profileHistorySection,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
           recordsAsync.when(
             data: (records) {
-              // 요약과 목록이 이름 아래 맨바닥에 이어 붙어 있으면 어디까지가 요약인지 안 보인다.
-              // 요약은 제목 띠가 있는 창으로, 지난 대결은 한 장씩 떠 있는 카드로 나눈다.
-              if (records.isEmpty) {
-                return const PixelFrame.flat(
-                  title: AppStrings.profileRecordSection,
-                  child: Text(AppStrings.profileRecordEmpty),
-                );
-              }
-
-              // 품질전도 승자가 있으므로 두 유형 모두 승/패/무로 센다. 무효는 어디에도 세지 않는다.
-              // (점수와 합산 전적은 ai-judge 7단계에서 서버 player_stats로 바뀐다.)
-              String summaryOf(String type) {
-                final typed = records.where((r) => r.battle.type == type);
-                int count(String label) => typed.where((r) => r.resultLabel == label).length;
-                return '${count(AppStrings.battleRecordWin)}${AppStrings.battleRecordWin}'
-                    ' ${count(AppStrings.battleRecordLose)}${AppStrings.battleRecordLose}'
-                    ' ${count(AppStrings.battleRecordDraw)}${AppStrings.battleRecordDraw}';
-              }
-
+              if (records.isEmpty) return const Text(AppStrings.profileRecordEmpty);
+              // 지난 대결은 한 장씩 떠 있는 카드로 나눈다.
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  PixelFrame.flat(
-                    title: AppStrings.profileRecordSection,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _RecordSummaryRow(type: 'speed', summary: summaryOf('speed')),
-                        const SizedBox(height: 8),
-                        _RecordSummaryRow(type: 'quality', summary: summaryOf('quality')),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    AppStrings.profileHistorySection,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
                   for (final record in records) ...[
                     _BattleRecordTile(record: record),
                     const SizedBox(height: 8),
@@ -192,23 +174,52 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
   }
 }
 
-/// 전적 창 안의 한 줄. 유형은 배지로 떼어 두어 숫자만 읽으면 되게 한다.
-class _RecordSummaryRow extends StatelessWidget {
-  const _RecordSummaryRow({required this.type, required this.summary});
+/// 점수와 승/패/무 한 줄. 서버가 정한 값을 그대로 보여 주고 순위는 만들지 않는다.
+/// 유형(속도전/품질전)을 나누지 않는다 — spec은 합산 전적만 요구한다.
+class _StatsFrame extends StatelessWidget {
+  const _StatsFrame({required this.statsAsync, required this.hasVoidedRecord});
 
-  final String type;
-  final String summary;
+  final AsyncValue<PlayerStats> statsAsync;
+  final bool hasVoidedRecord;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        BattleTypeBadge(type: type),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(summary, style: Theme.of(context).textTheme.bodyMedium),
+    final textTheme = Theme.of(context).textTheme;
+
+    return PixelFrame.flat(
+      title: AppStrings.profileRecordSection,
+      child: statsAsync.when(
+        data: (stats) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                // 점수가 이 창의 주인공이라 유일하게 큰 픽셀 숫자다.
+                Text(
+                  AppStrings.playerScoreLabel(stats.score),
+                  style: RetroText.pixel(20, bold: true),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  AppStrings.playerRecordLabel(stats.wins, stats.losses, stats.draws),
+                  style: RetroText.numeric,
+                ),
+              ],
+            ),
+            if (hasVoidedRecord) ...[
+              const SizedBox(height: 8),
+              Text(AppStrings.profileVoidedExcluded, style: textTheme.bodySmall),
+            ],
+          ],
         ),
-      ],
+        loading: () => const Center(child: PixelLoader.small()),
+        error: (error, stackTrace) {
+          debugPrint('myPlayerStatsProvider error: $error');
+          return const Text(AppStrings.profileLoadStatsFailed);
+        },
+      ),
     );
   }
 }
@@ -258,7 +269,7 @@ class _BattleRecordTile extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          ResultLabel.small(label: record.resultLabel),
+          ResultLabel.small(result: record.result),
         ],
       ),
     );

@@ -50,6 +50,8 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
       ref.invalidate(myRecruitsProvider);
       ref.invalidate(openRecruitsProvider);
       ref.invalidate(battleRecordsProvider);
+      // 철회는 진행 중 대결을 포기(-3)로 끝내므로 점수도 함께 바뀐다.
+      ref.invalidate(myPlayerStatsProvider);
       messenger.showSnackBar(const SnackBar(content: Text(AppStrings.aiConsentWithdrawDone)));
     } catch (e) {
       debugPrint('withdrawConsent failed: $e');

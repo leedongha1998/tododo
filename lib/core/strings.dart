@@ -51,10 +51,21 @@ class AppStrings {
   static const battleStatusVoided = '무효';
 
   static const battleDuration = '기간';
-  static const battleDuration1Day = '1일';
-  static const battleDuration3Days = '3일';
-  static const battleDuration7Days = '7일';
+  // 기간은 분 단위 커스텀이라 라벨을 고정 상수로 덮을 수 없다. 떨어지는 가장 큰 단위로 말한다.
+  static String battleDurationDays(int days) => '$days일';
+  static String battleDurationHours(int hours) => '$hours시간';
+  static String battleDurationMinutes(int minutes) => '$minutes분';
+  static const battleDurationCustom = '직접 입력';
+  static const battleDurationQuick = '자주 쓰는 기간';
+  static const battleDurationUnitMinute = '분';
+  static const battleDurationUnitHour = '시간';
+  static const battleDurationUnitDay = '일';
+  static const battleDurationHint = '숫자';
+  static const battleDurationRequired = '기간을 정해 주세요.';
+  static const battleDurationOutOfRange = '1분에서 7일 사이로 정해 주세요.';
   static const battleDurationNotice = '마감은 상대가 매칭되는 순간부터 시작돼요.';
+  static const battleDurationShortWarning = '짧은 기간을 고르면 매칭 알림을 놓쳤을 때 손도 못 대고 질 수 있어요.';
+  static const battleDurationWindowNotice = '기간은 사진을 내는 시간이고, 마감 뒤 24시간 동안 서로 판정해요.';
   static const battleDeadlineLabel = '마감';
   static const battleDeadlinePassed = '마감이 지났어요. 곧 결과가 정리돼요.';
   // 속도전 아무도 통과 못함(마감 또는 양쪽 판정 소진), 품질전 제출 없음·둘 다 기준 미달.

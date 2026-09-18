@@ -11,7 +11,7 @@ class Battle {
     this.startedAt,
     this.finishedAt,
     this.forfeitedBy,
-    this.durationHours = 72,
+    this.durationMinutes = 1440,
     this.deadlineAt,
     this.minCriteria = const [],
     this.superiorityCriteria,
@@ -33,10 +33,11 @@ class Battle {
   /// 포기(기권)한 참가자. 어떻게 끝났는지를 화면에서 설명하는 데만 쓴다.
   final String? forfeitedBy;
 
-  /// 대결을 만든 사람이 고른 기간(시간 단위).
-  final int durationHours;
+  /// 대결을 만든 사람이 고른 제출 창의 길이(분 단위, 1~10080). 사진을 내는 시간이고,
+  /// 마감 뒤의 판정 창은 이 값과 무관하다.
+  final int durationMinutes;
 
-  /// 마감 시각. 매칭되는 순간 정해지므로 모집 중에는 null이다.
+  /// 제출 창의 마감 시각. 매칭되는 순간 정해지므로 모집 중에는 null이다.
   final DateTime? deadlineAt;
 
   /// 합격/불합격을 가르는 최소 기준. 두 유형 공통이고 참가 전에 공개된다.
@@ -72,7 +73,7 @@ class Battle {
         finishedAt:
             map['finished_at'] == null ? null : DateTime.parse(map['finished_at'] as String),
         forfeitedBy: map['forfeited_by'] as String?,
-        durationHours: (map['duration_hours'] as int?) ?? 72,
+        durationMinutes: (map['duration_minutes'] as int?) ?? 1440,
         deadlineAt:
             map['deadline_at'] == null ? null : DateTime.parse(map['deadline_at'] as String),
         minCriteria: _criteriaOf(map['min_criteria']) ?? const [],

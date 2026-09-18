@@ -94,11 +94,11 @@ begin
   for v_i in 1..9 loop
     insert into public.battles (
       min_criteria, superiority_criteria, type, status, title,
-      creator_id, opponent_id, duration_hours, started_at, deadline_at
+      creator_id, opponent_id, duration_minutes, started_at, deadline_at
     )
     values (
       '["상판이 보인다"]'::jsonb, null, 'speed', 'active', 'flow 스모크 ' || v_i,
-      v_a, v_b, 72, now() - interval '1 day', now() + interval '1 day'
+      v_a, v_b, 4320, now() - interval '1 day', now() + interval '1 day'
     )
     returning id into v_id;
 
@@ -124,12 +124,12 @@ begin
   for v_i in 1..4 loop
     insert into public.battles (
       min_criteria, superiority_criteria, type, status, title,
-      creator_id, opponent_id, duration_hours, started_at, deadline_at
+      creator_id, opponent_id, duration_minutes, started_at, deadline_at
     )
     values (
       '["바닥이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'active',
       'flow 품질 스모크 ' || v_i,
-      v_a, v_b, 72, now() - interval '1 day', now() + interval '1 day'
+      v_a, v_b, 4320, now() - interval '1 day', now() + interval '1 day'
     )
     returning id into v_id;
 

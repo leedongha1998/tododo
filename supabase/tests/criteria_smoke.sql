@@ -87,7 +87,7 @@ begin
   ) ->> 'check_id')::uuid;
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
-  v_battle := public.create_battle(v_check, 72);
+  v_battle := public.create_battle(v_check, 4320);
 
   -- 4. 모집 중 대결이 있으면 두 번째 생성은 막힌다.
   v_call := public.begin_criteria_call(v_b, 'generate', null);
@@ -104,9 +104,9 @@ begin
 
   -- 5. 한 번 쓴 증서는 다시 못 쓴다(B의 증서를 A가 쓰는 것도 막히지만, 여기서는 재사용을 본다).
   perform set_config('request.jwt.claims', json_build_object('sub', v_b, 'role', 'authenticated')::text, true);
-  perform public.create_battle(v_check2, 24);
+  perform public.create_battle(v_check2, 1440);
   begin
-    perform public.create_battle(v_check2, 24);
+    perform public.create_battle(v_check2, 1440);
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
     v_check_reuse := coalesce(v_hint, '(힌트 없음)');
@@ -120,7 +120,7 @@ begin
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_c, 'role', 'authenticated')::text, true);
   begin
-    perform public.create_battle(v_blocked, 24);
+    perform public.create_battle(v_blocked, 1440);
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
     v_blocked_check := coalesce(v_hint, '(힌트 없음)');
@@ -132,7 +132,7 @@ begin
     v_call, '책상 정리하기', 'quality', '["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb,
     true, null, null, 'test/p1'
   ) ->> 'check_id')::uuid;
-  v_quality := public.create_battle(v_check, 168);
+  v_quality := public.create_battle(v_check, 10080);
   -- 아래 9번 사례가 같은 대결의 기준을 바꾸므로, 생성 직후 값을 여기서 잡아 둔다.
   select type || '/' || (superiority_criteria ->> 0) || '/' || (min_criteria ->> 0)
     into v_quality_created
@@ -140,15 +140,15 @@ begin
 
   -- 8. 유형별 우열 기준 제약을 DB가 강제한다.
   begin
-    insert into public.battles (type, status, title, creator_id, duration_hours, min_criteria, superiority_criteria)
-    values ('speed', 'pending', '잘못된 속도전', v_a, 24, '["a"]'::jsonb, '["b"]'::jsonb);
+    insert into public.battles (type, status, title, creator_id, duration_minutes, min_criteria, superiority_criteria)
+    values ('speed', 'pending', '잘못된 속도전', v_a, 1440, '["a"]'::jsonb, '["b"]'::jsonb);
   exception when check_violation then
     v_speed_superiority := true;
   end;
 
   begin
-    insert into public.battles (type, status, title, creator_id, duration_hours, min_criteria, superiority_criteria)
-    values ('quality', 'pending', '잘못된 품질전', v_a, 24, '["a"]'::jsonb, null);
+    insert into public.battles (type, status, title, creator_id, duration_minutes, min_criteria, superiority_criteria)
+    values ('quality', 'pending', '잘못된 품질전', v_a, 1440, '["a"]'::jsonb, null);
   exception when check_violation then
     v_quality_missing := true;
   end;
@@ -162,9 +162,9 @@ begin
   v_version := public.update_battle_criteria(v_quality, v_check);
 
   -- 10. 매칭된 대결의 기준은 바꿀 수 없다.
-  insert into public.battles (type, status, title, creator_id, opponent_id, duration_hours,
+  insert into public.battles (type, status, title, creator_id, opponent_id, duration_minutes,
                               started_at, deadline_at, min_criteria)
-  values ('speed', 'active', '매칭된 대결', v_c, v_a, 24, now(), now() + interval '1 day', '["a"]'::jsonb)
+  values ('speed', 'active', '매칭된 대결', v_c, v_a, 1440, now(), now() + interval '1 day', '["a"]'::jsonb)
   returning id into v_matched;
   insert into public.battle_participants (battle_id, user_id) values (v_matched, v_a);
 
@@ -207,7 +207,10 @@ begin
     'update_matched', v_update_matched,
     'speed_superiority_blocked', v_speed_superiority,
     'quality_missing_blocked', v_quality_missing,
-    'consumed_checks', (select count(*) from public.criteria_checks where consumed_at is not null),
+    -- 이 스모크가 만든 사용자로 범위를 좁힌다. 테이블 전체를 세면 실제 사용으로 소비된
+    -- 증서(대결을 지워도 criteria_checks는 남는다)까지 잡혀 기대값이 어긋난다.
+    'consumed_checks', (select count(*) from public.criteria_checks
+                        where consumed_at is not null and user_id in (v_a, v_b, v_c)),
     'limits_a', (select public.get_my_limits() from (select set_config('request.jwt.claims',
                    json_build_object('sub', v_a, 'role', 'authenticated')::text, true)) s)
   );

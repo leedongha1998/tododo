@@ -88,7 +88,7 @@ begin
     true, null, null, 'test/p1'
   ) ->> 'check_id')::uuid;
   perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
-  v_p_a := public.create_battle(v_check, 72);
+  v_p_a := public.create_battle(v_check, 4320);
 
   -- 1. 참가자가 본 버전이 현재와 다르면 참가가 성립하지 않는다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_b, 'role', 'authenticated')::text, true);
@@ -117,7 +117,7 @@ begin
     v_call, '설거지하기', 'speed', '["싱크대가 비어 있다"]'::jsonb, null, true, null, null, 'test/p1'
   ) ->> 'check_id')::uuid;
   perform set_config('request.jwt.claims', json_build_object('sub', v_d, 'role', 'authenticated')::text, true);
-  v_p_d := public.create_battle(v_check, 24);
+  v_p_d := public.create_battle(v_check, 1440);
   insert into public.daily_battle_slots (user_id, kst_date, battle_id) values (v_d, v_today, v_p_a);
 
   -- 4. 오늘 이미 대결한 B는 다른 모집에 참가할 수 없다(내 한도가 먼저 걸린다).
@@ -161,7 +161,7 @@ begin
     v_call, '빨래 개기', 'speed', '["옷이 개켜져 있다"]'::jsonb, null, true, null, null, 'test/p1'
   ) ->> 'check_id')::uuid;
   perform set_config('request.jwt.claims', json_build_object('sub', v_g, 'role', 'authenticated')::text, true);
-  v_p_g := public.create_battle(v_check, 24);
+  v_p_g := public.create_battle(v_check, 1440);
 
   insert into public.daily_battle_slots (user_id, kst_date, battle_id) values (v_f, v_today - 1, v_p_a);
 

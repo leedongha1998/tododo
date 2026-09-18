@@ -6,7 +6,10 @@
 export const BATTLE_TYPES = ['speed', 'quality'] as const;
 export type BattleType = (typeof BATTLE_TYPES)[number];
 
-export const DURATION_HOURS = [24, 72, 168] as const;
+// 대결 기간은 분 단위 커스텀이다(mutual-judge spec "P0. 커스텀 마감"). 하한 1분, 상한 10080분(7일).
+// DB 제약(battles_duration_minutes_check)과 같은 범위를 쓴다 — 한쪽만 바뀌면 통과한 요청이 insert에서 깨진다.
+export const DURATION_MINUTES_MIN = 1;
+export const DURATION_MINUTES_MAX = 10080;
 
 export const TITLE_MAX = 60;
 export const CRITERION_MAX = 100;
@@ -48,7 +51,7 @@ export interface CriteriaRequest {
   action: 'generate' | 'check';
   title: string;
   type: BattleType;
-  durationHours: number;
+  durationMinutes: number;
   minCriteria?: string[];
   superiorityCriteria?: string[] | null;
   battleId?: string | null;
@@ -76,15 +79,22 @@ export function parseCriteriaRequest(body: unknown): CriteriaRequest {
     throw new ValidationError('type은 speed 또는 quality여야 합니다.');
   }
 
-  const durationHours = raw.duration_hours;
-  if (typeof durationHours !== 'number' || !DURATION_HOURS.includes(durationHours as 24)) {
-    throw new ValidationError('duration_hours는 24, 72, 168 중 하나여야 합니다.');
+  const durationMinutes = raw.duration_minutes;
+  if (
+    typeof durationMinutes !== 'number' ||
+    !Number.isInteger(durationMinutes) ||
+    durationMinutes < DURATION_MINUTES_MIN ||
+    durationMinutes > DURATION_MINUTES_MAX
+  ) {
+    throw new ValidationError(
+      `duration_minutes는 ${DURATION_MINUTES_MIN}~${DURATION_MINUTES_MAX} 사이의 정수여야 합니다.`,
+    );
   }
 
   const battleId = typeof raw.battle_id === 'string' ? raw.battle_id : null;
 
   if (action === 'generate') {
-    return { action, title, type, durationHours, battleId };
+    return { action, title, type, durationMinutes, battleId };
   }
 
   // 재검사: 사용자가 고친 목록을 그대로 받아 검사한다.
@@ -96,7 +106,7 @@ export function parseCriteriaRequest(body: unknown): CriteriaRequest {
     throw new ValidationError('속도전에는 우열 기준이 없습니다.');
   }
 
-  return { action, title, type, durationHours, minCriteria, superiorityCriteria, battleId };
+  return { action, title, type, durationMinutes, minCriteria, superiorityCriteria, battleId };
 }
 
 /// ① 기준 생성 응답 스키마.

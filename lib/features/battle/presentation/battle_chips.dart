@@ -17,14 +17,12 @@ String battleTypeLabel(String type) {
   return type == 'speed' ? AppStrings.battleTypeSpeed : AppStrings.battleTypeQuality;
 }
 
-/// 기간(시간) → 라벨. 서버가 허용하는 값은 24/72/168뿐이다.
-String battleDurationLabel(int hours) {
-  return switch (hours) {
-    24 => AppStrings.battleDuration1Day,
-    72 => AppStrings.battleDuration3Days,
-    168 => AppStrings.battleDuration7Days,
-    _ => '$hours시간',
-  };
+/// 기간(분) → 라벨. 서버는 1~10080분 사이 아무 값이나 받으므로 고정 라벨로 덮을 수 없다.
+/// 떨어지는 가장 큰 단위로 말한다(1440 → "1일", 60 → "1시간", 90 → "90분").
+String battleDurationLabel(int minutes) {
+  if (minutes % 1440 == 0) return AppStrings.battleDurationDays(minutes ~/ 1440);
+  if (minutes % 60 == 0) return AppStrings.battleDurationHours(minutes ~/ 60);
+  return AppStrings.battleDurationMinutes(minutes);
 }
 
 /// 유형 한 줄 설명. 두 유형을 고르는 이유를 한 문장으로 말한다.

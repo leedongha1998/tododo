@@ -22,6 +22,7 @@ import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
 import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
+import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 
@@ -48,7 +49,7 @@ class _FakeBattleRepository implements BattleRepository {
   Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
 
   @override
-  Future<String> createBattle({required String checkId, required int durationHours}) async => 'b';
+  Future<String> createBattle({required String checkId, required int durationMinutes}) async => 'b';
 
   @override
   Future<int> updateBattleCriteria({required String battleId, required String checkId}) async => 1;
@@ -149,7 +150,7 @@ Battle _qualityBattle({int criteriaVersion = 1, List<String>? minCriteria}) {
     title: '책상 정리하기',
     creatorId: 'creator1',
     createdAt: DateTime(2026, 9, 16),
-    durationHours: 72,
+    durationMinutes: 4320,
     minCriteria: minCriteria ?? const ['상판이 보인다'],
     superiorityCriteria: const ['먼지가 없다'],
     criteriaVersion: criteriaVersion,
@@ -239,7 +240,7 @@ void main() {
     expect(find.text(AppStrings.battleCriteriaSuperiorityTitle), findsOneWidget);
     expect(find.text('먼지가 없다'), findsOneWidget);
     expect(find.text(AppStrings.battleTypeQualityTagline), findsOneWidget);
-    expect(find.text(AppStrings.battleDuration3Days), findsWidgets);
+    expect(find.text(battleDurationLabel(4320)), findsWidgets);
     expect(find.text(AppStrings.playerScoreLabel(9)), findsWidgets);
     expect(find.text(AppStrings.playerRecordLabel(3, 0, 0)), findsWidgets);
     expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsOneWidget);
@@ -253,7 +254,7 @@ void main() {
       title: '책상 정리하기',
       creatorId: 'creator1',
       createdAt: DateTime(2026, 9, 16),
-      durationHours: 24,
+      durationMinutes: 1440,
       minCriteria: const ['상판이 보인다'],
     );
     await _pumpSheet(tester, repository: _FakeBattleRepository(), battle: speed);

@@ -38,14 +38,14 @@ begin
   insert into public.todos (user_id, title) values (v_u, '테스트 할 일');
 
   -- 오늘 매칭된 속도전(U 생성). U는 이미 통과했지만 탈퇴하면 그래도 취소다.
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '오늘 매칭', v_u, v_o, 72, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_minutes, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '오늘 매칭', v_u, v_o, 4320, now(), now() + interval '3 days')
   returning id into v_b_today;
   insert into public.battle_participants (battle_id, user_id) values (v_b_today, v_o);
 
   -- 어제 매칭된 품질전(O 생성).
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'active', '어제 매칭', v_o, v_u, 72, now() - interval '1 day', now() + interval '2 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_minutes, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'active', '어제 매칭', v_o, v_u, 4320, now() - interval '1 day', now() + interval '2 days')
   returning id into v_b_yday;
   insert into public.battle_participants (battle_id, user_id) values (v_b_yday, v_u);
 
@@ -55,8 +55,8 @@ begin
   returning id into v_b_pending;
 
   -- 이미 끝난 대결(O 승).
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, winner_id, duration_hours, started_at, deadline_at, finished_at)
-  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'finished', '지난 대결', v_u, v_o, v_o, 24, now() - interval '5 days', now() - interval '4 days', now() - interval '4 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, winner_id, duration_minutes, started_at, deadline_at, finished_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'finished', '지난 대결', v_u, v_o, v_o, 1440, now() - interval '5 days', now() - interval '4 days', now() - interval '4 days')
   returning id into v_b_done;
   insert into public.battle_participants (battle_id, user_id) values (v_b_done, v_o);
 

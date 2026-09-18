@@ -249,7 +249,7 @@ class _OpenRecruitCard extends StatelessWidget {
               BattleTypeBadge(type: battle.type),
               const SizedBox(width: 8),
               PixelTag(
-                label: battleDurationLabel(battle.durationHours),
+                label: battleDurationLabel(battle.durationMinutes),
                 style: battleStatusTagStyle('draw'),
               ),
             ],

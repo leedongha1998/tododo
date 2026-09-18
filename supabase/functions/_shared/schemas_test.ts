@@ -97,19 +97,33 @@ Deno.test('생성 요청은 제목·유형·기간을 검증한다', () => {
     action: 'generate',
     title: ' 방 청소하기 ',
     type: 'quality',
-    duration_hours: 72,
+    duration_minutes: 4320,
   });
   assertEquals(request.title, '방 청소하기');
   assertEquals(request.type, 'quality');
-  assertEquals(request.durationHours, 72);
+  assertEquals(request.durationMinutes, 4320);
 
-  assertThrows(() => parseCriteriaRequest({ action: 'nope', title: 'a', type: 'speed', duration_hours: 24 }));
-  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: '', type: 'speed', duration_hours: 24 }));
+  assertThrows(() => parseCriteriaRequest({ action: 'nope', title: 'a', type: 'speed', duration_minutes: 1440 }));
+  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: '', type: 'speed', duration_minutes: 1440 }));
   assertThrows(
-    () => parseCriteriaRequest({ action: 'generate', title: '가'.repeat(61), type: 'speed', duration_hours: 24 }),
+    () => parseCriteriaRequest({ action: 'generate', title: '가'.repeat(61), type: 'speed', duration_minutes: 1440 }),
   );
-  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: 'a', type: 'both', duration_hours: 24 }));
-  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: 'a', type: 'speed', duration_hours: 5 }));
+  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: 'a', type: 'both', duration_minutes: 1440 }));
+
+  // 기간은 1~10080분 정수다. 경계값은 통과하고 그 밖은 거부한다.
+  assertEquals(
+    parseCriteriaRequest({ action: 'generate', title: 'a', type: 'speed', duration_minutes: 1 }).durationMinutes,
+    1,
+  );
+  assertEquals(
+    parseCriteriaRequest({ action: 'generate', title: 'a', type: 'speed', duration_minutes: 10080 }).durationMinutes,
+    10080,
+  );
+  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: 'a', type: 'speed', duration_minutes: 0 }));
+  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: 'a', type: 'speed', duration_minutes: 10081 }));
+  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: 'a', type: 'speed', duration_minutes: 1.5 }));
+  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: 'a', type: 'speed', duration_minutes: '60' }));
+  assertThrows(() => parseCriteriaRequest({ action: 'generate', title: 'a', type: 'speed' }));
 });
 
 Deno.test('재검사 요청은 품질전에서만 우열 기준을 받는다', () => {
@@ -117,7 +131,7 @@ Deno.test('재검사 요청은 품질전에서만 우열 기준을 받는다', (
     action: 'check',
     title: '방 청소하기',
     type: 'quality',
-    duration_hours: 24,
+    duration_minutes: 1440,
     min_criteria: ['바닥이 보인다'],
     superiority_criteria: ['먼지가 없다'],
   });
@@ -128,7 +142,7 @@ Deno.test('재검사 요청은 품질전에서만 우열 기준을 받는다', (
     action: 'check',
     title: '방 청소하기',
     type: 'speed',
-    duration_hours: 24,
+    duration_minutes: 1440,
     min_criteria: ['바닥이 보인다'],
   });
   assertEquals(speed.superiorityCriteria, null);
@@ -139,7 +153,7 @@ Deno.test('재검사 요청은 품질전에서만 우열 기준을 받는다', (
       action: 'check',
       title: '방 청소하기',
       type: 'quality',
-      duration_hours: 24,
+      duration_minutes: 1440,
       min_criteria: ['바닥이 보인다'],
     })
   );
@@ -149,7 +163,7 @@ Deno.test('재검사 요청은 품질전에서만 우열 기준을 받는다', (
       action: 'check',
       title: '방 청소하기',
       type: 'speed',
-      duration_hours: 24,
+      duration_minutes: 1440,
       min_criteria: ['바닥이 보인다'],
       superiority_criteria: ['먼지가 없다'],
     })

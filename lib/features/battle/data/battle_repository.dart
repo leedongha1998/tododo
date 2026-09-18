@@ -22,10 +22,10 @@ class BattleRepository {
 
   /// 검사를 통과한 기준 증서로만 대결을 만든다. 제목·유형·기준은 서버가 증서에서 복사하므로
   /// 클라이언트가 보낸 텍스트는 쓰이지 않는다.
-  Future<String> createBattle({required String checkId, required int durationHours}) async {
+  Future<String> createBattle({required String checkId, required int durationMinutes}) async {
     final id = await _client.rpc(
       'create_battle',
-      params: {'p_check_id': checkId, 'p_duration_hours': durationHours},
+      params: {'p_check_id': checkId, 'p_duration_minutes': durationMinutes},
     );
     return id as String;
   }

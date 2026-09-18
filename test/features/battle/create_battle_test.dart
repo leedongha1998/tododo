@@ -15,6 +15,8 @@ import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/data/open_recruit.dart';
 import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
+import 'package:todododo/features/battle/domain/duration_rules.dart';
+import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
 
 class _FakeCriteriaRepository implements BattleCriteriaRepository {
@@ -32,7 +34,7 @@ class _FakeCriteriaRepository implements BattleCriteriaRepository {
   Future<CriteriaCheckResult> generate({
     required String title,
     required String type,
-    required int durationHours,
+    required int durationMinutes,
   }) async {
     generateCount++;
     final error = generateError;
@@ -44,7 +46,7 @@ class _FakeCriteriaRepository implements BattleCriteriaRepository {
   Future<CriteriaCheckResult> check({
     required String title,
     required String type,
-    required int durationHours,
+    required int durationMinutes,
     required List<String> minCriteria,
     List<String>? superiorityCriteria,
     String? battleId,
@@ -61,9 +63,9 @@ class _FakeBattleRepository implements BattleRepository {
   int? createdDuration;
 
   @override
-  Future<String> createBattle({required String checkId, required int durationHours}) async {
+  Future<String> createBattle({required String checkId, required int durationMinutes}) async {
     createdCheckId = checkId;
-    createdDuration = durationHours;
+    createdDuration = durationMinutes;
     return 'new-battle';
   }
 
@@ -204,7 +206,7 @@ void main() {
 
     // 서버에는 기준 텍스트가 아니라 증서 id만 넘어간다.
     expect(battles.createdCheckId, 'check-1');
-    expect(battles.createdDuration, 72);
+    expect(battles.createdDuration, 4320);
   });
 
   testWidgets('속도전에는 우열 기준 블록이 없다', (tester) async {
@@ -330,5 +332,38 @@ void main() {
 
     expect(criteria.generateCount, 2);
     expect(find.text('운동화를 신고 밖에 있다'), findsOneWidget);
+  });
+
+  testWidgets('기간은 빠른 선택과 직접 입력으로 정하고 범위 밖이면 즉시 알린다', (tester) async {
+    final criteria = _FakeCriteriaRepository(generateResult: _speedResult);
+    final battles = _FakeBattleRepository();
+    await _pumpCreate(tester, criteria: criteria, battles: battles);
+
+    // 자주 쓰는 기간이 한 줄에 다 보이고, 짧은 기간의 위험과 제출 창/판정 창 구분을 함께 알린다.
+    for (final minutes in battleDurationQuickPicks) {
+      expect(find.text(battleDurationLabel(minutes)), findsWidgets, reason: '$minutes분');
+    }
+    expect(find.text(AppStrings.battleDurationShortWarning), findsOneWidget);
+    expect(find.text(AppStrings.battleDurationWindowNotice), findsOneWidget);
+
+    // 직접 입력으로 넘어가 범위 밖 값을 넣으면 그 자리에서 문구가 나온다.
+    await tester.tap(find.text(AppStrings.battleDurationCustom));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '0');
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.battleDurationOutOfRange), findsOneWidget);
+
+    // 1분은 통과하고, 서버에는 분으로 넘어간다.
+    await tester.tap(find.text(AppStrings.battleDurationUnitMinute));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '1');
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.battleDurationOutOfRange), findsNothing);
+
+    await _enterTitleAndGenerate(tester, '아침 운동하기');
+    await tester.tap(find.text(AppStrings.battleCriteriaSubmit));
+    await tester.pumpAndSettle();
+
+    expect(battles.createdDuration, 1);
   });
 }

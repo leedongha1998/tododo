@@ -24,6 +24,7 @@ import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/data/open_recruit.dart';
 import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/domain/battle_summary.dart';
+import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
 import 'package:todododo/core/navigation/main_shell.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
@@ -45,7 +46,7 @@ const _testStats = PlayerStats(score: 3, wins: 1, losses: 1, draws: 0);
 
 class _FakeBattleRepository implements BattleRepository {
   @override
-  Future<String> createBattle({required String checkId, required int durationHours}) async =>
+  Future<String> createBattle({required String checkId, required int durationMinutes}) async =>
       'new-battle';
 
   @override
@@ -376,7 +377,7 @@ void main() {
       title: '아침 운동하기',
       creatorId: 'creator1',
       createdAt: DateTime(2026, 8, 20),
-      durationHours: 24,
+      durationMinutes: 1440,
       minCriteria: const ['운동화를 신고 밖에 있다'],
     );
 
@@ -406,7 +407,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('아침 운동하기'), findsOneWidget);
-    expect(find.text(AppStrings.battleDuration1Day), findsOneWidget);
+    expect(find.text(battleDurationLabel(1440)), findsOneWidget);
     expect(find.text('운동화를 신고 밖에 있다'), findsOneWidget);
     // 목록에서 읽어야 하는 것은 무슨 대결인지다. 생성자가 누구이고 전적이 어떤지는
     // 참가를 결정할 때 보면 되므로 상세 시트에서만 보여 준다.

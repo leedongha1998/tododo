@@ -28,13 +28,13 @@ class BattleCriteriaRepository {
   Future<CriteriaCheckResult> generate({
     required String title,
     required String type,
-    required int durationHours,
+    required int durationMinutes,
   }) {
     return _invoke({
       'action': 'generate',
       'title': title,
       'type': type,
-      'duration_hours': durationHours,
+      'duration_minutes': durationMinutes,
     });
   }
 
@@ -43,7 +43,7 @@ class BattleCriteriaRepository {
   Future<CriteriaCheckResult> check({
     required String title,
     required String type,
-    required int durationHours,
+    required int durationMinutes,
     required List<String> minCriteria,
     List<String>? superiorityCriteria,
     String? battleId,
@@ -52,7 +52,7 @@ class BattleCriteriaRepository {
       'action': 'check',
       'title': title,
       'type': type,
-      'duration_hours': durationHours,
+      'duration_minutes': durationMinutes,
       'min_criteria': minCriteria,
       if (type == 'quality') 'superiority_criteria': superiorityCriteria,
       // 모집 중 기준 수정일 때만 담는다(null이면 항목 자체가 빠진다).

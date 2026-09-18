@@ -65,25 +65,25 @@ begin
 
   -- 원장 행은 battle_id가 필수다. 한 사람당 pending 모집은 1개라 전부 active로 만든다.
   insert into public.battles (min_criteria, superiority_criteria, type, status, title,
-                              creator_id, opponent_id, duration_hours, started_at, deadline_at)
+                              creator_id, opponent_id, duration_minutes, started_at, deadline_at)
   values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '알림 원장 대결',
-          v_a, v_b, 72, now(), now() + interval '3 days')
+          v_a, v_b, 4320, now(), now() + interval '3 days')
   returning id into v_battle;
   insert into public.battle_participants (battle_id, user_id) values (v_battle, v_b);
 
   -- 마감이 이미 지난 대결. deadline_soon이 폐기되는지 보는 데 쓴다.
   insert into public.battles (min_criteria, superiority_criteria, type, status, title,
-                              creator_id, opponent_id, duration_hours, started_at, deadline_at)
+                              creator_id, opponent_id, duration_minutes, started_at, deadline_at)
   values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '마감 지난 대결',
-          v_a, v_b, 24, now() - interval '2 days', now() - interval '1 hour')
+          v_a, v_b, 1440, now() - interval '2 days', now() - interval '1 hour')
   returning id into v_battle_past;
   insert into public.battle_participants (battle_id, user_id) values (v_battle_past, v_b);
 
   -- U가 만든 진행 중 대결. 탈퇴하면 취소된다(기존 delete_account 동작이 남아 있는지 확인용).
   insert into public.battles (min_criteria, superiority_criteria, type, status, title,
-                              creator_id, opponent_id, duration_hours, started_at, deadline_at)
+                              creator_id, opponent_id, duration_minutes, started_at, deadline_at)
   values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '탈퇴 대결',
-          v_u, v_a, 24, now(), now() + interval '1 day')
+          v_u, v_a, 1440, now(), now() + interval '1 day')
   returning id into v_battle_u;
   insert into public.battle_participants (battle_id, user_id) values (v_battle_u, v_a);
 

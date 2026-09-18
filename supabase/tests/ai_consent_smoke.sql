@@ -60,10 +60,10 @@ begin
   update public.player_stats set score = 10 where user_id in (v_a, v_b);
 
   -- B와 C가 모집을 하나씩 올린다(3단계부터 모집은 1인당 1개라 한 사람이 둘을 올릴 수 없다).
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
-  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '모집 1', v_b, 72) returning id into v_p1;
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
-  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '모집 2', v_c, 72) returning id into v_p2;
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_minutes)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '모집 1', v_b, 4320) returning id into v_p1;
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_minutes)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '모집 2', v_c, 4320) returning id into v_p2;
 
   -- 1. 동의하지 않은 C의 참가는 막힌다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_c, 'role', 'authenticated')::text, true);
@@ -84,8 +84,8 @@ begin
   begin
     -- 이 블록에서 예외가 나면 set local role도 함께 되돌아간다.
     execute 'set local role authenticated';
-    insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
-    values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '동의 없이 생성', v_d, 72);
+    insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_minutes)
+    values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '동의 없이 생성', v_d, 4320);
     execute 'reset role';
   exception when insufficient_privilege then
     v_insert_no_consent := 'RLS 차단';
@@ -94,8 +94,8 @@ begin
   perform public.give_ai_consent('2026-09-14');
   begin
     execute 'set local role authenticated';
-    insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
-    values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '동의 후 생성', v_d, 72);
+    insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_minutes)
+    values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '동의 후 생성', v_d, 4320);
     execute 'reset role';
     v_insert_consented := '성공(정책이 남아 있음)';
   exception when insufficient_privilege then
@@ -121,18 +121,18 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
   perform public.give_ai_consent('2026-09-14');
 
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '진행 중 속도전', v_a, v_b, 72, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_minutes, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', '진행 중 속도전', v_a, v_b, 4320, now(), now() + interval '3 days')
   returning id into v_w1;
   insert into public.battle_participants (battle_id, user_id) values (v_w1, v_b);
 
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'judging', '판정 중 품질전', v_b, v_a, 72, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_minutes, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'judging', '판정 중 품질전', v_b, v_a, 4320, now(), now() + interval '3 days')
   returning id into v_w2;
   insert into public.battle_participants (battle_id, user_id) values (v_w2, v_a);
 
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_hours)
-  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '내 모집', v_a, 72) returning id into v_w3;
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_minutes)
+  values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '내 모집', v_a, 4320) returning id into v_w3;
 
   -- 오늘 매칭된 대결의 한도. 포기로 끝나면 돌려받지 못해야 한다.
   insert into public.daily_battle_slots (user_id, kst_date, battle_id) values (v_a, v_today, v_w1);

@@ -74,7 +74,7 @@ class _FakeBattleRepository implements BattleRepository {
       const PlayerCard(userId: 'friend', displayName: '친구', score: 3, wins: 1, losses: 0, draws: 0);
 
   @override
-  Future<String> createBattle({required String checkId, required int durationHours}) async => 'b';
+  Future<String> createBattle({required String checkId, required int durationMinutes}) async => 'b';
 
   @override
   Future<int> updateBattleCriteria({required String battleId, required String checkId}) async => 1;

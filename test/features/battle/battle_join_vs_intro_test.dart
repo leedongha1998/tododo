@@ -40,7 +40,7 @@ class _JoinOnlyBattleRepository implements BattleRepository {
   }
 
   @override
-  Future<String> createBattle({required String checkId, required int durationHours}) async =>
+  Future<String> createBattle({required String checkId, required int durationMinutes}) async =>
       'new-battle';
 
   @override

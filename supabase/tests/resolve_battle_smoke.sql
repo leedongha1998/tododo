@@ -61,8 +61,8 @@ begin
 
   -- 마감 전(내일 마감)인 속도전 A vs B 일곱 개.
   for v_i in 1..7 loop
-    insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-    values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', 'resolve 스모크 ' || v_i, v_a, v_b, 72, now() - interval '1 day', now() + interval '1 day')
+    insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_minutes, started_at, deadline_at)
+    values ('["상판이 보인다"]'::jsonb, null, 'speed', 'active', 'resolve 스모크 ' || v_i, v_a, v_b, 4320, now() - interval '1 day', now() + interval '1 day')
     returning id into v_id;
 
     insert into public.battle_participants (battle_id, user_id) values (v_id, v_b);
@@ -135,15 +135,15 @@ begin
   v_r1_again := public.resolve_battle(v_r1);
 
   -- 무효: C vs D. 하나는 오늘 매칭, 하나는 어제 매칭.
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'judging', 'void 오늘', v_c, v_d, 72, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_minutes, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'judging', 'void 오늘', v_c, v_d, 4320, now(), now() + interval '3 days')
   returning id into v_v_today;
   insert into public.battle_participants (battle_id, user_id) values (v_v_today, v_d);
   insert into public.daily_battle_slots (user_id, kst_date, battle_id)
   values (v_c, v_today, v_v_today), (v_d, v_today, v_v_today);
 
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_hours, started_at, deadline_at)
-  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'active', 'void 어제', v_c, v_d, 72, now() - interval '1 day', now() + interval '2 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_minutes, started_at, deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'active', 'void 어제', v_c, v_d, 4320, now() - interval '1 day', now() + interval '2 days')
   returning id into v_v_yday;
   insert into public.battle_participants (battle_id, user_id) values (v_v_yday, v_d);
   insert into public.daily_battle_slots (user_id, kst_date, battle_id)

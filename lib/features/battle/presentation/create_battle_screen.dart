@@ -8,6 +8,8 @@ import '../../../core/widgets/status_message.dart';
 import '../data/criteria_check_result.dart';
 import '../domain/battle_providers.dart';
 import '../domain/criteria_rules.dart';
+import '../domain/duration_rules.dart';
+import 'battle_chips.dart';
 import 'criteria_views.dart';
 
 /// 대결 만들기. 세 단계다.
@@ -30,7 +32,12 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
 
   String _type = 'speed';
   // 기본 3일. 하루는 촉박하고 일주일은 늘어진다.
-  int _durationHours = 72;
+  int _durationMinutes = 4320;
+  // 직접 입력 모드. 빠른 선택과 동시에 켜지지 않는다.
+  bool _customDuration = false;
+  final _customDurationController = TextEditingController();
+  DurationUnit _customUnit = DurationUnit.hours;
+  String? _customDurationError;
   _Stage _stage = _Stage.input;
 
   CriteriaCheckResult? _result;
@@ -43,6 +50,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _customDurationController.dispose();
     super.dispose();
   }
 
@@ -99,7 +107,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
       final result = await ref.read(battleCriteriaRepositoryProvider).generate(
             title: title,
             type: _type,
-            durationHours: _durationHours,
+            durationMinutes: _durationMinutes,
           );
       if (!mounted) return;
       setState(() => _busy = false);
@@ -118,7 +126,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
       final result = await ref.read(battleCriteriaRepositoryProvider).check(
             title: _titleController.text.trim(),
             type: _type,
-            durationHours: _durationHours,
+            durationMinutes: _durationMinutes,
             minCriteria: _editedMin.map((item) => item.trim()).toList(),
             superiorityCriteria:
                 _isQuality ? _editedSuperiority.map((item) => item.trim()).toList() : null,
@@ -148,7 +156,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
     try {
       await ref.read(battleRepositoryProvider).createBattle(
             checkId: result.checkId,
-            durationHours: _durationHours,
+            durationMinutes: _durationMinutes,
           );
       ref.invalidate(openRecruitsProvider);
       ref.invalidate(myRecruitsProvider);
@@ -166,6 +174,98 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
 
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// 직접 입력 값을 읽어 `_durationMinutes`에 반영한다. 범위 밖이면 반영하지 않고 오류만 보여 준다
+  /// (서버로 보내는 값은 항상 유효한 분이다).
+  void _applyCustomDuration() {
+    final minutes = durationMinutesOf(_customDurationController.text, _customUnit);
+    setState(() {
+      _customDurationError = validateDurationMinutes(minutes);
+      if (_customDurationError == null) _durationMinutes = minutes!;
+    });
+  }
+
+  /// 기간 입력: 자주 쓰는 값 빠른 선택 + 직접 입력(정수 + 단위). 서버에는 항상 분으로 보낸다.
+  List<Widget> _buildDurationInput(BuildContext context) {
+    final error = _customDurationError;
+
+    return [
+      SegmentedButton<int>(
+        showSelectedIcon: false,
+        // 직접 입력 중에는 빠른 선택이 아무것도 고르지 않은 상태가 된다.
+        emptySelectionAllowed: true,
+        segments: [
+          for (final minutes in battleDurationQuickPicks)
+            ButtonSegment(value: minutes, label: Text(battleDurationLabel(minutes))),
+        ],
+        selected: _customDuration ? const <int>{} : {_durationMinutes},
+        onSelectionChanged: (selection) {
+          if (selection.isEmpty) return;
+          setState(() {
+            _customDuration = false;
+            _customDurationError = null;
+            _durationMinutes = selection.first;
+          });
+        },
+      ),
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton(
+          onPressed: _busy
+              ? null
+              : () {
+                  setState(() {
+                    _customDuration = !_customDuration;
+                    _customDurationError = null;
+                  });
+                  if (_customDuration) _applyCustomDuration();
+                },
+          child: Text(
+            _customDuration ? AppStrings.battleDurationQuick : AppStrings.battleDurationCustom,
+          ),
+        ),
+      ),
+      if (_customDuration) ...[
+        Row(
+          children: [
+            SizedBox(
+              width: 96,
+              child: TextField(
+                controller: _customDurationController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: AppStrings.battleDurationHint,
+                  // 테두리만 오류 상태로 바꾸고 문구는 아래 한 줄에서 한 번만 말한다
+                  // (errorText를 쓰면 같은 문구가 두 번 나온다).
+                  error: error == null ? null : const SizedBox.shrink(),
+                ),
+                onChanged: (_) => _applyCustomDuration(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SegmentedButton<DurationUnit>(
+              showSelectedIcon: false,
+              segments: [
+                for (final unit in DurationUnit.values)
+                  ButtonSegment(value: unit, label: Text(unit.label)),
+              ],
+              selected: {_customUnit},
+              onSelectionChanged: (selection) {
+                _customUnit = selection.first;
+                _applyCustomDuration();
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          error ?? battleDurationLabel(_durationMinutes),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    ];
   }
 
   @override
@@ -213,17 +313,15 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         const SizedBox(height: 16),
         Text(AppStrings.battleDuration, style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
-        SegmentedButton<int>(
-          segments: const [
-            ButtonSegment(value: 24, label: Text(AppStrings.battleDuration1Day)),
-            ButtonSegment(value: 72, label: Text(AppStrings.battleDuration3Days)),
-            ButtonSegment(value: 168, label: Text(AppStrings.battleDuration7Days)),
-          ],
-          selected: {_durationHours},
-          onSelectionChanged: (selection) => setState(() => _durationHours = selection.first),
-        ),
+        ..._buildDurationInput(context),
         const SizedBox(height: 8),
         Text(AppStrings.battleDurationNotice, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        // 기간을 짧게 고를 수 있게 됐으므로 그 위험을 같은 자리에서 알린다(spec D6 — 구조가 아니라 경고로만).
+        Text(AppStrings.battleDurationShortWarning, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        // "1분 대결"이 1분 만에 끝나는 것이 아니라는 것을 여기서 한 번 말해 둔다.
+        Text(AppStrings.battleDurationWindowNotice, style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 24),
         if (blockMessage != null) ...[
           PixelFrame.tone(tone: PixelTone.neutral, child: Text(blockMessage)),

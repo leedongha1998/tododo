@@ -53,7 +53,7 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
       final result = await ref.read(battleCriteriaRepositoryProvider).check(
             title: widget.battle.title,
             type: widget.battle.type,
-            durationHours: widget.battle.durationHours,
+            durationMinutes: widget.battle.durationMinutes,
             minCriteria: _editedMin.map((item) => item.trim()).toList(),
             superiorityCriteria:
                 _isQuality ? _editedSuperiority.map((item) => item.trim()).toList() : null,

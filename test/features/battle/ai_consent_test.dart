@@ -77,7 +77,7 @@ class _JoinOnlyBattleRepository implements BattleRepository {
       const PlayerCard(userId: 'creator1', displayName: '도윤');
 
   @override
-  Future<String> createBattle({required String checkId, required int durationHours}) async =>
+  Future<String> createBattle({required String checkId, required int durationMinutes}) async =>
       'new-battle';
 
   @override

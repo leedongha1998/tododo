@@ -206,15 +206,20 @@
 ## 진행 기록
 
 ### 1단계 (구현 완료, 원격 적용·스모크 통과, 2026-09-18)
+- **원격 적용 결과 (2026-09-18, 메인 세션)**
+  - `db push`로 두 파일 적용, `migration list --linked` 로컬 24개 = 원격 24개. 적용 직후 `battle-criteria`를 재배포했다(배포된 옛 함수는 분 단위 값을 거부하므로 그 사이 대결 생성이 막히는 공백을 줄였다). 대결 0건, cron `settle-expired-battles`가 `* * * * *`로 바뀐 것을 확인했다.
+  - 스모크 **11개 전부 통과**. `battle_outcome_rules.sql`은 24행 전부 `ok: true`다 — 체크리스트에 적힌 "23행"은 옛 숫자다.
+  - **`criteria_smoke`가 처음에는 실패했다**(`consumed_checks expected=4 actual=6`). 마이그레이션 회귀가 아니라 이 스모크의 잠재 결함이었다: 소비된 증서를 **테이블 전체**에서 세는데, reset이 `battles`만 지우고 `criteria_checks`는 남기므로 어젯밤 실제 사용으로 소비된 2건이 함께 잡혔다. 이 스모크가 만든 사용자(`v_a`·`v_b`·`v_c`)로 범위를 좁혀 해결했다. **교훈: 스모크가 전역 개수를 세면 실데이터가 쌓일수록 깨진다. 자기가 만든 행으로 좁힐 것.**
+  - **Storage 비우기는 실패했다.** `supabase storage rm -r ss:///battle_evidence/ --linked --experimental`이 `{"deleted":[]}`만 돌려주고 사진 **8장이 남았다**(ai-judge 1단계와 같은 증상 — CLI가 조용히 아무것도 하지 않는다). 대결 행이 사라졌으므로 참조 없는 고아 사진이고 동작에는 영향이 없다. 정리는 대시보드에서 해야 한다.
 
 - **위에 적은 순서대로 진행했고 중간에 바꾸지 않았다.**
-- 실행하지 않은 것: `db push`, `migration up`, 쓰기·DDL을 포함한 `db query --linked`, `functions deploy`, `secrets set`, `storage rm`, Vault 접근, Gemini·FCM 호출, 커밋. 원격 DB를 읽지도 않았다.
+- 구현 단계에서는 원격 DB에 쓰기·DDL을 실행하지 않았고 배포·시크릿·Vault·Gemini·FCM도 건드리지 않았다. 적용과 스모크는 아래 "원격 적용 결과"에 있다.
 - 로컬 검증: `flutter analyze` 이슈 0, `flutter test` **280개 통과**(기준선 273 + 기간 규칙·라벨 유닛 6 + 기간 입력 화면 위젯 1). `deno test supabase/functions/_shared/` **26개 통과**(개수 변화 없음 — 기존 "생성 요청은 제목·유형·기간을 검증한다" 안에서 경계값 케이스를 분 단위로 바꿔 늘렸고 테스트 함수를 새로 만들지 않았다). `deno check`로 Edge Function 3개 타입 검사도 통과.
 - 마이그레이션 2개를 새로 썼고 적용된 파일은 한 줄도 고치지 않았다.
   - `20260921120000_mutual_judge_reset.sql` — `delete from public.battles;`
   - `20260921120100_custom_duration.sql` — `duration_minutes` 이전, `create_battle` 드롭·재생성, `join_battle`·`list_open_recruits` 재정의, cron 1분.
 - **`create_battle` 드롭·재생성과 Dart 동시 변경**: 같은 단계에서 함께 바꿨다. 마이그레이션이 `drop function public.create_battle(uuid, integer)` 후 `p_duration_minutes`로 재생성하고, 재생성 뒤 `revoke ... from public, anon` + `grant ... to authenticated`를 다시 붙였다(드롭과 함께 권한이 사라진다). 같은 커밋 후보 2에 `battle_repository.dart`의 RPC 인자 이름(`p_duration_hours` → `p_duration_minutes`)을 넣어, PostgREST가 인자 이름으로 함수를 찾는 것 때문에 앱이 깨지는 구간을 만들지 않았다.
-- 기존 스모크 9개를 새 컬럼·값으로 고쳤고(`battle_outcome_rules.sql`은 순수 함수 SELECT뿐이라 손대지 않았다), 신규 `custom_duration_smoke.sql`을 더했다. 실행은 원격이라 오너·메인 세션 몫이다.
+- 기존 스모크 9개를 새 컬럼·값으로 고쳤고(`battle_outcome_rules.sql`은 순수 함수 SELECT뿐이라 손대지 않았다), 신규 `custom_duration_smoke.sql`을 더했다.
 - 설계와 달라진 점
   - **기간 라벨 문자열을 고정 상수 3개에서 포맷 함수 3개로 바꿨다.** design은 "문자열(`battleDuration1Day/3Days/7Days`)을 빠른 선택 칩 라벨로 재사용"이라고 했지만, 분 단위가 되면 라벨이 무한히 많아져 상수로 덮을 수 없다. `AppStrings.battleDurationDays/Hours/Minutes(int)` 세 함수로 바꾸고 `battleDurationLabel(minutes)`이 떨어지는 가장 큰 단위를 고르게 했다. 결과 문구는 그대로다(1440 → "1일"). 상수 3개는 참조가 0이 되어 지웠다(`lib`·`test` grep 확인).
   - **빠른 선택을 `ChoiceChip`이 아니라 `SegmentedButton`(`emptySelectionAllowed`) + "직접 입력" 토글 버튼으로 만들었다.** 이 저장소 테마에 `chipTheme`이 없어 `ChoiceChip`을 쓰면 픽셀 테두리를 벗어난 Material 3 라운드 칩이 섞인다. 기존 화면이 유형 선택에 이미 `SegmentedButton`을 쓰고 있어 같은 모양을 재사용했다. design "빠른 선택 칩"의 역할(자주 쓰는 값 한 번에 고르기)은 그대로다.

@@ -1,0 +1,22 @@
+-- mutual-judge 1단계: AI 심판 단독 판정 시절의 테스트 대결 데이터 정리.
+--
+-- 근거: docs/specs/mutual-judge/design.md "구현 단계 분할" 1-a, 결정 사항 3(오너 승인 2026-09-18).
+-- 배포 전이라 실사용자 데이터가 없다.
+--
+-- 선별 삭제를 하지 않는 이유
+--   - 옛 행에는 제출 즉시 판정 시절의 battle_submissions.status(passed/failed/error)와
+--     판정 5회 이력(battle_participants.attempts_used·last_verdict·passed_at)이 있고,
+--     2단계에서 그 컬럼들이 사라지므로 새 규칙에서 뜻이 없다.
+--   - 진행 중이던 대결은 2단계에서 추가되는 판정 창 컬럼(judging_opened_at·judge_deadline_at)이
+--     비어 있어 어느 cron도 정리하지 못한다.
+--
+-- 되돌릴 수 없다. battle_participants·battle_submissions·quality_judgments·daily_battle_slots의
+-- 관련 행은 on delete cascade로 함께 지워진다. profiles, player_stats, todos, ai_consents,
+-- criteria_checks, auth.users는 건드리지 않는다(대결에 묶이지 않은 기록이다).
+--
+-- Storage의 증거 사진은 SQL로 지울 수 없다(storage.protect_delete() 트리거 —
+-- 20260903090000_delete_account_storage_fix.sql 참고). 적용 직후 Storage API로 비운다:
+--   supabase storage rm -r ss:///battle_evidence/ --linked --experimental
+-- 버킷 자체는 남긴다(2단계에서 새 정책으로 재사용한다).
+
+delete from public.battles;

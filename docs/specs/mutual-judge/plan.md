@@ -205,6 +205,18 @@
 
 ## 진행 기록
 
+### 2단계 (미착수 — 다음 세션 인계, 2026-09-18)
+- 2단계 구현을 developer 에이전트에 맡겼으나 **월 사용 한도로 파일을 하나도 쓰기 전에 중단됐다.** 작업 트리에 2단계 흔적은 없다. 원격 DB도 1단계 상태 그대로다(마이그레이션 24개, 대결 0건).
+- **재개 방법**: developer 에이전트에 `spec.md`·`design.md`·이 파일의 2단계 절을 읽고 2단계를 구현하게 한다. 커밋·원격 적용·배포는 하지 않게 하고, 결과를 메인 세션이 검토한 뒤 오너 확인을 받아 적용한다.
+- **재개 시 반드시 넘길 당부**
+  - `record_speed_verdict`를 지우거나 `accept_submission` 시그니처를 바꾸면 배포된 `submit-evidence`가 깨진다. 원격 적용 **바로 다음에** `supabase functions deploy submit-evidence`를 실행하도록 적용 명령 목록에 넣는다.
+  - 2단계는 `battle_participants`의 `attempts_used`·`last_verdict`·`passed_at`·`first_submitted_at`을 지운다. 이를 참조하는 기존 스모크(특히 속도전 5회 모델 전체를 검증하는 `ai_judge_flow_smoke.sql`)는 고칠지·지울지·새로 쓸지 판단이 필요하다.
+  - 스모크의 개수 단정은 **스모크가 만든 사용자·대결로 범위를 좁힌다**(1단계에서 `criteria_smoke`가 전역 개수를 세다 실데이터에 부딪혔다).
+  - `battle_participants` 조회 정책은 유지하고 노출 컬럼만 `has_submitted`·`has_judged`로 교체하며, "이 테이블의 모든 컬럼은 상대도 읽는다"는 불변식을 정책·테이블 주석으로 남긴다(design 결론).
+  - 함수를 drop하면 GRANT도 사라진다 — 재생성 뒤 권한 두 줄 필수. `delete_account`는 가장 늦은 정의(`20260920120000_push_tokens_and_outbox.sql`)를 기반으로 고친다.
+- **함께 보류 중인 것**: `push-notification`은 1단계(토큰·원장 스키마)만 적용됐고 2단계부터 보류다. 이 기획이 알림 정의(N3·N4·N6, 판정 요청 알림 신설)를 바꾸므로 mutual-judge가 끝난 뒤 그 spec·design을 갱신하고 재개한다. `android/app/google-services.json`(프로젝트 `tododo-f81f0`)은 준비돼 있다.
+- **정리할 것**: Storage `battle_evidence`에 참조 없는 고아 사진 8장(CLI `storage rm`이 조용히 실패 — 대시보드에서 삭제). 버그 탐색용 더미 계정 8개(`%@dummy.invalid`)는 남아 있다.
+
 ### 1단계 (구현 완료, 원격 적용·스모크 통과, 2026-09-18)
 - **원격 적용 결과 (2026-09-18, 메인 세션)**
   - `db push`로 두 파일 적용, `migration list --linked` 로컬 24개 = 원격 24개. 적용 직후 `battle-criteria`를 재배포했다(배포된 옛 함수는 분 단위 값을 거부하므로 그 사이 대결 생성이 막히는 공백을 줄였다). 대결 0건, cron `settle-expired-battles`가 `* * * * *`로 바뀐 것을 확인했다.

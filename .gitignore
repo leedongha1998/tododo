@@ -29,3 +29,7 @@ android/app/*.keystore
 
 # Supabase CLI local link state
 supabase/.temp/
+
+# Firebase 클라이언트 설정 — 공개 저장소에 올리지 않는다(오너 결정 2026-09-28).
+# 다른 기기에서 빌드할 때는 Firebase 콘솔에서 다시 내려받아 이 경로에 둔다.
+android/app/google-services.json

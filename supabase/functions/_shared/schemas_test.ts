@@ -4,14 +4,14 @@
 import { assertEquals, assertThrows } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import {
   ValidationError,
-  mapQualityVerdictToParticipants,
+  mapSuperiorityWinnerToParticipant,
   parseCheckResponse,
   parseCriteriaRequest,
   parseGenerationResponse,
-  parseJudgeQualityRequest,
-  parseQualityVerdictResponse,
-  parseSpeedVerdictResponse,
+  parseJudgeDisputeRequest,
+  parseMinCriteriaVerdictResponse,
   parseSubmitEvidenceRequest,
+  parseSuperiorityVerdictResponse,
   validateCriteriaList,
 } from './schemas.ts';
 
@@ -66,17 +66,17 @@ Deno.test('증거 제출 요청은 본인 폴더 경로만 받는다', () => {
   );
 });
 
-Deno.test('속도전 판정 응답은 합격 여부와 60자 이내 사유를 요구한다', () => {
-  assertEquals(parseSpeedVerdictResponse({ passed: true, reason: ' 상판이 모두 보인다 ' }), {
+Deno.test('최소 기준 재판정 응답은 통과 여부와 60자 이내 사유를 요구한다', () => {
+  assertEquals(parseMinCriteriaVerdictResponse({ passed: true, reason: ' 상판이 모두 보인다 ' }), {
     passed: true,
     reason: '상판이 모두 보인다',
   });
 
-  assertThrows(() => parseSpeedVerdictResponse({ passed: 'yes', reason: '사유' }), ValidationError);
-  assertThrows(() => parseSpeedVerdictResponse({ passed: false }), ValidationError);
-  assertThrows(() => parseSpeedVerdictResponse({ passed: false, reason: '   ' }), ValidationError);
+  assertThrows(() => parseMinCriteriaVerdictResponse({ passed: 'yes', reason: '사유' }), ValidationError);
+  assertThrows(() => parseMinCriteriaVerdictResponse({ passed: false }), ValidationError);
+  assertThrows(() => parseMinCriteriaVerdictResponse({ passed: false, reason: '   ' }), ValidationError);
   assertThrows(
-    () => parseSpeedVerdictResponse({ passed: false, reason: '가'.repeat(61) }),
+    () => parseMinCriteriaVerdictResponse({ passed: false, reason: '가'.repeat(61) }),
     ValidationError,
   );
 });
@@ -230,99 +230,42 @@ Deno.test('검사 응답은 provable과 사유만 본다', () => {
   assertThrows(() => parseCheckResponse(null), ValidationError);
 });
 
-const bothPass = {
-  a: { meets_criteria: true, reason: '상판이 모두 보인다' },
-  b: { meets_criteria: true, reason: '상판이 보인다' },
-  winner: 'a',
-  winner_reason: '얼룩이 남지 않아 더 깨끗하다',
-};
-
-Deno.test('품질전 판정 응답은 사진별 1단계 결과와 2단계 승자를 함께 본다', () => {
-  const result = parseQualityVerdictResponse(bothPass);
-  assertEquals(result.a.meetsCriteria, true);
-  assertEquals(result.b.reason, '상판이 보인다');
-  assertEquals(result.winner, 'a');
-  assertEquals(result.winnerReason, '얼룩이 남지 않아 더 깨끗하다');
-
-  // 사진별 사유는 비거나 60자를 넘으면 실패로 본다(잘라 쓰지 않는다).
-  assertThrows(
-    () => parseQualityVerdictResponse({ ...bothPass, a: { meets_criteria: true, reason: '  ' } }),
-    ValidationError,
+Deno.test('우열 재판정 응답은 a/b 승자와 60자 이내 사유를 요구한다', () => {
+  assertEquals(
+    parseSuperiorityVerdictResponse({ winner: 'b', winner_reason: ' 얼룩이 남지 않아 더 깨끗하다 ' }),
+    { winner: 'b', winnerReason: '얼룩이 남지 않아 더 깨끗하다' },
   );
-  assertThrows(
-    () =>
-      parseQualityVerdictResponse({
-        ...bothPass,
-        b: { meets_criteria: true, reason: '가'.repeat(61) },
-      }),
-    ValidationError,
-  );
-  assertThrows(() => parseQualityVerdictResponse({ a: bothPass.a }), ValidationError);
-});
 
-Deno.test('둘 다 기준을 충족했는데 승자가 없으면 실패로 처리한다', () => {
   // 동점이 없다는 규칙은 서버가 강제한다. 실패로 보면 자동 재시도가 걸린다.
-  assertThrows(
-    () => parseQualityVerdictResponse({ ...bothPass, winner: null, winner_reason: null }),
-    ValidationError,
-  );
-  assertThrows(() => parseQualityVerdictResponse({ ...bothPass, winner: 'c' }), ValidationError);
+  assertThrows(() => parseSuperiorityVerdictResponse({ winner: null, winner_reason: '비슷하다' }), ValidationError);
+  assertThrows(() => parseSuperiorityVerdictResponse({ winner: 'c', winner_reason: '사유' }), ValidationError);
+  assertThrows(() => parseSuperiorityVerdictResponse({ winner_reason: '사유' }), ValidationError);
   // 승자만 있고 근거가 없어도 실패다(사유 없이 -3점을 줄 수 없다).
+  assertThrows(() => parseSuperiorityVerdictResponse({ winner: 'a', winner_reason: '   ' }), ValidationError);
   assertThrows(
-    () => parseQualityVerdictResponse({ ...bothPass, winner_reason: '   ' }),
+    () => parseSuperiorityVerdictResponse({ winner: 'a', winner_reason: '가'.repeat(61) }),
     ValidationError,
   );
+  assertThrows(() => parseSuperiorityVerdictResponse(null), ValidationError);
 });
 
-Deno.test('한쪽이라도 미달이면 승자 값은 무시한다', () => {
-  // 이때의 승패는 DB의 quality_outcome이 정한다(충족한 쪽 승, 둘 다 미달이면 무승부).
-  const oneFails = parseQualityVerdictResponse({
-    a: { meets_criteria: true, reason: '상판이 보인다' },
-    b: { meets_criteria: false, reason: '물건이 그대로 있다' },
-    winner: 'b',
-    winner_reason: '엉뚱한 근거',
-  });
-  assertEquals(oneFails.winner, null);
-  assertEquals(oneFails.winnerReason, null);
-
-  const bothFail = parseQualityVerdictResponse({
-    a: { meets_criteria: false, reason: '물건이 그대로 있다' },
-    b: { meets_criteria: false, reason: '사진이 흐리다' },
-  });
-  assertEquals(bothFail.winner, null);
-});
-
-Deno.test('A/B 순서를 섞어 보내도 판정을 참가자로 되돌린다', () => {
-  const result = parseQualityVerdictResponse(bothPass);
-
+Deno.test('A/B 순서를 섞어 보내도 승자를 참가자로 되돌린다', () => {
   // 섞지 않은 시도: A = 생성자.
-  const straight = mapQualityVerdictToParticipants(result, false);
-  assertEquals(straight.creator.reason, '상판이 모두 보인다');
-  assertEquals(straight.opponent.reason, '상판이 보인다');
-  assertEquals(straight.winner, 'creator');
-
+  assertEquals(mapSuperiorityWinnerToParticipant('a', false), 'creator');
+  assertEquals(mapSuperiorityWinnerToParticipant('b', false), 'opponent');
   // 섞은 시도: A = 참가자. 되돌리기가 틀리면 승패가 통째로 뒤집힌다.
-  const flipped = mapQualityVerdictToParticipants(result, true);
-  assertEquals(flipped.creator.reason, '상판이 보인다');
-  assertEquals(flipped.opponent.reason, '상판이 모두 보인다');
-  assertEquals(flipped.winner, 'opponent');
-  assertEquals(flipped.winnerReason, '얼룩이 남지 않아 더 깨끗하다');
-
-  // 승자가 없으면 어느 순서로 보냈든 없다.
-  const noWinner = mapQualityVerdictToParticipants(
-    parseQualityVerdictResponse({
-      a: { meets_criteria: false, reason: '물건이 그대로 있다' },
-      b: { meets_criteria: false, reason: '사진이 흐리다' },
-    }),
-    true,
-  );
-  assertEquals(noWinner.winner, null);
+  assertEquals(mapSuperiorityWinnerToParticipant('a', true), 'opponent');
+  assertEquals(mapSuperiorityWinnerToParticipant('b', true), 'creator');
 });
 
-Deno.test('판정 요청은 대결 id만 받는다', () => {
-  assertEquals(parseJudgeQualityRequest({ battle_id: ` ${battleId} ` }).battleId, battleId);
+Deno.test('재판정 요청은 양의 정수 잡 id만 받는다', () => {
+  assertEquals(parseJudgeDisputeRequest({ job_id: 42 }).jobId, 42);
 
-  assertThrows(() => parseJudgeQualityRequest({ battle_id: 'b1' }), ValidationError);
-  assertThrows(() => parseJudgeQualityRequest({}), ValidationError);
-  assertThrows(() => parseJudgeQualityRequest(null), ValidationError);
+  assertThrows(() => parseJudgeDisputeRequest({ job_id: 0 }), ValidationError);
+  assertThrows(() => parseJudgeDisputeRequest({ job_id: -1 }), ValidationError);
+  assertThrows(() => parseJudgeDisputeRequest({ job_id: 1.5 }), ValidationError);
+  assertThrows(() => parseJudgeDisputeRequest({ job_id: '42' }), ValidationError);
+  // 옛 judge-quality 형식(battle_id)은 받지 않는다.
+  assertThrows(() => parseJudgeDisputeRequest({ battle_id: battleId }), ValidationError);
+  assertThrows(() => parseJudgeDisputeRequest(null), ValidationError);
 });

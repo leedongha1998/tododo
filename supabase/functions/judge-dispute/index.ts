@@ -1,16 +1,14 @@
-// 품질전 AI 판정 잡 실행기.
+// AI 재판정 잡 실행기(불복·품질전 우열 불일치).
 //
-// 부르는 쪽은 사용자가 아니라 서버다: cron의 dispatch_quality_judgments(pg_net)와,
-// 두 번째 사진이 올라온 직후의 submit-evidence다. 그래서 verify_jwt = false로 배포하고
+// 부르는 쪽은 사용자가 아니라 cron의 dispatch_ai_judgments(pg_net)다. 그래서 verify_jwt = false로 배포하고
 // **헤더 x-judge-secret을 상수 시간으로 비교하는 것이 유일한 관문**이다(불일치는 401).
 //
-// 실제 판정은 _shared/quality_judge.ts가 한다(같은 코드를 submit-evidence도 쓴다).
-// 승패는 DB가 정한다 — 이 함수는 AI 응답을 사실로 옮기기만 한다.
+// 실제 판정은 _shared/dispute_judge.ts가 한다. 승패는 DB가 정한다 — 이 함수는 AI 응답을 사실로 옮기기만 한다.
 
 import { serviceClient } from '../_shared/auth.ts';
+import { runDisputeJudgment } from '../_shared/dispute_judge.ts';
 import { errorResponse, jsonResponse } from '../_shared/errors.ts';
-import { runQualityJudgment } from '../_shared/quality_judge.ts';
-import { ValidationError, parseJudgeQualityRequest } from '../_shared/schemas.ts';
+import { ValidationError, parseJudgeDisputeRequest } from '../_shared/schemas.ts';
 import { constantTimeEquals } from '../_shared/secret.ts';
 
 Deno.serve(async (req: Request): Promise<Response> => {
@@ -27,16 +25,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   let request;
   try {
-    request = parseJudgeQualityRequest(await req.json().catch(() => null));
+    request = parseJudgeDisputeRequest(await req.json().catch(() => null));
   } catch (error) {
     if (error instanceof ValidationError) {
-      console.error(`judge-quality 입력 오류: ${error.message}`);
+      console.error(`judge-dispute 입력 오류: ${error.message}`);
       return errorResponse('BAD_REQUEST');
     }
     throw error;
   }
 
-  const result = await runQualityJudgment(serviceClient(), request.battleId);
+  const result = await runDisputeJudgment(serviceClient(), request.jobId);
 
   return jsonResponse({ result });
 });

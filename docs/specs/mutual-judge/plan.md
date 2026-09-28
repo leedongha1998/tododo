@@ -47,7 +47,7 @@
 |---|---|---|---|---|
 | 1 | 있음 | 기존 대결 데이터 정리 + 커스텀 마감(분 단위) | `battle-criteria` | **완료(원격 적용·스모크 통과)** |
 | 2 | 있음 | 판정 창·제출 교체·상호 판정 기록·자동 승인·결론 규칙(즉시 AI 판정 제거) | `submit-evidence`(적용 직후) | **구현 완료(원격 미적용)** |
-| 3 | 있음 | AI 재판정 재배선 | `judge-dispute` 신규 / `judge-quality` 삭제 | 미착수 |
+| 3 | 있음 | AI 재판정 재배선 | `judge-dispute` 신규 / `judge-quality` 삭제 | **구현 완료(원격 미적용)** |
 | 4 | 없음 | 판정 화면·제출 교체 화면 | - | 미착수 |
 | 5 | 없음 | 결과·공개·상태 줄·문서·문구 | - | 미착수 |
 
@@ -204,6 +204,37 @@
 ---
 
 ## 진행 기록
+
+### 3단계 (구현 완료, 원격 미적용, 2026-09-29)
+- **원격 DB·Edge·Vault에는 아무것도 적용·배포하지 않았다.** 2단계가 원격에 먼저 적용돼 있어야 한다(아래 체크리스트 0번).
+- 파일
+  - 마이그레이션 `supabase/migrations/20260929120000_ai_rejudgment.sql`: `ai_judgment_jobs` + RLS(정책 없음), `ai_judgment_backoff`·`ensure_ai_judgment_job`·`fail_ai_judgment`·`claim_ai_judgment`·`record_min_criteria_verdict`·`record_superiority_verdict`·`record_ai_judgment_failure`·`dispatch_ai_judgments`, `resolve_battle`·`submit_judgment`에 잡 배선(시그니처 유지), `void_battle`·`forfeit_battle`·`delete_account` 재정의(`delete_account`는 push 1단계 정의에서 잡 줄만 교체), `quality_judgments`와 그 함수 6개 삭제, cron `ai-judge-tick` 명령에 `dispatch_ai_judgments()` 추가.
+  - Edge: `judge-dispute/index.ts`(신규), `_shared/dispute_judge.ts`(신규, `quality_judge.ts` 대체), `_shared/prompts.ts`(`SPEED_JUDGE_*` → `MIN_CRITERIA_JUDGE_*`, `QUALITY_JUDGE_*` → 우열 전용 `SUPERIORITY_JUDGE_*`, `PROMPT_VERSION` p1 → p2), `_shared/schemas.ts`(최소 기준·우열 응답 검증, A/B 역매핑, `{job_id}` 요청), `_shared/secret.ts` 주석, `config.toml`(`[functions.judge-dispute] verify_jwt = false`). `judge-quality/`와 `_shared/quality_judge.ts`는 지웠다.
+  - SQL 테스트: 신규 `ai_rejudgment_smoke.sql`.
+  - Dart: 변경 없음(판정 화면은 4단계).
+- 검증(이 세션)
+  - `deno test supabase/functions/_shared/` **25개 통과**(옛 품질전 통합 판정 테스트 5개를 지우고 재판정 테스트 4개를 더했다), `deno check` Edge 3개(`submit-evidence`·`battle-criteria`·`judge-dispute`) 통과. 2단계와 같은 임시 import map을 썼다.
+  - 로컬 PostgreSQL 16 + Supabase 스텁의 **빈 DB에 마이그레이션 26개**를 처음부터 적용, 스모크 **11개 전부 `ok=t`**, 규칙 45케이스 통과. cron 3개 명령이 설계와 같다.
+  - `ai_rejudgment_smoke`에서 백오프를 일부러 바꾸면 `ok=f`로 떨어지는 것을 확인했다.
+  - 스모크 밖에서 두 가지를 더 확인했다: (a) 2단계에서 잡 없이 멈춘 불복 대결이 판정 기한 tick에 잡을 얻어 복구된다, (b) Vault 값이 있으면 `dispatch_ai_judgments`가 기한이 된 잡을 `net.http_post`로 보낸다.
+  - `flutter analyze` 이슈 0, `flutter test` 293개 통과(Dart 변경 없음, 회귀 확인용).
+- 설계와 달라진 점
+  - **`record_superiority_verdict`는 `resolve_battle`을 거치지 않고 바로 `finalize_battle`한다.** design은 "사유 기록 → 잡 삭제 → resolve_battle"이라 적었지만, AI가 고른 우열 승자를 담을 컬럼이 없어 `resolve_battle`은 우열 불일치를 다시 "AI 필요"로만 볼 수 있다(잡을 또 만든다). 우열 잡은 두 최소 기준 결론이 pass로 확정되고 판정이 한 사람당 한 번뿐일 때만 생기므로, 그 뒤 결론을 바꿀 수 있는 사건은 포기·탈퇴뿐이고 둘 다 대결 상태 검사에서 걸러진다.
+  - **`record_min_criteria_verdict`는 `p_meets`가 null이면 실패 1회로 친다.** Edge가 검증한 뒤 부르므로 정상 경로에서는 생기지 않는다.
+  - **`PROMPT_VERSION`을 p2로 올렸다.** 판정 프롬프트를 둘로 나눴으므로 기록(`ai_model`)에서 구분돼야 한다. 기준 생성 프롬프트는 바뀌지 않았지만 같은 상수를 쓰므로 이후 기준 생성 기록도 p2로 남는다.
+  - **Vault 교체 전의 공백**: 적용 직후 `judge_function_url`이 아직 옛 `judge-quality`를 가리키면, 옛 함수가 `{job_id}` 본문을 `battle_id`가 없다며 400으로 거절한다. claim이 일어나지 않으므로 시도 수는 줄지 않고, 값이 바뀌는 순간부터 처리된다.
+- **원격 적용 체크리스트 (오너 — 순서 그대로)**
+  0. 2단계 체크리스트가 끝나 있어야 한다(`20260928120000_judging_window.sql` 적용 + `submit-evidence` 재배포 + 스모크 통과).
+  1. `supabase db push --dry-run` — `20260929120000_ai_rejudgment.sql` 하나만 나오는지 확인 → `supabase db push`.
+  2. `supabase migration list --linked` — 로컬 26개 = 원격 26개.
+  3. `supabase functions deploy judge-dispute` (`config.toml`의 `verify_jwt = false`가 적용된다. 시크릿 `JUDGE_CRON_SECRET`·`GEMINI_API_KEY`·`GEMINI_MODEL`은 기존 값 그대로 쓴다.)
+  4. 대시보드 Vault에서 `judge_function_url` 값을 `https://<project-ref>.supabase.co/functions/v1/judge-dispute`로 교체(`judge_cron_secret`은 그대로).
+  5. SQL 테스트(전부 `SMOKE RESULT ok=t`, 규칙은 45행 모두 `ok = true`): 2단계 목록 11개 + `ai_rejudgment_smoke`.
+  6. cron 확인: `ai-judge-tick` 명령이 `select public.sweep_stale_criteria_calls(); select public.dispatch_ai_judgments();`인지.
+  7. 실호출 확인: 두 계정으로 속도전 한 판을 양쪽 제출까지 진행(판정 창이 열린다). 판정 버튼은 4단계라 대시보드 SQL 편집기에서 한 트랜잭션으로 불복한다:
+     `begin; select set_config('request.jwt.claims', '{"sub":"<A의 user id>","role":"authenticated"}', true); select public.submit_judgment('<battle id>', 'reject', null); commit;`
+     → 1~2분 안에 B 제출 행의 `verdict_source = 'ai'`와 `reason`이 채워지는지, `ai_judgment_jobs`에서 그 잡이 사라졌는지 확인. 실패가 이어지면 `ai_judgment_jobs.last_error`와 Edge 로그를 본다.
+  8. 확인 뒤 `supabase functions delete judge-quality`.
 
 ### 2단계 (구현 완료, 원격 미적용, 2026-09-28)
 - **원격 DB·Edge에는 아무것도 적용·배포하지 않았다.** 아래 체크리스트대로 오너가 적용한다.

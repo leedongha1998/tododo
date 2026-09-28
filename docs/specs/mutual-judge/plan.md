@@ -45,8 +45,8 @@
 
 | 단계 | 스키마 | 내용 | Edge 재배포 | 상태 |
 |---|---|---|---|---|
-| 1 | 있음 | 기존 대결 데이터 정리 + 커스텀 마감(분 단위) | `battle-criteria` | **구현 완료(미커밋·미적용)** |
-| 2 | 있음 | 판정 창·제출 교체·상호 판정 기록·자동 승인·결론 규칙(즉시 AI 판정 제거) | `submit-evidence`(적용 직후) | 미착수 |
+| 1 | 있음 | 기존 대결 데이터 정리 + 커스텀 마감(분 단위) | `battle-criteria` | **완료(원격 적용·스모크 통과)** |
+| 2 | 있음 | 판정 창·제출 교체·상호 판정 기록·자동 승인·결론 규칙(즉시 AI 판정 제거) | `submit-evidence`(적용 직후) | **구현 완료(원격 미적용)** |
 | 3 | 있음 | AI 재판정 재배선 | `judge-dispute` 신규 / `judge-quality` 삭제 | 미착수 |
 | 4 | 없음 | 판정 화면·제출 교체 화면 | - | 미착수 |
 | 5 | 없음 | 결과·공개·상태 줄·문서·문구 | - | 미착수 |
@@ -204,6 +204,35 @@
 ---
 
 ## 진행 기록
+
+### 2단계 (구현 완료, 원격 미적용, 2026-09-28)
+- **원격 DB·Edge에는 아무것도 적용·배포하지 않았다.** 아래 체크리스트대로 오너가 적용한다.
+- 파일
+  - 마이그레이션 `supabase/migrations/20260928120000_judging_window.sql` 하나(착수 메모의 내용 전부).
+  - Edge: `submit-evidence/index.ts`(Gemini 호출·`record_speed_verdict`·품질전 즉시 판정 제거, 교체된 사진 삭제 추가, 응답 `{submission_id, replaced, judging_opened, battle_status}`), `_shared/errors.ts`(`JUDGING_IN_PROGRESS`·`ATTEMPTS_EXHAUSTED` 삭제).
+  - Dart: `battle.dart`(`judgingOpenedAt`·`judgeDeadlineAt`), `battle_participant.dart`(`hasSubmitted`·`hasJudged`), `battle_submission.dart`(`status` 삭제, `verdictSource`), `submission_result.dart`, `battle_detail.dart`(제출 창/판정 창, 교체 가능·판정 차례 판단), `battle_summary.dart`(design 화면 3의 상태 줄 표), `submission_rules.dart`, `evidence_section.dart`·`battle_detail_screen.dart`(판정 창은 "준비 중" 안내 + 양쪽 제출 공개, 헤더에 판정 마감), `strings.dart`.
+  - SQL 테스트: 신규 `mutual_judge_flow_smoke.sql`. `battle_outcome_rules.sql`·`resolve_battle_smoke.sql`·`settle_expired_battles_smoke.sql`은 새 규칙으로 **다시 썼다**. `ai_judge_flow_smoke.sql`은 **지웠다**(5회 상한 모델 전체를 검증하던 파일이라 고칠 대상이 남지 않는다. 흐름 확인은 새 흐름 스모크가 맡는다). `ai_consent_smoke`·`forfeit_battle_smoke`(judging 대결에 판정 창 시각 추가)·`delete_account_smoke`(제출 `status` 컬럼 제거)는 최소 수정.
+- 검증(이 세션, 클라우드 컨테이너)
+  - `flutter analyze` 이슈 0, `flutter test` **293개 통과**(기준선 280). 컨테이너에 Flutter가 없어 stable 3.47.5(Dart 3.13.4, `pubspec`의 `^3.13.0`과 맞음)를 저장소 밖에 받아 돌렸다. `pubspec.lock`은 바뀌지 않았다.
+  - `deno test supabase/functions/_shared/` **26개 통과**, `deno check` Edge 3개 통과. 컨테이너에서 `deno.land`·`esm.sh`가 막혀 있어 저장소 밖 임시 import map(같은 버전을 `jsr:`·`npm:`으로 매핑)으로 돌렸다. 저장소 파일은 바꾸지 않았다.
+  - **SQL을 원격이 아니라 로컬 PostgreSQL 16에서 실제로 돌렸다.** Supabase 전용 부분(`auth.users`·`auth.uid()`, `storage.objects`·`foldername`, `vault.decrypted_secrets`, `pg_cron`·`pg_net`, anon/authenticated/service_role과 기본 권한)만 스텁으로 흉내 낸 빈 DB에 마이그레이션 **25개 전부**를 순서대로 적용했고 에러가 없었다. 스모크 **10개 전부 `ok=t`**, `battle_outcome_rules.sql` **45케이스 전부 통과**. 결론 함수를 일부러 망가뜨리면 `resolve_battle_smoke`가 `ok=f`로 떨어지는 것도 확인했다(공회전 테스트가 아니다). 스텁은 원격과 권한·RLS 모양은 같지만 Supabase 그 자체가 아니므로 **원격 스모크는 여전히 오너가 돌린다.**
+- 설계와 달라진 점
+  - **적용 전 안전장치를 넣었다.** judging 대결, 제출이 있는 active 대결, 한 참가자의 제출이 여러 행인 대결이 있으면 마이그레이션이 예외로 멈춘다. 옛 규칙의 진행 중 대결은 새 규칙으로 옮길 방법이 없어 조용히 고치지 않는다. 09-27 기준 원격은 대결 0건이라 통과해야 정상이다.
+  - **`battle_submissions.meets_criteria`를 승인 시점에도 채운다**(`verdict_source` = `opponent`/`auto`). design은 컬럼 뜻을 "승인/자동 승인/AI"로 적었지만 누가 언제 쓰는지는 적지 않았다. `submit_judgment`(승인)·`close_expired_judging_windows`(자동 승인)가 쓰고, `resolve_battle`은 `verdict_source = 'ai'`인 값만 AI 결과로 넘긴다. `(meets_criteria is null) = (verdict_source is null)` 제약을 더했고, 옛 종결 대결에 남은 결론은 적용 시 `ai`로 채운다.
+  - **규칙 테스트 파일 이름을 바꾸지 않았다.** design의 `mutual_judge_rules.sql` 대신 `battle_outcome_rules.sql`을 새 순수 함수로 덮어썼다. 이름이 여전히 뜻에 맞고, 같은 역할의 파일이 둘 생기지 않는다.
+  - **`BattleRepository.submitJudgment`는 만들지 않았다.** 판정 화면(4단계)이 처음 부른다. 지금 넣으면 가짜 저장소 6곳만 늘어난다.
+  - **`quality_judgments`와 그 함수(`claim_quality_judgment`·`record_quality_verdict`·`record_quality_failure`·`dispatch_quality_judgments`)는 3단계까지 남긴다**(plan 착수 메모 그대로). 이 함수들은 지워진 `battle_submissions.status`를 참조하지만, 잡을 만드는 곳(`accept_submission`)과 부르는 곳(cron `ai-judge-tick`)을 모두 끊었으므로 불리지 않는다. `judge-quality` Edge도 3단계에서 지운다.
+  - **2단계만 적용된 동안의 한계**: 불복(`reject`)이나 품질전 우열 불일치가 생기면 그 대결은 judging에 머문다(AI 재판정 잡은 3단계). 앱에 판정 화면이 없어 앱 경로로는 생기지 않는다. 3단계의 `resolve_battle`이 `close-judging-windows` tick에서 잡을 만들어 이어받는다.
+- **원격 적용 체크리스트 (오너 — 순서 그대로)**
+  1. `supabase db push --dry-run` — 새 파일 `20260928120000_judging_window.sql` 하나만 나오는지 확인.
+  2. `supabase db push` — 안전장치 예외가 나면 멈추고 메인 세션에 알린다(진행 중 대결이 있다는 뜻).
+  3. **바로 이어서** `supabase functions deploy submit-evidence` — 배포된 옛 함수는 지워진 `record_speed_verdict`를 부른다.
+  4. `supabase migration list --linked` — 로컬 25개 = 원격 25개.
+  5. SQL 테스트(전부 `SMOKE RESULT ok=t`, 규칙은 45행 모두 `ok = true`):
+     `mutual_judge_flow_smoke`, `resolve_battle_smoke`, `settle_expired_battles_smoke`, `battle_outcome_rules`, `forfeit_battle_smoke`, `delete_account_smoke`, `ai_consent_smoke`, `criteria_smoke`, `join_battle_smoke`, `custom_duration_smoke`, `push_token_smoke`
+     (`supabase db query --linked -f supabase/tests/<이름>.sql`)
+  6. cron 확인: `select jobname, schedule, command from cron.job;` → `close-judging-windows`(`* * * * *`, `close_expired_judging_windows()`), `ai-judge-tick`(`sweep_stale_criteria_calls()`만), `settle-expired-battles`(`* * * * *`).
+- **에뮬레이터 수동 확인 (원격 적용 후)**: 두 계정으로 1분 속도전 → A 제출 → B 화면에 "제출했어요"만 보이고 시각·합격 여부가 없는지(교체 버튼은 4단계라 아직 없다) → B 제출 → 양쪽 화면이 "판정 중"과 양쪽 사진으로 바뀌는지 → 헤더에 판정 마감이 보이는지. 24시간 자동 승인은 스모크(f3·f4)가 덮는다.
 
 ### 2단계 (미착수 — 다음 세션 인계, 2026-09-18)
 - 2단계 구현을 developer 에이전트에 맡겼으나 **월 사용 한도로 파일을 하나도 쓰기 전에 중단됐다.** 작업 트리에 2단계 흔적은 없다. 원격 DB도 1단계 상태 그대로다(마이그레이션 24개, 대결 0건).

@@ -3,9 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/strings.dart';
 import '../data/submission_result.dart';
 
-/// 속도전 판정은 참가자당 대결마다 5회다(서버와 같은 값). AI 실패는 세지 않는다.
-const speedJudgeMaxAttempts = 5;
-
 /// 서버가 준 오류 코드. Edge Function 응답과 RPC 힌트를 같은 방식으로 읽는다.
 String? submissionErrorCodeOf(Object error) {
   if (error is SubmissionException) return error.code;
@@ -20,20 +17,17 @@ String submissionErrorMessage(Object error) {
     'CAPTURE_TIME_MISMATCH' => AppStrings.battleErrorCaptureTimeMismatch,
     'DEADLINE_PASSED' => AppStrings.battleErrorDeadlinePassed,
     'SUBMISSION_LOCKED' => AppStrings.battleErrorSubmissionLocked,
-    'JUDGING_IN_PROGRESS' => AppStrings.battleErrorJudgingInProgress,
-    'ATTEMPTS_EXHAUSTED' => AppStrings.battleErrorAttemptsExhausted,
     'CONSENT_REQUIRED' => AppStrings.aiConsentRequired,
     _ => AppStrings.battleEvidenceSubmitFailed,
   };
 }
 
-/// 제출 상태 → 이력에 붙는 라벨. 서버 값을 글자로 옮길 뿐 판정하지 않는다.
-String submissionStatusLabel(String status) {
-  return switch (status) {
-    'passed' => AppStrings.battleEvidenceVerdictPassed,
-    'failed' => AppStrings.battleEvidenceVerdictFailed,
-    'error' => AppStrings.battleEvidenceVerdictError,
-    'judging' => AppStrings.battleEvidenceVerdictJudging,
-    _ => AppStrings.battleEvidenceVerdictSubmitted,
+/// 제출의 최소 기준 결론 → 라벨. 서버가 기록한 값을 글자로 옮길 뿐 판정하지 않는다.
+/// 결론이 아직 없으면(판정 창 전, 판정 대기, AI 재판정 대기) "판정 전"이다.
+String submissionVerdictLabel(bool? meetsCriteria) {
+  return switch (meetsCriteria) {
+    true => AppStrings.battleEvidenceVerdictPassed,
+    false => AppStrings.battleEvidenceVerdictFailed,
+    null => AppStrings.battleEvidenceVerdictPending,
   };
 }

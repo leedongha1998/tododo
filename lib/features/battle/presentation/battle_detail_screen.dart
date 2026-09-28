@@ -81,12 +81,18 @@ class BattleDetailScreen extends ConsumerWidget {
               _BattleHeader(detail: detail),
               const SizedBox(height: 16),
               _ResultBanner(detail: detail),
-              if (detail.isOngoing) ...[
+              if (detail.isSubmissionWindow) ...[
                 MyEvidenceSection(detail: detail),
                 const SizedBox(height: 16),
                 OpponentEvidenceSummary(detail: detail),
               ]
-              // 종결 뒤에는 서버가 상대 제출까지 내준다. 그때만 양쪽 이력을 함께 보여 준다.
+              // 판정 창이 열리면 서버가 양쪽 제출을 동시에 내준다.
+              else if (detail.isJudgingWindow) ...[
+                JudgingWindowNotice(detail: detail),
+                const SizedBox(height: 16),
+                RevealedEvidenceSection(detail: detail),
+              ]
+              // 종결 뒤에도 양쪽 제출이 열려 있다. 아무도 내지 않았으면 보여 줄 것이 없다.
               else if (detail.areSubmissionsRevealed && detail.submissions.isNotEmpty)
                 RevealedEvidenceSection(detail: detail),
               if (detail.canForfeit) ...[
@@ -352,9 +358,19 @@ String _formatDateTime(DateTime time) {
 }
 
 // 진행 중인 대결에만 마감을 말한다. 끝난 대결에서는 결과가 이미 답이다.
+// 제출 창에서는 사진 마감을, 판정 창에서는 판정 마감을 말한다 — 둘은 다른 시계다.
 String? _deadlineText(BattleDetail detail) {
+  if (detail.isJudgingWindow) {
+    final judgeDeadline = detail.battle.judgeDeadlineAt;
+    if (judgeDeadline == null) return null;
+    final left = judgeDeadline.difference(DateTime.now());
+    if (left.isNegative) return AppStrings.battleDeadlinePassed;
+    return '${AppStrings.battleJudgeDeadlineLabel} ${_formatDateTime(judgeDeadline)}'
+        ' · ${AppStrings.battleDeadlineLeft(_formatRemaining(left))}';
+  }
+
   final deadline = detail.battle.deadlineAt;
-  if (deadline == null || !detail.isOngoing) return null;
+  if (deadline == null || !detail.isSubmissionWindow) return null;
 
   final left = deadline.difference(DateTime.now());
   if (left.isNegative) return AppStrings.battleDeadlinePassed;

@@ -9,37 +9,30 @@ class SubmissionException implements Exception {
   String toString() => 'SubmissionException($code)';
 }
 
-/// 제출과 (속도전이면) 판정 결과. 승패는 서버가 정하므로 여기에는 판정 사실만 담긴다.
+/// 제출 접수 결과. 제출 즉시 판정은 없으므로 판정 결과가 아니라 접수 사실만 담긴다.
 class SubmissionResult {
   const SubmissionResult({
     required this.submissionId,
-    this.verdict,
-    this.reason,
+    this.replaced = false,
+    this.judgingOpened = false,
     this.battleStatus,
   });
 
   final int submissionId;
 
-  /// `passed` / `failed` / `error`. 품질전은 판정이 대결 단위라 null이다.
-  final String? verdict;
+  /// 앞서 낸 사진을 이 사진으로 바꿨는지(속도전, 상대가 아직 내지 않았을 때만).
+  final bool replaced;
 
-  /// AI 한 줄 사유. 합격·불합격에만 있다.
-  final String? reason;
+  /// 양쪽이 모두 제출해 이 제출로 판정 창이 열렸는지.
+  final bool judgingOpened;
 
-  /// 판정을 기록한 뒤의 대결 상태. 화면은 이 값을 표시에만 쓰고 승패를 계산하지 않는다.
+  /// 접수 뒤의 대결 상태. 화면은 이 값을 표시에만 쓰고 승패를 계산하지 않는다.
   final String? battleStatus;
-
-  bool get isPassed => verdict == 'passed';
-
-  bool get isFailed => verdict == 'failed';
-
-  /// AI 호출이 실패한 제출. 판정 횟수에서 빠지므로 다시 낼 수 있다.
-  bool get isError => verdict == 'error';
 
   factory SubmissionResult.fromMap(Map<String, dynamic> map) => SubmissionResult(
         submissionId: (map['submission_id'] as num).toInt(),
-        verdict: map['verdict'] as String?,
-        reason: map['reason'] as String?,
+        replaced: (map['replaced'] as bool?) ?? false,
+        judgingOpened: (map['judging_opened'] as bool?) ?? false,
         battleStatus: map['battle_status'] as String?,
       );
 }

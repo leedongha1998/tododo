@@ -36,9 +36,6 @@ class _FakeCamera implements EvidenceCamera {
 }
 
 class _FakeBattleRepository implements BattleRepository {
-  _FakeBattleRepository({this.result = const SubmissionResult(submissionId: 1)});
-
-  SubmissionResult result;
   String? uploadedBattleId;
   DateTime? sentCapturedAt;
   int submitCount = 0;
@@ -60,7 +57,7 @@ class _FakeBattleRepository implements BattleRepository {
   }) async {
     submitCount++;
     sentCapturedAt = capturedAt;
-    return result;
+    return const SubmissionResult(submissionId: 1);
   }
 
   @override
@@ -132,10 +129,8 @@ class _SeenAllStore implements VsIntroSeenStore {
 BattleDetail _detail({
   String type = 'speed',
   String status = 'active',
-  int attemptsUsed = 0,
-  DateTime? passedAt,
-  DateTime? opponentFirstSubmittedAt,
-  String? opponentLastVerdict,
+  bool mySubmitted = false,
+  bool opponentSubmitted = false,
   List<BattleSubmission> submissions = const [],
 }) {
   final battle = Battle(
@@ -150,24 +145,37 @@ BattleDetail _detail({
     deadlineAt: DateTime.now().add(const Duration(days: 1)),
     minCriteria: const ['상판이 보인다'],
     superiorityCriteria: type == 'quality' ? const ['먼지가 없다'] : null,
+    judgingOpenedAt: status == 'judging' ? DateTime.now() : null,
+    judgeDeadlineAt: status == 'judging' ? DateTime.now().add(const Duration(hours: 24)) : null,
   );
   return BattleDetail(
     battle: battle,
-    me: BattleParticipant(
-      battleId: 'b1',
-      userId: 'me',
-      attemptsUsed: attemptsUsed,
-      passedAt: passedAt,
-    ),
-    opponent: BattleParticipant(
-      battleId: 'b1',
-      userId: 'friend',
-      firstSubmittedAt: opponentFirstSubmittedAt,
-      lastVerdict: opponentLastVerdict,
-    ),
+    me: BattleParticipant(battleId: 'b1', userId: 'me', hasSubmitted: mySubmitted),
+    opponent: BattleParticipant(battleId: 'b1', userId: 'friend', hasSubmitted: opponentSubmitted),
     myName: '나',
     opponentName: '친구',
     submissions: submissions,
+  );
+}
+
+BattleSubmission _submission({
+  int id = 1,
+  String userId = 'me',
+  bool? meetsCriteria,
+  String? verdictSource,
+  String? reason,
+}) {
+  final when = DateTime.now().subtract(const Duration(hours: 2));
+  return BattleSubmission(
+    id: id,
+    battleId: 'b1',
+    userId: userId,
+    objectPath: null,
+    capturedAt: when,
+    submittedAt: when,
+    meetsCriteria: meetsCriteria,
+    verdictSource: verdictSource,
+    reason: reason,
   );
 }
 
@@ -183,13 +191,24 @@ Widget _screen(BattleDetail detail, _FakeBattleRepository repository, _FakeCamer
   );
 }
 
+Future<void> _captureAndTapSubmit(WidgetTester tester, String submitLabel) async {
+  await tester.tap(find.text(AppStrings.battleEvidenceTakePhoto));
+  await tester.pumpAndSettle();
+  final submitButton = find.text(submitLabel);
+  // 미리보기가 길어 제출 버튼이 기본 테스트 화면(800x600) 아래로 밀린다.
+  await tester.ensureVisible(submitButton);
+  await tester.pumpAndSettle();
+  await tester.tap(submitButton);
+  await tester.pumpAndSettle();
+}
+
 void main() {
-  testWidgets('속도전 진행 중이면 사진 찍기 버튼과 남은 판정 횟수가 보인다', (tester) async {
+  testWidgets('속도전 제출 창이면 사진 찍기 버튼과 제출 시각 안내가 보인다', (tester) async {
     await tester.pumpWidget(_screen(_detail(), _FakeBattleRepository(), _FakeCamera()));
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.battleEvidenceTakePhoto), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidenceAttemptsLeft(5)), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidenceSpeedHint), findsOneWidget);
     // 갤러리에서 고르는 길은 어디에도 없다.
     expect(find.textContaining('갤러리'), findsNothing);
   });
@@ -207,105 +226,43 @@ void main() {
     expect(find.text(AppStrings.battleEvidenceRetake), findsOneWidget);
   });
 
-  testWidgets('불합격이면 사유가 보이고 다시 찍을 수 있다', (tester) async {
-    final repository = _FakeBattleRepository(
-      result: const SubmissionResult(
-        submissionId: 7,
-        verdict: 'failed',
-        reason: '상판에 물건이 남아 있다',
-        battleStatus: 'active',
-      ),
-    );
+  testWidgets('속도전은 확인 없이 바로 제출하고 촬영 시각을 UTC로 보낸다', (tester) async {
+    final repository = _FakeBattleRepository();
     await tester.pumpWidget(_screen(_detail(), repository, _FakeCamera()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text(AppStrings.battleEvidenceTakePhoto));
-    await tester.pumpAndSettle();
-    final submitButton = find.text(AppStrings.battleEvidenceSubmit);
-    // 미리보기가 길어 제출 버튼이 기본 테스트 화면(800x600) 아래로 밀린다.
-    await tester.ensureVisible(submitButton);
-    await tester.pumpAndSettle();
-    await tester.tap(submitButton);
-    await tester.pumpAndSettle();
+    await _captureAndTapSubmit(tester, AppStrings.battleEvidenceSubmit);
 
     expect(repository.submitCount, 1);
+    expect(repository.uploadedBattleId, 'b1');
     // 촬영 시각은 UTC로 서버에 간다(서버가 수신 시각과 대조한다).
     expect(repository.sentCapturedAt!.isUtc, isTrue);
-    expect(find.text(AppStrings.battleEvidenceFailedTitle), findsOneWidget);
-    expect(find.text('상판에 물건이 남아 있다'), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsOneWidget);
   });
 
-  testWidgets('AI 판정이 실패하면 횟수가 차감되지 않았음을 알린다', (tester) async {
-    final repository = _FakeBattleRepository(
-      result: const SubmissionResult(submissionId: 8, verdict: 'error', battleStatus: 'active'),
-    );
-    await tester.pumpWidget(_screen(_detail(), repository, _FakeCamera()));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text(AppStrings.battleEvidenceTakePhoto));
-    await tester.pumpAndSettle();
-    final submitButton = find.text(AppStrings.battleEvidenceSubmit);
-    // 미리보기가 길어 제출 버튼이 기본 테스트 화면(800x600) 아래로 밀린다.
-    await tester.ensureVisible(submitButton);
-    await tester.pumpAndSettle();
-    await tester.tap(submitButton);
-    await tester.pumpAndSettle();
-
-    expect(find.text(AppStrings.battleEvidenceErrorTitle), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidenceErrorDetail), findsOneWidget);
-  });
-
-  testWidgets('통과한 뒤에는 제출이 잠기고 진행 중임을 알린다', (tester) async {
-    final passedAt = DateTime.now().subtract(const Duration(hours: 1));
-    final detail = _detail(
-      attemptsUsed: 1,
-      passedAt: passedAt,
-      submissions: [
-        BattleSubmission(
-          id: 1,
-          battleId: 'b1',
-          userId: 'me',
-          objectPath: null,
-          capturedAt: passedAt,
-          submittedAt: passedAt,
-          status: 'passed',
-          reason: '상판이 모두 보인다',
-        ),
-      ],
-    );
-
-    await tester.pumpWidget(_screen(detail, _FakeBattleRepository(), _FakeCamera()));
-    await tester.pumpAndSettle();
-
-    expect(find.text(AppStrings.battleEvidencePassedTitle), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidencePassedLocked), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
-  });
-
-  testWidgets('판정 5회를 다 쓰면 촬영 버튼이 사라진다', (tester) async {
+  testWidgets('제출한 뒤에는 제출 완료와 판정이 언제 시작되는지 보인다', (tester) async {
     await tester.pumpWidget(
-      _screen(_detail(attemptsUsed: 5), _FakeBattleRepository(), _FakeCamera()),
+      _screen(
+        _detail(mySubmitted: true, submissions: [_submission()]),
+        _FakeBattleRepository(),
+        _FakeCamera(),
+      ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceExhausted), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidenceSubmittedTitle), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidenceWaitingOpponent), findsOneWidget);
     expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
   });
 
-  testWidgets('상대 영역은 제출 사실과 합격/불합격만 보여 준다', (tester) async {
-    final detail = _detail(
-      opponentFirstSubmittedAt: DateTime.now().subtract(const Duration(minutes: 30)),
-      opponentLastVerdict: 'passed',
+  testWidgets('상대 영역은 제출 사실만 보여 준다(시각·합격 여부 없음)', (tester) async {
+    await tester.pumpWidget(
+      _screen(_detail(opponentSubmitted: true), _FakeBattleRepository(), _FakeCamera()),
     );
-
-    await tester.pumpWidget(_screen(detail, _FakeBattleRepository(), _FakeCamera()));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('제출했어요'), findsOneWidget);
-    expect(find.textContaining(AppStrings.battleEvidenceVerdictPassed), findsWidgets);
-    // 진행 중 상대의 사유는 서버가 주지 않으므로 화면에도 없다.
-    expect(find.text('상판이 모두 보인다'), findsNothing);
+    expect(find.text(AppStrings.battleEvidenceOpponentSubmitted), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidenceVerdictPassed), findsNothing);
+    expect(find.text(AppStrings.battleEvidenceVerdictFailed), findsNothing);
   });
 
   testWidgets('상대가 아직 내지 않았으면 그 사실만 보인다', (tester) async {
@@ -316,25 +273,15 @@ void main() {
   });
 
   testWidgets('품질전은 확인 다이얼로그를 거쳐야 제출된다', (tester) async {
-    final repository = _FakeBattleRepository(
-      result: const SubmissionResult(submissionId: 9, battleStatus: 'judging'),
-    );
+    final repository = _FakeBattleRepository();
     await tester.pumpWidget(_screen(_detail(type: 'quality'), repository, _FakeCamera()));
     await tester.pumpAndSettle();
 
-    // 남은 판정 횟수는 속도전 이야기다. 품질전에는 "한 번만" 안내가 붙는다.
+    // 품질전에는 "한 번만" 안내가 붙는다.
     expect(find.text(AppStrings.battleEvidenceQualityOnce), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidenceAttemptsLeft(5)), findsNothing);
+    expect(find.text(AppStrings.battleEvidenceSpeedHint), findsNothing);
 
-    await tester.tap(find.text(AppStrings.battleEvidenceTakePhoto));
-    await tester.pumpAndSettle();
-
-    final submitButton = find.text(AppStrings.battleEvidenceQualitySubmit);
-    // 미리보기가 길어 제출 버튼이 기본 테스트 화면(800x600) 아래로 밀린다.
-    await tester.ensureVisible(submitButton);
-    await tester.pumpAndSettle();
-    await tester.tap(submitButton);
-    await tester.pumpAndSettle();
+    await _captureAndTapSubmit(tester, AppStrings.battleEvidenceQualitySubmit);
 
     // 확인하기 전에는 제출하지 않는다(재제출 수단이 없으므로).
     expect(find.text(AppStrings.battleEvidenceQualityConfirm), findsOneWidget);
@@ -346,66 +293,60 @@ void main() {
     expect(repository.submitCount, 1);
   });
 
-  testWidgets('품질전은 제출 뒤 상대를 기다리고, 판정 중이면 그 사실을 알린다', (tester) async {
-    final submitted = BattleSubmission(
-      id: 5,
-      battleId: 'b1',
-      userId: 'me',
-      objectPath: null,
-      capturedAt: DateTime.now(),
-      submittedAt: DateTime.now(),
-      status: 'submitted',
-    );
-
+  testWidgets('판정 창에서는 제출 자리 대신 판정 안내와 양쪽 제출이 보인다', (tester) async {
     await tester.pumpWidget(
       _screen(
-        _detail(type: 'quality', submissions: [submitted]),
+        _detail(
+          status: 'judging',
+          mySubmitted: true,
+          opponentSubmitted: true,
+          submissions: [_submission(id: 1), _submission(id: 2, userId: 'friend')],
+        ),
         _FakeBattleRepository(),
         _FakeCamera(),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceQualityWaiting), findsOneWidget);
-    // 한 번 낸 뒤에는 다시 찍을 수 없다.
+    expect(find.text(AppStrings.battleJudgingTitle), findsOneWidget);
+    expect(find.text(AppStrings.battleJudgingPreparing), findsOneWidget);
     expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
-
-    await tester.pumpWidget(const SizedBox());
-    await tester.pumpWidget(
-      _screen(
-        _detail(type: 'quality', status: 'judging', submissions: [submitted]),
-        _FakeBattleRepository(),
-        _FakeCamera(),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text(AppStrings.battleEvidenceQualityJudging), findsOneWidget);
+    // 양쪽 모두 아직 결론이 없다.
+    expect(find.text(AppStrings.battleEvidenceVerdictPending), findsNWidgets(2));
+    // 헤더에 사진 마감 대신 판정 마감이 나온다.
+    expect(find.textContaining('${AppStrings.battleJudgeDeadlineLabel} '), findsWidgets);
+    expect(find.textContaining(AppStrings.battleDeadlineLabel), findsNothing);
   });
 
-  // spec 수용 기준: "종결 후에는 양쪽이 서로의 증거와 판정 사유를 볼 수 있다".
-  // 진행 중에 가리는 일은 서버(RLS)가 하므로, 화면은 받은 행을 그대로 보여 주기만 한다.
-  testWidgets('종결된 뒤에는 양쪽 제출 이력이 사유와 함께 열린다', (tester) async {
-    final when = DateTime.now().subtract(const Duration(hours: 2));
-    BattleSubmission submission(int id, String userId, String status, String reason) =>
-        BattleSubmission(
-          id: id,
-          battleId: 'b1',
-          userId: userId,
-          objectPath: null,
-          capturedAt: when,
-          submittedAt: when,
-          status: status,
-          reason: reason,
-        );
+  testWidgets('속도전에서 상대가 내지 않고 마감됐으면 판정할 것이 없다고 알린다', (tester) async {
+    await tester.pumpWidget(
+      _screen(
+        _detail(status: 'judging', mySubmitted: true, submissions: [_submission()]),
+        _FakeBattleRepository(),
+        _FakeCamera(),
+      ),
+    );
+    await tester.pumpAndSettle();
 
+    expect(find.text(AppStrings.battleJudgingNothingToJudge), findsOneWidget);
+  });
+
+  // 종결 후에는 양쪽이 서로의 증거와 결론을 볼 수 있다.
+  // 그 전에 가리는 일은 서버(RLS)가 하므로, 화면은 받은 행을 그대로 보여 주기만 한다.
+  testWidgets('종결된 뒤에는 양쪽 제출이 결론·AI 사유와 함께 열린다', (tester) async {
     await tester.pumpWidget(
       _screen(
         _detail(
           status: 'finished',
           submissions: [
-            submission(1, 'me', 'passed', '상판이 모두 보인다'),
-            submission(2, 'friend', 'failed', '물건이 그대로 남아 있다'),
+            _submission(id: 1, meetsCriteria: true, verdictSource: 'opponent'),
+            _submission(
+              id: 2,
+              userId: 'friend',
+              meetsCriteria: false,
+              verdictSource: 'ai',
+              reason: '물건이 그대로 남아 있다',
+            ),
           ],
         ),
         _FakeBattleRepository(),
@@ -414,7 +355,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('상판이 모두 보인다'), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidenceVerdictPassed), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidenceVerdictFailed), findsOneWidget);
     expect(find.text('물건이 그대로 남아 있다'), findsOneWidget);
     // 끝난 대결에는 제출 자리가 없다.
     expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);

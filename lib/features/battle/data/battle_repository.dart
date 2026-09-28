@@ -127,7 +127,8 @@ class BattleRepository {
     return _client.storage.from(_evidenceBucket).createSignedUrl(path, _signedUrlSeconds);
   }
 
-  /// 진행 중에는 내 제출만 돌아온다. 상대 제출(사진 경로·판정 사유)은 종결된 뒤에야 서버가 내준다.
+  /// 판정 창 전에는 내 제출만 돌아온다. 상대 제출(사진 경로·제출 시각·결론)은 판정 창이 열리거나
+  /// 대결이 끝난 뒤에야 서버가 내준다.
   Future<List<BattleSubmission>> fetchSubmissions(String battleId) async {
     final rows = await _client
         .from('battle_submissions')
@@ -139,8 +140,8 @@ class BattleRepository {
 
   /// 촬영한 사진을 내 폴더에 올리고 경로를 돌려준다.
   ///
-  /// 제출마다 새 이름으로 올린다(덮어쓰기 없음) — 속도전 시도 이력의 사진을 보존해야 하고,
-  /// Storage 정책에도 update가 없다.
+  /// 제출마다 새 이름으로 올린다(덮어쓰기 없음) — Storage 정책에 update가 없다.
+  /// 속도전 교체로 밀려난 옛 사진은 서버(Edge)가 지운다.
   Future<String> uploadEvidencePhoto({
     required String battleId,
     required Uint8List bytes,
@@ -155,7 +156,7 @@ class BattleRepository {
     return path;
   }
 
-  /// 올린 사진을 제출로 접수시킨다. 속도전이면 같은 호출에서 AI 판정까지 끝나 결과가 돌아온다.
+  /// 올린 사진을 제출로 접수시킨다. 제출 즉시 판정은 없다 — 판정은 판정 창에서 참가자끼리 한다.
   /// 촬영 시각은 서버가 수신 시각과 대조하는 데만 쓰고, 승부 시각은 서버가 찍는다.
   Future<SubmissionResult> submitEvidence({
     required String battleId,

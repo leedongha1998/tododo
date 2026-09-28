@@ -17,6 +17,8 @@ class Battle {
     this.superiorityCriteria,
     this.criteriaVersion = 1,
     this.verdictReason,
+    this.judgingOpenedAt,
+    this.judgeDeadlineAt,
   });
 
   final String id;
@@ -49,9 +51,14 @@ class Battle {
   /// 두 기준 목록의 공통 버전. 참가자는 자기가 확인한 버전으로만 참가할 수 있다.
   final int criteriaVersion;
 
-  /// 품질전 AI 판정의 한 줄 사유. 둘 다 최소 기준을 통과했으면 우열 기준에 근거한 승패 사유,
-  /// 한쪽만 통과했으면 미달 쪽 사진의 사유다. 판정과 동시에 종결되므로 종결 뒤에만 값이 있다.
+  /// 품질전 우열 AI 재판정의 한 줄 사유. 그 판정이 곧바로 종결시키므로 종결 뒤에만 값이 있다.
   final String? verdictReason;
+
+  /// 판정 창이 열린 서버 시각. 양쪽이 제출하거나 마감되면 생긴다. null이면 아직 제출 창이다.
+  final DateTime? judgingOpenedAt;
+
+  /// 판정 기한(판정 창이 열린 시각 + 24시간). 지나면 판정하지 않은 사람은 승인한 것이 된다.
+  final DateTime? judgeDeadlineAt;
 
   bool get hasSuperiorityCriteria => (superiorityCriteria ?? const []).isNotEmpty;
 
@@ -80,5 +87,11 @@ class Battle {
         superiorityCriteria: _criteriaOf(map['superiority_criteria']),
         criteriaVersion: (map['criteria_version'] as int?) ?? 1,
         verdictReason: map['verdict_reason'] as String?,
+        judgingOpenedAt: map['judging_opened_at'] == null
+            ? null
+            : DateTime.parse(map['judging_opened_at'] as String),
+        judgeDeadlineAt: map['judge_deadline_at'] == null
+            ? null
+            : DateTime.parse(map['judge_deadline_at'] as String),
       );
 }

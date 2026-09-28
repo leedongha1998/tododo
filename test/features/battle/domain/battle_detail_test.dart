@@ -11,6 +11,7 @@ BattleDetail _buildDetail({
   String? forfeitedBy,
   String? myOutcome,
   String? opponentOutcome,
+  bool opponentSubmitted = false,
 }) {
   final battle = Battle(
     id: 'b1',
@@ -26,7 +27,12 @@ BattleDetail _buildDetail({
   return BattleDetail(
     battle: battle,
     me: BattleParticipant(battleId: 'b1', userId: 'me', outcome: myOutcome),
-    opponent: BattleParticipant(battleId: 'b1', userId: 'friend', outcome: opponentOutcome),
+    opponent: BattleParticipant(
+      battleId: 'b1',
+      userId: 'friend',
+      outcome: opponentOutcome,
+      hasSubmitted: opponentSubmitted,
+    ),
     myName: '나',
     opponentName: '친구',
   );
@@ -52,10 +58,20 @@ void main() {
           expect(detail.canForfeit, isFalse, reason: status);
         }
       });
+
+      test('$type: active는 제출 창, judging은 판정 창이다', () {
+        final active = _buildDetail(type: type, status: 'active');
+        expect(active.isSubmissionWindow, isTrue);
+        expect(active.isJudgingWindow, isFalse);
+
+        final judging = _buildDetail(type: type, status: 'judging');
+        expect(judging.isSubmissionWindow, isFalse);
+        expect(judging.isJudgingWindow, isTrue);
+      });
     }
 
-    test('속도전에서 한쪽이 먼저 통과해도 서버가 종결하기 전까지는 진행 중이다', () {
-      final detail = _buildDetail(type: 'speed', status: 'active');
+    test('판정 창에서도 서버가 종결하기 전까지는 승패가 없다', () {
+      final detail = _buildDetail(type: 'speed', status: 'judging');
       expect(detail.isOngoing, isTrue);
       expect(detail.didIWin, isFalse);
       expect(detail.didILose, isFalse);
@@ -104,7 +120,20 @@ void main() {
         opponentOutcome: 'win',
       );
       expect(detail.didILose, isTrue);
-      expect(detail.me.outcome, 'completed_loss');
+      expect(detail.didICompleteButLose, isTrue);
+    });
+
+    test('품질전에서 상대가 끝내 내지 않아 이긴 경우를 구분한다', () {
+      final noShow = _buildDetail(type: 'quality', status: 'finished', winnerId: 'me');
+      expect(noShow.didIWinByOpponentNoShow, isTrue);
+
+      final judged = _buildDetail(
+        type: 'quality',
+        status: 'finished',
+        winnerId: 'me',
+        opponentSubmitted: true,
+      );
+      expect(judged.didIWinByOpponentNoShow, isFalse);
     });
   });
 
@@ -150,128 +179,131 @@ void main() {
   // 제출 가능 여부는 화면 활성화 판단이다. 같은 검사를 서버가 다시 하므로 여기서 막지 못해도
   // 규칙이 깨지지는 않는다 — 반대로 여기서 열어 두면 사용자가 거부당하는 헛걸음을 한다.
   group('제출 가능 판단', () {
-    test('진행 중이고 마감 전이며 통과·판정 중·소진이 아니면 낼 수 있다', () {
-      final detail = _speedDetail();
-      expect(detail.canSubmitEvidenceAt(_now), isTrue);
-      expect(detail.myAttemptsLeft, 5);
+    for (final type in _types) {
+      test('$type: 제출 창이고 마감 전이며 아직 내지 않았으면 낼 수 있다', () {
+        final detail = _detail(type: type);
+        expect(detail.hasMySubmission, isFalse);
+        expect(detail.canSubmitEvidenceAt(_now), isTrue);
+      });
+
+      test('$type: 이미 냈으면 첫 제출 버튼은 닫힌다', () {
+        final bySummary = _detail(type: type, mySubmitted: true);
+        expect(bySummary.hasMySubmission, isTrue);
+        expect(bySummary.canSubmitEvidenceAt(_now), isFalse);
+
+        // 요약보다 제출 행이 먼저 보여도 같다.
+        final byRow = _detail(type: type, submissions: [_submission()]);
+        expect(byRow.hasMySubmission, isTrue);
+        expect(byRow.canSubmitEvidenceAt(_now), isFalse);
+      });
+
+      test('$type: 마감이 지나면 낼 수 없다', () {
+        final detail = _detail(type: type, deadlineAt: _now.subtract(const Duration(minutes: 1)));
+        expect(detail.isPastDeadline(_now), isTrue);
+        expect(detail.canSubmitEvidenceAt(_now), isFalse);
+      });
+
+      test('$type: 판정 창이나 종결 상태에서는 낼 수 없다', () {
+        for (final status in ['judging', 'finished', 'draw', 'voided', 'cancelled']) {
+          final detail = _detail(type: type, status: status);
+          expect(detail.canSubmitEvidenceAt(_now), isFalse, reason: status);
+        }
+      });
+    }
+  });
+
+  // 교체는 속도전에서 상대가 아직 내지 않은 동안만이다(spec D3).
+  group('교체 가능 판단', () {
+    test('속도전은 내가 냈고 상대가 아직 내지 않았으면 바꿀 수 있다', () {
+      final detail = _detail(mySubmitted: true, submissions: [_submission()]);
+      expect(detail.canReplaceEvidenceAt(_now), isTrue);
     });
 
-    test('마감이 지나면 낼 수 없다', () {
-      final detail = _speedDetail(deadlineAt: _now.subtract(const Duration(minutes: 1)));
-      expect(detail.isPastDeadline(_now), isTrue);
-      expect(detail.canSubmitEvidenceAt(_now), isFalse);
+    test('상대가 제출하면 내 사진도 잠긴다', () {
+      final detail = _detail(mySubmitted: true, opponentSubmitted: true);
+      expect(detail.canReplaceEvidenceAt(_now), isFalse);
     });
 
-    test('판정 중인 내 제출이 있으면 낼 수 없다', () {
-      final detail = _speedDetail(submissions: [_submission(status: 'judging')]);
-      expect(detail.isMyJudgingInProgress, isTrue);
-      expect(detail.canSubmitEvidenceAt(_now), isFalse);
+    test('아직 내지 않았으면 바꿀 것이 없다', () {
+      expect(_detail().canReplaceEvidenceAt(_now), isFalse);
     });
 
-    test('통과하면 잠긴다(통과 시각이 바뀌지 않는다)', () {
-      final detail = _speedDetail(passedAt: _now, submissions: [_submission(status: 'passed')]);
-      expect(detail.didIPass, isTrue);
-      expect(detail.isMySubmissionLocked, isTrue);
-      expect(detail.canSubmitEvidenceAt(_now), isFalse);
-    });
-
-    test('판정 5회를 다 쓰면 더 낼 수 없다', () {
-      final detail = _speedDetail(
-        attemptsUsed: 5,
-        submissions: [for (var i = 0; i < 5; i++) _submission(id: i + 1, status: 'failed')],
-      );
-      expect(detail.myAttemptsUsed, 5);
-      expect(detail.myAttemptsLeft, 0);
-      expect(detail.didIUseAllAttempts, isTrue);
-      expect(detail.canSubmitEvidenceAt(_now), isFalse);
-    });
-
-    test('AI 실패(error)는 횟수에 들어가지 않아 다시 낼 수 있다', () {
-      final detail = _speedDetail(
-        submissions: [for (var i = 0; i < 3; i++) _submission(id: i + 1, status: 'error')],
-      );
-      expect(detail.myAttemptsUsed, 0);
-      expect(detail.myAttemptsLeft, 5);
-      expect(detail.canSubmitEvidenceAt(_now), isTrue);
-    });
-
-    // 품질전은 제출이 한 번뿐이고 재제출 수단이 없다(결정 14).
-    test('품질전은 아직 내지 않았을 때만 낼 수 있다', () {
-      final before = _speedDetail(type: 'quality');
-      expect(before.isQuality, isTrue);
-      expect(before.hasMyQualitySubmission, isFalse);
-      expect(before.canSubmitEvidenceAt(_now), isTrue);
-
-      final after = _speedDetail(
-        type: 'quality',
-        submissions: [_submission(status: 'submitted')],
-      );
-      expect(after.hasMyQualitySubmission, isTrue);
-      expect(after.canSubmitEvidenceAt(_now), isFalse);
-    });
-
-    test('품질전 판정 중(judging)에는 낼 수 없다', () {
-      final detail = _speedDetail(
-        type: 'quality',
-        status: 'judging',
-        submissions: [_submission(status: 'submitted')],
-      );
-      expect(detail.isQualityJudging, isTrue);
-      expect(detail.canSubmitEvidenceAt(_now), isFalse);
-    });
-
-    test('품질전도 마감이 지나면 낼 수 없다', () {
-      final detail = _speedDetail(
-        type: 'quality',
+    test('마감이 지나거나 판정 창이면 바꿀 수 없다', () {
+      final pastDeadline = _detail(
+        mySubmitted: true,
         deadlineAt: _now.subtract(const Duration(minutes: 1)),
       );
-      expect(detail.canSubmitEvidenceAt(_now), isFalse);
+      expect(pastDeadline.canReplaceEvidenceAt(_now), isFalse);
+
+      final judging = _detail(mySubmitted: true, status: 'judging');
+      expect(judging.canReplaceEvidenceAt(_now), isFalse);
     });
 
-    test('종결된 대결에는 낼 수 없다', () {
-      for (final status in ['finished', 'draw', 'voided', 'cancelled']) {
-        final detail = _speedDetail(status: status);
-        expect(detail.canSubmitEvidenceAt(_now), isFalse, reason: status);
-      }
+    test('품질전에는 교체가 없다', () {
+      final detail = _detail(type: 'quality', mySubmitted: true);
+      expect(detail.canReplaceEvidenceAt(_now), isFalse);
+    });
+  });
+
+  group('판정 창에서 할 일', () {
+    test('상대가 제출했고 내가 아직 판정하지 않았으면 내 판정 차례다', () {
+      final detail = _detail(status: 'judging', mySubmitted: true, opponentSubmitted: true);
+      expect(detail.hasSomethingToJudge, isTrue);
+      expect(detail.isMyJudgmentDue, isTrue);
+    });
+
+    test('판정했으면(자동 승인 포함) 더 할 일이 없다', () {
+      final detail = _detail(
+        status: 'judging',
+        mySubmitted: true,
+        opponentSubmitted: true,
+        myJudged: true,
+      );
+      expect(detail.isMyJudgmentDue, isFalse);
+    });
+
+    test('속도전에서 상대가 내지 않고 마감됐으면 판정할 것이 없다', () {
+      final detail = _detail(status: 'judging', mySubmitted: true);
+      expect(detail.hasSomethingToJudge, isFalse);
+      expect(detail.isMyJudgmentDue, isFalse);
+    });
+
+    test('제출 창에서는 판정할 것이 없다', () {
+      final detail = _detail(mySubmitted: true, opponentSubmitted: true);
+      expect(detail.hasSomethingToJudge, isFalse);
     });
   });
 
   group('제출 공개 범위', () {
-    test('진행 중에는 서버가 내 제출만 주고, 종결 뒤에 양쪽이 열린다', () {
-      final ongoing = _speedDetail(submissions: [_submission(status: 'failed')]);
-      expect(ongoing.mySubmissions.length, 1);
+    test('제출 창에서는 서버가 내 제출만 주고, 판정 창과 종결 뒤에는 양쪽이 열린다', () {
+      final ongoing = _detail(submissions: [_submission()]);
+      expect(ongoing.mySubmission, isNotNull);
+      expect(ongoing.opponentSubmission, isNull);
       expect(ongoing.areSubmissionsRevealed, isFalse);
 
-      final finished = _speedDetail(
-        status: 'finished',
-        submissions: [
-          _submission(id: 1, status: 'passed'),
-          _submission(id: 2, status: 'failed', userId: 'friend'),
-        ],
-      );
-      expect(finished.areSubmissionsRevealed, isTrue);
-      // 내 영역에는 상대 제출이 섞이지 않는다.
-      expect(finished.mySubmissions.length, 1);
+      for (final status in ['judging', 'finished', 'draw', 'voided', 'cancelled']) {
+        final revealed = _detail(
+          status: status,
+          submissions: [_submission(id: 1), _submission(id: 2, userId: 'friend')],
+        );
+        expect(revealed.areSubmissionsRevealed, isTrue, reason: status);
+        // 내 제출과 상대 제출이 섞이지 않는다.
+        expect(revealed.mySubmission?.id, 1, reason: status);
+        expect(revealed.opponentSubmission?.id, 2, reason: status);
+      }
     });
 
-    test('상대 제출 사실과 최근 판정은 요약 컬럼에서 읽는다(사유는 없다)', () {
-      final detail = _speedDetail(
-        opponentFirstSubmittedAt: _now,
-        opponentLastVerdict: 'passed',
-      );
+    test('상대 제출 사실은 요약 컬럼에서 읽는다(시각·사진은 없다)', () {
+      final detail = _detail(opponentSubmitted: true);
       expect(detail.hasOpponentSubmitted, isTrue);
-      expect(detail.opponentLastVerdict, 'passed');
+      expect(detail.opponentSubmission, isNull);
     });
   });
 }
 
 final _now = DateTime(2026, 9, 16, 12);
 
-BattleSubmission _submission({
-  int id = 1,
-  String status = 'failed',
-  String userId = 'me',
-}) {
+BattleSubmission _submission({int id = 1, String userId = 'me'}) {
   return BattleSubmission(
     id: id,
     battleId: 'b1',
@@ -279,18 +311,16 @@ BattleSubmission _submission({
     objectPath: 'b1/$userId/$id.jpg',
     capturedAt: _now,
     submittedAt: _now,
-    status: status,
   );
 }
 
-BattleDetail _speedDetail({
+BattleDetail _detail({
   String type = 'speed',
   String status = 'active',
   DateTime? deadlineAt,
-  DateTime? passedAt,
-  int attemptsUsed = 0,
-  DateTime? opponentFirstSubmittedAt,
-  String? opponentLastVerdict,
+  bool mySubmitted = false,
+  bool myJudged = false,
+  bool opponentSubmitted = false,
   List<BattleSubmission> submissions = const [],
 }) {
   final battle = Battle(
@@ -310,14 +340,13 @@ BattleDetail _speedDetail({
     me: BattleParticipant(
       battleId: 'b1',
       userId: 'me',
-      attemptsUsed: attemptsUsed,
-      passedAt: passedAt,
+      hasSubmitted: mySubmitted,
+      hasJudged: myJudged,
     ),
     opponent: BattleParticipant(
       battleId: 'b1',
       userId: 'friend',
-      firstSubmittedAt: opponentFirstSubmittedAt,
-      lastVerdict: opponentLastVerdict,
+      hasSubmitted: opponentSubmitted,
     ),
     myName: '나',
     opponentName: '친구',

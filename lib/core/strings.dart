@@ -66,19 +66,24 @@ class AppStrings {
   static const battleDurationNotice = '마감은 상대가 매칭되는 순간부터 시작돼요.';
   static const battleDurationShortWarning = '짧은 기간을 고르면 매칭 알림을 놓쳤을 때 손도 못 대고 질 수 있어요.';
   static const battleDurationWindowNotice = '기간은 사진을 내는 시간이고, 마감 뒤 24시간 동안 서로 판정해요.';
-  static const battleDeadlineLabel = '마감';
+  // 상세 헤더의 시간 두 줄. 제출 창과 판정 창을 다른 줄로 보여 줘야 "1분 대결이 하루 걸린다"는
+  // 오해가 생기지 않는다(design 화면 4).
+  static const battleDeadlineLabel = '사진 마감';
+  static const battleJudgeDeadlineLabel = '판정 마감';
   static const battleDeadlinePassed = '마감이 지났어요. 곧 결과가 정리돼요.';
   // 속도전 아무도 통과 못함(마감 또는 양쪽 판정 소진), 품질전 제출 없음·둘 다 기준 미달.
   // 마감 전에 끝나는 경우도 있어서 "시간이 다 됐다"로만 말하지 않는다.
   static const battleDrawMessage = '승부를 가를 기준 통과가 없어 무승부로 끝났어요.';
   static String battleDeadlineLeft(String remaining) => '$remaining 남음';
 
-  // 내 대결 목록의 상태 한 줄. 푸시가 없는 MVP에서 "알림 대상 사건"을 앱 안에서 확인하는 자리다.
-  static const battleListSettling = '마감됨 · 판정 마무리 중';
-  static const battleListJudging = 'AI가 두 사진을 판정하는 중';
-  static const battleListOpponentPassed = '상대가 기준을 통과했어요';
-  static const battleListOpponentFailed = '상대가 불합격했어요';
+  // 내 대결 목록의 상태 한 줄. 푸시가 붙기 전까지 "알림 대상 사건"을 앱 안에서 확인하는 자리다.
+  static const battleListSettling = '마감됨 · 정리 중';
   static const battleListOpponentSubmitted = '상대가 제출했어요';
+  static const battleListBothSubmitted = '양쪽 다 제출했어요';
+  static const battleListMyJudgeTurn = '판정할 차례예요';
+  static String battleListMyJudgeTurnLeft(String remaining) => '판정할 차례예요 · $remaining 남음';
+  static const battleListWaitingOpponentJudgment = '상대 판정을 기다리는 중';
+  static const battleListAiRejudging = 'AI가 다시 보고 있어요';
 
   static const battleVersus = 'vs';
   static const battleMe = '나';
@@ -98,48 +103,41 @@ class AppStrings {
 
   static const battleEvidencePhotoLoadFailed = '사진을 불러오지 못했어요.';
 
-  // 증거 사진 제출과 속도전 판정. 증거는 앱 카메라로 찍은 사진만이다(갤러리 경로 없음).
+  // 증거 사진 제출. 증거는 앱 카메라로 찍은 사진만이다(갤러리 경로 없음).
+  // 제출 즉시 판정은 없다 — 판정은 사진 제출이 끝난 뒤 판정 창에서 참가자끼리 한다.
   static const battleEvidenceSectionTitle = '내 증거';
   static const battleEvidenceTakePhoto = '사진 찍기';
   static const battleEvidenceRetake = '다시 찍기';
   static const battleEvidenceSubmit = '제출';
   static const battleEvidenceUploading = '사진을 올리고 있어요';
-  static const battleEvidenceJudging = 'AI가 판정하는 중이에요';
-  static String battleEvidenceAttemptsLeft(int left) => '판정 $left/5회 남음 · AI 실패는 횟수에서 빠져요';
-  static const battleEvidencePassedTitle = '기준 통과!';
-  static String battleEvidencePassedAt(String time) => '통과 시각 $time';
-  static const battleEvidenceFailedTitle = '불합격';
-  static const battleEvidenceErrorTitle = 'AI 판정에 실패했어요';
-  static const battleEvidenceErrorDetail = '횟수는 차감되지 않았어요. 다시 제출해 주세요.';
-  static const battleEvidenceExhausted = '판정 횟수를 모두 썼어요.';
-  // 상대에게 더 이른 판정 중 제출이 있을 수 있으므로 "승리 확정"이라고 말하지 않는다.
-  static const battleEvidencePassedLocked = '기준을 먼저 통과했어요. 마감까지 대결은 진행 중이에요.';
-  static const battleEvidenceHistoryTitle = '내 제출 이력';
-  // 종결 뒤에는 양쪽 제출이 사진·사유와 함께 열린다(진행 중에는 서버가 상대 행을 주지 않는다).
+  static const battleEvidenceSpeedHint = '서버가 받은 제출 시각이 승부예요. 판정은 사진 제출이 끝난 뒤 서로 해요.';
+  static const battleEvidenceSubmittedTitle = '제출 완료';
+  static String battleEvidenceSubmittedAt(String time) => '제출 시각 $time';
+  static const battleEvidenceWaitingOpponent = '상대가 제출하면 판정이 시작돼요.';
+  static const battleEvidenceWaitingDeadline = '마감이 지나면 판정이 시작돼요.';
+  // 판정 창이 열리거나 종결되면 양쪽 제출이 열린다(그 전에는 서버가 상대 행을 주지 않는다).
   static const battleEvidenceNoSubmission = '제출한 사진이 없어요.';
   static const battleEvidenceCaptureFailed = '사진을 찍지 못했어요. 다시 시도해주세요.';
   static const battleEvidenceSubmitFailed = '제출에 실패했습니다. 다시 시도해주세요.';
-  static const battleEvidenceVerdictPassed = '합격';
-  static const battleEvidenceVerdictFailed = '불합격';
-  static const battleEvidenceVerdictError = '판정 실패';
-  static const battleEvidenceVerdictJudging = '판정 중';
-  static const battleEvidenceVerdictSubmitted = '제출됨';
-  // 상대 영역. 진행 중에는 사진도 사유도 보여 주지 않는다(서버도 내주지 않는다).
+  static const battleEvidenceVerdictPassed = '통과';
+  static const battleEvidenceVerdictFailed = '미달';
+  static const battleEvidenceVerdictPending = '판정 전';
+  // 상대 영역. 판정 창 전에는 사진도 시각도 보여 주지 않는다(서버도 내주지 않는다).
   static const battleEvidenceOpponentTitle = '상대 제출';
   static const battleEvidenceOpponentWaiting = '아직 제출 전';
-  static String battleEvidenceOpponentSubmitted(String time) => '제출했어요 ($time)';
-  static String battleEvidenceOpponentVerdict(String verdict, int used) =>
-      '최근 판정: $verdict · 판정 $used/5회 사용';
+  static const battleEvidenceOpponentSubmitted = '제출했어요';
+
+  // 판정 창. 판정 화면은 4단계에서 붙는다. 그 전까지는 기한이 지나면 자동 승인으로 끝난다.
+  static const battleJudgingTitle = '판정 중';
+  static const battleJudgingPreparing = '판정 화면은 준비 중이에요. 판정 마감이 지나면 판정하지 않은 쪽은 '
+      '상대의 완료를 인정한 것으로 처리돼요.';
+  static const battleJudgingNothingToJudge = '상대가 사진을 내지 않아 판정할 것이 없어요.';
 
   // 품질전 제출. 한 번만 낼 수 있고 재제출 수단이 없어서 제출 전에 반드시 확인받는다(결정 14).
   static const battleEvidenceQualityOnce = '품질전은 한 번만 낼 수 있어요. 기간 안에 더 완벽하게 해낸 사람이 이겨요.';
   static const battleEvidenceQualitySubmit = '제출 (한 번만 가능)';
   static const battleEvidenceQualityConfirmTitle = '이 사진으로 제출할까요?';
   static const battleEvidenceQualityConfirm = '품질전은 한 번만 낼 수 있어요. 제출한 뒤에는 다시 찍을 수 없어요.';
-  static const battleEvidenceQualitySubmittedTitle = '제출 완료';
-  static const battleEvidenceQualityWaiting = '상대가 제출하면 AI가 두 사진을 판정해요.';
-  static const battleEvidenceQualityJudgingTitle = 'AI가 판정하는 중';
-  static const battleEvidenceQualityJudging = '두 사진을 비교하고 있어요. 판정에 실패하면 자동으로 다시 시도해요.';
   static const battleVoidedMessage = 'AI 판정이 계속 실패해 무효가 됐어요. 점수·전적에 반영되지 않아요.';
 
   static const battleForfeit = '대결 포기';
@@ -236,9 +234,8 @@ class AppStrings {
   static const battleErrorCapturedBeforeStart = '대결이 시작되기 전에 찍은 사진은 낼 수 없어요.';
   static const battleErrorCaptureTimeMismatch = '찍은 지 10분이 지난 사진이에요. 다시 찍어 주세요.';
   static const battleErrorDeadlinePassed = '마감이 지나 제출할 수 없어요.';
-  static const battleErrorSubmissionLocked = '더 이상 제출할 수 없어요.';
-  static const battleErrorJudgingInProgress = '앞선 제출을 판정하는 중이에요. 잠시 후 다시 시도해주세요.';
-  static const battleErrorAttemptsExhausted = '판정 횟수를 모두 썼어요.';
+  // 속도전 교체 시 상대가 먼저 제출한 경우, 품질전 두 번째 제출, 판정 창이 열린 뒤.
+  static const battleErrorSubmissionLocked = '상대가 이미 제출해서 바꿀 수 없어요.';
   static const battleErrorUnknown = '요청을 처리하지 못했습니다. 다시 시도해주세요.';
 
   static const profileTitle = '프로필';

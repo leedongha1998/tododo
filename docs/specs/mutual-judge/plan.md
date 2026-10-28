@@ -181,6 +181,38 @@
 - 커밋: `feat: 판정 창과 상호 판정 기록 스키마` / `feat: 속도전 제출 교체` / `refactor: 제출 즉시 AI 판정 제거`.
 - 검증: 규칙 테스트 전 케이스, 흐름 스모크 `ok=t`, 두 번째 계정으로 진행 중 상대 `battle_submissions` 0행·서명 URL 발급 실패 / 창 열린 뒤 1행.
 
+### 2단계 원격 적용 체크리스트 (오너 — 순서 그대로, 2026-10-28 작성)
+
+로컬 구현은 `af017f7`로 커밋·푸시됐다. 모든 명령은 `C:\workspaces\todododo`에서 실행한다.
+
+1. `supabase db push --dry-run` — 새 파일 **1개**(`20260922120000_judging_window.sql`)만 나오는지 확인. 다른 파일이 같이 나오면 멈추고 원인부터 본다.
+2. `supabase db push`
+3. **즉시** `supabase functions deploy submit-evidence` — 2와 3 사이에는 속도전 제출이 전부 실패한다(배포된 옛 함수가 드롭된 `record_speed_verdict`를 부른다). 2가 끝나면 다른 것 보지 말고 이것부터 한다.
+4. `supabase migration list --linked` — 로컬 25개 = 원격 25개, 마지막이 `20260922120000`.
+5. cron 확인: `supabase db query --linked "select jobname, schedule, command from cron.job order by jobname;"`
+   - `close-judging-windows`가 새로 있고 `* * * * *`.
+   - `ai-judge-tick` 명령이 `select public.sweep_stale_criteria_calls(); select public.dispatch_quality_judgments();`.
+   - `settle-expired-battles`는 `* * * * *` 그대로.
+6. SQL 테스트 — 순서 그대로, 앞이 깨지면 뒤를 돌리지 않는다. 쓰기가 있는 스모크는 마지막에 롤백하므로 원격 데이터는 그대로다.
+   1. `supabase db query --linked -f supabase/tests/mutual_judge_rules.sql` → 39케이스 전부 `ok=t`, 요약 행(`case_no 99`)이 `39케이스 / 39 통과 / t`
+   2. `supabase db query --linked -f supabase/tests/mutual_judge_flow_smoke.sql` → `SMOKE RESULT ok=t`
+   3. `supabase db query --linked -f supabase/tests/ai_judge_flow_smoke.sql` → `ok=t`
+   4. `supabase db query --linked -f supabase/tests/resolve_battle_smoke.sql` → `ok=t`
+   5. `supabase db query --linked -f supabase/tests/settle_expired_battles_smoke.sql` → `ok=t`
+   6. 회귀(순서 무관): `forfeit_battle_smoke.sql` / `delete_account_smoke.sql` / `criteria_smoke.sql` / `join_battle_smoke.sql` / `ai_consent_smoke.sql` / `push_token_smoke.sql` / `custom_duration_smoke.sql` → 각 `ok=t`
+   - **`battle_outcome_rules.sql`은 이번 단계에서 삭제됐다. 돌리지 말 것**(검증 대상 함수 `speed_outcome`·`quality_outcome`·`quality_deadline_outcome`이 드롭됐고 `mutual_judge_rules.sql`이 대체한다).
+7. 에뮬레이터 확인(아래 "에뮬레이터 수동 확인"): 두 계정으로 속도전 제출·교체까지. 판정 화면은 4단계이므로 창이 열리면 "판정 기능은 준비 중" 안내만 보이는 것이 정상이다.
+
+#### 이번 단계에서 하지 않는 것
+- **Storage 정리 불필요** — 이 마이그레이션은 사진을 지우지 않고 정책만 교체한다(1단계에서 남은 고아 사진 8장은 대시보드 정리 대기 그대로).
+- **`judge-quality` 삭제·Vault 값 교체 없음** — 3단계 몫. 테이블·함수는 살아 있지만 새 잡이 생기지 않아 무해하다.
+- `create_battle`/`join_battle`/`list_open_recruits`는 손대지 않았다(1단계 상태 그대로).
+
+#### 되돌리기 어려운 지점
+- `battle_participants`(`first_submitted_at`·`attempts_used`·`last_verdict`·`passed_at`)·`battle_submissions`(`status`·`judging_started_at`) 컬럼 드롭 — 1단계 reset으로 대결이 0건이라 실제 잃는 데이터는 없다는 전제다. `db push` 전에 `supabase db query --linked "select count(*) from public.battles;"`로 0을 확인하면 전제가 유지된다.
+- `record_speed_verdict`·`sweep_stale_submissions`·`speed_outcome`·`quality_outcome`·`quality_deadline_outcome` 드롭 — 되살리려면 역방향 마이그레이션을 새로 써야 한다.
+- cron 변경은 `cron.schedule` 재호출로 되돌릴 수 있다(파괴적이지 않다).
+
 ## 3단계 — AI 재판정 (착수 메모)
 
 - 마이그레이션 `..._ai_rejudgment.sql`: `ai_judgment_jobs` + RLS(정책 없음), `ai_judgment_backoff`·`fail_ai_judgment`·`ensure_ai_judgment_job`·`claim_ai_judgment`·`record_min_criteria_verdict`·`record_superiority_verdict`·`record_ai_judgment_failure`·`dispatch_ai_judgments`, `submit_judgment`·`resolve_battle`에 잡 배선, `void_battle`·`forfeit_battle`·`delete_account` 재정의, `quality_judgments` 관련 전부 드롭, `ai-judge-tick` 명령 갱신.

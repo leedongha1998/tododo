@@ -61,6 +61,11 @@ supabase secrets set KEY=VALUE     # Edge Function 시크릿 (계정 소유자�
   Edge Function의 순수 함수 테스트(`deno test`)에 쓴다. 한글 경로를 피해 devtools 아래에 둔다.
 - Supabase CLI(v2.115.0)는 `C:\workspaces\devtools\supabase-cli\supabase.exe`에 설치됨, PATH 등록됨.
   `supabase login`은 브라우저 인증이 필요해 계정 소유자(사용자)가 직접 실행해야 함.
+- `supabase storage cp`로 파일을 올릴 때 **소스를 절대 경로로 주면 `Unsupported operation`으로 거부된다.**
+  Git Bash의 `/c/...`든 Windows의 `C:\...`든 마찬가지다(CLI가 양쪽을 로컬-로컬 복사로 본다).
+  소스 폴더로 `cd`한 뒤 **상대 경로**(`./1.jpg`)로 주면 올라간다 — 필요하면 `--workdir`로 프로젝트를
+  따로 가리킨다. 2026-10-28에 v2.115.0·v2.122.0 둘 다에서 확인했다. `storage ls`는 절대 경로와
+  무관하게 잘 된다.
 - Android 에뮬레이터(AVD) `todododo_avd`(Pixel 6, API 36, google_apis x86_64) 생성됨.
   AVD 데이터도 한글 경로를 피해 `ANDROID_SDK_HOME`/`ANDROID_AVD_HOME`을
   `C:\workspaces\devtools\android-home`(User 환경변수, 영구 등록)로 지정함 — 기본값인

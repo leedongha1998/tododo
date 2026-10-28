@@ -149,6 +149,9 @@ begin
   perform public.join_battle(v_p_thirty, 1);
 
   -- 7. 모집 목록이 분 단위 기간을 돌려주고 옛 키는 없다.
+  --    recruit-browse에서 이 함수는 인자 없이 부르면 "최신 20건"이 된다. 이 확인이 기대는 것은
+  --    DB의 모집 건수가 아니라 **created_at 순서**다 — 이 스모크가 방금 만든 모집은 같은 트랜잭션의
+  --    now()로 찍혀 기존 행(더미 등)보다 늘 최신이라 최신순 첫 묶음 안에 들어온다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_f, 'role', 'authenticated')::text, true);
   select t.item into v_recruit
   from public.list_open_recruits() as t(item)

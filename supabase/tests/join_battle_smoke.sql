@@ -171,8 +171,14 @@ begin
 
   -- 9. 목록: C에게는 D의 모집만 남는다(A·G는 매칭됐고 C 본인 모집은 없다).
   perform set_config('request.jwt.claims', json_build_object('sub', v_c, 'role', 'authenticated')::text, true);
+  -- recruit-browse에서 이 함수가 묶음(기본 20건)으로 바뀌었고, 원격에는 이 스모크 밖의 모집 행
+  -- (더미 등)이 이미 있다. 그래서 묶음 크기를 명시하고 이 스모크가 만든 생성자만 센다 —
+  -- 확인하려는 것은 "내 모집은 빠지고 생성자 전적이 함께 온다"이지 DB 전체의 모집 수가 아니다.
+  -- 이 스모크의 모집이 그 묶음(50건) 안에 들어온다는 보장은 건수가 아니라 **created_at 순서**다:
+  -- 같은 트랜잭션의 now()로 찍혀 기존 행보다 늘 최신이므로 최신순 첫 묶음에 들어온다.
   select jsonb_agg(r order by r -> 'battle' ->> 'title') into v_recruits
-  from public.list_open_recruits() r;
+  from public.list_open_recruits(50, null, null, null, null, null) r
+  where (r -> 'battle' ->> 'creator_id')::uuid in (v_a, v_b, v_c, v_d, v_e, v_f, v_g);
 
   -- 10. 전적 카드.
   perform set_config('request.jwt.claims', json_build_object('sub', v_b, 'role', 'authenticated')::text, true);

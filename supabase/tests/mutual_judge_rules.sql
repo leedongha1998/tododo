@@ -36,7 +36,7 @@ gate_cases (case_no, description, expected, type, a_submitted, b_submitted, dead
   select 10, '품질전 아무도 제출 안 함, 마감 후 -> draw', 'draw', 'quality', false, false, true
 ),
 verdict_effect_cases (case_no, description, expected, submitted, opponent_verdict, ai_meets) as (
-  select 11, '제출 안 함 -> none', 'none', false, null, null
+  select 11, '제출 안 함 -> none', 'none', false, null, null::boolean
   union all
   select 12, '제출했고 상대가 아직 판정 안 함 -> pending', 'pending', true, null, null
   union all

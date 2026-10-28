@@ -317,10 +317,10 @@ begin
   perform public.accept_submission(v_b, v_reject_pending, format('%s/%s/1.jpg', v_reject_pending, v_b), now());
   perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
   -- a가 b의 사진을 불복한다(b의 effect가 pending이 된다).
-  perform public.submit_judgment(v_reject_pending, 'reject', null);
+  perform public.submit_judgment(v_reject_pending, 'reject', v_a);
   perform set_config('request.jwt.claims', json_build_object('sub', v_b, 'role', 'authenticated')::text, true);
   -- b는 a의 사진을 승인한다(a의 effect는 pass). 그래도 b의 effect가 pending이라 전체는 judging.
-  perform public.submit_judgment(v_reject_pending, 'approve', null);
+  perform public.submit_judgment(v_reject_pending, 'approve', v_a);
 
   -- 15. 품질전에서 우열 답을 빼면 SUPERIORITY_REQUIRED.
   perform public.accept_submission(

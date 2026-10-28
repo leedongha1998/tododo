@@ -126,8 +126,8 @@ begin
   returning id into v_w1;
   insert into public.battle_participants (battle_id, user_id) values (v_w1, v_b);
 
-  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_minutes, started_at, deadline_at)
-  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'judging', '판정 중 품질전', v_b, v_a, 4320, now(), now() + interval '3 days')
+  insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id, duration_minutes, started_at, deadline_at, judging_opened_at, judge_deadline_at)
+  values ('["상판이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'judging', '판정 중 품질전', v_b, v_a, 4320, now(), now() + interval '3 days', now(), now() + interval '24 hours')
   returning id into v_w2;
   insert into public.battle_participants (battle_id, user_id) values (v_w2, v_a);
 

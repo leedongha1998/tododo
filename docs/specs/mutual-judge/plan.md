@@ -237,7 +237,7 @@
 
 ## 진행 기록
 
-### 2단계 (로컬 구현 완료 — 오너 확인·원격 적용 대기, 2026-09-22)
+### 2단계 (로컬 구현 완료, 2026-09-22 — 원격 적용은 아래 "2단계 원격 적용 결과")
 - developer 에이전트가 재개해 로컬 구현을 끝냈다. **커밋·원격 적용·배포는 하지 않았다** — 작업 트리에 변경만 남아 있다. 메인 세션이 `flutter analyze`(이슈 0)·`flutter test`(273개 통과)·`deno test supabase/functions/_shared/`(26개 통과)를 다시 돌려 보고를 검증했다.
 - **새 파일**: `supabase/migrations/20260922120000_judging_window.sql`, `supabase/tests/mutual_judge_rules.sql`, `supabase/tests/mutual_judge_flow_smoke.sql`.
 - **고친 파일**: `supabase/functions/submit-evidence/index.ts`(Gemini 즉시 호출 제거, 교체 시 밀려난 사진 삭제), `supabase/functions/_shared/errors.ts`(`JUDGING_IN_PROGRESS`/`ATTEMPTS_EXHAUSTED` 제거), `supabase/tests/{ai_judge_flow_smoke,resolve_battle_smoke,settle_expired_battles_smoke,delete_account_smoke}.sql`, Dart data/domain/presentation 9개 파일(`battle*.dart`, `submission_rules.dart`, `submission_result.dart`, `evidence_section.dart`, `strings.dart`) + 테스트 5개.
@@ -257,6 +257,16 @@
   7. 되돌리기 어려운 지점: `battle_participants`/`battle_submissions` 컬럼 drop(데이터 없음 전제), `record_speed_verdict`/`sweep_stale_submissions`/`speed_outcome`류 drop.
   8. SQL 테스트 함정: 같은 트랜잭션 안에서는 `now()`가 고정된다(`pg_sleep`으로 시각차를 못 만든다) — `.claude/agent-memory/developer/sql_smoke_test_now_frozen.md` 참고, 3단계 테스트 작성 시에도 적용됨.
 - **보류 그대로**: AI 재판정 배선(3단계), 판정 화면(4단계, 지금은 "판정 창이 열렸어요" 안내만), `push-notification` 2단계부터(알림 정의가 바뀌어 mutual-judge 종료 후 재개), CLAUDE.md 문구 갱신·동의 문구 갱신(5단계), Storage 고아 사진 8장·더미 계정 8개 정리.
+
+
+### 2단계 원격 적용 결과 (2026-10-28, 메인 세션)
+- 오너 지시로 메인 세션이 직접 적용했다. 대결 0건을 확인하고 `db push --dry-run`(1개) → `db push` → **즉시** `supabase functions deploy submit-evidence` → `migration list --linked`(25개 일치) 순으로 진행했다. cron 3개 전부 기대대로다(`close-judging-windows` 신규 `* * * * *`, `ai-judge-tick` 명령이 `sweep_stale_criteria_calls(); dispatch_quality_judgments();`, `settle-expired-battles` 그대로).
+- **SQL 테스트 12개 전부 통과. 다만 4개 파일을 고쳐야 했다** — 로컬에 Docker가 없어 이 테스트들은 작성 뒤 한 번도 실행된 적이 없었고, 원격에 처음 돌려 보고서야 드러났다.
+  - `mutual_judge_rules.sql`: `verdict_effect_cases`의 `ai_meets` 열이 첫 행들에서 타입 없는 `null`이라 text로 굳어 뒤의 boolean과 `UNION types text and boolean cannot be matched`. 첫 행을 `null::boolean`으로 고정했다. **교훈: 테이블 구동 테스트의 첫 행은 null 열에 타입을 박아 둔다.**
+  - `mutual_judge_flow_smoke.sql`: 14번(불복 후 judging 유지)이 품질전인데 `submit_judgment(..., 'reject', null)`로 우열 답을 빼서 `SUPERIORITY_REQUIRED`. 같은 파일 15번이 바로 그 예외를 검증하고 있었다 — 테스트가 자기 모순이었다. 양쪽 판정에 `v_a`를 넘기게 고쳤다(불복 대기 중엔 우열 값이 결과에 쓰이지 않는다).
+  - `forfeit_battle_smoke.sql`·`ai_consent_smoke.sql`: `status='judging'` 대결을 직접 insert하면서 `judging_opened_at`을 안 채워 신규 제약 `battles_judging_requires_window_check` 위반. 두 파일 모두 `judging_opened_at`·`judge_deadline_at`을 채우게 고쳤다. **2단계가 고친 스모크 목록(ai_judge_flow·resolve_battle·settle_expired_battles·delete_account)에 이 둘이 빠져 있었다 — judging을 직접 만드는 픽스처는 전부 찾아야 한다.**
+- 마이그레이션 자체는 한 줄도 고치지 않았다. 고친 것은 테스트 4개뿐이다.
+- 아직 안 한 것: 에뮬레이터·실기기 수동 확인, 폰 앱 빌드(이 머신에 릴리스 서명 키가 없다).
 
 ### 1단계 (구현 완료, 원격 적용·스모크 통과, 2026-09-18)
 - **원격 적용 결과 (2026-09-18, 메인 세션)**

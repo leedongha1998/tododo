@@ -84,8 +84,8 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
             battleId: widget.battle.id,
             checkId: checked.checkId,
           );
+      // 내 모집은 남의 모집 목록(`creator_id <> auth.uid()`)에 들어가지 않으므로 피드는 그대로다.
       ref.invalidate(myRecruitsProvider);
-      ref.invalidate(openRecruitsProvider);
       if (!mounted) return;
       Navigator.of(context).pop();
       _showSnackBar(AppStrings.battleCriteriaApplied);

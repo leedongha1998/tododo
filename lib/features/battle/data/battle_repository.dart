@@ -7,7 +7,7 @@ import 'battle.dart';
 import 'battle_participant.dart';
 import 'battle_submission.dart';
 import 'criteria_check_result.dart';
-import 'open_recruit.dart';
+import 'open_recruit_page.dart';
 import 'player_card.dart';
 import 'submission_result.dart';
 
@@ -44,12 +44,44 @@ class BattleRepository {
     return MyLimits.fromMap(Map<String, dynamic>.from(row as Map));
   }
 
-  /// 남이 올린 모집 + 기준 두 목록 + 기준 버전 + 생성자 전적을 한 번에 받는다.
-  Future<List<OpenRecruit>> fetchOpenRecruits() async {
-    final rows = await _client.rpc('list_open_recruits');
-    return (rows as List)
-        .map((row) => OpenRecruit.fromMap(Map<String, dynamic>.from(row as Map)))
-        .toList();
+  /// 남이 올린 모집 한 묶음 + 기준 두 목록 + 기준 버전 + 생성자 전적을 한 번에 받는다.
+  ///
+  /// 검색·유형·기간대·정렬·묶음 끊기는 **전부 서버가** 한다. 받은 묶음을 호출자가 다시 걸러내면
+  /// 조건에 맞는 모집이 조용히 빠진다. [cursor]는 서버가 준 값을 그대로 되돌려 보내는 것이다.
+  Future<OpenRecruitPage> fetchOpenRecruits({
+    int limit = openRecruitPageSize,
+    RecruitCursor? cursor,
+    String? query,
+    String? type,
+    String? durationBand,
+  }) async {
+    final rows = await _client.rpc(
+      'list_open_recruits',
+      params: {
+        'p_limit': limit,
+        'p_cursor_created_at': cursor?.createdAt,
+        'p_cursor_id': cursor?.id,
+        'p_query': query,
+        'p_type': type,
+        'p_duration_band': durationBand,
+      },
+    );
+    return OpenRecruitPage.fromRows(rows as List, limit);
+  }
+
+  /// 모집 중인 대결 한 건. 참가하려는 순간 생성자가 기준을 바꿨을 때 그 대결만 다시 읽는다
+  /// (목록을 다시 읽으면 첫 묶음만 보게 되어 뒤쪽 묶음의 모집은 "사라졌다"로 오인된다).
+  ///
+  /// 매칭·취소되어 더 이상 모집이 아니면 RLS가 내주지 않으므로 null이 돌아온다 — 그 null이
+  /// "이 모집은 사라졌다"는 신호다.
+  Future<Battle?> fetchOpenRecruitBattle(String battleId) async {
+    final row = await _client
+        .from('battles')
+        .select()
+        .eq('id', battleId)
+        .eq('status', 'pending')
+        .maybeSingle();
+    return row == null ? null : Battle.fromMap(row);
   }
 
   Future<List<Battle>> fetchMyRecruits() async {

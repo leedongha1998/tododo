@@ -7,7 +7,6 @@ import '../data/battle_participant.dart';
 import '../data/battle_repository.dart';
 import '../data/criteria_check_result.dart';
 import '../data/evidence_camera.dart';
-import '../data/open_recruit.dart';
 import '../data/player_card.dart';
 import '../data/vs_intro_seen_store.dart';
 import 'battle_detail.dart';
@@ -28,9 +27,7 @@ final myLimitsProvider = FutureProvider.autoDispose<MyLimits>((ref) {
 
 // 대결 목록류 provider는 화면을 떠나면 캐시를 비우는 autoDispose를 쓴다.
 // 그래야 상대가 참가/제출하는 등 서버 쪽 변화가 있어도 화면에 다시 들어올 때 최신 상태를 가져온다.
-final openRecruitsProvider = FutureProvider.autoDispose<List<OpenRecruit>>((ref) {
-  return ref.watch(battleRepositoryProvider).fetchOpenRecruits();
-});
+// 남이 올린 모집 목록은 묶음·검색·필터가 붙어 `openRecruitFeedProvider`(open_recruit_feed.dart)로 옮겼다.
 
 /// 상대·모집 생성자의 전적 카드. 서버가 공개 범위를 막으므로 임의 사용자로는 실패한다.
 final playerCardProvider = FutureProvider.autoDispose.family<PlayerCard, String>((ref, userId) {

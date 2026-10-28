@@ -18,6 +18,7 @@ import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/data/open_recruit.dart';
+import 'package:todododo/features/battle/data/open_recruit_page.dart';
 import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
@@ -91,8 +92,15 @@ class _JoinOnlyBattleRepository implements BattleRepository {
         criteriaCallsLeft: 10,
       );
 
+  /// 서버가 내주는 모집 묶음. 피드 provider가 이 값을 그대로 받아 그린다.
+  List<OpenRecruit> recruits = const [];
+
   @override
-  Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
+  Future<OpenRecruitPage> fetchOpenRecruits({int limit = openRecruitPageSize, RecruitCursor? cursor, String? query, String? type, String? durationBand}) async =>
+      OpenRecruitPage(items: recruits, nextCursor: null, hasMore: false);
+
+  @override
+  Future<Battle?> fetchOpenRecruitBattle(String battleId) async => null;
 
   @override
   Future<List<Battle>> fetchMyRecruits() async => const [];
@@ -197,6 +205,13 @@ Future<void> _pumpRecruits(
     createdAt: DateTime(2026, 9, 16),
     minCriteria: const ['운동화를 신고 밖에 있다'],
   );
+  // 목록은 provider override가 아니라 가짜 repository가 내준다(피드가 실제 notifier를 거친다).
+  battleRepository.recruits = [
+    OpenRecruit(
+      battle: battle,
+      creator: const PlayerCard(userId: 'creator1', displayName: '도윤'),
+    ),
+  ];
 
   await tester.pumpWidget(
     ProviderScope(
@@ -206,15 +221,6 @@ Future<void> _pumpRecruits(
         authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
         vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
         myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '민지')),
-        openRecruitsProvider.overrideWith(
-          (ref) async => [
-            OpenRecruit(
-              battle: battle,
-              creator: const PlayerCard(userId: 'creator1', displayName: '도윤'),
-            ),
-          ],
-        ),
-        myRecruitsProvider.overrideWith((ref) async => const []),
         myBattlesProvider.overrideWith((ref) async => const []),
       ],
       child: const MaterialApp(home: BattleRecruitsScreen()),

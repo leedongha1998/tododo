@@ -29,20 +29,38 @@ class AppStrings {
 
   static const todoTitle = '할 일';
   static const battleFind = '대결 찾기';
-  static const battleOpenRecruits = '모집 중인 대결';
+  // 찾기 탭이 남의 모집 하나짜리 목록이 되어 섹션 헤더(모집 중인 대결)가 없어졌다.
   static const battleMyRecruits = '내가 등록한 모집';
   static const battleJoined = '매칭되어 대결이 시작됐습니다.';
-  static const battleRecruitsEmpty = '모집 중인 대결이 없어요.';
   static const battleLoadRecruitsFailed = '모집 목록을 불러오지 못했습니다.';
   static const battleRecruitCancel = '취소';
   static const battleRecruitCancelled = '모집을 취소했습니다.';
   static const battleRecruitCancelFailed = '취소에 실패했습니다. 다시 시도해주세요.';
 
+  // 모집 찾기: 검색·필터·무한 스크롤·빈 상태 3종.
+  static const battleSearchHint = '제목으로 찾기';
+  static const battleFilterAll = '전체';
+  static const battleDurationBandQuick = '1시간 안';
+  static const battleDurationBandDay = '하루 안';
+  static const battleDurationBandMulti = '며칠';
+  static const battleFilterClear = '조건 지우기';
+  static const battleRecruitsEmptyNone = '아직 올라온 모집이 없어요.';
+  static const battleRecruitsEmptyNoneHint = '내가 먼저 걸어 두면 누군가 참가할 수 있어요.';
+  static const battleRecruitsEmptyFiltered = '조건에 맞는 모집이 없어요.';
+  static const battleRecruitsEmptyFilteredHint = '검색어나 필터를 바꿔 보세요.';
+  static const battleRecruitsLoadMoreFailed = '다음 목록을 불러오지 못했어요.';
+  static const battleMyRecruitWaiting = '아직 아무도 참가하지 않았어요.';
+  static const battleMyRecruitGo = '내 모집 보기';
+  static const battleMyRecruitBlocked = '이미 모집 중인 대결이 있어요. 취소하거나 매칭된 뒤에 새로 올릴 수 있어요.';
+
   static const battleMyBattles = '내 대결';
   static const battleMyBattlesEmpty = '진행 중인 대결이 없어요.';
+  // 모집 1건이 있는 상태의 "진행 중은 아직 없다". 위 빈 상태와 달리 유도 버튼을 달지 않는다.
+  static const battleNoActiveBattlesYet = '진행 중인 대결은 아직 없어요.';
   static const battleFinishedInProfile = '지난 대결은 프로필에서 볼 수 있어요.';
   static const battleLoadListFailed = '대결 목록을 불러오지 못했습니다.';
   static const battleLoadDetailFailed = '대결 정보를 불러오지 못했습니다.';
+  static const battleStatusPending = '모집 중';
   static const battleStatusActive = '진행중';
   static const battleStatusJudging = '판정중';
   static const battleStatusFinished = '종료';

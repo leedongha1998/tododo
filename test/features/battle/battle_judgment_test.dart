@@ -10,7 +10,7 @@ import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/battle_submission.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
-import 'package:todododo/features/battle/data/open_recruit.dart';
+import 'package:todododo/features/battle/data/open_recruit_page.dart';
 import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/data/submission_result.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
@@ -71,7 +71,10 @@ class _FakeBattleRepository implements BattleRepository {
       );
 
   @override
-  Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
+  Future<OpenRecruitPage> fetchOpenRecruits({int limit = openRecruitPageSize, RecruitCursor? cursor, String? query, String? type, String? durationBand}) async => const OpenRecruitPage.empty();
+
+  @override
+  Future<Battle?> fetchOpenRecruitBattle(String battleId) async => null;
 
   @override
   Future<List<Battle>> fetchMyRecruits() async => const [];

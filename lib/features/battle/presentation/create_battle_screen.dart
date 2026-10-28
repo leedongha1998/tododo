@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/navigation/app_tab.dart';
 import '../../../core/strings.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_loader.dart';
@@ -158,11 +159,15 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
             checkId: result.checkId,
             durationMinutes: _durationMinutes,
           );
-      ref.invalidate(openRecruitsProvider);
+      // 모집을 만드는 것은 남의 모집 목록을 바꾸지 않으므로 피드는 무효화하지 않는다
+      // (찾기 탭의 검색어·필터·스크롤 위치도 그대로 남는다).
       ref.invalidate(myRecruitsProvider);
       ref.invalidate(myLimitsProvider);
       if (!mounted) return;
+      // 올린 모집이 어느 화면에도 보이지 않는 구간을 만들지 않는다. 결과가 있는 자리로 보낸다.
+      // 순서가 중요하다 — pop 뒤에 탭을 바꿔야 push된 화면이 남지 않는다.
       Navigator.of(context).pop();
+      ref.read(selectedTabProvider.notifier).select(AppTab.myBattles);
       _showSnackBar(AppStrings.battleRecruitSubmitted);
     } catch (error) {
       debugPrint('createBattle failed: $error');

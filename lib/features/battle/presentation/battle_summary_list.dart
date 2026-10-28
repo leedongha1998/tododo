@@ -6,28 +6,22 @@ import '../domain/battle_summary.dart';
 import 'battle_chips.dart';
 import 'battle_detail_screen.dart';
 
-/// 진행 중인 대결 목록.
+/// 진행 중인 대결 카드들. 자체 스크롤 뷰를 갖지 않는다 — 내 대결 탭이 모집 구역과 함께
+/// 하나의 스크롤 뷰에 담기 때문이다(스크롤 뷰 중첩 금지).
 ///
 /// 제목 · 상대 · 유형 · 상태를 한 줄에 이어 붙이면 무엇이 중요한지 사라진다.
 /// 제목을 크게 두고, 상대와 유형은 아래로, 지금 상태는 오른쪽 칩으로 뗀다.
-class BattleSummaryList extends StatelessWidget {
-  const BattleSummaryList({super.key, required this.summaries});
-
-  final List<BattleSummary> summaries;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: summaries.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 8),
-      itemBuilder: (context, index) => _BattleCard(summary: summaries[index]),
-    );
-  }
+List<Widget> battleSummaryCards(List<BattleSummary> summaries) {
+  return [
+    for (final summary in summaries) ...[
+      BattleSummaryCard(summary: summary),
+      const SizedBox(height: 8),
+    ],
+  ];
 }
 
-class _BattleCard extends StatelessWidget {
-  const _BattleCard({required this.summary});
+class BattleSummaryCard extends StatelessWidget {
+  const BattleSummaryCard({super.key, required this.summary});
 
   final BattleSummary summary;
 

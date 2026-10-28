@@ -22,6 +22,7 @@ import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/data/open_recruit.dart';
+import 'package:todododo/features/battle/data/open_recruit_page.dart';
 import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/domain/battle_summary.dart';
 import 'package:todododo/features/battle/presentation/battle_chips.dart';
@@ -45,6 +46,12 @@ import 'package:todododo/main.dart';
 const _testStats = PlayerStats(score: 3, wins: 1, losses: 1, draws: 0);
 
 class _FakeBattleRepository implements BattleRepository {
+  _FakeBattleRepository({this.recruits = const []});
+
+  /// 서버가 내주는 모집 묶음. 피드 provider가 이 값을 그대로 받아 그린다
+  /// (목록을 provider override로 끼워 넣지 않고 repository 한 곳에서만 가짜로 만든다).
+  final List<OpenRecruit> recruits;
+
   @override
   Future<String> createBattle({required String checkId, required int durationMinutes}) async =>
       'new-battle';
@@ -61,7 +68,16 @@ class _FakeBattleRepository implements BattleRepository {
       );
 
   @override
-  Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
+  Future<OpenRecruitPage> fetchOpenRecruits({
+    int limit = openRecruitPageSize,
+    RecruitCursor? cursor,
+    String? query,
+    String? type,
+    String? durationBand,
+  }) async => OpenRecruitPage(items: recruits, nextCursor: null, hasMore: false);
+
+  @override
+  Future<Battle?> fetchOpenRecruitBattle(String battleId) async => null;
 
   @override
   Future<PlayerCard> fetchPlayerCard(String userId) async => const PlayerCard(
@@ -323,8 +339,9 @@ void main() {
         overrides: [
           todosProvider.overrideWith((ref) async => []),
           myBattlesProvider.overrideWith((ref) async => []),
-          openRecruitsProvider.overrideWith((ref) async => []),
           myRecruitsProvider.overrideWith((ref) async => []),
+          // 찾기 탭의 모집 피드와 한도는 repository를 통해 읽는다(목록 provider override는 없다).
+          battleRepositoryProvider.overrideWithValue(_FakeBattleRepository()),
           // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
           myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
@@ -363,8 +380,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          openRecruitsProvider.overrideWith((ref) async => []),
-          myRecruitsProvider.overrideWith((ref) async => []),
+          battleRepositoryProvider.overrideWithValue(_FakeBattleRepository()),
         ],
         child: const MaterialApp(home: BattleRecruitsScreen()),
       ),
@@ -392,22 +408,23 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          openRecruitsProvider.overrideWith(
-            (ref) async => [
-              OpenRecruit(
-                battle: battle,
-                creator: const PlayerCard(
-                  userId: 'creator1',
-                  displayName: '친구',
-                  score: 6,
-                  wins: 2,
-                  losses: 1,
-                  draws: 0,
+          battleRepositoryProvider.overrideWithValue(
+            _FakeBattleRepository(
+              recruits: [
+                OpenRecruit(
+                  battle: battle,
+                  creator: const PlayerCard(
+                    userId: 'creator1',
+                    displayName: '친구',
+                    score: 6,
+                    wins: 2,
+                    losses: 1,
+                    draws: 0,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          myRecruitsProvider.overrideWith((ref) async => const []),
         ],
         child: const MaterialApp(home: BattleRecruitsScreen()),
       ),

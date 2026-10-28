@@ -26,6 +26,14 @@ class MainShell extends ConsumerWidget {
     ref.listen(selectedTabProvider, (previous, next) {
       if (next == AppTab.myBattles && previous != AppTab.myBattles) {
         ref.invalidate(myBattlesProvider);
+        // 자리를 비운 사이 내 모집이 매칭돼 모집 구역에서 진행 중 목록으로 옮겨가 있을 수 있다.
+        ref.invalidate(myRecruitsProvider);
+      }
+      // 찾기 탭의 안내 배너와 만들기 버튼 분기가 "이미 모집 중인지"에 걸려 있고, 그 값은 서버에서 바뀐다.
+      // 모집 목록(피드)은 일부러 포함하지 않는다 — 스크롤 위치와 검색·필터 조건을 지키고,
+      // 새 모집은 당겨서 새로고침으로 받는다.
+      if (next == AppTab.find && previous != AppTab.find) {
+        ref.invalidate(myLimitsProvider);
       }
       // 점수와 전적도 종결 시점에 서버가 바꾼다. 프로필로 돌아올 때 함께 다시 읽는다.
       if (next == AppTab.profile && previous != AppTab.profile) {

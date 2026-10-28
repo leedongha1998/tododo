@@ -17,6 +17,7 @@ import 'package:todododo/features/battle/data/submission_result.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/data/open_recruit.dart';
+import 'package:todododo/features/battle/data/open_recruit_page.dart';
 import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/data/profile.dart';
 import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
@@ -45,8 +46,28 @@ class _FakeBattleRepository implements BattleRepository {
   Future<PlayerCard> fetchPlayerCard(String userId) async =>
       const PlayerCard(userId: 'creator1', displayName: '도윤');
 
+  /// 서버가 내주는 모집 묶음. 피드 provider가 이 값을 그대로 받아 그린다.
+  List<OpenRecruit> recruits = const [];
+
+  /// 참가 직전에 기준이 바뀐 상황: 그 대결 한 건을 다시 읽으면 이 값이 돌아온다.
+  /// null이면 "더 이상 모집이 아니다"(매칭·취소)라는 뜻이다.
+  Battle? refreshedBattle;
+  int refreshCount = 0;
+
   @override
-  Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
+  Future<OpenRecruitPage> fetchOpenRecruits({
+    int limit = openRecruitPageSize,
+    RecruitCursor? cursor,
+    String? query,
+    String? type,
+    String? durationBand,
+  }) async => OpenRecruitPage(items: recruits, nextCursor: null, hasMore: false);
+
+  @override
+  Future<Battle?> fetchOpenRecruitBattle(String battleId) async {
+    refreshCount++;
+    return refreshedBattle;
+  }
 
   @override
   Future<String> createBattle({required String checkId, required int durationMinutes}) async => 'b';
@@ -177,27 +198,16 @@ OpenRecruit _recruitOf(Battle battle) => OpenRecruit(
       ),
     );
 
-/// 목록이 다시 읽힐 때마다 다음 값을 돌려준다(기준이 바뀐 상황을 만들기 위해).
-class _RecruitFeed {
-  _RecruitFeed(this._pages);
-
-  final List<List<OpenRecruit>> _pages;
-  int calls = 0;
-
-  List<OpenRecruit> next() {
-    final page = _pages[calls < _pages.length ? calls : _pages.length - 1];
-    calls++;
-    return page;
-  }
-}
-
 Future<ProviderContainer> _pumpSheet(
   WidgetTester tester, {
   required _FakeBattleRepository repository,
-  _RecruitFeed? feed,
   Battle? battle,
+  Battle? refreshed,
 }) async {
   final target = battle ?? _qualityBattle();
+  // 목록은 provider override가 아니라 가짜 repository가 내준다(피드가 실제 notifier를 거친다).
+  repository.recruits = [_recruitOf(target)];
+  repository.refreshedBattle = refreshed;
   final container = ProviderContainer(
     overrides: [
       battleRepositoryProvider.overrideWithValue(repository),
@@ -207,10 +217,6 @@ Future<ProviderContainer> _pumpSheet(
         (ref) async => AiConsent(version: '2026-09-14', consentedAt: DateTime(2026, 9, 16)),
       ),
       myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '민지')),
-      openRecruitsProvider.overrideWith(
-        (ref) async => feed == null ? [_recruitOf(target)] : feed.next(),
-      ),
-      myRecruitsProvider.overrideWith((ref) async => const []),
       myBattlesProvider.overrideWith((ref) async => const []),
     ],
   );
@@ -293,18 +299,20 @@ void main() {
     final repository = _FakeBattleRepository(
       joinError: PostgrestException(message: '기준이 바뀌었습니다.', hint: 'CRITERIA_CHANGED'),
     );
-    final feed = _RecruitFeed([
-      [_recruitOf(_qualityBattle())],
-      [
-        _recruitOf(_qualityBattle(criteriaVersion: 2, minCriteria: const ['상판이 완전히 비어 있다'])),
-      ],
-    ]);
-    await _pumpSheet(tester, repository: repository, feed: feed);
+    await _pumpSheet(
+      tester,
+      repository: repository,
+      refreshed: _qualityBattle(
+        criteriaVersion: 2,
+        minCriteria: const ['상판이 완전히 비어 있다'],
+      ),
+    );
     await _openSheet(tester);
     await _tapJoin(tester);
 
     expect(find.text(AppStrings.battleCriteriaChanged), findsOneWidget);
-    // 목록을 다시 읽었으므로 카드 미리보기와 시트 기준 목록 양쪽이 새 기준으로 바뀐다.
+    // 목록(묶음)을 다시 읽지 않고 이 대결 한 건만 다시 읽는다. 그래서 새 기준은 시트에 보인다.
+    expect(repository.refreshCount, 1);
     expect(find.text('상판이 완전히 비어 있다'), findsWidgets);
     // 시트는 열린 채로 남아 바뀐 기준을 확인한 뒤 다시 참가할 수 있다.
     expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsOneWidget);
@@ -319,11 +327,28 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  // 기준이 바뀐 줄 알고 다시 읽었는데 그 사이 매칭·취소된 경우. 서버가 내주지 않는 것이 그 신호다.
+  testWidgets('기준을 다시 읽는 사이 모집이 사라졌으면 시트를 닫는다', (tester) async {
+    final repository = _FakeBattleRepository(
+      joinError: PostgrestException(message: '기준이 바뀌었습니다.', hint: 'CRITERIA_CHANGED'),
+    );
+    await _pumpSheet(tester, repository: repository);
+    await _openSheet(tester);
+    await _tapJoin(tester);
+
+    expect(repository.refreshCount, 1);
+    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
+    expect(find.text(AppStrings.battleCriteriaChanged), findsNothing);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('오늘 한도를 이미 썼으면 유료 예고가 담긴 안내가 뜨고 시트는 남는다', (tester) async {
     final repository = _FakeBattleRepository(
       joinError: PostgrestException(message: '오늘 한도', hint: 'MY_DAILY_LIMIT'),
     );
-    await _pumpSheet(tester, repository: repository, feed: null);
+    await _pumpSheet(tester, repository: repository);
     await _openSheet(tester);
     await _tapJoin(tester);
 

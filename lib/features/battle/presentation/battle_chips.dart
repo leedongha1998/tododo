@@ -32,6 +32,9 @@ String battleTypeTagline(String type) {
 
 String battleStatusLabel(String status) {
   switch (status) {
+    // 상대가 아직 없는 모집. 내 대결 탭의 모집 구역이 이 라벨을 쓴다.
+    case 'pending':
+      return AppStrings.battleStatusPending;
     case 'active':
       return AppStrings.battleStatusActive;
     case 'judging':

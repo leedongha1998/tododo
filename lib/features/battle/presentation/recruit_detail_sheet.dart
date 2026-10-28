@@ -10,6 +10,7 @@ import '../domain/ai_consent_providers.dart';
 import '../domain/ai_consent_rules.dart';
 import '../domain/battle_providers.dart';
 import '../domain/criteria_rules.dart';
+import '../domain/open_recruit_feed.dart';
 import 'ai_consent_screen.dart';
 import 'battle_chips.dart';
 import 'criteria_views.dart';
@@ -47,27 +48,27 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
   }
 
   /// 바뀐 기준을 다시 읽어 시트 안에서 갱신한다. 그 사이 매칭됐으면 시트를 닫는다.
+  ///
+  /// 목록이 아니라 **이 대결 한 건만** 다시 읽는다. 목록은 묶음(첫 20건)으로 오므로 두 번째 묶음
+  /// 이후의 모집은 목록을 다시 읽어도 찾을 수 없어 "사라졌다"로 오인된다.
+  /// 생성자 전적은 기준 변경과 무관하므로 들고 있던 값을 그대로 쓴다.
   Future<void> _refreshCriteria() async {
     try {
-      final recruits = await ref.refresh(openRecruitsProvider.future);
-      OpenRecruit? fresh;
-      for (final candidate in recruits) {
-        if (candidate.battle.id == _recruit.battle.id) {
-          fresh = candidate;
-          break;
-        }
-      }
+      final fresh = await ref
+          .read(battleRepositoryProvider)
+          .fetchOpenRecruitBattle(_recruit.battle.id);
       if (!mounted) return;
       if (fresh == null) {
+        // 더 이상 모집이 아니다(매칭·취소). 서버가 내주지 않는 것이 곧 그 신호다.
         Navigator.of(context).pop();
         return;
       }
       setState(() {
-        _recruit = fresh!;
+        _recruit = OpenRecruit(battle: fresh, creator: _recruit.creator);
         _criteriaChanged = true;
       });
     } catch (e) {
-      debugPrint('openRecruits refresh failed: $e');
+      debugPrint('fetchOpenRecruitBattle failed: $e');
       if (mounted) _showSnackBar(AppStrings.battleLoadRecruitsFailed);
     }
   }
@@ -99,7 +100,7 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
       }
       // 이미 매칭된 모집은 목록에서도 사라져야 한다.
       if (errorCodeOf(error) == 'ALREADY_MATCHED') {
-        ref.invalidate(openRecruitsProvider);
+        ref.invalidate(openRecruitFeedProvider);
         if (mounted) {
           Navigator.of(context).pop();
           _showSnackBar(AppStrings.battleErrorAlreadyMatched);

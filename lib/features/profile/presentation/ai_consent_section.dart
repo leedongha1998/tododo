@@ -9,6 +9,7 @@ import '../../battle/data/ai_consent.dart';
 import '../../battle/domain/ai_consent_providers.dart';
 import '../../battle/domain/ai_consent_rules.dart';
 import '../../battle/domain/battle_providers.dart';
+import '../../battle/domain/open_recruit_feed.dart';
 import '../../battle/presentation/ai_consent_screen.dart';
 import '../domain/profile_providers.dart';
 
@@ -48,7 +49,8 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
       ref.invalidate(myAiConsentProvider);
       ref.invalidate(myBattlesProvider);
       ref.invalidate(myRecruitsProvider);
-      ref.invalidate(openRecruitsProvider);
+      // 동의 없이는 참가도 막히므로, 다시 본 목록이 지금 상태와 맞게 첫 묶음부터 시작하게 한다.
+      ref.invalidate(openRecruitFeedProvider);
       ref.invalidate(battleRecordsProvider);
       // 철회는 진행 중 대결을 포기(-3)로 끝내므로 점수도 함께 바뀐다.
       ref.invalidate(myPlayerStatsProvider);

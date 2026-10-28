@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:todododo/core/navigation/app_tab.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_criteria_repository.dart';
@@ -12,7 +13,7 @@ import 'package:todododo/features/battle/data/battle_submission.dart';
 import 'package:todododo/features/battle/data/submission_result.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
-import 'package:todododo/features/battle/data/open_recruit.dart';
+import 'package:todododo/features/battle/data/open_recruit_page.dart';
 import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/domain/duration_rules.dart';
@@ -81,7 +82,10 @@ class _FakeBattleRepository implements BattleRepository {
   Future<int> updateBattleCriteria({required String battleId, required String checkId}) async => 2;
 
   @override
-  Future<List<OpenRecruit>> fetchOpenRecruits() async => const [];
+  Future<OpenRecruitPage> fetchOpenRecruits({int limit = openRecruitPageSize, RecruitCursor? cursor, String? query, String? type, String? durationBand}) async => const OpenRecruitPage.empty();
+
+  @override
+  Future<Battle?> fetchOpenRecruitBattle(String battleId) async => null;
 
   @override
   Future<PlayerCard> fetchPlayerCard(String userId) async =>
@@ -215,6 +219,37 @@ void main() {
     // 서버에는 기준 텍스트가 아니라 증서 id만 넘어간다.
     expect(battles.createdCheckId, 'check-1');
     expect(battles.createdDuration, 4320);
+  });
+
+  // 찾기 탭에는 더 이상 내 모집이 보이지 않는다. 올린 모집이 어느 화면에도 없는 구간을 만들지 않는다.
+  testWidgets('모집을 올리면 내 모집이 보이는 내 대결 탭으로 보낸다', (tester) async {
+    final criteria = _FakeCriteriaRepository(generateResult: _speedResult);
+    final battles = _FakeBattleRepository();
+    final container = ProviderContainer(
+      overrides: [
+        battleCriteriaRepositoryProvider.overrideWithValue(criteria),
+        battleRepositoryProvider.overrideWithValue(battles),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: CreateBattleScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _enterTitleAndGenerate(tester, '아침 운동하기');
+
+    await tester.tap(find.text(AppStrings.battleCriteriaSubmit));
+    await tester.pumpAndSettle();
+
+    expect(battles.createdCheckId, 'check-2');
+    expect(container.read(selectedTabProvider), AppTab.myBattles);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('속도전에는 우열 기준 블록이 없다', (tester) async {

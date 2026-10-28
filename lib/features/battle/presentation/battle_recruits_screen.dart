@@ -26,14 +26,17 @@ class BattleRecruitsScreen extends ConsumerWidget {
   Future<void> _openCreate(BuildContext context, WidgetRef ref) async {
     if (!await ensureAiConsent(context, ref)) return;
     if (!context.mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
-    );
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const CreateBattleScreen()));
   }
 
   /// 카드 → 모집 상세 시트. 참가는 시트가 하고, 성공하면 여기서 뒷정리를 이어 간다.
   /// 순서: 시트 닫힘 → 목록 갱신 → VS 인트로 → 성공 토스트 → 내 대결 탭.
-  Future<void> _openRecruit(BuildContext context, WidgetRef ref, OpenRecruit recruit) async {
+  Future<void> _openRecruit(
+    BuildContext context,
+    WidgetRef ref,
+    OpenRecruit recruit,
+  ) async {
     final joined = await showRecruitSheet(context, recruit);
     if (joined == null || !context.mounted) return;
 
@@ -74,20 +77,26 @@ class BattleRecruitsScreen extends ConsumerWidget {
     }
   }
 
-  Future<void> _cancel(BuildContext context, WidgetRef ref, String battleId) async {
+  Future<void> _cancel(
+    BuildContext context,
+    WidgetRef ref,
+    String battleId,
+  ) async {
     try {
       await ref.read(battleRepositoryProvider).cancelBattle(battleId);
       ref.invalidate(myRecruitsProvider);
       ref.invalidate(myLimitsProvider);
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text(AppStrings.battleRecruitCancelled)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(AppStrings.battleRecruitCancelled)),
+        );
       }
     } catch (e) {
       debugPrint('cancelBattle failed: $e');
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text(AppStrings.battleRecruitCancelFailed)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text(AppStrings.battleRecruitCancelFailed)),
+        );
       }
     }
   }
@@ -105,117 +114,147 @@ class BattleRecruitsScreen extends ConsumerWidget {
         icon: const PixelIcon(PixelIcons.battle),
         label: const Text(AppStrings.battleCreate),
       ),
-      body: ListView(
-        // 아래 여백은 만들기 버튼(FAB)이 마지막 항목의 기준 수정·취소 버튼을 가리지 않게 하려는 것이다.
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-        children: [
-          Text(AppStrings.battleOpenRecruits, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          openRecruits.when(
-            data: (recruits) => recruits.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text(AppStrings.battleRecruitsEmpty),
-                  )
-                : Column(
-                    children: [
-                      for (final recruit in recruits) ...[
-                        _OpenRecruitCard(
-                          recruit: recruit,
-                          onTap: () => _openRecruit(context, ref, recruit),
-                        ),
-                        const SizedBox(height: 8),
-                      ],
-                    ],
-                  ),
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: PixelLoader.medium()),
+      // 남이 올린 모집은 내 행동과 무관하게 생긴다. 탭이 IndexedStack이라 이 화면이 계속
+      // 살아 있어 autoDispose도 다시 불러오지 않으므로, 손으로 당겨 받을 길이 없으면
+      // 앱을 껐다 켜기 전까지 새 모집이 영영 안 보인다.
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await Future.wait([
+            ref.refresh(openRecruitsProvider.future),
+            ref.refresh(myRecruitsProvider.future),
+          ]);
+        },
+        child: ListView(
+          // 목록이 비었을 때야말로 새로고침이 필요하므로 짧아도 항상 당겨지게 한다.
+          physics: const AlwaysScrollableScrollPhysics(),
+          // 아래 여백은 만들기 버튼(FAB)이 마지막 항목의 기준 수정·취소 버튼을 가리지 않게 하려는 것이다.
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+          children: [
+            Text(
+              AppStrings.battleOpenRecruits,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-            error: (error, stackTrace) {
-              debugPrint('openRecruitsProvider error: $error');
-              return const Padding(
+            const SizedBox(height: 8),
+            openRecruits.when(
+              data: (recruits) => recruits.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(AppStrings.battleRecruitsEmpty),
+                    )
+                  : Column(
+                      children: [
+                        for (final recruit in recruits) ...[
+                          _OpenRecruitCard(
+                            recruit: recruit,
+                            onTap: () => _openRecruit(context, ref, recruit),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ],
+                    ),
+              loading: () => const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text(AppStrings.battleLoadRecruitsFailed),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          Text(AppStrings.battleMyRecruits, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          myRecruits.when(
-            data: (battles) => battles.isEmpty
-                ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text(AppStrings.battleRecruitsEmpty),
-                  )
-                : Column(
-                    children: [
-                      // 목록끼리 경계가 없으면 어디까지가 한 모집인지 읽히지 않는다.
-                      // 열린 모집 카드와 같은 떠 있는 창으로 한 건씩 감싼다.
-                      for (final battle in battles) ...[
-                        PixelFrame.raised(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      battle.title,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyLarge
-                                          ?.copyWith(fontWeight: FontWeight.w600),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  // 제목 옆에 유형을 붙여 무슨 대결인지 한 줄에서 읽히게 한다.
-                                  BattleTypeBadge(type: battle.type),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              // 매칭 전까지는 기준을 고칠 수 있다. 매칭된 뒤에는 서버가 거부한다.
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  OutlinedButton(
-                                    onPressed: () => Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => EditRecruitCriteriaScreen(battle: battle),
+                child: Center(child: PixelLoader.medium()),
+              ),
+              error: (error, stackTrace) {
+                debugPrint('openRecruitsProvider error: $error');
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(AppStrings.battleLoadRecruitsFailed),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+            Text(
+              AppStrings.battleMyRecruits,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            myRecruits.when(
+              data: (battles) => battles.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(AppStrings.battleRecruitsEmpty),
+                    )
+                  : Column(
+                      children: [
+                        // 목록끼리 경계가 없으면 어디까지가 한 모집인지 읽히지 않는다.
+                        // 열린 모집 카드와 같은 떠 있는 창으로 한 건씩 감싼다.
+                        for (final battle in battles) ...[
+                          PixelFrame.raised(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        battle.title,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyLarge
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
-                                    child: const Text(AppStrings.battleCriteriaEditRecruit),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  TextButton(
-                                    onPressed: () => _cancel(context, ref, battle.id),
-                                    child: const Text(AppStrings.battleRecruitCancel),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                    const SizedBox(width: 8),
+                                    // 제목 옆에 유형을 붙여 무슨 대결인지 한 줄에서 읽히게 한다.
+                                    BattleTypeBadge(type: battle.type),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                // 매칭 전까지는 기준을 고칠 수 있다. 매칭된 뒤에는 서버가 거부한다.
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    OutlinedButton(
+                                      onPressed: () => Navigator.of(context)
+                                          .push(
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  EditRecruitCriteriaScreen(
+                                                    battle: battle,
+                                                  ),
+                                            ),
+                                          ),
+                                      child: const Text(
+                                        AppStrings.battleCriteriaEditRecruit,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    TextButton(
+                                      onPressed: () =>
+                                          _cancel(context, ref, battle.id),
+                                      child: const Text(
+                                        AppStrings.battleRecruitCancel,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
+                          const SizedBox(height: 8),
+                        ],
                       ],
-                    ],
-                  ),
-            loading: () => const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: PixelLoader.medium()),
-            ),
-            error: (error, stackTrace) {
-              debugPrint('myRecruitsProvider error: $error');
-              return const Padding(
+                    ),
+              loading: () => const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text(AppStrings.battleLoadRecruitsFailed),
-              );
-            },
-          ),
-        ],
+                child: Center(child: PixelLoader.medium()),
+              ),
+              error: (error, stackTrace) {
+                debugPrint('myRecruitsProvider error: $error');
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text(AppStrings.battleLoadRecruitsFailed),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -234,7 +273,9 @@ class _OpenRecruitCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final battle = recruit.battle;
-    final preview = battle.minCriteria.isEmpty ? null : battle.minCriteria.first;
+    final preview = battle.minCriteria.isEmpty
+        ? null
+        : battle.minCriteria.first;
 
     return PixelFrame.raised(
       onTap: onTap,
@@ -242,7 +283,10 @@ class _OpenRecruitCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
-          Text(battle.title, style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+          Text(
+            battle.title,
+            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [

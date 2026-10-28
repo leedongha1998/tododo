@@ -10,8 +10,7 @@ BattleSummary _summary({
   String type = 'speed',
   String status = 'active',
   DateTime? deadlineAt,
-  DateTime? opponentFirstSubmittedAt,
-  String? opponentLastVerdict,
+  bool opponentSubmitted = false,
   bool withOpponent = true,
 }) {
   final battle = Battle(
@@ -29,12 +28,7 @@ BattleSummary _summary({
     battle: battle,
     otherPartyName: '친구',
     opponent: withOpponent
-        ? BattleParticipant(
-            battleId: 'b1',
-            userId: 'friend',
-            firstSubmittedAt: opponentFirstSubmittedAt,
-            lastVerdict: opponentLastVerdict,
-          )
+        ? BattleParticipant(battleId: 'b1', userId: 'friend', hasSubmitted: opponentSubmitted)
         : null,
   );
 }
@@ -48,26 +42,19 @@ void main() {
       expect(summary.statusLineAt(_now), AppStrings.battleListSettling);
     });
 
-    test('품질전 판정 중이면 AI가 판정하는 중이라고 알린다', () {
-      final summary = _summary(type: 'quality', status: 'judging');
-      expect(summary.statusLineAt(_now), AppStrings.battleListJudging);
+    test('상호 판정 창이면 서로 판정하는 중이라고 알린다(두 유형 공통)', () {
+      for (final type in ['speed', 'quality']) {
+        final summary = _summary(type: type, status: 'judging');
+        expect(summary.statusLineAt(_now), AppStrings.battleListJudging, reason: type);
+      }
     });
 
-    // 속도전은 상대 제출의 합격/불합격까지 공개된다(사유는 종결 뒤에 열린다).
-    test('속도전은 상대의 합격·불합격이 드러난다', () {
-      expect(
-        _summary(opponentLastVerdict: 'passed', opponentFirstSubmittedAt: _now).statusLineAt(_now),
-        AppStrings.battleListOpponentPassed,
-      );
-      expect(
-        _summary(opponentLastVerdict: 'failed', opponentFirstSubmittedAt: _now).statusLineAt(_now),
-        AppStrings.battleListOpponentFailed,
-      );
-    });
-
-    test('품질전은 합격 여부를 알리지 않고 제출 사실만 알린다', () {
-      final summary = _summary(type: 'quality', opponentFirstSubmittedAt: _now);
-      expect(summary.statusLineAt(_now), AppStrings.battleListOpponentSubmitted);
+    // 마감 전에 상대에 대해 보이는 것은 "제출했다"는 사실 하나뿐이다(두 유형 공통, D2).
+    test('상대가 제출했으면 그 사실만 알린다', () {
+      for (final type in ['speed', 'quality']) {
+        final summary = _summary(type: type, opponentSubmitted: true);
+        expect(summary.statusLineAt(_now), AppStrings.battleListOpponentSubmitted, reason: type);
+      }
     });
 
     test('상대가 아직 내지 않았으면 알릴 것이 없다', () {
@@ -81,8 +68,7 @@ void main() {
     test('마감 경과가 다른 어떤 소식보다 앞선다', () {
       final summary = _summary(
         deadlineAt: _now.subtract(const Duration(minutes: 1)),
-        opponentLastVerdict: 'passed',
-        opponentFirstSubmittedAt: _now,
+        opponentSubmitted: true,
       );
       expect(summary.statusLineAt(_now), AppStrings.battleListSettling);
     });

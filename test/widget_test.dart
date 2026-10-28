@@ -428,15 +428,15 @@ void main() {
         await tester.pumpAndSettle();
 
         final reason = '$type/$status';
-        // 두 유형 모두 active에서만 낼 수 있다. judging은 품질전에서 두 사진이 다 올라와
-        // AI가 판정하는 중인 상태라 제출 자리가 없다.
+        // 두 유형 모두 active에서만 낼 수 있다. judging은 상호 판정 창(두 유형 공통)이라
+        // 제출 자리가 없고 안내만 보인다.
         expect(
           find.text(AppStrings.battleEvidenceTakePhoto),
           status == 'active' ? findsOneWidget : findsNothing,
           reason: reason,
         );
-        if (type == 'quality' && status == 'judging') {
-          expect(find.text(AppStrings.battleEvidenceQualityJudging), findsOneWidget, reason: reason);
+        if (status == 'judging') {
+          expect(find.text(AppStrings.battleJudgingPlaceholder), findsOneWidget, reason: reason);
         }
         expect(find.text(AppStrings.battleForfeit), findsOneWidget, reason: reason);
         expect(find.byType(TextField), findsNothing, reason: reason);

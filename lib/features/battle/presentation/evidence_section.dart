@@ -3,27 +3,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../../core/theme/pixel_icons.dart';
-import '../../../core/theme/retro_palette.dart';
 import '../../../core/theme/retro_text.dart';
 import '../../../core/widgets/evidence_photo_frame.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_icon.dart';
-import '../../../core/widgets/pixel_tag.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/battle_submission.dart';
 import '../data/evidence_camera.dart';
-import '../data/submission_result.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
 import '../domain/submission_rules.dart';
 
-/// 내 증거 영역: 촬영 → 미리보기 → 제출 → (속도전) 판정 결과 → 이력.
+/// 내 증거 영역: 촬영 → 미리보기 → 제출(또는 교체).
 ///
-/// 속도전은 제출마다 바로 판정이 돌아오고 최대 5회까지 다시 낼 수 있다.
-/// 품질전은 한 번만 낼 수 있고(확인 다이얼로그), 두 사진이 모두 올라오면 대결 단위로 판정된다.
+/// 제출 즉시 판정하지 않는다 — 판정은 마감(또는 양쪽 제출) 뒤 상호 판정 창에서 일어나고,
+/// 그 화면은 4단계에서 만든다. 여기서는 "낼 수 있는가"만 다룬다.
+///
+/// 속도전은 상대가 아직 내지 않은 동안에만 사진을 바꿀 수 있고, 바꾸면 제출 시각이 다시
+/// 기록된다. 품질전은 한 번만 낼 수 있다(확인 다이얼로그).
 ///
 /// 활성화 판단은 전부 [BattleDetail]의 getter가 하고, 같은 검사를 서버가 다시 한다.
-/// 이 위젯은 승패를 계산하지 않는다 — 판정 결과와 상태는 서버가 준 값을 그대로 보여 준다.
+/// 이 위젯은 승패를 계산하지 않는다 — 서버가 준 값을 그대로 보여 준다.
 class MyEvidenceSection extends ConsumerStatefulWidget {
   const MyEvidenceSection({super.key, required this.detail});
 
@@ -33,14 +33,12 @@ class MyEvidenceSection extends ConsumerStatefulWidget {
   ConsumerState<MyEvidenceSection> createState() => _MyEvidenceSectionState();
 }
 
-enum _Stage { idle, uploading, judging }
+enum _Stage { idle, uploading, submitting }
 
 class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
   EvidenceShot? _shot;
-  _Stage _stage = _Stage.idle;
 
-  /// 방금 돌아온 판정. 불합격 사유와 AI 실패 안내를 곧바로 보여 주는 데만 쓴다.
-  SubmissionResult? _lastResult;
+  _Stage _stage = _Stage.idle;
 
   bool get _busy => _stage != _Stage.idle;
 
@@ -52,10 +50,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
     try {
       final shot = await ref.read(evidenceCameraProvider).capture();
       if (shot == null || !mounted) return;
-      setState(() {
-        _shot = shot;
-        _lastResult = null;
-      });
+      setState(() => _shot = shot);
     } catch (error) {
       debugPrint('evidence capture failed: $error');
       if (mounted) _showSnackBar(AppStrings.battleEvidenceCaptureFailed);
@@ -72,15 +67,15 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
     setState(() => _stage = _Stage.uploading);
     try {
       final path = await repository.uploadEvidencePhoto(battleId: battleId, bytes: shot.bytes);
-      if (mounted) setState(() => _stage = _Stage.judging);
+      if (mounted) setState(() => _stage = _Stage.submitting);
 
-      final result = await repository.submitEvidence(
+      await repository.submitEvidence(
         battleId: battleId,
         objectPath: path,
         capturedAt: shot.capturedAt,
       );
 
-      // 결과는 서버에 남는다. 화면은 다시 읽어 상태·횟수·이력을 서버 값으로 맞춘다.
+      // 결과는 서버에 남는다. 화면은 다시 읽어 상태·제출 여부를 서버 값으로 맞춘다.
       ref.invalidate(battleDetailProvider(battleId));
       ref.invalidate(myBattlesProvider);
 
@@ -88,13 +83,12 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       setState(() {
         _stage = _Stage.idle;
         _shot = null;
-        _lastResult = result;
       });
     } catch (error) {
       debugPrint('submitEvidence failed: $error');
       if (!mounted) return;
       setState(() => _stage = _Stage.idle);
-      // 거부(촬영 시각·마감·잠금·횟수)는 코드별 문구로 알린다. 횟수는 줄지 않는다.
+      // 거부(촬영 시각·마감·잠금)는 코드별 문구로 알린다.
       _showSnackBar(submissionErrorMessage(error));
       ref.invalidate(battleDetailProvider(battleId));
     }
@@ -131,16 +125,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       title: AppStrings.battleEvidenceSectionTitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ..._buildBody(context, detail),
-          if (detail.mySubmissions.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _SubmissionHistory(
-              submissions: detail.mySubmissions,
-              title: AppStrings.battleEvidenceHistoryTitle,
-            ),
-          ],
-        ],
+        children: _buildBody(context, detail),
       ),
     );
   }
@@ -151,34 +136,20 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         StatusMessage.loading(
           message: _stage == _Stage.uploading
               ? AppStrings.battleEvidenceUploading
-              : detail.isSpeed
-                  ? AppStrings.battleEvidenceJudging
-                  : AppStrings.battleEvidenceQualityJudging,
+              : AppStrings.battleEvidenceSubmitting,
         ),
       ];
     }
 
-    if (!detail.isSpeed) return _qualityBody(context, detail);
-
-    // 서버가 판정 중인 내 제출을 들고 있는 경우(앱을 껐다 켠 뒤 등).
-    if (detail.isMyJudgingInProgress) {
-      return const [StatusMessage.loading(message: AppStrings.battleEvidenceJudging)];
+    // 상호 판정 창. 판정 화면 자체는 4단계 몫이다.
+    if (detail.isJudging) {
+      return const [_JudgingPlaceholder()];
     }
 
-    if (detail.didIPass) {
-      return [_passedBlock(context, detail)];
-    }
+    return detail.isSpeed ? _speedBody(context, detail) : _qualityBody(context, detail);
+  }
 
-    if (detail.didIUseAllAttempts) {
-      return const [
-        PixelFrame.tone(
-          tone: PixelTone.neutral,
-          icon: PixelIcons.lock,
-          child: Text(AppStrings.battleEvidenceExhausted),
-        ),
-      ];
-    }
-
+  List<Widget> _speedBody(BuildContext context, BattleDetail detail) {
     final shot = _shot;
     if (shot != null) {
       return [
@@ -197,10 +168,30 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       ];
     }
 
+    if (detail.isReplacingEvidence) {
+      return [
+        const PixelFrame.tone(
+          tone: PixelTone.neutral,
+          icon: PixelIcons.camera,
+          child: Text(AppStrings.battleEvidenceSubmittedWaitingOpponent),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _capture,
+          icon: const PixelIcon(PixelIcons.retry),
+          label: const Text(AppStrings.battleEvidenceReplace),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          AppStrings.battleEvidenceReplaceHint,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ];
+    }
+
     // 마감이 지났는데 아직 정산 전이면 낼 수 없다(서버도 거부한다).
     if (!detail.canSubmitEvidence) {
       return [
-        ..._lastVerdictBlock(context),
         if (detail.isPastDeadline(DateTime.now()))
           const PixelFrame.tone(
             tone: PixelTone.neutral,
@@ -211,34 +202,18 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
     }
 
     return [
-      ..._lastVerdictBlock(context),
       FilledButton.icon(
         onPressed: _capture,
         icon: const PixelIcon(PixelIcons.camera),
         label: const Text(AppStrings.battleEvidenceTakePhoto),
       ),
-      const SizedBox(height: 8),
-      Text(
-        AppStrings.battleEvidenceAttemptsLeft(detail.myAttemptsLeft),
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
     ];
   }
 
-  /// 품질전: 한 번 내면 상대를 기다리고, 두 사진이 모두 올라오면 서버가 판정한다.
+  /// 품질전: 한 번 내면 상대를 기다리고, 두 사진이 모두 올라오면 판정 창이 열린다.
   /// 판정 결과(승패·사유)는 종결 뒤 결과 배너가 서버 값으로 보여 준다 — 여기서는 판단하지 않는다.
   List<Widget> _qualityBody(BuildContext context, BattleDetail detail) {
-    if (detail.isQualityJudging) {
-      return const [
-        PixelFrame.tone(
-          tone: PixelTone.info,
-          title: AppStrings.battleEvidenceQualityJudgingTitle,
-          child: Text(AppStrings.battleEvidenceQualityJudging),
-        ),
-      ];
-    }
-
-    if (detail.hasMyQualitySubmission) {
+    if (detail.me.hasSubmitted) {
       return const [
         PixelFrame.tone(
           tone: PixelTone.success,
@@ -290,68 +265,25 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       ),
     ];
   }
+}
 
-  /// 방금 받은 불합격·AI 실패 안내. 합격은 아래 통과 블록이 대신한다.
-  List<Widget> _lastVerdictBlock(BuildContext context) {
-    final result = _lastResult;
-    if (result == null || result.isPassed) return const [];
+/// 상호 판정 창 안내. 속도전·품질전 공통이고, 실제 판정 버튼은 4단계에서 붙는다.
+class _JudgingPlaceholder extends StatelessWidget {
+  const _JudgingPlaceholder();
 
-    if (result.isError) {
-      return const [
-        PixelFrame.tone(
-          tone: PixelTone.neutral,
-          icon: PixelIcons.warning,
-          title: AppStrings.battleEvidenceErrorTitle,
-          child: Text(AppStrings.battleEvidenceErrorDetail),
-        ),
-        SizedBox(height: 12),
-      ];
-    }
-
-    return [
-      PixelFrame.tone(
-        tone: PixelTone.danger,
-        icon: PixelIcons.fail,
-        title: AppStrings.battleEvidenceFailedTitle,
-        child: Text(result.reason ?? ''),
-      ),
-      const SizedBox(height: 12),
-    ];
-  }
-
-  Widget _passedBlock(BuildContext context, BattleDetail detail) {
-    final passed = detail.mySubmissions.where((submission) => submission.isPassed).firstOrNull;
-    final passedAt = detail.me.passedAt ?? passed?.submittedAt;
-
-    return PixelFrame.tone(
-      tone: PixelTone.success,
-      icon: PixelIcons.pass,
-      title: AppStrings.battleEvidencePassedTitle,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (passedAt != null)
-            Text(
-              AppStrings.battleEvidencePassedAt(formatEvidenceTime(passedAt)),
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-          if (passed?.reason != null) ...[
-            const SizedBox(height: 4),
-            Text(passed!.reason!, style: Theme.of(context).textTheme.bodyMedium),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            AppStrings.battleEvidencePassedLocked,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
-      ),
+  @override
+  Widget build(BuildContext context) {
+    return const PixelFrame.tone(
+      tone: PixelTone.info,
+      icon: PixelIcons.hourglass,
+      title: AppStrings.battleJudgingPlaceholderTitle,
+      child: Text(AppStrings.battleJudgingPlaceholder),
     );
   }
 }
 
-/// 상대 영역. 진행 중에는 사진도 사유도 보여 주지 않는다 — 서버가 내주지 않기 때문에
-/// 보여 줄 수도 없다. 제출했다는 사실과, 속도전이면 합격/불합격 결과만 보인다(결정 65).
+/// 상대 영역. 마감 전(판정 창이 열리기 전)에는 "제출했다"는 사실 하나만 보여 준다 —
+/// 사진·시각·통과 여부는 서버가 내주지 않기 때문에 보여 줄 수도 없다(결정 D2).
 class OpponentEvidenceSummary extends StatelessWidget {
   const OpponentEvidenceSummary({super.key, required this.detail});
 
@@ -360,40 +292,23 @@ class OpponentEvidenceSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final submittedAt = detail.opponent.firstSubmittedAt;
-    final verdict = detail.opponentLastVerdict;
 
     return PixelFrame.flat(
       title: AppStrings.battleEvidenceOpponentTitle,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            submittedAt == null
-                ? AppStrings.battleEvidenceOpponentWaiting
-                : AppStrings.battleEvidenceOpponentSubmitted(formatEvidenceTime(submittedAt)),
-            style: textTheme.bodyMedium,
-          ),
-          if (detail.isSpeed && verdict != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              AppStrings.battleEvidenceOpponentVerdict(
-                submissionStatusLabel(verdict),
-                detail.opponent.attemptsUsed,
-              ),
-              style: textTheme.bodySmall,
-            ),
-          ],
-        ],
+      child: Text(
+        detail.hasOpponentSubmitted
+            ? AppStrings.battleEvidenceOpponentSubmitted
+            : AppStrings.battleEvidenceOpponentWaiting,
+        style: textTheme.bodyMedium,
       ),
     );
   }
 }
 
-/// 종결 뒤 공개되는 양쪽 증거(사진 + 합격/불합격 + 사유).
+/// 판정 창이 열리거나 종결된 뒤 공개되는 양쪽 증거(사진 + 사유, 있으면).
 ///
-/// 진행 중에는 서버(RLS)가 상대 제출 행을 아예 내주지 않으므로 이 위젯이 그릴 것도 없다.
-/// 종결 뒤에 열리는 것도 서버가 정하고, 화면은 받은 행을 그대로 보여 준다.
+/// 그전에는 서버(RLS)가 상대 제출 행을 아예 내주지 않으므로 이 위젯이 그릴 것도 없다.
+/// 공개 시점도 서버가 정하고, 화면은 받은 행을 그대로 보여 주기만 한다.
 class RevealedEvidenceSection extends StatelessWidget {
   const RevealedEvidenceSection({super.key, required this.detail});
 
@@ -406,64 +321,45 @@ class RevealedEvidenceSection extends StatelessWidget {
       children: [
         PixelFrame.flat(
           title: AppStrings.battleEvidenceSectionTitle,
-          child: _historyOrEmpty(detail.mySubmissions),
+          child: _submissionOrEmpty(detail.mySubmission),
         ),
         const SizedBox(height: 16),
         PixelFrame.flat(
           title: AppStrings.battleEvidenceOpponentTitle,
-          child: _historyOrEmpty(detail.opponentSubmissions),
+          child: _submissionOrEmpty(detail.opponentSubmission),
         ),
       ],
     );
   }
 
   // 한 번도 내지 않은 채 끝난 대결(마감 무승부, 포기 등)도 있다.
-  Widget _historyOrEmpty(List<BattleSubmission> submissions) {
-    if (submissions.isEmpty) return const Text(AppStrings.battleEvidenceNoSubmission);
-    return _SubmissionHistory(submissions: submissions);
+  Widget _submissionOrEmpty(BattleSubmission? submission) {
+    if (submission == null) return const Text(AppStrings.battleEvidenceNoSubmission);
+    return _SubmissionTile(submission: submission);
   }
 }
 
-/// 내 시도 이력(시각, 합격/불합격/실패, 사유, 사진).
-class _SubmissionHistory extends StatelessWidget {
-  const _SubmissionHistory({required this.submissions, this.title});
+/// 제출 한 건(시각, 사유, 사진).
+class _SubmissionTile extends StatelessWidget {
+  const _SubmissionTile({required this.submission});
 
-  final List<BattleSubmission> submissions;
-
-  /// 창 제목이 이미 누구 것인지 말하는 자리(종결 뒤 공개)에서는 null이다.
-  final String? title;
+  final BattleSubmission submission;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    // 최근 시도가 위에 오게 뒤집는다.
-    final ordered = submissions.reversed.toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (title != null) Text(title!, style: textTheme.titleSmall),
-        for (final submission in ordered) ...[
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(formatEvidenceTime(submission.submittedAt), style: RetroText.numeric),
-              const SizedBox(width: 8),
-              PixelTag(
-                label: submissionStatusLabel(submission.status),
-                style: _verdictTagStyle(submission.status),
-              ),
-            ],
-          ),
-          if (submission.reason != null) ...[
-            const SizedBox(height: 4),
-            Text(submission.reason!, style: textTheme.bodyMedium),
-          ],
-          if (submission.objectPath != null) ...[
-            const SizedBox(height: 4),
-            _SubmissionThumbnail(path: submission.objectPath!),
-          ],
+        Text(formatEvidenceTime(submission.submittedAt), style: RetroText.numeric),
+        if (submission.reason != null) ...[
+          const SizedBox(height: 4),
+          Text(submission.reason!, style: textTheme.bodyMedium),
+        ],
+        if (submission.objectPath != null) ...[
+          const SizedBox(height: 4),
+          _SubmissionThumbnail(path: submission.objectPath!),
         ],
       ],
     );
@@ -492,28 +388,6 @@ class _SubmissionThumbnail extends ConsumerWidget {
       },
     );
   }
-}
-
-/// 합격 = 성공 면, 불합격 = 위험 테두리, 그 밖(판정 중·실패) = 약한 점선.
-PixelTagStyle _verdictTagStyle(String status) {
-  return switch (status) {
-    'passed' => const PixelTagStyle(
-        fill: RetroPalette.success,
-        textColor: RetroPalette.surface,
-        borderColor: RetroPalette.ink,
-      ),
-    'failed' => const PixelTagStyle(
-        fill: RetroPalette.dangerPale,
-        textColor: RetroPalette.ink,
-        borderColor: RetroPalette.danger,
-      ),
-    _ => const PixelTagStyle(
-        fill: Colors.transparent,
-        textColor: RetroPalette.inkMuted,
-        borderColor: RetroPalette.inkMuted,
-        dashed: true,
-      ),
-  };
 }
 
 /// 서버가 준 UTC 시각을 기기 시간대의 hh:mm으로. 대결 주기상 날짜는 군더더기다.

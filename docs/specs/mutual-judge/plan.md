@@ -205,17 +205,26 @@
 
 ## 진행 기록
 
-### 2단계 (미착수 — 다음 세션 인계, 2026-09-18)
-- 2단계 구현을 developer 에이전트에 맡겼으나 **월 사용 한도로 파일을 하나도 쓰기 전에 중단됐다.** 작업 트리에 2단계 흔적은 없다. 원격 DB도 1단계 상태 그대로다(마이그레이션 24개, 대결 0건).
-- **재개 방법**: developer 에이전트에 `spec.md`·`design.md`·이 파일의 2단계 절을 읽고 2단계를 구현하게 한다. 커밋·원격 적용·배포는 하지 않게 하고, 결과를 메인 세션이 검토한 뒤 오너 확인을 받아 적용한다.
-- **재개 시 반드시 넘길 당부**
-  - `record_speed_verdict`를 지우거나 `accept_submission` 시그니처를 바꾸면 배포된 `submit-evidence`가 깨진다. 원격 적용 **바로 다음에** `supabase functions deploy submit-evidence`를 실행하도록 적용 명령 목록에 넣는다.
-  - 2단계는 `battle_participants`의 `attempts_used`·`last_verdict`·`passed_at`·`first_submitted_at`을 지운다. 이를 참조하는 기존 스모크(특히 속도전 5회 모델 전체를 검증하는 `ai_judge_flow_smoke.sql`)는 고칠지·지울지·새로 쓸지 판단이 필요하다.
-  - 스모크의 개수 단정은 **스모크가 만든 사용자·대결로 범위를 좁힌다**(1단계에서 `criteria_smoke`가 전역 개수를 세다 실데이터에 부딪혔다).
-  - `battle_participants` 조회 정책은 유지하고 노출 컬럼만 `has_submitted`·`has_judged`로 교체하며, "이 테이블의 모든 컬럼은 상대도 읽는다"는 불변식을 정책·테이블 주석으로 남긴다(design 결론).
-  - 함수를 drop하면 GRANT도 사라진다 — 재생성 뒤 권한 두 줄 필수. `delete_account`는 가장 늦은 정의(`20260920120000_push_tokens_and_outbox.sql`)를 기반으로 고친다.
-- **함께 보류 중인 것**: `push-notification`은 1단계(토큰·원장 스키마)만 적용됐고 2단계부터 보류다. 이 기획이 알림 정의(N3·N4·N6, 판정 요청 알림 신설)를 바꾸므로 mutual-judge가 끝난 뒤 그 spec·design을 갱신하고 재개한다. `android/app/google-services.json`(프로젝트 `tododo-f81f0`)은 준비돼 있다.
-- **정리할 것**: Storage `battle_evidence`에 참조 없는 고아 사진 8장(CLI `storage rm`이 조용히 실패 — 대시보드에서 삭제). 버그 탐색용 더미 계정 8개(`%@dummy.invalid`)는 남아 있다.
+### 2단계 (로컬 구현 완료 — 오너 확인·원격 적용 대기, 2026-09-22)
+- developer 에이전트가 재개해 로컬 구현을 끝냈다. **커밋·원격 적용·배포는 하지 않았다** — 작업 트리에 변경만 남아 있다. 메인 세션이 `flutter analyze`(이슈 0)·`flutter test`(273개 통과)·`deno test supabase/functions/_shared/`(26개 통과)를 다시 돌려 보고를 검증했다.
+- **새 파일**: `supabase/migrations/20260922120000_judging_window.sql`, `supabase/tests/mutual_judge_rules.sql`, `supabase/tests/mutual_judge_flow_smoke.sql`.
+- **고친 파일**: `supabase/functions/submit-evidence/index.ts`(Gemini 즉시 호출 제거, 교체 시 밀려난 사진 삭제), `supabase/functions/_shared/errors.ts`(`JUDGING_IN_PROGRESS`/`ATTEMPTS_EXHAUSTED` 제거), `supabase/tests/{ai_judge_flow_smoke,resolve_battle_smoke,settle_expired_battles_smoke,delete_account_smoke}.sql`, Dart data/domain/presentation 9개 파일(`battle*.dart`, `submission_rules.dart`, `submission_result.dart`, `evidence_section.dart`, `strings.dart`) + 테스트 5개.
+- **지운 파일**: `supabase/tests/battle_outcome_rules.sql`(검증 대상 함수가 drop돼 `mutual_judge_rules.sql`로 대체).
+- **design과 달라진 점(의도적 — 상세 이유는 developer 보고 원문, 2026-09-22 세션 로그 참고)**
+  1. `resolve_battle`은 아직 `ensure_ai_judgment_job`을 호출하지 않는다(그 테이블은 3단계 산물). reject된 제출은 3단계 전까지 `judging`에 머문다 — 4단계 전까지 판정 화면이 없어 실사용자가 reject를 낼 길이 없으므로 안전.
+  2. `submit_judgment` approve 경로가 `battle_submissions.meets_criteria`/`verdict_source`를 채운다(design 흐름 3엔 명시 안 됐지만 종결 후 공개용 정보가 필요해서). 판정 규칙 자체는 이 값을 안 쓴다.
+  3. 품질전 `submit_judgment`는 min_verdict와 무관하게 항상 `superior_id`를 요구한다(화면이 "두 질문을 한 번에" 받는 설계이므로 왕복 방지).
+  4. `judging_gate`는 "내 제출 존재 여부"만으로 교체/신규를 가른다 — 참가자당 제출 최대 1개 불변식을 이용해 "상대도 냈는데 나도 또 낸다" 경로를 코드에서 없앴다. 결과는 design 표와 동일.
+- **원격 적용 전 오너가 반드시 할 것**
+  1. **적용 순서**: `db push` → **즉시** `supabase functions deploy submit-evidence`(미루면 배포된 옛 함수가 drop된 `record_speed_verdict`를 불러 속도전 제출이 전부 실패) → `migration list --linked` 확인.
+  2. SQL 테스트 순서: `mutual_judge_rules.sql`(39케이스, ok=t) → `mutual_judge_flow_smoke.sql` → `ai_judge_flow_smoke.sql` → `resolve_battle_smoke.sql` → `settle_expired_battles_smoke.sql` → 나머지(`forfeit_battle`/`delete_account`/`criteria`/`join_battle`/`ai_consent`/`push_token`/`custom_duration`). **`battle_outcome_rules.sql`은 삭제됐으니 실행하지 말 것.**
+  3. cron 확인: `close-judging-windows` 신규 등록 여부, `ai-judge-tick` 명령이 `sweep_stale_criteria_calls(); dispatch_quality_judgments();`로 바뀌었는지.
+  4. `create_battle`/`join_battle`/`list_open_recruits`는 이번 단계가 건드리지 않았다(1단계 상태 그대로).
+  5. `quality_judgments` 테이블·`judge-quality` Edge Function은 아직 살아있다(3단계가 지운다) — 이제 아무도 새 잡을 안 만들어 비어 있을 뿐 무해.
+  6. Storage 정리는 필요 없다(이 단계는 기존 사진을 지우지 않음, 정책만 교체).
+  7. 되돌리기 어려운 지점: `battle_participants`/`battle_submissions` 컬럼 drop(데이터 없음 전제), `record_speed_verdict`/`sweep_stale_submissions`/`speed_outcome`류 drop.
+  8. SQL 테스트 함정: 같은 트랜잭션 안에서는 `now()`가 고정된다(`pg_sleep`으로 시각차를 못 만든다) — `.claude/agent-memory/developer/sql_smoke_test_now_frozen.md` 참고, 3단계 테스트 작성 시에도 적용됨.
+- **보류 그대로**: AI 재판정 배선(3단계), 판정 화면(4단계, 지금은 "판정 창이 열렸어요" 안내만), `push-notification` 2단계부터(알림 정의가 바뀌어 mutual-judge 종료 후 재개), CLAUDE.md 문구 갱신·동의 문구 갱신(5단계), Storage 고아 사진 8장·더미 계정 8개 정리.
 
 ### 1단계 (구현 완료, 원격 적용·스모크 통과, 2026-09-18)
 - **원격 적용 결과 (2026-09-18, 메인 세션)**

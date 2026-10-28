@@ -1,4 +1,4 @@
--- 증거 제출·속도전 판정 흐름 스모크 테스트 (ai-judge 5단계).
+-- accept_submission() 거부 규칙 스모크 테스트 (mutual-judge 2단계).
 --
 -- 로컬에 Docker가 없어 원격 DB에 직접 돌린다:
 --   supabase db query --linked -f supabase/tests/ai_judge_flow_smoke.sql
@@ -7,68 +7,34 @@
 --   SMOKE RESULT ok=true                    -> 통과
 --   SMOKE RESULT ok=false FAILURES: ...     -> 어긋난 항목(기대값/실제값)
 --
+-- 이 파일은 옛 "제출 즉시 AI 판정"(record_speed_verdict·5회 상한) 흐름을 테스트하던 파일을
+-- 대체한다. 그 함수는 2단계에서 drop됐다. 교체·창 열기·상호 판정 흐름은
+-- supabase/tests/mutual_judge_flow_smoke.sql이 덮는다 — 이 파일은 accept_submission이 사진을
+-- "받아들이기 전에" 거부하는 규칙(거부는 행을 만들지 않는다)과 참가자가 아닌 사람의 호출만 본다.
+--
 -- 확인하는 것
 --   reject_early      매칭(시작) 전에 찍은 사진은 CAPTURED_BEFORE_START
 --   reject_gap        촬영·수신 시각이 10분 이상 벌어지면 CAPTURE_TIME_MISMATCH
 --   reject_deadline   마감 뒤 수신은 DEADLINE_PASSED
---   rejected_rows     거부된 사진은 제출 행을 만들지 않는다(어떤 횟수에도 미산입)
---   both_passed       양쪽 통과 -> 마감 전이라도 즉시 종결, 통과 시각이 이른 쪽 승리
---   exhausted         한쪽 통과 + 상대 5회 소진 -> 즉시 종결(통과자 승, 상대 loss)
---   draw_exhausted    양쪽 5회 소진 -> 즉시 draw
---   error_*           AI 실패(error)는 5회에 세지 않고 다시 제출할 수 있다
---   locked_after_pass 통과한 뒤에는 제출이 잠긴다(SUBMISSION_LOCKED)
---   judging_blocks    판정 중인 내 제출이 있으면 JUDGING_IN_PROGRESS
---   settle_skips      판정 중 제출이 있는 속도전은 마감이 지나도 settle이 건너뛴다
---   sweep_*           3분 넘게 판정 중인 제출은 error로 내려가고 대결은 계속된다
---   rls_opponent      진행 중에는 상대의 제출 행이 한 건도 보이지 않는다(authenticated로 위장)
---   q_judging         품질전은 두 사진이 모두 올라오는 순간 judging으로 넘어가고 판정 잡이 생긴다
---   q_success_*       판정 성공 -> 마감 전이라도 즉시 종결, 승자·사유·1단계 결과가 기록된다
---   q_void_*          4회 실패 -> voided(점수·전적 미반영) + 매칭일이 오늘인 슬롯만 반환
---   q_lease_*         임대가 만료되면 dispatch가 실패 1회로 세고 다음 시도를 잡는다
---   q_wait_*          판정 중에 마감이 지나면 settle이 기다리고, 판정이 끝나는 순간 확정된다
---   q_wait_bad_winner 둘 다 충족인데 승자가 없는 응답은 성공으로 치지 않고 재시도로 돌린다
+--   reject_no_consent 동의가 없으면 CONSENT_REQUIRED(참가 뒤 철회한 경우를 흉내)
+--   reject_not_participant 참가자가 아니면 거부된다
+--   rejected_rows     위 거부는 모두 제출 행을 만들지 않는다(어떤 집계에도 들어가지 않는다)
+--   accepted_row      거부되지 않은 제출은 행이 생긴다
 do $$
 declare
   v_a uuid := gen_random_uuid();  -- 생성자
   v_b uuid := gen_random_uuid();  -- 참가자
-  v_b_pass uuid;
-  v_b_exhaust uuid;
-  v_b_draw uuid;
-  v_b_err uuid;
-  v_b_reject uuid;
-  v_b_late uuid;
-  v_b_wait uuid;
-  v_b_sweep uuid;
-  v_priv uuid;
-  v_id uuid;
-  v_i integer;
-  v_sub bigint;
-  v_sweep_sub bigint;
-  v_hint text;
+  v_c uuid := gen_random_uuid();  -- 참가자가 아닌 사람
+  v_battle uuid;
+  v_deadline_battle uuid;
+  v_no_consent_battle uuid;
   v_reject_early text := '(예외 없음)';
   v_reject_gap text := '(예외 없음)';
   v_reject_deadline text := '(예외 없음)';
-  v_locked text := '(예외 없음)';
-  v_judging_blocks text := '(예외 없음)';
-  v_err_resubmitted boolean := false;
-  v_rls_opponent integer := -1;
-  v_rls_own integer := -1;
-  -- 품질전(판정 잡)
-  v_q_success uuid;
-  v_q_void uuid;
-  v_q_lease uuid;
-  v_q_wait uuid;
-  v_today date := (now() at time zone 'Asia/Seoul')::date;
-  v_claim jsonb;
-  v_q_both boolean := false;
-  v_q_judging text := '(없음)';
-  v_q_job_created integer := -1;
-  v_q_success_result text := '(없음)';
-  v_q_void_first text := '(없음)';
-  v_q_void_result text := '(없음)';
-  v_q_wait_after_settle text := '(없음)';
-  v_q_wait_bad_winner text := '(없음)';
-  v_q_wait_result text := '(없음)';
+  v_reject_no_consent text := '(예외 없음)';
+  v_reject_not_participant text := '(예외 없음)';
+  v_hint text;
+  v_accepted jsonb;
   v_actual jsonb;
   v_expected jsonb;
   v_diff text;
@@ -77,415 +43,121 @@ begin
   select u.id, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
          u.email, jsonb_build_object('full_name', u.name), now(), now()
   from (values
-    (v_a, 'flow-smoke-a@example.invalid', '스모크A'),
-    (v_b, 'flow-smoke-b@example.invalid', '스모크B')
+    (v_a, 'ai-judge-flow-a@example.invalid', '스모크A'),
+    (v_b, 'ai-judge-flow-b@example.invalid', '스모크B'),
+    (v_c, 'ai-judge-flow-c@example.invalid', '스모크C')
   ) as u(id, email, name);
 
-  -- 점수 하한(0)에 걸려 결과가 가려지지 않게 넉넉히 둔다.
-  update public.player_stats set score = 10 where user_id in (v_a, v_b);
-
-  -- 제출에는 AI 데이터 제공 동의가 필요하다(참가 뒤 철회했을 수 있으므로 서버가 다시 본다).
+  -- 제출에는 AI 데이터 제공 동의가 필요하다. v_c는 동의를 주지 않아 CONSENT_REQUIRED를 확인한다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
-  perform public.give_ai_consent('2026-09-14');
+  perform public.give_ai_consent('2026-09-18');
   perform set_config('request.jwt.claims', json_build_object('sub', v_b, 'role', 'authenticated')::text, true);
-  perform public.give_ai_consent('2026-09-14');
+  perform public.give_ai_consent('2026-09-18');
 
-  -- 매칭된 속도전 아홉 개(어제 시작, 내일 마감). 생성자 참가자 행은 트리거가 만든다.
-  for v_i in 1..9 loop
-    insert into public.battles (
-      min_criteria, superiority_criteria, type, status, title,
-      creator_id, opponent_id, duration_minutes, started_at, deadline_at
-    )
-    values (
-      '["상판이 보인다"]'::jsonb, null, 'speed', 'active', 'flow 스모크 ' || v_i,
-      v_a, v_b, 4320, now() - interval '1 day', now() + interval '1 day'
-    )
-    returning id into v_id;
+  insert into public.battles (
+    min_criteria, superiority_criteria, type, status, title,
+    creator_id, opponent_id, duration_minutes, started_at, deadline_at
+  )
+  values (
+    '["상판이 보인다"]'::jsonb, null, 'speed', 'active', 'accept_submission 거부 스모크',
+    v_a, v_b, 4320, now() - interval '1 day', now() + interval '1 day'
+  )
+  returning id into v_battle;
+  insert into public.battle_participants (battle_id, user_id) values (v_battle, v_b);
 
-    insert into public.battle_participants (battle_id, user_id) values (v_id, v_b);
+  insert into public.battles (
+    min_criteria, superiority_criteria, type, status, title,
+    creator_id, opponent_id, duration_minutes, started_at, deadline_at
+  )
+  values (
+    '["상판이 보인다"]'::jsonb, null, 'speed', 'active', '마감 뒤 거부 스모크',
+    v_a, v_b, 4320, now() - interval '1 day', now() - interval '1 hour'
+  )
+  returning id into v_deadline_battle;
+  insert into public.battle_participants (battle_id, user_id) values (v_deadline_battle, v_b);
 
-    case v_i
-      when 1 then v_b_pass := v_id;
-      when 2 then v_b_exhaust := v_id;
-      when 3 then v_b_draw := v_id;
-      when 4 then v_b_err := v_id;
-      when 5 then v_b_reject := v_id;
-      when 6 then v_b_late := v_id;
-      when 7 then v_b_wait := v_id;
-      when 8 then v_b_sweep := v_id;
-      else v_priv := v_id;
-    end case;
-  end loop;
+  insert into public.battles (
+    min_criteria, superiority_criteria, type, status, title,
+    creator_id, opponent_id, duration_minutes, started_at, deadline_at
+  )
+  values (
+    '["상판이 보인다"]'::jsonb, null, 'speed', 'active', '동의 없음 거부 스모크',
+    v_a, v_c, 4320, now() - interval '1 day', now() + interval '1 day'
+  )
+  returning id into v_no_consent_battle;
+  insert into public.battle_participants (battle_id, user_id) values (v_no_consent_battle, v_c);
 
-  -- 마감이 지난 대결(거부 확인용).
-  update public.battles set deadline_at = now() - interval '1 hour' where id = v_b_late;
-
-  -- 매칭된 품질전 네 개. 품질전에는 우열 기준이 반드시 있어야 한다(DB 제약).
-  for v_i in 1..4 loop
-    insert into public.battles (
-      min_criteria, superiority_criteria, type, status, title,
-      creator_id, opponent_id, duration_minutes, started_at, deadline_at
-    )
-    values (
-      '["바닥이 보인다"]'::jsonb, '["먼지가 없다"]'::jsonb, 'quality', 'active',
-      'flow 품질 스모크 ' || v_i,
-      v_a, v_b, 4320, now() - interval '1 day', now() + interval '1 day'
-    )
-    returning id into v_id;
-
-    insert into public.battle_participants (battle_id, user_id) values (v_id, v_b);
-
-    case v_i
-      when 1 then v_q_success := v_id;
-      when 2 then v_q_void := v_id;
-      when 3 then v_q_lease := v_id;
-      else v_q_wait := v_id;
-    end case;
-  end loop;
-
-  -- 1. 거부 3종. 어느 것도 제출 행을 만들지 않는다.
+  -- 1. 매칭(시작) 전에 찍은 사진.
   begin
     perform public.accept_submission(
-      v_a, v_b_reject, format('%s/%s/early.jpg', v_b_reject, v_a), now() - interval '2 days');
+      v_a, v_battle, format('%s/%s/early.jpg', v_battle, v_a), now() - interval '2 days');
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
     v_reject_early := coalesce(v_hint, '(힌트 없음)');
   end;
 
+  -- 2. 촬영·수신 시각이 10분 이상 벌어짐.
   begin
     perform public.accept_submission(
-      v_a, v_b_reject, format('%s/%s/old.jpg', v_b_reject, v_a), now() - interval '20 minutes');
+      v_a, v_battle, format('%s/%s/old.jpg', v_battle, v_a), now() - interval '20 minutes');
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
     v_reject_gap := coalesce(v_hint, '(힌트 없음)');
   end;
 
+  -- 3. 마감 뒤 수신.
   begin
     perform public.accept_submission(
-      v_a, v_b_late, format('%s/%s/late.jpg', v_b_late, v_a), now());
+      v_a, v_deadline_battle, format('%s/%s/late.jpg', v_deadline_battle, v_a), now());
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
     v_reject_deadline := coalesce(v_hint, '(힌트 없음)');
   end;
 
-  -- 2. 양쪽 통과: 나중에 기록됐어도 통과 시각이 이른 쪽이 이긴다.
-  --    (한 트랜잭션 안에서는 now()가 고정이라 A의 제출 시각을 앞당겨 시간 비교를 확인한다.)
-  v_sub := (public.accept_submission(
-    v_b, v_b_pass, format('%s/%s/1.jpg', v_b_pass, v_b), now()) ->> 'submission_id')::bigint;
-  perform public.record_speed_verdict(v_sub, 'passed', '상판이 보인다', 'test/p1');
-
-  v_sub := (public.accept_submission(
-    v_a, v_b_pass, format('%s/%s/1.jpg', v_b_pass, v_a), now()) ->> 'submission_id')::bigint;
-  update public.battle_submissions set submitted_at = now() - interval '30 minutes' where id = v_sub;
-  perform public.record_speed_verdict(v_sub, 'passed', '상판이 보인다', 'test/p1');
-
-  -- 3. 통과 뒤에는 잠긴다.
+  -- 4. 동의 없음(v_c는 참가했지만 동의를 준 적이 없다).
   begin
     perform public.accept_submission(
-      v_a, v_b_pass, format('%s/%s/2.jpg', v_b_pass, v_a), now());
+      v_c, v_no_consent_battle, format('%s/%s/1.jpg', v_no_consent_battle, v_c), now());
   exception when others then
     get stacked diagnostics v_hint = pg_exception_hint;
-    v_locked := coalesce(v_hint, '(힌트 없음)');
+    v_reject_no_consent := coalesce(v_hint, '(힌트 없음)');
   end;
 
-  -- 4. 한쪽 통과 + 상대 5회 소진 -> 마감 전이라도 즉시 종결.
-  v_sub := (public.accept_submission(
-    v_a, v_b_exhaust, format('%s/%s/1.jpg', v_b_exhaust, v_a), now()) ->> 'submission_id')::bigint;
-  perform public.record_speed_verdict(v_sub, 'passed', '상판이 보인다', 'test/p1');
-
-  for v_i in 1..5 loop
-    v_sub := (public.accept_submission(
-      v_b, v_b_exhaust, format('%s/%s/%s.jpg', v_b_exhaust, v_b, v_i), now()) ->> 'submission_id')::bigint;
-    perform public.record_speed_verdict(v_sub, 'failed', '상판이 보이지 않는다', 'test/p1');
-  end loop;
-
-  -- 5. 양쪽 5회 소진 -> 즉시 draw.
-  for v_i in 1..5 loop
-    v_sub := (public.accept_submission(
-      v_a, v_b_draw, format('%s/%s/%s.jpg', v_b_draw, v_a, v_i), now()) ->> 'submission_id')::bigint;
-    perform public.record_speed_verdict(v_sub, 'failed', '상판이 보이지 않는다', 'test/p1');
-  end loop;
-  for v_i in 1..5 loop
-    v_sub := (public.accept_submission(
-      v_b, v_b_draw, format('%s/%s/%s.jpg', v_b_draw, v_b, v_i), now()) ->> 'submission_id')::bigint;
-    perform public.record_speed_verdict(v_sub, 'failed', '상판이 보이지 않는다', 'test/p1');
-  end loop;
-
-  -- 6. AI 실패는 횟수에 세지 않고 다시 낼 수 있다.
-  for v_i in 1..3 loop
-    v_sub := (public.accept_submission(
-      v_a, v_b_err, format('%s/%s/%s.jpg', v_b_err, v_a, v_i), now()) ->> 'submission_id')::bigint;
-    perform public.record_speed_verdict(v_sub, 'error', null, 'test/p1');
-  end loop;
-
-  begin
-    v_sub := (public.accept_submission(
-      v_a, v_b_err, format('%s/%s/4.jpg', v_b_err, v_a), now()) ->> 'submission_id')::bigint;
-    v_err_resubmitted := true;
-  exception when others then
-    v_err_resubmitted := false;
-  end;
-
-  -- 7. 판정 중인 내 제출이 있으면 새 제출을 받지 않는다(위 6번이 judging 상태로 남아 있다).
+  -- 5. 참가자가 아닌 사람.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_c, 'role', 'authenticated')::text, true);
+  perform public.give_ai_consent('2026-09-18');
   begin
     perform public.accept_submission(
-      v_a, v_b_err, format('%s/%s/5.jpg', v_b_err, v_a), now());
+      v_c, v_battle, format('%s/%s/1.jpg', v_battle, v_c), now());
   exception when others then
-    get stacked diagnostics v_hint = pg_exception_hint;
-    v_judging_blocks := coalesce(v_hint, '(힌트 없음)');
+    v_reject_not_participant := 'rejected';
   end;
 
-  -- 8. 판정 중 제출이 있는 대결은 마감이 지나도 settle이 건너뛴다.
-  perform public.accept_submission(
-    v_a, v_b_wait, format('%s/%s/1.jpg', v_b_wait, v_a), now());
-  update public.battles set deadline_at = now() - interval '1 hour' where id = v_b_wait;
-  perform public.settle_expired_battles();
-
-  -- 9. 3분 넘게 판정 중인 제출은 sweep이 error로 내린다(횟수 미산입).
-  v_sweep_sub := (public.accept_submission(
-    v_a, v_b_sweep, format('%s/%s/1.jpg', v_b_sweep, v_a), now()) ->> 'submission_id')::bigint;
-  update public.battle_submissions
-  set judging_started_at = now() - interval '4 minutes'
-  where id = v_sweep_sub;
-  perform public.sweep_stale_submissions();
-
-  -- 10. 진행 중에는 상대의 제출 행이 보이지 않는다(RLS).
-  v_sub := (public.accept_submission(
-    v_a, v_priv, format('%s/%s/1.jpg', v_priv, v_a), now()) ->> 'submission_id')::bigint;
-  perform public.record_speed_verdict(v_sub, 'failed', 'A의 사유', 'test/p1');
-  v_sub := (public.accept_submission(
-    v_b, v_priv, format('%s/%s/1.jpg', v_priv, v_b), now()) ->> 'submission_id')::bigint;
-  perform public.record_speed_verdict(v_sub, 'failed', 'B의 사유', 'test/p1');
-
-  perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
-  begin
-    -- 이 블록에서 예외가 나면 set local role도 함께 되돌아간다.
-    execute 'set local role authenticated';
-    select count(*) into v_rls_opponent
-    from public.battle_submissions where battle_id = v_priv and user_id = v_b;
-    select count(*) into v_rls_own
-    from public.battle_submissions where battle_id = v_priv and user_id = v_a;
-    execute 'reset role';
-  exception when others then
-    execute 'reset role';
-    v_rls_opponent := -2;
-  end;
-  execute 'reset role';
-
-  -- 11. 품질전: 두 사진이 모두 올라오는 순간 judging으로 넘어가고 판정 잡이 생긴다.
-  perform public.accept_submission(v_a, v_q_success, format('%s/%s/1.jpg', v_q_success, v_a), now());
-  v_q_both := (public.accept_submission(
-    v_b, v_q_success, format('%s/%s/1.jpg', v_q_success, v_b), now()) ->> 'both_submitted')::boolean;
-
-  -- 판정으로 종결되기 전에 읽어 둔다(끝나면 상태가 바뀐다).
-  v_q_judging := (select status from public.battles where id = v_q_success);
-  v_q_job_created := (select count(*) from public.quality_judgments where battle_id = v_q_success);
-
-  -- 12. 판정 성공 -> 마감 전이라도 즉시 종결. 승패는 quality_outcome이 정한다.
-  v_claim := public.claim_quality_judgment(v_q_success);
-  v_q_success_result := public.record_quality_verdict(
-    v_q_success, (v_claim ->> 'token')::uuid,
-    true, 'A 사진은 바닥이 보인다',
-    true, 'B 사진도 바닥이 보인다',
-    v_a, '먼지가 적어 A가 낫다', 'test/p1'
-  ) ->> 'result';
-
-  -- 13. 4회 실패 -> 무효. 매칭일이 오늘인 슬롯만 돌려주고 어제 매칭 슬롯은 남긴다.
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id)
-  values (v_a, v_today, v_q_void);
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id)
-  values (v_b, v_today - 1, v_q_void);
-
-  perform public.accept_submission(v_a, v_q_void, format('%s/%s/1.jpg', v_q_void, v_a), now());
-  perform public.accept_submission(v_b, v_q_void, format('%s/%s/1.jpg', v_q_void, v_b), now());
-
-  for v_i in 1..4 loop
-    v_claim := public.claim_quality_judgment(v_q_void);
-    if v_claim is null then
-      v_q_void_result := format('(임대 실패 %s회차)', v_i);
-      exit;
-    end if;
-
-    v_q_void_result := public.record_quality_failure(
-      v_q_void, (v_claim ->> 'token')::uuid, '스모크 실패') ->> 'result';
-
-    if v_i = 1 then
-      v_q_void_first := v_q_void_result;
-    end if;
-
-    -- 한 트랜잭션 안에서는 now()가 고정이라 다음 시도 시각을 직접 앞당긴다.
-    update public.quality_judgments set next_attempt_at = now() where battle_id = v_q_void;
-  end loop;
-
-  -- 14. 임대 만료 = 실패 1회(dispatch가 정리한다).
-  --     Vault 값이 없으면 발송(net.http_post)은 건너뛰고 만료 정리만 한다. 값이 있어 발송되더라도
-  --     이 트랜잭션은 마지막에 롤백되므로 요청 큐에도 남지 않는다.
-  perform public.accept_submission(v_a, v_q_lease, format('%s/%s/1.jpg', v_q_lease, v_a), now());
-  perform public.accept_submission(v_b, v_q_lease, format('%s/%s/1.jpg', v_q_lease, v_b), now());
-  v_claim := public.claim_quality_judgment(v_q_lease);
-  update public.quality_judgments
-  set lease_until = now() - interval '1 minute'
-  where battle_id = v_q_lease;
-  perform public.dispatch_quality_judgments();
-
-  -- 15. 판정 중에 마감이 지나면 settle이 기다리고, 판정이 끝나는 순간 확정된다.
-  perform public.accept_submission(v_a, v_q_wait, format('%s/%s/1.jpg', v_q_wait, v_a), now());
-  perform public.accept_submission(v_b, v_q_wait, format('%s/%s/1.jpg', v_q_wait, v_b), now());
-  update public.battles set deadline_at = now() - interval '1 hour' where id = v_q_wait;
-  perform public.settle_expired_battles();
-  v_q_wait_after_settle := (select status from public.battles where id = v_q_wait);
-
-  -- 둘 다 충족인데 승자가 없는 응답은 성공으로 치지 않고 재시도로 돌린다(동점 없음).
-  v_claim := public.claim_quality_judgment(v_q_wait);
-  v_q_wait_bad_winner := public.record_quality_verdict(
-    v_q_wait, (v_claim ->> 'token')::uuid,
-    true, 'A 사진은 바닥이 보인다', true, 'B 사진도 바닥이 보인다',
-    null, null, 'test/p1'
-  ) ->> 'result';
-
-  update public.quality_judgments set next_attempt_at = now() where battle_id = v_q_wait;
-  v_claim := public.claim_quality_judgment(v_q_wait);
-  -- 한쪽만 충족하면 AI가 고른 승자와 무관하게 충족한 쪽이 이긴다(여기서는 승자를 아예 보내지 않는다).
-  v_q_wait_result := public.record_quality_verdict(
-    v_q_wait, (v_claim ->> 'token')::uuid,
-    true, 'A 사진은 바닥이 보인다', false, 'B 사진은 물건이 그대로다',
-    null, null, 'test/p1'
-  ) ->> 'result';
+  -- 6. 거부되지 않은 제출은 정상적으로 행이 생긴다.
+  v_accepted := public.accept_submission(v_a, v_battle, format('%s/%s/ok.jpg', v_battle, v_a), now());
 
   v_actual := jsonb_build_object(
     'reject_early', v_reject_early,
     'reject_gap', v_reject_gap,
     'reject_deadline', v_reject_deadline,
+    'reject_no_consent', v_reject_no_consent,
+    'reject_not_participant', v_reject_not_participant,
     'rejected_rows', (select count(*) from public.battle_submissions
-                      where battle_id in (v_b_reject, v_b_late)),
-    'both_passed', (select status || '/' || (winner_id = v_a)::text
-                    from public.battles where id = v_b_pass),
-    'both_passed_a', (select outcome from public.battle_participants
-                      where battle_id = v_b_pass and user_id = v_a),
-    'both_passed_b', (select outcome from public.battle_participants
-                      where battle_id = v_b_pass and user_id = v_b),
-    'locked_after_pass', v_locked,
-    'exhausted', (select status || '/' || (winner_id = v_a)::text
-                  from public.battles where id = v_b_exhaust),
-    'exhausted_b', (select outcome from public.battle_participants
-                    where battle_id = v_b_exhaust and user_id = v_b),
-    'exhausted_b_attempts', (select attempts_used from public.battle_participants
-                             where battle_id = v_b_exhaust and user_id = v_b),
-    'draw_exhausted', (select status from public.battles where id = v_b_draw),
-    'draw_outcomes', (select string_agg(outcome, ',' order by outcome)
-                      from public.battle_participants where battle_id = v_b_draw),
-    'error_rows', (select count(*) from public.battle_submissions
-                   where battle_id = v_b_err and status = 'error'),
-    'error_attempts', (select attempts_used from public.battle_participants
-                       where battle_id = v_b_err and user_id = v_a),
-    'error_battle', (select status from public.battles where id = v_b_err),
-    'error_resubmitted', v_err_resubmitted,
-    'judging_blocks', v_judging_blocks,
-    'settle_skips', (select status from public.battles where id = v_b_wait),
-    'sweep_status', (select status from public.battle_submissions where id = v_sweep_sub),
-    'sweep_attempts', (select attempts_used from public.battle_participants
-                       where battle_id = v_b_sweep and user_id = v_a),
-    'sweep_battle', (select status from public.battles where id = v_b_sweep),
-    'rls_opponent', v_rls_opponent,
-    'rls_own', v_rls_own,
-    -- 어떤 경로도 disputed를 만들지 않는다(MVP 미도달).
-    'disputed_count', (select count(*) from public.battles
-                       where creator_id = v_a and status = 'disputed')
-  );
-
-  -- 품질전은 따로 묶는다(jsonb_build_object 한 번에 넣을 수 있는 인자 수를 넘지 않게).
-  v_actual := v_actual || jsonb_build_object(
-    'q_both_submitted', v_q_both,
-    'q_judging', v_q_judging,
-    'q_job_created', v_q_job_created,
-    'q_success', v_q_success_result,
-    'q_success_battle', (select status || '/' || (winner_id = v_a)::text
-                         from public.battles where id = v_q_success),
-    'q_success_a', (select outcome from public.battle_participants
-                    where battle_id = v_q_success and user_id = v_a),
-    'q_success_b', (select outcome from public.battle_participants
-                    where battle_id = v_q_success and user_id = v_b),
-    'q_success_reason', (select verdict_reason from public.battles where id = v_q_success),
-    'q_success_meets', (select count(*) from public.battle_submissions
-                        where battle_id = v_q_success and meets_criteria),
-    'q_success_jobs', (select count(*) from public.quality_judgments where battle_id = v_q_success),
-    'q_void_first', v_q_void_first,
-    'q_void', v_q_void_result,
-    'q_void_battle', (select status from public.battles where id = v_q_void),
-    'q_void_outcomes', (select count(*) from public.battle_participants
-                        where battle_id = v_q_void and outcome is not null),
-    'q_void_jobs', (select count(*) from public.quality_judgments where battle_id = v_q_void),
-    'q_void_slot_today', (select count(*) from public.daily_battle_slots
-                          where battle_id = v_q_void and kst_date = v_today),
-    'q_void_slot_yesterday', (select count(*) from public.daily_battle_slots
-                              where battle_id = v_q_void and kst_date = v_today - 1),
-    'q_lease_attempts', (select attempts from public.quality_judgments where battle_id = v_q_lease),
-    'q_lease_free', (select lease_token is null from public.quality_judgments
-                     where battle_id = v_q_lease),
-    'q_lease_retry', (select next_attempt_at > now() from public.quality_judgments
-                      where battle_id = v_q_lease),
-    'q_lease_battle', (select status from public.battles where id = v_q_lease),
-    'q_wait_after_settle', v_q_wait_after_settle,
-    'q_wait_bad_winner', v_q_wait_bad_winner,
-    'q_wait', v_q_wait_result,
-    'q_wait_battle', (select status || '/' || (winner_id = v_a)::text
-                      from public.battles where id = v_q_wait)
+                      where battle_id in (v_battle, v_deadline_battle, v_no_consent_battle)
+                        and (object_path like '%early.jpg' or object_path like '%old.jpg'
+                             or object_path like '%late.jpg')),
+    'accepted_row', (select count(*) from public.battle_submissions
+                     where id = (v_accepted ->> 'submission_id')::bigint)
   );
 
   v_expected := jsonb_build_object(
     'reject_early', 'CAPTURED_BEFORE_START',
     'reject_gap', 'CAPTURE_TIME_MISMATCH',
     'reject_deadline', 'DEADLINE_PASSED',
+    'reject_no_consent', 'CONSENT_REQUIRED',
+    'reject_not_participant', 'rejected',
     'rejected_rows', 0,
-    'both_passed', 'finished/true',
-    'both_passed_a', 'win',
-    'both_passed_b', 'completed_loss',
-    'locked_after_pass', 'SUBMISSION_LOCKED',
-    'exhausted', 'finished/true',
-    'exhausted_b', 'loss',
-    'exhausted_b_attempts', 5,
-    'draw_exhausted', 'draw',
-    'draw_outcomes', 'draw,draw',
-    'error_rows', 3,
-    'error_attempts', 0,
-    'error_battle', 'active',
-    'error_resubmitted', true,
-    'judging_blocks', 'JUDGING_IN_PROGRESS',
-    'settle_skips', 'active',
-    'sweep_status', 'error',
-    'sweep_attempts', 0,
-    'sweep_battle', 'active',
-    'rls_opponent', 0,
-    'rls_own', 1,
-    'disputed_count', 0
-  );
-
-  v_expected := v_expected || jsonb_build_object(
-    'q_both_submitted', true,
-    'q_judging', 'judging',
-    'q_job_created', 1,
-    'q_success', 'finished',
-    'q_success_battle', 'finished/true',
-    'q_success_a', 'win',
-    'q_success_b', 'loss',
-    'q_success_reason', '먼지가 적어 A가 낫다',
-    'q_success_meets', 2,
-    'q_success_jobs', 0,
-    'q_void_first', 'retry_scheduled',
-    'q_void', 'voided',
-    'q_void_battle', 'voided',
-    'q_void_outcomes', 0,
-    'q_void_jobs', 0,
-    'q_void_slot_today', 0,
-    'q_void_slot_yesterday', 1,
-    'q_lease_attempts', 1,
-    'q_lease_free', true,
-    'q_lease_retry', true,
-    'q_lease_battle', 'judging',
-    'q_wait_after_settle', 'judging',
-    'q_wait_bad_winner', 'retry_scheduled',
-    'q_wait', 'finished',
-    'q_wait_battle', 'finished/true'
+    'accepted_row', 1
   );
 
   select coalesce(string_agg(format('%s expected=%s actual=%s', e.key, e.value, coalesce(a.value::text, 'null')), '; '), '')

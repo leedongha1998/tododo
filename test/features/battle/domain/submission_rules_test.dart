@@ -25,14 +25,6 @@ void main() {
         AppStrings.battleErrorSubmissionLocked,
       );
       expect(
-        submissionErrorMessage(const SubmissionException('JUDGING_IN_PROGRESS')),
-        AppStrings.battleErrorJudgingInProgress,
-      );
-      expect(
-        submissionErrorMessage(const SubmissionException('ATTEMPTS_EXHAUSTED')),
-        AppStrings.battleErrorAttemptsExhausted,
-      );
-      expect(
         submissionErrorMessage(const SubmissionException('CONSENT_REQUIRED')),
         AppStrings.aiConsentRequired,
       );
@@ -52,19 +44,5 @@ void main() {
         AppStrings.battleEvidenceSubmitFailed,
       );
     });
-  });
-
-  group('제출 상태 라벨', () {
-    test('서버 상태 값을 글자로만 옮긴다', () {
-      expect(submissionStatusLabel('passed'), AppStrings.battleEvidenceVerdictPassed);
-      expect(submissionStatusLabel('failed'), AppStrings.battleEvidenceVerdictFailed);
-      expect(submissionStatusLabel('error'), AppStrings.battleEvidenceVerdictError);
-      expect(submissionStatusLabel('judging'), AppStrings.battleEvidenceVerdictJudging);
-      expect(submissionStatusLabel('submitted'), AppStrings.battleEvidenceVerdictSubmitted);
-    });
-  });
-
-  test('속도전 판정 상한은 서버와 같은 5회다', () {
-    expect(speedJudgeMaxAttempts, 5);
   });
 }

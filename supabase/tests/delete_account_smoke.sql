@@ -65,8 +65,8 @@ begin
     (v_u, v_today, v_b_today), (v_o, v_today, v_b_today),
     (v_u, v_today - 1, v_b_yday), (v_o, v_today - 1, v_b_yday);
 
-  insert into public.battle_submissions (battle_id, user_id, object_path, captured_at, submitted_at, status, reason)
-  values (v_b_today, v_u, v_b_today || '/' || v_u || '/smoke.jpg', now(), now(), 'passed', '책상이 비어 있다');
+  insert into public.battle_submissions (battle_id, user_id, object_path, captured_at, submitted_at, reason)
+  values (v_b_today, v_u, v_b_today || '/' || v_u || '/smoke.jpg', now(), now(), '책상이 비어 있다');
 
   -- 이 세션을 U로 위장시킨다 (auth.uid()가 읽는 값).
   perform set_config('request.jwt.claims', json_build_object('sub', v_u, 'role', 'authenticated')::text, true);

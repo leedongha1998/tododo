@@ -1,0 +1,1 @@
+- [SQL 마이그레이션 트리거-CHECK 정합성 검산 패턴](feedback_sql_trigger_check_verification.md) — trim/left 조합 CHECK 위반 여부는 경계값(빈 문자열, 길이 초과, 내부 공백)을 직접 대입해 검산

@@ -2,6 +2,7 @@ import '../data/battle.dart';
 import '../data/battle_participant.dart';
 import '../data/battle_submission.dart';
 import 'battle_outcome.dart';
+import 'judgment_rules.dart';
 
 /// 대결 상세 화면이 쓰는 상태 판별 모음.
 ///
@@ -56,8 +57,39 @@ class BattleDetail {
 
   bool get isQuality => battle.type == 'quality';
 
-  /// 상호 판정 창(두 유형 공통). AI 재판정은 이 안의 갈래다. 실제 판정 화면은 4단계에서 만든다.
+  /// 상호 판정 창(두 유형 공통). AI 재판정은 이 안의 갈래다.
   bool get isJudging => battle.status == 'judging';
+
+  /// 판정 기한(판정 창이 열린 시각 + 24시간). 서버가 창을 열 때 함께 기록한다.
+  DateTime? get judgeDeadlineAt => battle.judgeDeadlineAt;
+
+  /// 판정 기한이 지났는지. 지나면 미판정이 승인으로 간주되고 cron이 정리한다.
+  bool isPastJudgeDeadline(DateTime now) {
+    final deadline = battle.judgeDeadlineAt;
+    return deadline != null && !deadline.isAfter(now);
+  }
+
+  /// 판정 창에서 지금 화면이 보여줄 단계. 판단은 전부 [judgmentStageOf] 순수 함수가 한다.
+  JudgmentStage judgmentStageAt(DateTime now) => judgmentStageOf(
+        status: battle.status,
+        opponentSubmitted: opponent.hasSubmitted,
+        iSubmitted: me.hasSubmitted,
+        iJudged: me.hasJudged,
+        opponentJudged: opponent.hasJudged,
+        judgeDeadlineAt: battle.judgeDeadlineAt,
+        now: now,
+      );
+
+  JudgmentStage get judgmentStage => judgmentStageAt(DateTime.now());
+
+  /// 내가 판정할 차례인지. 같은 검사를 서버(`submit_judgment`)가 다시 한다.
+  bool get isMyJudgmentTurn => judgmentStage == JudgmentStage.myTurn;
+
+  /// 품질전은 최소 기준과 우열을 한 번에 답해야 한다(없으면 서버가 `SUPERIORITY_REQUIRED`).
+  bool get needsSuperiorityPick => isQuality;
+
+  /// 참가 전에 공개된 우열 기준. 속도전은 비어 있다.
+  List<String> get superiorityCriteria => battle.superiorityCriteria ?? const [];
 
   /// 품질전 판정의 한 줄 사유. 우열 AI 재판정이 확정될 때 함께 종결되므로 종결된 뒤에만 값이 있다.
   String? get verdictReason => battle.verdictReason;
@@ -90,7 +122,11 @@ class BattleDetail {
   bool get canSubmitEvidence => canSubmitEvidenceAt(DateTime.now());
 
   /// 이미 냈고(교체가 아니라 처음 내는 것과 구분하는 문구용) 상대가 아직 내지 않아 바꿀 수 있는 상태.
-  bool get isReplacingEvidence => isSpeed && me.hasSubmitted && battle.status == 'active';
+  /// 마감이 지나면 서버가 `DEADLINE_PASSED`로 거부하므로 교체 자리도 닫는다.
+  bool isReplacingEvidenceAt(DateTime now) =>
+      isSpeed && me.hasSubmitted && canSubmitEvidenceAt(now);
+
+  bool get isReplacingEvidence => isReplacingEvidenceAt(DateTime.now());
 
   /// 상대가 제출했는지. 사진·시각·통과 여부가 아니라 "냈다"는 사실만이다.
   bool get hasOpponentSubmitted => opponent.hasSubmitted;

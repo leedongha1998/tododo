@@ -75,6 +75,14 @@ class _FakeBattleRepository implements BattleRepository {
   Future<void> forfeitBattle(String battleId) async {}
 
   @override
+  Future<String> submitJudgment({
+    required String battleId,
+    required bool passed,
+    String? superiorId,
+  }) async =>
+      'judging';
+
+  @override
   Future<List<Battle>> fetchMyBattles() async => const [];
 
   @override

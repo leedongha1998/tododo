@@ -14,6 +14,7 @@ import '../domain/battle_outcome.dart';
 import '../domain/battle_providers.dart';
 import 'battle_chips.dart';
 import 'evidence_section.dart';
+import 'judgment_section.dart';
 import 'player_card_view.dart';
 import 'vs_intro.dart';
 
@@ -81,7 +82,15 @@ class BattleDetailScreen extends ConsumerWidget {
               _BattleHeader(detail: detail),
               const SizedBox(height: 16),
               _ResultBanner(detail: detail),
-              if (detail.isOngoing) ...[
+              // 상호 판정 창. 내 차례면 판정 섹션이 상대 사진을 크게 보여 주므로 양쪽 증거
+              // 블록을 겹쳐 그리지 않는다. 판정을 보낸 뒤에는 두 사진을 함께 보여 준다.
+              if (detail.isJudging) ...[
+                JudgmentSection(detail: detail),
+                if (!detail.isMyJudgmentTurn && detail.submissions.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  RevealedEvidenceSection(detail: detail),
+                ],
+              ] else if (detail.isOngoing) ...[
                 MyEvidenceSection(detail: detail),
                 const SizedBox(height: 16),
                 OpponentEvidenceSummary(detail: detail),
@@ -125,7 +134,9 @@ class _BattleHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final deadline = _deadlineText(detail);
+    // 제출 창과 판정 창은 다른 시계다. 한 줄로 합치면 "1분 대결이 하루 걸린다"로 읽힌다.
+    final submitDeadline = _submitDeadlineText(detail);
+    final judgeDeadline = _judgeDeadlineText(detail);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,9 +148,13 @@ class _BattleHeader extends StatelessWidget {
             BattleStatusChip(status: detail.battle.status),
           ],
         ),
-        if (deadline != null) ...[
+        if (submitDeadline != null) ...[
           const SizedBox(height: 8),
-          Text(deadline, style: textTheme.bodySmall),
+          Text(submitDeadline, style: textTheme.bodySmall),
+        ],
+        if (judgeDeadline != null) ...[
+          const SizedBox(height: 4),
+          Text(judgeDeadline, style: textTheme.bodySmall),
         ],
         const SizedBox(height: 12),
         _OpponentCard(detail: detail),
@@ -351,15 +366,32 @@ String _formatDateTime(DateTime time) {
   return '${local.month}월 ${local.day}일 $hour:$minute';
 }
 
-// 진행 중인 대결에만 마감을 말한다. 끝난 대결에서는 결과가 이미 답이다.
-String? _deadlineText(BattleDetail detail) {
+// 사진을 낼 수 있는 시간(제출 창). 진행 중인 대결에만 말한다 — 끝난 대결에서는 결과가 이미 답이다.
+// 판정 창에서도 보여 준다: 제출은 끝났고 지금은 판정 중이라는 것이 두 줄로 읽혀야 한다.
+String? _submitDeadlineText(BattleDetail detail) {
   final deadline = detail.battle.deadlineAt;
   if (deadline == null || !detail.isOngoing) return null;
 
   final left = deadline.difference(DateTime.now());
-  if (left.isNegative) return AppStrings.battleDeadlinePassed;
+  if (left.isNegative) {
+    return '${AppStrings.battleSubmitDeadlineLabel} · ${AppStrings.battleDeadlineClosed}';
+  }
 
-  return '${AppStrings.battleDeadlineLabel} ${_formatDateTime(deadline)}'
+  return '${AppStrings.battleSubmitDeadlineLabel} ${_formatDateTime(deadline)}'
+      ' · ${AppStrings.battleDeadlineLeft(_formatRemaining(left))}';
+}
+
+// 서로 판정할 수 있는 시간(판정 창). 서버가 창을 열 때 기록한 judge_deadline_at을 그대로 보여 준다.
+String? _judgeDeadlineText(BattleDetail detail) {
+  final deadline = detail.judgeDeadlineAt;
+  if (deadline == null || !detail.isOngoing) return null;
+
+  final left = deadline.difference(DateTime.now());
+  if (left.isNegative) {
+    return '${AppStrings.battleJudgeDeadlineLabel} · ${AppStrings.battleJudgeDeadlineClosed}';
+  }
+
+  return '${AppStrings.battleJudgeDeadlineLabel} ${_formatDateTime(deadline)}'
       ' · ${AppStrings.battleDeadlineLeft(_formatRemaining(left))}';
 }
 

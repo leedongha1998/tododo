@@ -45,10 +45,10 @@
 
 | 단계 | 스키마 | 내용 | Edge 재배포 | 상태 |
 |---|---|---|---|---|
-| 1 | 있음 | 기존 대결 데이터 정리 + 커스텀 마감(분 단위) | `battle-criteria` | **구현 완료(미커밋·미적용)** |
-| 2 | 있음 | 판정 창·제출 교체·상호 판정 기록·자동 승인·결론 규칙(즉시 AI 판정 제거) | `submit-evidence`(적용 직후) | 미착수 |
+| 1 | 있음 | 기존 대결 데이터 정리 + 커스텀 마감(분 단위) | `battle-criteria` | **원격 적용·스모크 통과(2026-09-18)** |
+| 2 | 있음 | 판정 창·제출 교체·상호 판정 기록·자동 승인·결론 규칙(즉시 AI 판정 제거) | `submit-evidence`(적용 직후) | **원격 적용·SQL 테스트 12개 통과(2026-10-28)** |
 | 3 | 있음 | AI 재판정 재배선 | `judge-dispute` 신규 / `judge-quality` 삭제 | 미착수 |
-| 4 | 없음 | 판정 화면·제출 교체 화면 | - | 미착수 |
+| 4 | 없음 | 판정 화면·제출 교체 화면 | - | **구현 완료(미커밋) — 3단계보다 먼저 했다** |
 | 5 | 없음 | 결과·공개·상태 줄·문서·문구 | - | 미착수 |
 
 ---
@@ -225,6 +225,67 @@
 
 - `presentation/{judgment_section.dart,evidence_section.dart,battle_detail_screen.dart}`, `domain/{judgment_rules.dart,battle_detail.dart}`, `data/battle_repository.dart`, `strings.dart` + 위젯·유닛 테스트.
 - 커밋: `feat: 상호 판정 화면` / `feat: 제출 교체 화면`(화면 하나 = 커밋 하나).
+- **순서 변경: 4단계를 3단계보다 먼저 한다(오너 결정, 2026-10-28).** 2단계 원격 적용 뒤 실기기로 확인하다 "판정 창은 열리는데 판정할 화면이 없다"는 문제가 드러났다. 오너가 요구한 흐름은 그대로다 — 서로의 사진을 보여 주고, 서로 판정해 승패가 나면 끝, 이의제기하면 AI 판정.
+  - 바꿔도 되는 이유: 화면이 부르는 `submit_judgment(대결, 승인/불복, 우열)` 시그니처를 3단계가 바꾸지 않는다. 3단계는 불복이 들어온 **뒤**의 서버 내부 배선이라 화면을 다시 뜯을 일이 거의 없다. 승인 경로는 지금 서버로 완전히 동작한다(양쪽 승인 → 즉시 종결).
+  - 감수하는 것: **불복을 누르면 그 대결은 3단계가 올 때까지 `judging`에 멈춘다.** 실사용자가 없고 오너가 테스트하는 중이라 감수한다. 화면에는 "AI가 다시 보는 중" 류로 진행 중임을 보여 주고, 3단계가 그 상태를 실제로 끝내게 한다.
+
+### 4단계 작업 순서 (확정, 2026-10-28 developer)
+
+`spec.md` 수용 기준 "판정 창과 절차"·"속도전"·"품질전", `design.md` 화면 4·5와 API 계약(`submit_judgment`),
+그리고 **원격에 적용된 `supabase/migrations/20260922120000_judging_window.sql`의 실제 함수 본문**을 입력으로 삼았다.
+서버가 진실이고 화면은 그 값을 표시만 한다.
+
+1. **`lib/features/battle/domain/judgment_rules.dart` (신규)** — 순수 함수만.
+   - `JudgmentStage` enum(`notOpen`·`nothingToJudge`·`myTurn`·`windowClosed`·`waitingOpponent`·`waitingAi`)과
+     `judgmentStageOf(...)`. 서버 값(`status`, `has_submitted`, `has_judged`, `judge_deadline_at`)만 본다.
+   - `judgmentErrorCodeOf`/`judgmentErrorMessage`/`isJudgeWindowClosedError` — `PostgrestException.hint` 기준
+     (`criteria_rules.dart`·`submission_rules.dart`와 같은 모양).
+2. **`domain/battle_detail.dart`** — `judgmentStageAt(now)`/`judgmentStage`/`isMyJudgmentTurn`/`isPastJudgeDeadline(now)`
+   getter 추가. 위 순수 함수를 부르는 얇은 층이다.
+3. **`data/battle_repository.dart`** — `submitJudgment({battleId, passed, superiorId})` → RPC `submit_judgment`.
+   승인/불복 어휘(`approve`/`reject`)는 이 계층에서만 쓴다. `implements BattleRepository`로 만든 테스트 가짜들을 함께 고친다.
+4. **`lib/core/strings.dart`** — 판정 질문·버튼·단계 안내·오류 코드 문구와 헤더의 시간 두 줄 라벨 추가,
+   2단계의 자리 문구(`battleJudgingPlaceholder*`) 제거.
+5. **`presentation/judgment_section.dart` (신규)** — 단계별 블록 + 판정 입력 폼. (커밋 후보: `feat: 상호 판정 화면`)
+6. **`presentation/battle_detail_screen.dart`** — `judging` 분기에서 판정 섹션을 쓰고, 헤더에 "사진 마감"·"판정 마감" 두 줄.
+7. **`presentation/evidence_section.dart`** — 제출 후 내 사진 표시, 마감 지난 뒤 교체 버튼 감춤, 판정 자리 문구 제거.
+   (커밋 후보: `feat: 제출 교체 화면`)
+8. **테스트** — `test/features/battle/domain/judgment_rules_test.dart`(단계 표 전 행),
+   `test/features/battle/domain/battle_detail_test.dart`(추가 getter), `test/features/battle/battle_judgment_test.dart`(위젯),
+   기존 `battle_evidence_test.dart` 보강.
+9. `flutter analyze`(이슈 0) + `flutter test`(전부 통과). **커밋·원격 적용·배포는 하지 않는다.**
+
+#### 단계 판정 표 (순수 함수 `judgmentStageOf`, 위에서부터 먼저 맞는 줄)
+
+| # | 조건 | 단계 | 화면 |
+|---|---|---|---|
+| 1 | `status <> 'judging'` | `notOpen` | 판정 영역을 그리지 않는다 |
+| 2 | 상대가 제출하지 않음 | `nothingToJudge` | "판정할 것이 없어요"(속도전 한쪽 제출의 제출자) |
+| 3 | 내가 아직 판정 안 함 + 기한 남음 | `myTurn` | 판정 폼 |
+| 4 | 내가 아직 판정 안 함 + 기한 지남 | `windowClosed` | "기한이 지나 자동 처리 중" |
+| 5 | 내가 판정했고, 내가 제출했는데 상대가 아직 판정 안 함 | `waitingOpponent` | "상대 판정을 기다리는 중" |
+| 6 | 그 밖(양쪽 판정이 끝났는데 아직 `judging`) | `waitingAi` | "AI가 다시 보고 있어요" |
+
+6번이 추측이 아닌 이유: `submit_judgment`가 마지막 판정과 **같은 트랜잭션**에서 `resolve_battle`을 부르므로,
+양쪽 판정이 끝났는데 `judging`이 남아 있다면 결론이 `pending`(= 불복 건의 AI 대기)인 경우뿐이다.
+**3단계가 오기 전에는 이 상태가 실제로 끝나지 않는다**(오너가 감수한 사항, 위 절 참고).
+
+#### design과 달라지는 점 (이유 포함)
+
+1. **속도전도 "고른 뒤 보내기"로 받는다.** design 화면 5는 속도전을 `[통과했어요]`/`[통과하지 못했어요]` 두 버튼으로
+   적었지만, 같은 절에서 "보내기 전 확인 다이얼로그"도 요구한다. 버튼이 곧 전송이면 "고르기"와 "보내기"가 섞이고
+   사진을 못 불러왔을 때의 비활성 처리도 두 군데로 갈린다. 두 유형 모두 `SegmentedButton`(선택) + `판정 보내기`(전송)로
+   통일한다. 질문·선택지 문구는 design 그대로다.
+2. **"사진 로드 실패 시 판정 비활성"은 서명 URL 발급 실패·로딩 중으로 좁힌다.** 사진 디코딩 실패는 `EvidencePhotoFrame`이
+   틀 안에서 "다시 시도"로 처리하고 버튼을 막지 않는다 — 디코딩 실패를 바깥으로 알리려면 공용 위젯에 콜백을 더해야 하고,
+   그것은 retro-theme의 공용 위젯 계약을 이 단계에서 넓히는 일이다. 실제로 막히는 경로(RLS·네트워크)는 URL 발급에서 걸린다.
+3. **`judging`에서 내 판정 차례일 때는 양쪽 증거 블록을 함께 그리지 않는다.** 판정 섹션이 상대 사진을 크게 보여 주므로
+   같은 사진이 두 번 나온다. 판정을 보낸 뒤(또는 판정할 것이 없을 때)에만 양쪽 증거 블록을 보여 준다.
+4. **`active`에서 "상대가 제출해서 사진이 잠겼어요" 안내는 만들지 않는다.** 서버 불변식상 양쪽이 모두 제출하면 그 트랜잭션에서
+   `judging`으로 넘어가므로 `active`에 그 상태가 존재하지 않는다. 경합으로 교체가 밀린 경우는 이미 `SUBMISSION_LOCKED`
+   스낵바가 같은 문구로 알린다.
+5. **교체 버튼을 마감 지난 뒤에는 감춘다.** 2단계의 `isReplacingEvidence`는 마감을 보지 않아 정산 전(최대 1분) 교체 버튼이
+   남아 있었다. 서버가 `DEADLINE_PASSED`로 거부하므로 버튼을 보여 줄 이유가 없다.
 
 ## 5단계 — 결과·공개·문서 (착수 메모)
 
@@ -236,6 +297,33 @@
 ---
 
 ## 진행 기록
+
+### 4단계 (로컬 구현 완료, 2026-10-28 — 3단계보다 먼저 했다)
+- developer 에이전트가 구현했다. **커밋·원격 적용·배포 없음** — 작업 트리에 변경만 있다.
+  원격 DB·Storage·시크릿·Edge Function은 읽지도 건드리지도 않았다(스키마 변경이 없는 단계다).
+- **새 파일**: `lib/features/battle/domain/judgment_rules.dart`,
+  `lib/features/battle/presentation/judgment_section.dart`,
+  `test/features/battle/domain/judgment_rules_test.dart`, `test/features/battle/battle_judgment_test.dart`.
+- **고친 파일**: `lib/core/strings.dart`(판정 문구·오류 코드 문구·시간 두 줄 라벨 추가, 2단계 자리 문구 제거),
+  `domain/battle_detail.dart`, `data/battle_repository.dart`(`submitJudgment`),
+  `presentation/{battle_detail_screen.dart,evidence_section.dart}`,
+  테스트 7개(`BattleRepository` 가짜 6곳에 `submitJudgment` 추가 + 판정 자리 문구를 쓰던 단언 교체).
+- 헤더가 "마감" 한 줄에서 "사진 마감"·"판정 마감" 두 줄로 바뀌면서 `AppStrings.battleDeadlineLabel`의 참조가
+  0이 되어 함께 지웠다(5단계 "미사용 문자열 0건"을 미리 지킨 것이고, 범위를 넓힌 것은 아니다).
+- 위 "4단계 작업 순서"에 적은 1→9 순서를 **그대로** 따랐고 중간에 바꾸지 않았다. design과 달라진 5건도 그 절에 있다.
+- 검증: `flutter analyze` 이슈 0, `flutter test` **304개 통과**(기준선 273 + 판정 단계·오류 문구 유닛 12 +
+  판정 화면 위젯 13 + 상세 모델 유닛 6).
+- 함정 메모
+  - **`DateTime.now()`를 쓰는 getter는 고정 픽스처로 검증할 수 없다.** `isReplacingEvidence`·`isMyJudgmentTurn`처럼
+    시각을 인자로 받지 않는 getter는 과거 날짜 픽스처에서 늘 false가 된다. 유닛 테스트는 `...At(now)` 쪽을 부르고,
+    getter 경로는 위젯 테스트(픽스처가 `DateTime.now()` 기준)가 덮는다. 2단계 테스트에 있던 `isReplacingEvidence`
+    단언이 이 때문에 깨져 `isReplacingEvidenceAt(_now)`로 바꿨다.
+  - **판정 선택지는 사진·기준 블록 아래라 기본 테스트 화면(800x600) 밖으로 밀린다.** 위젯 테스트에서
+    `ensureVisible` 없이 탭하면 "would not hit test" 경고와 함께 실패한다(기존 제출 버튼 테스트와 같은 함정).
+  - 위젯 테스트에서 `NetworkImage`는 400으로 실패한다(테스트용 HTTP 클라이언트). 그래서 판정 버튼 활성 판단을
+    **서명 URL 발급 결과**에 걸었다 — 사진 디코딩까지 조건에 넣으면 테스트에서 활성 경로를 전혀 볼 수 없다.
+- **보류 그대로**: AI 재판정 배선(3단계 — 불복을 누르면 대결이 `judging`에 머문다),
+  종결 후 판정 내역·`verdict_source` 공개와 목록 상태 줄·문서 갱신(5단계).
 
 ### 2단계 (로컬 구현 완료, 2026-09-22 — 원격 적용은 아래 "2단계 원격 적용 결과")
 - developer 에이전트가 재개해 로컬 구현을 끝냈다. **커밋·원격 적용·배포는 하지 않았다** — 작업 트리에 변경만 남아 있다. 메인 세션이 `flutter analyze`(이슈 0)·`flutter test`(273개 통과)·`deno test supabase/functions/_shared/`(26개 통과)를 다시 돌려 보고를 검증했다.

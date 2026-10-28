@@ -141,11 +141,6 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       ];
     }
 
-    // 상호 판정 창. 판정 화면 자체는 4단계 몫이다.
-    if (detail.isJudging) {
-      return const [_JudgingPlaceholder()];
-    }
-
     return detail.isSpeed ? _speedBody(context, detail) : _qualityBody(context, detail);
   }
 
@@ -168,23 +163,42 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       ];
     }
 
-    if (detail.isReplacingEvidence) {
+    // 낸 사진은 내가 언제든 볼 수 있다(서버도 내 행은 가리지 않는다). 무엇이 판정 대상인지
+    // 보이지 않으면 교체할지 말지 정할 수 없다.
+    if (detail.me.hasSubmitted) {
+      final mine = _MySubmittedPhoto(detail: detail);
+
+      if (detail.isReplacingEvidence) {
+        return [
+          mine,
+          const SizedBox(height: 12),
+          const PixelFrame.tone(
+            tone: PixelTone.neutral,
+            icon: PixelIcons.camera,
+            child: Text(AppStrings.battleEvidenceSubmittedWaitingOpponent),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _capture,
+            icon: const PixelIcon(PixelIcons.retry),
+            label: const Text(AppStrings.battleEvidenceReplace),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            AppStrings.battleEvidenceReplaceHint,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ];
+      }
+
+      // 마감이 지났는데 아직 정산 전이면 교체도 서버가 거부한다. 버튼을 보여 주지 않는다.
       return [
+        mine,
+        const SizedBox(height: 12),
         const PixelFrame.tone(
           tone: PixelTone.neutral,
-          icon: PixelIcons.camera,
-          child: Text(AppStrings.battleEvidenceSubmittedWaitingOpponent),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: _capture,
-          icon: const PixelIcon(PixelIcons.retry),
-          label: const Text(AppStrings.battleEvidenceReplace),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          AppStrings.battleEvidenceReplaceHint,
-          style: Theme.of(context).textTheme.bodySmall,
+          icon: PixelIcons.clock,
+          child: Text(AppStrings.battleDeadlinePassed),
         ),
       ];
     }
@@ -214,8 +228,10 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
   /// 판정 결과(승패·사유)는 종결 뒤 결과 배너가 서버 값으로 보여 준다 — 여기서는 판단하지 않는다.
   List<Widget> _qualityBody(BuildContext context, BattleDetail detail) {
     if (detail.me.hasSubmitted) {
-      return const [
-        PixelFrame.tone(
+      return [
+        _MySubmittedPhoto(detail: detail),
+        const SizedBox(height: 12),
+        const PixelFrame.tone(
           tone: PixelTone.success,
           title: AppStrings.battleEvidenceQualitySubmittedTitle,
           child: Text(AppStrings.battleEvidenceQualityWaiting),
@@ -267,18 +283,19 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
   }
 }
 
-/// 상호 판정 창 안내. 속도전·품질전 공통이고, 실제 판정 버튼은 4단계에서 붙는다.
-class _JudgingPlaceholder extends StatelessWidget {
-  const _JudgingPlaceholder();
+/// 지금 제출로 걸려 있는 내 사진. 서버가 내 행은 언제나 내주므로 진행 중에도 볼 수 있다.
+/// 교체하면 이 사진이 바뀐다(행을 덮어쓴다).
+class _MySubmittedPhoto extends StatelessWidget {
+  const _MySubmittedPhoto({required this.detail});
+
+  final BattleDetail detail;
 
   @override
   Widget build(BuildContext context) {
-    return const PixelFrame.tone(
-      tone: PixelTone.info,
-      icon: PixelIcons.hourglass,
-      title: AppStrings.battleJudgingPlaceholderTitle,
-      child: Text(AppStrings.battleJudgingPlaceholder),
-    );
+    final path = detail.mySubmission?.objectPath;
+    // 제출 직후 서버를 다시 읽기 전이면 요약(has_submitted)만 먼저 참이 될 수 있다.
+    if (path == null) return const SizedBox.shrink();
+    return _SubmissionThumbnail(path: path);
   }
 }
 

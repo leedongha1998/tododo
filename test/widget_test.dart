@@ -89,6 +89,14 @@ class _FakeBattleRepository implements BattleRepository {
   Future<void> forfeitBattle(String battleId) async {}
 
   @override
+  Future<String> submitJudgment({
+    required String battleId,
+    required bool passed,
+    String? superiorId,
+  }) async =>
+      'judging';
+
+  @override
   Future<List<Battle>> fetchMyBattles() async => const [];
 
   @override
@@ -436,7 +444,9 @@ void main() {
           reason: reason,
         );
         if (status == 'judging') {
-          expect(find.text(AppStrings.battleJudgingPlaceholder), findsOneWidget, reason: reason);
+          // 양쪽 다 제출 전인 채로 열린 창이라 판정할 증거가 없다. 판정 입력도 나오지 않는다.
+          expect(find.text(AppStrings.battleJudgmentNothing), findsOneWidget, reason: reason);
+          expect(find.text(AppStrings.battleJudgmentSend), findsNothing, reason: reason);
         }
         expect(find.text(AppStrings.battleForfeit), findsOneWidget, reason: reason);
         expect(find.byType(TextField), findsNothing, reason: reason);

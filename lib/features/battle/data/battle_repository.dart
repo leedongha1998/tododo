@@ -195,6 +195,28 @@ class BattleRepository {
     return buffer.toString();
   }
 
+  /// 상대 증거에 대한 내 판정. 한 사람당 한 번뿐이고 되돌릴 수 없다(서버 PK가 강제한다).
+  ///
+  /// [passed]는 최소 기준 통과 여부(불복하면 서버가 AI 재판정을 돌린다), [superiorId]는 품질전에서
+  /// 더 잘했다고 고른 사람이다. 품질전은 항상 필요하고(없으면 `SUPERIORITY_REQUIRED`) 속도전은
+  /// 넘기면 거부된다. 승패·종결 여부는 서버가 정하고, 반환값은 호출 뒤의 대결 상태다 —
+  /// 화면은 이 값으로 분기하지 않고 상세를 다시 읽는다.
+  Future<String> submitJudgment({
+    required String battleId,
+    required bool passed,
+    String? superiorId,
+  }) async {
+    final status = await _client.rpc(
+      'submit_judgment',
+      params: {
+        'p_battle_id': battleId,
+        'p_min_verdict': passed ? 'approve' : 'reject',
+        'p_superior_id': superiorId,
+      },
+    );
+    return status as String;
+  }
+
   // 포기(기권). 유형과 상관없이 포기한 쪽이 지고 상대가 이긴다. 결과와 점수는 서버가 정한다.
   Future<void> forfeitBattle(String battleId) {
     return _client.rpc('forfeit_battle', params: {'p_battle_id': battleId});

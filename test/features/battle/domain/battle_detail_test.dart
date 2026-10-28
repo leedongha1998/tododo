@@ -3,6 +3,7 @@ import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_submission.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
+import 'package:todododo/features/battle/domain/judgment_rules.dart';
 
 BattleDetail _buildDetail({
   required String type,
@@ -158,7 +159,7 @@ void main() {
 
     test('속도전은 이미 냈어도 상대가 아직이면 교체로 받아들여진다', () {
       final detail = _speedDetail(myHasSubmitted: true);
-      expect(detail.isReplacingEvidence, isTrue);
+      expect(detail.isReplacingEvidenceAt(_now), isTrue);
       expect(detail.canSubmitEvidenceAt(_now), isTrue);
     });
 
@@ -166,6 +167,16 @@ void main() {
       final detail = _speedDetail(deadlineAt: _now.subtract(const Duration(minutes: 1)));
       expect(detail.isPastDeadline(_now), isTrue);
       expect(detail.canSubmitEvidenceAt(_now), isFalse);
+    });
+
+    // 마감 뒤 정산(cron 최대 1분)까지는 status가 active로 남는다. 그동안 교체 자리를 열어 두면
+    // 서버가 DEADLINE_PASSED로 거부하는 헛걸음이 된다.
+    test('속도전은 마감이 지나면 교체 자리도 닫힌다', () {
+      final detail = _speedDetail(
+        myHasSubmitted: true,
+        deadlineAt: _now.subtract(const Duration(minutes: 1)),
+      );
+      expect(detail.isReplacingEvidenceAt(_now), isFalse);
     });
 
     // 품질전은 제출이 한 번뿐이고 재제출 수단이 없다(결정 14).
@@ -176,8 +187,8 @@ void main() {
 
       final after = _speedDetail(type: 'quality', myHasSubmitted: true);
       expect(after.canSubmitEvidenceAt(_now), isFalse);
-      // 품질전은 교체가 없다 — isReplacingEvidence는 속도전 전용이다.
-      expect(after.isReplacingEvidence, isFalse);
+      // 품질전은 교체가 없다 — isReplacingEvidenceAt은 속도전 전용이다.
+      expect(after.isReplacingEvidenceAt(_now), isFalse);
     });
 
     test('상호 판정 창(judging)에는 낼 수 없다(두 유형 공통)', () {
@@ -235,6 +246,59 @@ void main() {
       expect(detail.hasOpponentSubmitted, isTrue);
     });
   });
+
+  // 판정 단계 판별은 judgment_rules_test가 전 행을 덮는다. 여기서는 상세 모델이 서버 값을
+  // 그 함수에 제대로 넘기는지(내/상대 역할이 뒤집히지 않는지)만 본다.
+  group('판정 단계 연결', () {
+    test('판정 창에서 상대 증거가 있고 내가 아직 판정하지 않았으면 내 차례다', () {
+      final detail = _speedDetail(
+        status: 'judging',
+        myHasSubmitted: true,
+        opponentHasSubmitted: true,
+      );
+      // 시각을 넘기지 않는 getter(isMyJudgmentTurn)는 DateTime.now()를 쓰므로 고정 픽스처로
+      // 검증할 수 없다. 화면이 쓰는 그 경로는 위젯 테스트(battle_judgment_test)가 덮는다.
+      expect(detail.judgmentStageAt(_now), JudgmentStage.myTurn);
+    });
+
+    test('내가 판정했으면 상대 판정을 기다린다(역할이 뒤집히지 않는다)', () {
+      final detail = _speedDetail(
+        status: 'judging',
+        myHasSubmitted: true,
+        opponentHasSubmitted: true,
+        myHasJudged: true,
+      );
+      expect(detail.judgmentStageAt(_now), JudgmentStage.waitingOpponent);
+
+      final reversed = _speedDetail(
+        status: 'judging',
+        myHasSubmitted: true,
+        opponentHasSubmitted: true,
+        opponentHasJudged: true,
+      );
+      expect(reversed.judgmentStageAt(_now), JudgmentStage.myTurn);
+    });
+
+    test('제출 창(active)에는 판정 단계가 없다', () {
+      final detail = _speedDetail(myHasSubmitted: true, opponentHasSubmitted: true);
+      expect(detail.judgmentStageAt(_now), JudgmentStage.notOpen);
+      expect(detail.judgeDeadlineAt, isNull);
+    });
+
+    test('판정 기한은 서버가 창을 열 때 찍은 값을 그대로 쓴다', () {
+      final detail = _speedDetail(status: 'judging', opponentHasSubmitted: true);
+      expect(detail.judgeDeadlineAt, _now.add(const Duration(hours: 24)));
+      expect(detail.isPastJudgeDeadline(_now), isFalse);
+      expect(detail.isPastJudgeDeadline(_now.add(const Duration(hours: 25))), isTrue);
+    });
+
+    test('우열 답이 필요한 쪽은 품질전뿐이다', () {
+      expect(_speedDetail(type: 'quality').needsSuperiorityPick, isTrue);
+      expect(_speedDetail().needsSuperiorityPick, isFalse);
+      // 속도전에는 우열 기준 자체가 없다.
+      expect(_speedDetail().superiorityCriteria, isEmpty);
+    });
+  });
 }
 
 BattleSubmission _submission({int id = 1, String userId = 'me'}) {
@@ -255,8 +319,11 @@ BattleDetail _speedDetail({
   String type = 'speed',
   String status = 'active',
   DateTime? deadlineAt,
+  DateTime? judgeDeadlineAt,
   bool myHasSubmitted = false,
   bool opponentHasSubmitted = false,
+  bool myHasJudged = false,
+  bool opponentHasJudged = false,
   List<BattleSubmission> submissions = const [],
 }) {
   final battle = Battle(
@@ -270,15 +337,25 @@ BattleDetail _speedDetail({
     startedAt: DateTime(2026, 9, 15),
     deadlineAt: deadlineAt ?? _now.add(const Duration(days: 1)),
     judgingOpenedAt: status == 'judging' ? _now : null,
+    // 서버는 창을 열 때 판정 기한을 함께 찍는다(제약으로 강제).
+    judgeDeadlineAt: status == 'judging'
+        ? (judgeDeadlineAt ?? _now.add(const Duration(hours: 24)))
+        : null,
     minCriteria: const ['상판이 보인다'],
   );
   return BattleDetail(
     battle: battle,
-    me: BattleParticipant(battleId: 'b1', userId: 'me', hasSubmitted: myHasSubmitted),
+    me: BattleParticipant(
+      battleId: 'b1',
+      userId: 'me',
+      hasSubmitted: myHasSubmitted,
+      hasJudged: myHasJudged,
+    ),
     opponent: BattleParticipant(
       battleId: 'b1',
       userId: 'friend',
       hasSubmitted: opponentHasSubmitted,
+      hasJudged: opponentHasJudged,
     ),
     myName: '나',
     opponentName: '친구',

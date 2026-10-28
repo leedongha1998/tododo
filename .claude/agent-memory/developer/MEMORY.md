@@ -1,2 +1,3 @@
 - [편집 훅 동작](workflow_edit_hooks.md) — 편집마다 dart format/analyze가 돌고 중간 상태 오류가 보고된다. 판단은 마지막에 한 번.
 - [SQL 스모크 테스트의 now() 고정](sql_smoke_test_now_frozen.md) — do $$ 블록 안에서 now()는 트랜잭션 내내 고정이다. pg_sleep으로 시각 차이를 만들 수 없다.
+- [위젯 테스트 함정 3가지](flutter_widget_test_gotchas.md) — NetworkImage 400, 화면 밖 버튼은 ensureVisible, DateTime.now() getter는 고정 픽스처로 못 본다.

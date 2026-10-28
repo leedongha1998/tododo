@@ -106,6 +106,14 @@ class _FakeBattleRepository implements BattleRepository {
   Future<void> forfeitBattle(String battleId) async {}
 
   @override
+  Future<String> submitJudgment({
+    required String battleId,
+    required bool passed,
+    String? superiorId,
+  }) async =>
+      'judging';
+
+  @override
   Future<List<Battle>> fetchMyBattles() async => const [];
 
   @override
@@ -228,14 +236,20 @@ void main() {
     expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
   });
 
-  testWidgets('상호 판정 창(judging)이면 두 유형 모두 안내만 보인다', (tester) async {
+  // 상대가 내지 않은 채 판정 창이 열린 경우(속도전 한쪽 제출). 제출 자리는 닫히고,
+  // 내가 판정할 증거가 없다는 사실만 보인다.
+  testWidgets('상호 판정 창(judging)이면 두 유형 모두 제출 자리가 없다', (tester) async {
     for (final type in ['speed', 'quality']) {
       await tester.pumpWidget(
-        _screen(_detail(type: type, status: 'judging'), _FakeBattleRepository(), _FakeCamera()),
+        _screen(
+          _detail(type: type, status: 'judging', myHasSubmitted: true),
+          _FakeBattleRepository(),
+          _FakeCamera(),
+        ),
       );
       await tester.pumpAndSettle();
 
-      expect(find.text(AppStrings.battleJudgingPlaceholderTitle), findsOneWidget, reason: type);
+      expect(find.text(AppStrings.battleJudgmentNothingTitle), findsOneWidget, reason: type);
       expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing, reason: type);
 
       await tester.pumpWidget(const SizedBox());

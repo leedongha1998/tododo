@@ -66,8 +66,12 @@ class AppStrings {
   static const battleDurationNotice = '마감은 상대가 매칭되는 순간부터 시작돼요.';
   static const battleDurationShortWarning = '짧은 기간을 고르면 매칭 알림을 놓쳤을 때 손도 못 대고 질 수 있어요.';
   static const battleDurationWindowNotice = '기간은 사진을 내는 시간이고, 마감 뒤 24시간 동안 서로 판정해요.';
-  static const battleDeadlineLabel = '마감';
   static const battleDeadlinePassed = '마감이 지났어요. 곧 결과가 정리돼요.';
+  // 제출 창(기간)과 판정 창(마감 뒤 24시간)은 서로 다른 시계다. 헤더에서 두 줄로 갈라 보여 준다.
+  static const battleSubmitDeadlineLabel = '사진 마감';
+  static const battleJudgeDeadlineLabel = '판정 마감';
+  static const battleDeadlineClosed = '마감됨';
+  static const battleJudgeDeadlineClosed = '기한이 지나 자동으로 처리돼요';
   // 속도전 아무도 통과 못함(마감 또는 양쪽 판정 소진), 품질전 제출 없음·둘 다 기준 미달.
   // 마감 전에 끝나는 경우도 있어서 "시간이 다 됐다"로만 말하지 않는다.
   static const battleDrawMessage = '승부를 가를 기준 통과가 없어 무승부로 끝났어요.';
@@ -130,10 +134,36 @@ class AppStrings {
   static const battleEvidenceQualityConfirm = '품질전은 한 번만 낼 수 있어요. 제출한 뒤에는 다시 찍을 수 없어요.';
   static const battleEvidenceQualitySubmittedTitle = '제출 완료';
   static const battleEvidenceQualityWaiting = '상대가 제출하면 판정이 시작돼요.';
-  // 판정 창(judging). 속도전·품질전 공통. 실제 판정 화면은 4단계에서 만든다.
-  static const battleJudgingPlaceholderTitle = '판정 창이 열렸어요';
-  static const battleJudgingPlaceholder = '서로 판정하면 결과가 나와요. 판정 화면은 곧 추가돼요.';
   static const battleVoidedMessage = 'AI 판정이 계속 실패해 무효가 됐어요. 점수·전적에 반영되지 않아요.';
+
+  // 상호 판정 창(judging). 속도전·품질전 공통. 묻는 것은 정해진 선택지뿐이고 자유 텍스트는 없다.
+  // 승패는 서버가 정한다 — 이 화면은 내 답만 보낸다.
+  static const battleJudgmentSectionTitle = '판정';
+  static const battleJudgmentIntro = '상대 증거를 확정된 기준으로 판정해 주세요.';
+  static const battleJudgmentOnce = '판정은 한 번만 할 수 있어요. 보낸 뒤에는 바꿀 수 없어요.';
+  static const battleJudgmentMinQuestion = '상대 사진이 최소 기준을 통과했나요?';
+  static const battleJudgmentPassed = '통과했어요';
+  static const battleJudgmentFailed = '통과하지 못했어요';
+  static const battleJudgmentRejectHint = '통과하지 못했다고 하면 AI가 다시 봐요.';
+  static const battleJudgmentSuperiorityQuestion = '우열 기준으로 볼 때 누가 더 잘했나요?';
+  static const battleJudgmentSuperiorMe = '내가 더 잘했어요';
+  static const battleJudgmentSuperiorOpponent = '상대가 더 잘했어요';
+  static const battleJudgmentSend = '판정 보내기';
+  static const battleJudgmentSending = '판정을 보내고 있어요';
+  static const battleJudgmentConfirmTitle = '이 판정을 보낼까요?';
+  static const battleJudgmentConfirm = '보낸 뒤에는 바꿀 수 없어요. 결과는 서버가 정해요.';
+  static const battleJudgmentSent = '판정을 보냈습니다.';
+  static const battleJudgmentSendFailed = '판정을 보내지 못했습니다. 다시 시도해주세요.';
+  static const battleJudgmentPhotoUnavailable = '상대 사진을 불러오지 못해 지금은 판정할 수 없어요.';
+  // 판정 단계별 안내. 전부 서버가 기록한 값(status·has_submitted·has_judged·판정 기한)에서 고른다.
+  static const battleJudgmentSentTitle = '판정을 보냈어요';
+  static const battleJudgmentWaitingOpponent = '상대가 판정하면 결과가 나와요.';
+  static const battleJudgmentNothingTitle = '판정할 것이 없어요';
+  static const battleJudgmentNothing = '상대가 사진을 내지 않아 판정할 증거가 없어요. 상대 판정을 기다리고 있어요.';
+  static const battleJudgmentAiTitle = 'AI가 다시 보고 있어요';
+  static const battleJudgmentAi = '판정이 갈려서 AI가 확정된 기준으로 다시 판정해요. 결과가 나오면 여기에 보여요.';
+  static const battleJudgmentWindowClosedTitle = '판정 기한이 지났어요';
+  static const battleJudgmentWindowClosed = '판정하지 않으면 상대를 인정한 것으로 처리돼요. 곧 결과가 정리돼요.';
 
   static const battleForfeit = '대결 포기';
   static const battleForfeitConfirmTitle = '대결을 포기할까요?';
@@ -231,6 +261,12 @@ class AppStrings {
   static const battleErrorDeadlinePassed = '마감이 지나 제출할 수 없어요.';
   // mutual-judge: 상대가 이미 제출해 교체 불가 / 품질전 이미 제출 / 판정 창 열림, 세 경우를 함께 가리킨다.
   static const battleErrorSubmissionLocked = '상대가 이미 제출해서 바꿀 수 없어요.';
+  // 상호 판정(submit_judgment)의 거부 코드. 전부 "지금 왜 안 되는지"로 말한다.
+  static const battleErrorJudgingNotOpen = '아직 판정할 수 있는 때가 아니에요.';
+  static const battleErrorJudgeWindowClosed = '판정 기한이 지나 자동으로 처리됐어요.';
+  static const battleErrorAlreadyJudged = '이미 판정했어요. 판정은 한 번만 할 수 있어요.';
+  static const battleErrorNothingToJudge = '상대가 사진을 내지 않아 판정할 증거가 없어요.';
+  static const battleErrorSuperiorityRequired = '누가 더 잘했는지도 골라 주세요.';
   static const battleErrorUnknown = '요청을 처리하지 못했습니다. 다시 시도해주세요.';
 
   static const profileTitle = '프로필';

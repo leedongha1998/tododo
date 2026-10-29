@@ -1,2 +1,3 @@
 - [SQL 마이그레이션 트리거-CHECK 정합성 검산 패턴](feedback_sql_trigger_check_verification.md) — trim/left 조합 CHECK 위반 여부는 경계값(빈 문자열, 길이 초과, 내부 공백)을 직접 대입해 검산
 - [Riverpod 비동기 리뷰: 일회용 probe + AsyncValue 이전 value](feedback_riverpod_async_review_probe.md) — 경합은 임시 ProviderContainer 테스트로 재현하고, 실패·재빌드에도 value가 남는다는 사실로 에러 분기를 본다
+- [레이아웃 테스트가 공허한지 probe로 확인](feedback_layout_test_vacuity_probe.md) — 배율을 3.0/5.0으로 과장해도 통과하면 그 "넘침 테스트"는 절대 실패할 수 없는 단정이다

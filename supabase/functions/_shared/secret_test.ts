@@ -1,5 +1,5 @@
 // deno test supabase/functions/_shared/
-// judge-quality의 유일한 관문인 비밀값 비교(Gemini 호출 없음).
+// judge-dispute의 유일한 관문인 비밀값 비교(Gemini 호출 없음).
 
 import { assert, assertFalse } from 'https://deno.land/std@0.224.0/assert/mod.ts';
 import { constantTimeEquals } from './secret.ts';

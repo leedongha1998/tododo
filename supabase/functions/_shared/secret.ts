@@ -1,6 +1,6 @@
 // 비밀값 비교.
 //
-// judge-quality는 verify_jwt = false로 배포되므로 헤더 `x-judge-secret` 검사가 유일한 관문이다.
+// judge-dispute는 verify_jwt = false로 배포되므로 헤더 `x-judge-secret` 검사가 유일한 관문이다.
 // 짧은 비교(`===`)는 앞부분이 맞을수록 오래 걸려 값이 한 글자씩 새어 나갈 수 있어 상수 시간으로 본다.
 
 const encoder = new TextEncoder();

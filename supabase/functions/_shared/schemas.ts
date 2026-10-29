@@ -222,8 +222,11 @@ export function parseSubmitEvidenceRequest(body: unknown, userId: string): Submi
   return { battleId, objectPath, capturedAt };
 }
 
-/// ③ 속도전 판정 응답 스키마.
-export const speedVerdictResponseSchema = {
+/// ③ 최소 기준 판정 응답 스키마(사진 한 장).
+///
+/// 속도전 제출 즉시 판정에 쓰던 스키마를 그대로 쓴다 - 두 유형의 불복 재판정이 똑같은 질문
+/// ("이 사진이 최소 기준을 충족하는가")을 하므로 이름만 공용으로 바꿨다.
+export const minCriteriaVerdictResponseSchema = {
   type: 'object',
   properties: {
     passed: { type: 'boolean' },
@@ -232,14 +235,14 @@ export const speedVerdictResponseSchema = {
   required: ['passed', 'reason'],
 };
 
-export interface SpeedVerdictResult {
+export interface MinCriteriaVerdictResult {
   passed: boolean;
   reason: string;
 }
 
-/// 속도전 판정 응답 재검증. 사유가 없거나 60자를 넘으면 AI 실패로 처리한다
-/// (잘라 쓰지 않는다 — 잘린 사유가 오해를 부른다).
-export function parseSpeedVerdictResponse(value: unknown): SpeedVerdictResult {
+/// 최소 기준 판정 응답 재검증. 사유가 없거나 60자를 넘으면 AI 실패로 처리한다
+/// (잘라 쓰지 않는다 - 잘린 사유가 오해를 부른다).
+export function parseMinCriteriaVerdictResponse(value: unknown): MinCriteriaVerdictResult {
   if (typeof value !== 'object' || value === null) {
     throw new ValidationError('응답이 객체가 아닙니다.');
   }
@@ -257,83 +260,43 @@ export function parseSpeedVerdictResponse(value: unknown): SpeedVerdictResult {
   return { passed: raw.passed, reason };
 }
 
-/// ④ 품질전 2단계 판정 응답 스키마.
+/// ④ 우열 재판정 응답 스키마(사진 두 장).
+///
+/// **최소 기준은 묻지도 받지도 않는다.** 두 사진은 이미 사람(또는 AI 재판정)이 통과시킨 것이고,
+/// 이 호출은 "우열 기준으로 누가 더 잘했는가" 하나만 묻는다. 옛 품질전 통합 스키마처럼
+/// 사진별 meets_criteria를 함께 받으면, AI가 통과한 사진을 미달로 보고 winner를 비워
+/// **매번 실패 -> voided**가 된다.
 ///
 /// a/b는 **보낸 사진의 순서**일 뿐 참가자가 아니다. 순서는 매 시도마다 섞이고,
-/// 응답을 참가자로 되돌리는 일은 [mapQualityVerdictToParticipants]가 한다.
-export const qualityVerdictResponseSchema = {
+/// 응답을 참가자로 되돌리는 일은 [mapSuperiorityWinnerToParticipant]가 한다.
+export const superiorityVerdictResponseSchema = {
   type: 'object',
   properties: {
-    a: {
-      type: 'object',
-      properties: { meets_criteria: { type: 'boolean' }, reason: { type: 'string' } },
-      required: ['meets_criteria', 'reason'],
-    },
-    b: {
-      type: 'object',
-      properties: { meets_criteria: { type: 'boolean' }, reason: { type: 'string' } },
-      required: ['meets_criteria', 'reason'],
-    },
-    winner: { type: 'string', nullable: true },
-    winner_reason: { type: 'string', nullable: true },
+    winner: { type: 'string' },
+    winner_reason: { type: 'string' },
   },
-  required: ['a', 'b'],
+  required: ['winner', 'winner_reason'],
 };
 
-export interface QualityPhotoVerdict {
-  /// 1단계: 이 사진이 최소 기준을 충족하는가.
-  meetsCriteria: boolean;
-  /// 최소 기준에 근거한 한 줄 사유.
-  reason: string;
+export interface SuperiorityVerdictResult {
+  /// 더 잘한 쪽(사진 순서 기준). 동점은 없다.
+  winner: 'a' | 'b';
+  /// 우열 기준에 근거한 한 줄 사유.
+  winnerReason: string;
 }
 
-export interface QualityVerdictResult {
-  a: QualityPhotoVerdict;
-  b: QualityPhotoVerdict;
-  /// 2단계: 둘 다 충족했을 때의 승자(사진 순서 기준). 그 밖에는 null.
-  winner: 'a' | 'b' | null;
-  /// 우열 기준에 근거한 한 줄 사유. 승자가 있을 때만 있다.
-  winnerReason: string | null;
-}
-
-function parseQualityPhotoVerdict(value: unknown, label: string): QualityPhotoVerdict {
-  if (typeof value !== 'object' || value === null) {
-    throw new ValidationError(`${label} 판정이 객체가 아닙니다.`);
-  }
-  const raw = value as Record<string, unknown>;
-  if (typeof raw.meets_criteria !== 'boolean') {
-    throw new ValidationError(`${label} 판정에 meets_criteria가 없습니다.`);
-  }
-  if (typeof raw.reason !== 'string' || raw.reason.trim().length === 0) {
-    throw new ValidationError(`${label} 판정 사유가 없습니다.`);
-  }
-  const reason = raw.reason.trim();
-  if (reason.length > REASON_MAX) {
-    throw new ValidationError(`${label} 판정 사유가 ${REASON_MAX}자를 넘습니다.`);
-  }
-  return { meetsCriteria: raw.meets_criteria, reason };
-}
-
-/// 품질전 판정 응답 재검증.
+/// 우열 재판정 응답 재검증.
 ///
-/// **둘 다 최소 기준을 충족했는데 승자가 없거나 a/b가 아니면 실패로 본다**(동점이 없다는 규칙을
-/// 서버가 강제한다). 실패는 재시도 대상이며, 마지막 시도까지 실패하면 대결이 무효가 된다.
-/// 한쪽만 충족하거나 둘 다 미달이면 승자는 무시한다 — 그 경우의 승패는 DB의 quality_outcome이 정한다.
-export function parseQualityVerdictResponse(value: unknown): QualityVerdictResult {
+/// **승자가 a/b가 아니거나 근거가 없으면 실패로 본다**(동점이 없다는 규칙을 서버가 강제한다).
+/// 실패는 재시도 대상이며, 마지막 시도까지 실패하면 대결이 무효가 된다.
+export function parseSuperiorityVerdictResponse(value: unknown): SuperiorityVerdictResult {
   if (typeof value !== 'object' || value === null) {
     throw new ValidationError('응답이 객체가 아닙니다.');
   }
   const raw = value as Record<string, unknown>;
 
-  const a = parseQualityPhotoVerdict(raw.a, 'A');
-  const b = parseQualityPhotoVerdict(raw.b, 'B');
-
-  if (!a.meetsCriteria || !b.meetsCriteria) {
-    return { a, b, winner: null, winnerReason: null };
-  }
-
   if (raw.winner !== 'a' && raw.winner !== 'b') {
-    throw new ValidationError('둘 다 기준을 충족했는데 승자가 없습니다.');
+    throw new ValidationError('우열 응답에 승자가 없습니다.');
   }
   if (typeof raw.winner_reason !== 'string' || raw.winner_reason.trim().length === 0) {
     throw new ValidationError('승패 사유가 없습니다.');
@@ -343,54 +306,40 @@ export function parseQualityVerdictResponse(value: unknown): QualityVerdictResul
     throw new ValidationError(`승패 사유가 ${REASON_MAX}자를 넘습니다.`);
   }
 
-  return { a, b, winner: raw.winner, winnerReason };
+  return { winner: raw.winner, winnerReason };
 }
 
-export interface QualityParticipantVerdict {
-  creator: QualityPhotoVerdict;
-  opponent: QualityPhotoVerdict;
-  winner: 'creator' | 'opponent' | null;
-  winnerReason: string | null;
-}
-
-/// 사진 순서(a/b)로 온 판정을 참가자(생성자/참가자)로 되돌린다.
+/// 사진 순서(a/b)로 온 승자를 참가자(생성자/참가자)로 되돌린다.
 ///
 /// [flipped]가 true이면 A 자리에 참가자 사진을, B 자리에 생성자 사진을 보낸 것이다.
 /// 위치 편향(앞에 온 사진을 더 좋게 보는 경향)을 줄이려고 매 시도마다 순서를 섞기 때문에,
 /// 이 되돌리기가 틀리면 승패가 통째로 뒤집힌다.
-export function mapQualityVerdictToParticipants(
-  result: QualityVerdictResult,
+export function mapSuperiorityWinnerToParticipant(
+  winner: 'a' | 'b',
   flipped: boolean,
-): QualityParticipantVerdict {
-  const creator = flipped ? result.b : result.a;
-  const opponent = flipped ? result.a : result.b;
-
-  let winner: 'creator' | 'opponent' | null = null;
-  if (result.winner === 'a') {
-    winner = flipped ? 'opponent' : 'creator';
-  } else if (result.winner === 'b') {
-    winner = flipped ? 'creator' : 'opponent';
+): 'creator' | 'opponent' {
+  if (winner === 'a') {
+    return flipped ? 'opponent' : 'creator';
   }
-
-  return { creator, opponent, winner, winnerReason: result.winnerReason };
+  return flipped ? 'creator' : 'opponent';
 }
 
-export interface JudgeQualityRequest {
-  battleId: string;
+export interface JudgeDisputeRequest {
+  jobId: number;
 }
 
-/// cron(pg_net)과 submit-evidence가 보내는 판정 요청. 대결 id 하나뿐이다
-/// (기준·사진 경로는 클라이언트 값이 아니라 DB에서 읽는다).
-export function parseJudgeQualityRequest(body: unknown): JudgeQualityRequest {
+/// cron(pg_net)이 보내는 재판정 요청. 잡 id 하나뿐이다
+/// (종류·기준·사진 경로는 클라이언트 값이 아니라 claim_ai_judgment가 DB에서 읽어 돌려준다).
+export function parseJudgeDisputeRequest(body: unknown): JudgeDisputeRequest {
   if (typeof body !== 'object' || body === null) {
     throw new ValidationError('요청 본문이 올바르지 않습니다.');
   }
   const raw = body as Record<string, unknown>;
-  const battleId = typeof raw.battle_id === 'string' ? raw.battle_id.trim() : '';
-  if (!UUID_PATTERN.test(battleId)) {
-    throw new ValidationError('battle_id가 올바르지 않습니다.');
+  const jobId = raw.job_id;
+  if (typeof jobId !== 'number' || !Number.isInteger(jobId) || jobId <= 0) {
+    throw new ValidationError('job_id가 올바르지 않습니다.');
   }
-  return { battleId };
+  return { jobId };
 }
 
 /// 증명 가능성 검사 응답 재검증.

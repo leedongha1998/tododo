@@ -47,7 +47,7 @@
 |---|---|---|---|---|
 | 1 | 있음 | 기존 대결 데이터 정리 + 커스텀 마감(분 단위) | `battle-criteria` | **원격 적용·스모크 통과(2026-09-18)** |
 | 2 | 있음 | 판정 창·제출 교체·상호 판정 기록·자동 승인·결론 규칙(즉시 AI 판정 제거) | `submit-evidence`(적용 직후) | **원격 적용·SQL 테스트 12개 통과(2026-10-28)** |
-| 3 | 있음 | AI 재판정 재배선 | `judge-dispute` 신규 / `judge-quality` 삭제 | 미착수 |
+| 3 | 있음 | AI 재판정 재배선 | `judge-dispute` 신규 / `judge-quality` 삭제 | **로컬 구현 완료(미커밋, 2026-10-29)** |
 | 4 | 없음 | 판정 화면·제출 교체 화면 | - | **구현 완료(미커밋) — 3단계보다 먼저 했다** |
 | 5 | 없음 | 결과·공개·상태 줄·문서·문구 | - | 미착수 |
 
@@ -218,8 +218,91 @@
 - 마이그레이션 `..._ai_rejudgment.sql`: `ai_judgment_jobs` + RLS(정책 없음), `ai_judgment_backoff`·`fail_ai_judgment`·`ensure_ai_judgment_job`·`claim_ai_judgment`·`record_min_criteria_verdict`·`record_superiority_verdict`·`record_ai_judgment_failure`·`dispatch_ai_judgments`, `submit_judgment`·`resolve_battle`에 잡 배선, `void_battle`·`forfeit_battle`·`delete_account` 재정의, `quality_judgments` 관련 전부 드롭, `ai-judge-tick` 명령 갱신.
 - **`delete_account`는 반드시 가장 늦은 정의(`20260920120000_push_tokens_and_outbox.sql`)를 기반으로** 고친다. 여섯 번 재정의된 함수라 옛 정의를 베끼면 기준 증서·동의 기록·품질전 잡·알림 토큰 삭제가 조용히 사라진다. **인자 없는 시그니처 유지.**
 - Edge: `judge-dispute/index.ts` 신규, `_shared/{dispute_judge.ts,prompts.ts,schemas.ts}`, `supabase/config.toml`의 `[functions.judge-quality]` → `[functions.judge-dispute] verify_jwt = false`.
-- 오너: Vault `judge_function_url` 값 교체 → `functions deploy judge-dispute` → 실호출 확인 → `functions delete judge-quality`.
+- 오너: `functions deploy judge-dispute` → Vault `judge_function_url` 값 교체 → 실호출 확인 → `functions delete judge-quality`. **순서는 아래 "3단계 원격 적용 체크리스트"가 최종이다**(배포를 먼저 해야 교체 직후부터 받을 수 있다).
 - 커밋: `feat: 불복·우열 불일치 AI 재판정`.
+
+
+### 3단계 작업 순서 (확정, 2026-10-29 developer)
+
+입력: `spec.md`, `design.md`의 "AI 재판정 재배선"·"새 서버 전용 함수"·"AI 호출별 입력/출력"·
+전이표 T8~T11·`mutual_quality_outcome` 표·"주기 작업(cron) 구성"·"구현 단계 분할 3단계",
+그리고 **원격에 적용된 `20260922120000_judging_window.sql`의 실제 함수 본문**(2단계가 남겨 둔
+"3단계가 여기에 끼워 넣는다" 자리). 서버가 진실이고 화면은 이 단계에서 손대지 않는다.
+
+1. **`supabase/migrations/20261029120000_ai_rejudgment.sql`** — 아래 "3단계에서 실제로 만든 것" 참고.
+2. **`supabase/functions/_shared/schemas.ts`** — 속도전 판정 스키마를 최소 기준 공용으로 이름 변경,
+   품질전 2단계 통합 스키마를 우열 전용으로 교체, 판정 요청을 `{job_id}`로.
+3. **`supabase/functions/_shared/prompts.ts`** — `SPEED_JUDGE_*` → `MIN_CRITERIA_JUDGE_*`,
+   `QUALITY_JUDGE_*` → `SUPERIORITY_JUDGE_*`(2단계 부분만).
+4. **`supabase/functions/_shared/dispute_judge.ts` 신규** + **`judge-dispute/index.ts` 신규**,
+   `_shared/quality_judge.ts`·`judge-quality/` 삭제, `supabase/config.toml` 블록 교체.
+5. **`_shared/{prompts_test,schemas_test}.ts`** 갱신(우열 응답 검증·승자 누락=실패·A/B 역매핑·
+   프롬프트에 최소 기준과 우열 기준이 섞이지 않음).
+6. **`supabase/tests/ai_rejudgment_smoke.sql` 신규**.
+7. `flutter analyze`(이슈 0) + `flutter test` + `deno test --allow-all supabase/functions/_shared/`.
+   **커밋·원격 적용·배포는 하지 않는다.**
+
+### 3단계 원격 적용 체크리스트 (오너 — 순서 그대로, 2026-10-29 작성)
+
+모든 명령은 `C:\workspaces\todododo`에서 실행한다. **순서를 지키면 발송 공백이 없다.**
+Vault URL이 옛 함수를 가리키는 동안 보낸 요청은 `judge-dispute`가 아닌 곳으로 가 404/401로
+버려지는데, 그 요청은 `claim_ai_judgment`에 도달하지 못하므로 **시도(`attempts`)도 임대도 생기지
+않는다** — 잡은 그대로 남고 다음 분 tick에서 다시 보낸다. 즉 틀린 순서의 증상은 `voided`가 아니라
+"재판정이 몇 분 늦어진다"뿐이다. 그래도 배포를 먼저 하면 그 공백 자체가 없어진다.
+
+1. `supabase db push --dry-run` — 새 파일 **1개**(`20261029120000_ai_rejudgment.sql`)만 나오는지 확인.
+   다른 파일이 같이 나오면 멈추고 원인부터 본다.
+2. `supabase db push`
+   - 이 시점부터 `quality_judgments`·`dispatch_quality_judgments`가 사라지고 cron `ai-judge-tick`이
+     `dispatch_ai_judgments()`를 부른다. 배포된 `judge-quality`는 드롭된 `claim_quality_judgment`를
+     부르므로 더는 동작하지 않는다 — 아무도 부르지 않으므로 무해하다.
+3. `supabase functions deploy judge-dispute` — 새 함수를 먼저 올린다(Vault 교체 전에 올려 두면
+   교체 직후부터 바로 받을 수 있다).
+4. **Supabase 대시보드 Vault에서 `judge_function_url` 값을 교체** —
+   `https://<project-ref>.supabase.co/functions/v1/judge-dispute`. `judge_cron_secret`은 그대로.
+   값은 코드·로그·커밋·보고에 적지 않는다.
+5. **실호출 확인** — 두 계정으로 속도전 하나를 양쪽 제출 → 한쪽이 "통과하지 못했어요"로 불복 →
+   1분 안에 `ai_judgment_jobs` 행이 사라지고 대결이 종결되는지 본다.
+   - 확인 쿼리: `supabase db query --linked "select id, kind, attempts, last_error from public.ai_judgment_jobs;"`
+     (1분 뒤 0행이어야 한다. `attempts`가 올라가고 `last_error`가 쌓이면 4·3번을 다시 본다.)
+   - Edge 로그: 대시보드 Functions → judge-dispute → Logs.
+6. `supabase functions delete judge-quality` — 실호출이 확인된 뒤에만. 이 함수를 지우면 되돌리려면
+   다시 배포해야 한다(소스는 이 커밋에서 삭제됐으므로 git 이력에서 꺼내야 한다).
+7. `supabase migration list --linked` — 로컬 27개 = 원격 27개, 마지막이 `20261029120000`.
+8. cron 확인: `supabase db query --linked "select jobname, schedule, command from cron.job order by jobname;"`
+   - `ai-judge-tick` 명령이 `select public.sweep_stale_criteria_calls(); select public.dispatch_ai_judgments();`
+   - `close-judging-windows`·`settle-expired-battles`는 `* * * * *` 그대로.
+9. SQL 테스트 — 순서 그대로, 앞이 깨지면 뒤를 돌리지 않는다. 쓰기가 있는 스모크는 마지막에
+   롤백하므로 원격 데이터는 그대로다.
+   1. `supabase db query --linked -f supabase/tests/ai_rejudgment_smoke.sql` → `SMOKE RESULT ok=t`
+   2. `supabase db query --linked -f supabase/tests/mutual_judge_rules.sql` → 39케이스 전부 `ok=t`
+   3. `supabase db query --linked -f supabase/tests/mutual_judge_flow_smoke.sql` → `ok=t`
+      - **주의**: 이 파일의 13·14번(`quality_mismatch`·`reject_pending`)은 "3단계 전까지 `judging`에
+        머문다"를 기대값으로 적어 두었고, 3단계 적용 뒤에도 **기대값이 그대로 맞다** — 잡이 생기기만
+        하고 AI 응답은 트랜잭션 안에서 오지 않으므로 상태는 여전히 `judging`이다. 고칠 것이 없다.
+   4. 회귀(순서 무관): `ai_judge_flow_smoke.sql` / `resolve_battle_smoke.sql` /
+      `settle_expired_battles_smoke.sql` / `forfeit_battle_smoke.sql` / `delete_account_smoke.sql` /
+      `criteria_smoke.sql` / `join_battle_smoke.sql` / `ai_consent_smoke.sql` / `push_token_smoke.sql` /
+      `custom_duration_smoke.sql` / `recruit_browse_smoke.sql` → 각 `ok=t`
+   - `battle_outcome_rules.sql`은 2단계에서 삭제됐다. 돌리지 말 것.
+10. Gemini 키·모델·cron 시크릿은 **새로 넣을 것이 없다**(기존 값 그대로 쓴다).
+
+#### 이번 단계에서 하지 않는 것
+- Storage 정리 불필요(사진을 지우지 않는다).
+- 화면 변경 없음 — 불복 뒤 "AI가 다시 보고 있어요"는 4단계에서 이미 만들었고, 이 단계가 그 상태를
+  실제로 끝내게 한다. 종결 후 판정 내역·`verdict_source` 공개는 5단계 몫이다.
+- `submit-evidence` 재배포 불필요(2단계에서 이미 Gemini 호출이 빠진 버전이 배포돼 있고 이번 단계는
+  그 파일을 고치지 않았다 — 아래 "설계와 달라진 점" 2 참고).
+
+#### 되돌리기 어려운 지점
+- `quality_judgments` 테이블과 `claim_quality_judgment`·`record_quality_verdict`·
+  `record_quality_failure`·`dispatch_quality_judgments`·`quality_judgment_backoff`·
+  `fail_quality_judgment` 드롭. 2단계 적용 뒤로는 아무도 새 잡을 만들지 않아 테이블이 비어 있다는
+  전제다. `db push` 전에 `supabase db query --linked "select count(*) from public.quality_judgments;"`로
+  0을 확인하면 전제가 유지된다.
+- `supabase functions delete judge-quality`(6번) — 소스가 이 커밋에서 지워지므로 되살리려면 git
+  이력에서 꺼내야 한다.
+- Vault `judge_function_url` 값 교체는 되돌릴 수 있다(값을 다시 바꾸면 된다).
 
 ## 4단계 — 판정 화면과 교체 화면 (착수 메모)
 
@@ -297,6 +380,104 @@
 ---
 
 ## 진행 기록
+
+### 3단계 (로컬 구현 완료, 2026-10-29)
+- developer 에이전트가 구현했다. **커밋·원격 적용·배포 없음** — 작업 트리에 변경만 있다.
+  원격 DB·Storage·시크릿·Vault·Gemini는 읽지도 건드리지도 않았다.
+- **새 파일**: `supabase/migrations/20261029120000_ai_rejudgment.sql`(937줄),
+  `supabase/functions/judge-dispute/index.ts`, `supabase/functions/_shared/dispute_judge.ts`,
+  `supabase/tests/ai_rejudgment_smoke.sql`(514줄, 비교 항목 49개 — 리뷰 보강 전 45개).
+- **고친 파일**: `supabase/functions/_shared/schemas.ts`(최소 기준 스키마로 이름 변경, 우열 스키마 신규,
+  `parseJudgeDisputeRequest`), `_shared/prompts.ts`(`MIN_CRITERIA_JUDGE_*`·`SUPERIORITY_JUDGE_*`),
+  `_shared/{prompts_test,schemas_test}.ts`, `_shared/secret.ts`·`secret_test.ts`(주석의 함수 이름),
+  `supabase/config.toml`.
+- **지운 파일**: `supabase/functions/_shared/quality_judge.ts`, `supabase/functions/judge-quality/index.ts`.
+- **마이그레이션이 하는 일**: `battles.verdict_model` 컬럼 추가 / `ai_judgment_jobs`(+RLS, 정책 없음, 부분 유니크 2개) /
+  `ai_judgment_backoff`·`fail_ai_judgment`·`ensure_ai_judgment_job`(내부) /
+  `claim_ai_judgment`·`record_min_criteria_verdict`·`record_superiority_verdict`·
+  `record_ai_judgment_failure`(service_role) / `dispatch_ai_judgments`(cron) /
+  `resolve_battle`에 잡 배선 / `void_battle`·`forfeit_battle`·`delete_account`의 잡 삭제 줄 교체 /
+  cron `ai-judge-tick` 명령 교체 **→ 그 뒤에** `quality_judgments` 일체 드롭
+  (순서가 이것이어야 드롭된 함수를 가리키는 tick이 한 번도 못 돈다).
+- 위 "3단계 작업 순서"에 적은 1→7 순서를 **그대로** 따랐고 중간에 바꾸지 않았다.
+- 검증: `flutter analyze` 이슈 0, `flutter test` **351개 통과**(이 단계는 Dart를 고치지 않아 숫자 변화 없음),
+  `deno test --allow-all supabase/functions/_shared/` **25개 통과**(26 → 25: 품질전 통합 응답 검증
+  테스트 3개가 우열 전용 3개로 바뀌고, `mapQualityVerdictToParticipants` 테스트가 승자 되돌리기
+  하나로 합쳐졌다), `deno check`로 Edge Function 3개 타입 검사 통과.
+- **SQL은 로컬에서 실행할 수 없다**(Docker 없음). 마이그레이션과 새 스모크는 원격에 처음 돌 때
+  검증된다 — 2단계에서 네 파일을 고쳐야 했던 것과 같은 위험이 남아 있다(위 체크리스트 9번 순서대로).
+
+#### 리뷰 반영 (2026-10-29, Critical 없음 / W1·W2·N1·N2)
+- **W1** 우열 재판정의 모델 기록을 `battles.verdict_model`로 옮겼다(아래 "설계와 달라진 점" 4 참고).
+  같은 마이그레이션 파일에 컬럼을 더했고(새 파일을 만들지 않았다), `record_superiority_verdict`에서
+  `battle_submissions.ai_model` 갱신 문장을 **지웠다**. 스모크에 `superiority_model`과
+  `superiority_subs_ai_model`(= 0, 제출 행은 그대로) 두 항목을 더했다.
+- **W2** "늦게 도착한 응답" 검증이 `lease_token is null` 경로만 보고 있었다. 속도전 대결 하나
+  (`v_stale_lease`)를 더해 **claim(T1) → 임대 만료 → 다른 실행이 claim(T2) → 옛 토큰 T1으로 기록**
+  경로를 추가했고, `skipped`와 대상 제출의 `meets_criteria`가 **여전히 null**인 것을 함께 단정한다
+  (`old_token_result`·`old_token_untouched`). 기존 6번(토큰이 null로 비워진 경로)은 그대로 남겼다.
+- **N1** `cron.schedule` 교체를 `drop function dispatch_quality_judgments()` **앞으로** 옮겼다.
+  "`db push`가 파일 하나를 단일 트랜잭션으로 적용한다"는 전제 없이도 안전해진다.
+- **N2** 위 체크리스트 머리말의 고장 모델을 고쳤다. 틀린 순서의 증상은 `voided`가 아니라 "발송이
+  버려지고 다음 분에 다시 시도"다(`attempts`를 올리는 유일한 지점이 `claim_ai_judgment`이고, 잘못된
+  URL로 간 요청은 거기에 도달하지 못한다).
+- 손대지 않은 것(판단 완료): N3(발송 루프 예외 흡수), N5(스모크 공백), N7(종결 전 최소 기준 사유
+  가시성 — 2단계 가시성 결정의 귀결, 5단계 몫).
+
+#### 설계와 달라진 점 (의도적)
+1. **`submit_judgment`를 고치지 않았다.** design 흐름 3은 `submit_judgment`가 불복 시
+   `ensure_ai_judgment_job`을 부른다고 적었지만, 같은 문서의 "잡 생성이 한 곳에만 있게 한다"와
+   3단계 지시의 "`ensure_ai_judgment_job` 호출은 한 곳에만"을 지키려면 둘 중 하나여야 한다.
+   `submit_judgment`는 이미 마지막에 같은 트랜잭션으로 `resolve_battle`을 부르므로 **`resolve_battle`
+   한 곳**에 두었다. 결과는 같고(불복이 기록된 트랜잭션에서 잡이 생긴다), 자동 승인(cron)·AI 기록
+   경로에서도 같은 조건으로 보정된다. 두 곳에 두면 "불복은 기록됐는데 잡이 없다"가 조용히 생긴다.
+   - `resolve_battle`은 `min_verdict_effect`가 pending을 돌려준 이유를 **직접 다시 본다**
+     (`상대 판정이 reject` + `meets_criteria is null`). 이 구분이 없으면 "상대가 아직 판정하지 않아
+     pending"인 경우에도 AI를 불러 사람의 차례를 가로챈다.
+2. **`submit-evidence/index.ts`를 고치지 않았다.** 3단계 지시에 적힌 "Gemini 호출·다운로드·
+   `record_speed_verdict` 호출 제거, 교체된 사진 삭제 추가"는 **2단계가 이미 했다**(그 파일은
+   `20260922120000` 적용 직후 재배포됐다). 지금 파일에는 Gemini 관련 코드가 없고 교체 사진 삭제가
+   들어 있다 — 이 단계에서 다시 손댈 것이 없었다. 같은 이유로 `record_speed_verdict`·
+   `sweep_stale_submissions` 드롭과 `sweep_stale_criteria_calls` 신설도 이 마이그레이션에 넣지 않았다
+   (없는 함수를 드롭하면 `db push`가 통째로 실패한다). 마이그레이션 머리말에 이 사실을 적어 두었다.
+3. **`record_superiority_verdict`는 `resolve_battle`을 다시 부르지 않고 바로 `finalize_battle`로 끝낸다.**
+   design "새 서버 전용 함수" 표는 `... -> 잡 삭제 -> resolve_battle`이라고 적었지만, 우열 승자는
+   사람의 판정 행(`battle_judgments.superior_id`)에 들어가지 않으므로 `resolve_battle`을 다시 부르면
+   `mutual_quality_outcome`이 **또** `next='ai'`로 갈라져 잡이 다시 생긴다(무한 루프). AI 승자를
+   사람의 답인 척 `superior_id`에 적는 쪽은 "사람도 AI도 사실만 말한다"는 설계 원칙 1을 깬다.
+   그래서 이 함수만 종결을 직접 적용한다 — 점수·outcome 표는 그대로다(`win`/`loss`, 품질전 감면 없음).
+4. **우열 재판정의 모델은 `battles.verdict_model`(신규 컬럼)에 적고, 제출 행의 `ai_model`은
+   건드리지 않는다.** design은 우열 재판정이 `battles.verdict_reason`만 기록한다고 적었지만 함수
+   시그니처에는 `p_model`이 있고, 프롬프트 인젝션 방어 원칙 7("`PROMPT_VERSION`을 기록에 남긴다")은
+   모델 기록을 요구한다. 처음에는 제출 행의 `ai_model`이 비어 있을 때만 적었는데 **리뷰에서 두 경로가
+   모두 어긋나는 것이 드러나 고쳤다**(W1):
+   - 전형적 경로(양쪽 사람이 `approve` → 픽 불일치)에서는 두 제출 행이 모두 비어 있어,
+     `verdict_source='opponent'`인 행에 `ai_model`만 채워진다. 한 행의 두 값이 서로 모순되고
+     5단계의 판정 내역 공개가 "사람이 승인한 제출"을 AI 판정으로 보여 준다.
+   - 양쪽 불복 뒤 우열로 간 경로에서는 두 행이 이미 차 있어 0행이 갱신된다 — AI 호출이 2회인
+     경로에서 우열 모델이 **어디에도 남지 않는다.**
+   그래서 같은 마이그레이션 파일에 `alter table public.battles add column verdict_model text`를 더하고
+   `verdict_reason`과 같은 문장에서 함께 적는다(같은 판정의 사유와 모델이 한 행에 나란히 있다).
+   스모크가 `verdict_model` 값과 **두 제출 행의 `ai_model`이 여전히 null인 것**을 함께 단정한다.
+5. **종결 시 남은 잡을 `resolve_battle`에서도 지운다.** `claim`·`fail`이 종결 상태를 보고 버리므로
+   결과에는 영향이 없지만, Vault 값이 비어 발송이 멈춘 동안에는 아무도 그 잡을 집지 않아 고아로
+   남는다. 한 문장(`delete ... where battle_id = ...`)으로 그 경로를 없앴다.
+6. **오너 작업 순서를 "배포 -> Vault 교체"로 적었다.** 위 착수 메모는 "Vault 교체 -> 배포"였지만,
+   그 순서로는 교체와 배포 사이에 보낸 요청이 아직 없는 함수로 가서 버려진다(잡은 남고 다음 분에
+   다시 보내므로 결과가 몇 분 늦어질 뿐이다 — `attempts`를 올리는 곳은 `claim_ai_judgment` 하나라
+   실패로 쌓이지는 않는다. 리뷰 N2에서 바로잡은 고장 모델이다). 배포를 먼저 하면 그 공백이 아예
+   없어진다(3단계 지시에 적힌 순서와 같다).
+
+#### 함정 메모
+- **`ai_judgment_jobs`의 부분 유니크 인덱스 두 개가 `on conflict do nothing`의 멱등성을 만든다.**
+  `kind`별로 유니크 범위가 다르므로(최소 기준은 `(battle_id, target_id)`, 우열은 `(battle_id)`)
+  충돌 대상을 지정하지 않는 `on conflict do nothing`을 써야 둘 다 걸린다.
+- 같은 트랜잭션에서는 `now()`가 고정이라 백오프로 미뤄진 잡(`next_attempt_at = now() + 2분`)은
+  **그 트랜잭션 안에서 다시 claim되지 않는다.** 스모크의 4회 소진 테스트는 매 시도 전에
+  `next_attempt_at`을 과거로 돌려 놓는다(`.claude/agent-memory/developer/sql_smoke_test_now_frozen.md`).
+- 스모크의 `dispatch_ai_judgments()` 호출 시점에 **기한이 된 잡이 없도록** 순서를 짰다. 원격 Vault에
+  값이 들어 있으면 due 잡마다 `net.http_post`가 큐에 들어가는데, 롤백으로 큐 행도 사라지지만
+  실호출 확인 중인 함수에 테스트 잡 id가 가는 일 자체를 만들지 않는 편이 낫다.
 
 ### 4단계 (로컬 구현 완료, 2026-10-28 — 3단계보다 먼저 했다)
 - developer 에이전트가 구현했다. **커밋·원격 적용·배포 없음** — 작업 트리에 변경만 있다.

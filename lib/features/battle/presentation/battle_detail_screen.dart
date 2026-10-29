@@ -150,11 +150,11 @@ class _BattleHeader extends StatelessWidget {
         ),
         if (submitDeadline != null) ...[
           const SizedBox(height: 8),
-          Text(submitDeadline, style: textTheme.bodySmall),
+          Text(submitDeadline, style: textTheme.bodyMedium),
         ],
         if (judgeDeadline != null) ...[
           const SizedBox(height: 4),
-          Text(judgeDeadline, style: textTheme.bodySmall),
+          Text(judgeDeadline, style: textTheme.bodyMedium),
         ],
         const SizedBox(height: 12),
         _OpponentCard(detail: detail),
@@ -255,7 +255,7 @@ class _ResultBanner extends StatelessWidget {
         ],
         if (reason != null) ...[
           const SizedBox(height: 8),
-          Text(AppStrings.battleVerdictReasonLabel, style: textTheme.bodySmall),
+          Text(AppStrings.battleVerdictReasonLabel, style: textTheme.bodyMedium),
           const SizedBox(height: 2),
           Text(reason, style: textTheme.bodyMedium),
         ],
@@ -264,7 +264,7 @@ class _ResultBanner extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              Text(AppStrings.battleScoreChangeLabel, style: textTheme.bodySmall),
+              Text(AppStrings.battleScoreChangeLabel, style: textTheme.bodyMedium),
               const SizedBox(width: 8),
               Text(AppStrings.battleScoreDelta(scoreDelta), style: RetroText.numeric),
             ],
@@ -272,7 +272,7 @@ class _ResultBanner extends StatelessWidget {
           // 0점인 사람은 더 깎이지 않는다. 표가 말하는 -3과 달라 보이므로 이유를 적는다.
           if (scoreDelta == 0) ...[
             const SizedBox(height: 2),
-            Text(AppStrings.battleScoreFloorNote, style: textTheme.bodySmall),
+            Text(AppStrings.battleScoreFloorNote, style: textTheme.bodyMedium),
           ],
         ],
       ],

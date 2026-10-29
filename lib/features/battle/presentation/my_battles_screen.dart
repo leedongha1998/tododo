@@ -196,16 +196,19 @@ class _MyRecruitBody extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 8),
-        Row(
+        // 칩 세 개는 라벨이 14dp가 되면서 좁은 화면·큰 글자에서 한 줄에 다 못 들어갈 수 있다.
+        // 칩을 빼지 않고 다음 줄로 내린다(readability.md 3-1).
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             BattleTypeBadge(type: battle.type),
-            const SizedBox(width: 8),
             // 점선 = 빈 자리(아직 상대가 없다).
             PixelTag(
               label: battleStatusLabel('pending'),
               style: battleStatusTagStyle('pending'),
             ),
-            const SizedBox(width: 8),
             PixelTag(
               label: battleDurationLabel(battle.durationMinutes),
               style: battleStatusTagStyle('draw'),

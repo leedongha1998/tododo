@@ -192,7 +192,7 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
                       },
               ),
               const SizedBox(height: 4),
-              Text(AppStrings.battleJudgmentRejectHint, style: textTheme.bodySmall),
+              Text(AppStrings.battleJudgmentRejectHint, style: textTheme.bodyMedium),
               if (detail.needsSuperiorityPick) ...[
                 const SizedBox(height: 16),
                 Text(AppStrings.battleJudgmentSuperiorityQuestion, style: textTheme.bodyLarge),
@@ -232,7 +232,7 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
                 photoFailed
                     ? AppStrings.battleJudgmentPhotoUnavailable
                     : AppStrings.battleJudgmentOnce,
-                style: textTheme.bodySmall,
+                style: textTheme.bodyMedium,
               ),
             ],
           ),

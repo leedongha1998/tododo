@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/strings.dart';
 import '../../../core/theme/pixel_icons.dart';
+import '../../../core/theme/retro_text.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_icon.dart';
 import '../domain/criteria_rules.dart';
@@ -29,7 +30,7 @@ class CriteriaListBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (hint != null) ...[
-            Text(hint!, style: textTheme.bodySmall),
+            Text(hint!, style: textTheme.bodyMedium),
             const SizedBox(height: 8),
           ],
           for (var i = 0; i < items.length; i++) ...[
@@ -38,7 +39,7 @@ class CriteriaListBlock extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 번호는 숫자라 픽셀 글꼴, 기준 본문은 문장이라 본문 글꼴.
-                Text('${i + 1}', style: textTheme.labelLarge),
+                Text('${i + 1}', style: RetroText.pixel(RetroText.grid, bold: true)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(items[i], style: textTheme.bodyMedium)),
               ],
@@ -110,7 +111,7 @@ class _CriteriaEditorState extends State<CriteriaEditor> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (widget.hint != null) ...[
-            Text(widget.hint!, style: textTheme.bodySmall),
+            Text(widget.hint!, style: textTheme.bodyMedium),
             const SizedBox(height: 8),
           ],
           for (var i = 0; i < _controllers.length; i++) ...[

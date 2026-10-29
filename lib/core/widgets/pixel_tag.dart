@@ -43,7 +43,7 @@ class PixelTagStyle {
 enum PixelTagSize { small, large }
 
 /// 짧은 글자 한 덩어리의 기본 조각. 계단 모서리 2dp, 좌우 8.
-/// small: 최소 높이 24·글자 12 / large: 최소 높이 40·글자 24.
+/// small: 최소 높이 24·본문 글꼴 14 / large: 최소 높이 40·픽셀 글꼴 24.
 /// 높이를 고정하지 않고 최소값만 두어 글자 크기 1.3배에서도 잘리지 않는다.
 class PixelTag extends StatelessWidget {
   const PixelTag({
@@ -81,7 +81,11 @@ class PixelTag extends StatelessWidget {
           if (leading != null) ...[leading!, const SizedBox(width: 4)],
           Text(
             label,
-            style: RetroText.pixel(isLarge ? RetroText.grid * 2 : RetroText.grid, color: style.textColor),
+            // large(24dp)만 픽셀 글꼴이다. small은 12dp에서 받침이 번지므로 본문 글꼴 라벨 슬롯을 쓴다
+            // (readability.md 방안 2).
+            style: isLarge
+                ? RetroText.pixel(RetroText.grid * 2, color: style.textColor)
+                : Theme.of(context).textTheme.labelLarge!.copyWith(color: style.textColor),
           ),
         ],
       ),

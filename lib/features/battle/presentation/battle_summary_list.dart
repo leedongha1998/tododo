@@ -52,16 +52,18 @@ class BattleSummaryCard extends StatelessWidget {
                       style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    // 배지 라벨이 14dp가 되면서 긴 이름과 한 줄에 못 들어갈 수 있다.
+                    // 이름을 줄여 보여 주는 대신 다음 줄로 내린다(readability.md 3-1).
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         BattleTypeBadge(type: battle.type),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            '${AppStrings.battleVersus} ${summary.otherPartyName}',
-                            style: textTheme.bodySmall,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        Text(
+                          '${AppStrings.battleVersus} ${summary.otherPartyName}',
+                          style: textTheme.bodySmall,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),

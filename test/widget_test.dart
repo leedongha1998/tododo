@@ -795,4 +795,66 @@ void main() {
     await tester.pump();
     expect(find.byType(VsIntro), findsNothing);
   });
+
+  // 탭 라벨은 12dp 픽셀에서 14dp 본문 글꼴로 커졌다(readability.md 방안 2).
+  // 배율 상한(1.3)과 좁은 화면(360dp)이 겹쳐도 탭바가 무너지지 않는지 보는 스모크 테스트다.
+  //
+  // **라벨이 칸을 넘는지는 이 테스트로 검증할 수 없다.** NavigationBar는 자체 레이아웃 델리게이트를
+  // 써서 (1) 라벨이 넘쳐도 RenderFlex 예외를 내지 않고 (2) 라벨 상자 폭을 칸 폭 이하로 clamp하며
+  // (3) 바 높이는 테마의 height: 72가 고정한다. 그래서 "라벨 폭 <= 칸 폭"은 어떤 배율에서도 참이다 —
+  // 배율만 3.0으로 올린 복사본도 그대로 통과하는 것을 확인했다. 넘침은 예외가 아니라 2줄
+  // 줄바꿈으로 나타나므로 육안 확인 대상이다.
+  testWidgets('글자 크기 1.3배·360dp 폭에서도 탭바가 예외 없이 그려진다(스모크)', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 720);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          todosProvider.overrideWith((ref) async => []),
+          myBattlesProvider.overrideWith((ref) async => []),
+          myRecruitsProvider.overrideWith((ref) async => []),
+          battleRepositoryProvider.overrideWithValue(_FakeBattleRepository()),
+          myAiConsentProvider.overrideWith((ref) async => null),
+          myProfileProvider.overrideWith(
+            (ref) async => const Profile(id: 'me', displayName: '나'),
+          ),
+          myPlayerStatsProvider.overrideWith((ref) async => _testStats),
+          battleRecordsProvider.overrideWith((ref) async => []),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(1.3)),
+            child: child!,
+          ),
+          home: const MainShell(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+
+    // 네 라벨이 모두 그려진다(라벨이 사라지거나 다른 것으로 바뀌면 깨진다).
+    for (final label in [
+      AppStrings.battleMyBattles,
+      AppStrings.battleFind,
+      AppStrings.todoTitle,
+      AppStrings.profileTitle,
+    ]) {
+      expect(
+        find.descendant(of: find.byType(NavigationBar), matching: find.text(label)),
+        findsOneWidget,
+        reason: label,
+      );
+    }
+    // 탭바가 세로로 자라 화면을 밀지 않는다(테마가 정한 72).
+    expect(tester.getSize(find.byType(NavigationBar)).height, 72);
+  });
 }

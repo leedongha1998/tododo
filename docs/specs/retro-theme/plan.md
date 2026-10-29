@@ -152,3 +152,63 @@ design.md 5.5 표의 "허용하는 수정"만. 배치 변경 없음.
 - 커밋 12개: `e0cb169` `12be527` `0f83eb5` `aca590e` `5ad2b64` `da3c8ad` `48f1ccc` `696c63d` `6f8a1d6` `2b63247` `867736b` `29fbdb3`. push 안 함.
 - 마지막 검증: `flutter analyze` 이슈 0, `flutter test` 194개 통과.
 - 계획 순서 변경 없음(1→6단계 그대로).
+
+---
+
+# 개정 2 — 가독성 (2026-10-29)
+
+입력: `docs/specs/retro-theme/readability.md`(오너 승인). 그 문서가 정한 수치·범위를 그대로 구현한다.
+새로 설계하지 않는다. 설계와 달라진 것은 `readability.md`의 "## 설계와 달라진 점"에 적는다.
+
+## 충돌 확인 (구현 전)
+
+- CLAUDE.md ↔ readability.md: **충돌 없음.** 판정 로직·스키마·범위에 손대지 않고 테마 글꼴 기하만 바꾼다.
+  사용자에게 보이는 문자열 추가도 없다(`lib/core/strings.dart` 변경 없음).
+- `design.md` 1.2 "픽셀 크기는 격자 정수배만" ↔ 방안 1의 `bodySmall` 13dp: **충돌 아님.**
+  13dp는 본문 글꼴(픽셀 아님) 크기이고, 정수배 규칙은 픽셀 글꼴에만 걸린다.
+- `design.md` 글꼴 표·`spec.md` 결정 A·`decisions.md` 5번의 "짧은 라벨은 통째로 픽셀 12"는 새 규칙과
+  어긋난다 → readability.md 3-3이 "이번 작업에 포함"으로 정했으므로 7단계에서 함께 고친다.
+
+## 작업 순서
+
+1. **`lib/core/theme/retro_text.dart`** — 표 하나로 다 따라오는 지점이라 먼저.
+   - 본문 3슬롯: bodyLarge 16/`height 1.6`, bodyMedium 14/`height 1.6`, bodySmall **13**/`height 1.55`,
+     셋 다 `letterSpacing: 0`.
+   - `titleSmall`·`labelLarge`·`labelMedium`·`labelSmall` → 본문 글꼴(`fontFamily` 미지정) 14dp /
+     w700 / `height 1.4` / `letterSpacing 0.2`.
+   - 픽셀로 남김: display*·headline*·titleLarge·titleMedium(24dp 이상), `numeric`, `pixel()` 자체.
+2. **`lib/core/theme/app_theme.dart`** — `navigationBarTheme`의 선택/비선택 라벨 구분이 "bold vs regular"
+   였다. 네 슬롯이 전부 w700이 되면 구분이 사라지므로 비선택을 w400으로 명시해 **지금과 같은 대비**를
+   유지한다(설계와 달라진 점에 기록).
+3. **`lib/core/widgets/pixel_tag.dart`, `pixel_frame.dart`** — 직접 `RetroText.pixel(grid)`를 쓰는 곳.
+   - `pixel_tag`: `small`(12)만 테마 `labelLarge`로. `large`(24)는 픽셀 그대로.
+   - `pixel_frame`: 창 제목 띠·톤 블록 제목을 테마 `labelLarge`로.
+4. **방안 3 — 경고·설명 문장 `bodySmall` → `bodyMedium`** (줄 번호 대신 문장 내용으로 찾는다):
+   제출·판정 마감(`battle_detail_screen`), 판정 사유 라벨·점수 변동 라벨·점수 하한 설명(같은 파일),
+   "판정은 한 번만"·거부 힌트(`judgment_section`), 증거 교체 힌트·품질전 한 번만(`evidence_section`),
+   기간 안내·짧은 기간 경고·기간 창 안내·기준 생성 남은 횟수(`create_battle_screen`),
+   기준 블록 힌트 2곳(`criteria_views`).
+5. **한 줄 3칩 → `Wrap`** (칩을 빼지 않는다): `my_battles_screen` 모집 카드 칩 줄(배지+모집중+기간),
+   `battle_summary_list`의 배지+"vs 이름" 줄. 간격은 기존 `SizedBox(width: 8)`을 `spacing: 8`로 옮긴다.
+6. **테스트**
+   - 새 유닛 테스트 `test/core/theme/retro_text_test.dart`: 본문 3슬롯 행간 ≥ 1.5, bodySmall 13,
+     네 라벨 슬롯은 픽셀 글꼴이 아니고 14dp, 24dp 이상 슬롯·`numeric`은 픽셀 그대로.
+   - 새 위젯 테스트 `test/core/theme/text_scale_layout_test.dart`: 360dp 폭·배율 1.3에서 탭 라벨 4개가
+     칸을 넘지 않는다.
+   - `my_battles_sections_test.dart`에 배율 1.3 칩 줄 테스트 추가(`Wrap`으로 내려가 넘치지 않음).
+   - 깨지는 기존 테스트는 지우지 않고 새 기대값으로 고친다.
+7. **문서 일치시키기**: `spec.md` 결정 A, `design.md` 글꼴 표와 혼용 규칙, `decisions.md` 5번에 새 경계
+   (픽셀은 24dp 이상 + 숫자 + VS 인트로 + 이니셜)를 반영하고 개정 날짜를 남긴다.
+8. `flutter analyze` 0 이슈 + `flutter test` 전부 통과 확인(기준선 351). **커밋은 하지 않는다.**
+
+## 범위 밖 (손대지 않음)
+
+팔레트 색·에셋·패키지, `retro_palette_test.dart`, `main.dart`의 `maxTextScale = 1.3`,
+방안 4·5·6(칩 테두리 1dp, 구분선, Galmuri14), 프레임 중첩 평면화.
+
+## 순서를 바꾼 기록
+
+- 순서는 1~8 그대로 진행했다. 다만 4·5단계에서 계획에 없던 두 줄을 함께 고쳤다:
+  `criteria_views`의 항목 번호(픽셀 유지)와 `battle_detail_screen`의 "점수 변동" 라벨(bodyMedium 승격).
+  이유는 `readability.md`의 "## 설계와 달라진 점" 2·3번에 적었다.
+- 2단계(비선택 탭 라벨 w400)는 계획대로 했고, 이것도 같은 절 1번에 기록했다.

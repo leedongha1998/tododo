@@ -320,13 +320,13 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         const SizedBox(height: 8),
         ..._buildDurationInput(context),
         const SizedBox(height: 8),
-        Text(AppStrings.battleDurationNotice, style: Theme.of(context).textTheme.bodySmall),
+        Text(AppStrings.battleDurationNotice, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 4),
         // 기간을 짧게 고를 수 있게 됐으므로 그 위험을 같은 자리에서 알린다(spec D6 — 구조가 아니라 경고로만).
-        Text(AppStrings.battleDurationShortWarning, style: Theme.of(context).textTheme.bodySmall),
+        Text(AppStrings.battleDurationShortWarning, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 4),
         // "1분 대결"이 1분 만에 끝나는 것이 아니라는 것을 여기서 한 번 말해 둔다.
-        Text(AppStrings.battleDurationWindowNotice, style: Theme.of(context).textTheme.bodySmall),
+        Text(AppStrings.battleDurationWindowNotice, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 24),
         if (blockMessage != null) ...[
           PixelFrame.tone(tone: PixelTone.neutral, child: Text(blockMessage)),
@@ -342,7 +342,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
           const SizedBox(height: 8),
           Text(
             AppStrings.battleCriteriaCallsLeft(limits.criteriaCallsLeft),
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
       ],

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../theme/pixel_border.dart';
 import '../theme/pixel_icons.dart';
 import '../theme/retro_palette.dart';
-import '../theme/retro_text.dart';
 import 'pixel_icon.dart';
 
 enum _FrameVariant { raised, flat, inset, tone }
@@ -18,7 +17,7 @@ enum PixelTone { info, success, danger, neutral }
 /// - inset: sunken 면, 테두리 없음 — 인용된 텍스트, 완료한 할 일처럼 가라앉은 것
 /// - tone: 문장이 들어가는 강조 블록(info / success / danger / neutral)
 ///
-/// [title]이 있으면 위쪽에 ink 띠 + surface 픽셀 글자로 창 제목 띠를 그린다.
+/// [title]이 있으면 위쪽에 ink 띠 + surface 라벨 글자로 창 제목 띠를 그린다.
 /// [onTap]이 있으면 누르는 동안 눌림 변형(바닥 두께가 위·왼쪽으로)이 된다.
 class PixelFrame extends StatefulWidget {
   const PixelFrame.raised({
@@ -142,7 +141,10 @@ class _PixelFrameState extends State<PixelFrame> {
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 child: Text(
                   title,
-                  style: RetroText.pixel(RetroText.grid, bold: true, color: RetroPalette.surface),
+                  // 창 제목 띠는 12dp 픽셀이었다 → 본문 글꼴 라벨 슬롯(readability.md 방안 2).
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge!.copyWith(color: RetroPalette.surface),
                 ),
               ),
             ),
@@ -204,7 +206,7 @@ class _PixelFrameState extends State<PixelFrame> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (title != null) ...[
-                  Text(title, style: RetroText.pixel(RetroText.grid, bold: true)),
+                  Text(title, style: textTheme.labelLarge),
                   const SizedBox(height: 4),
                 ],
                 widget.child,

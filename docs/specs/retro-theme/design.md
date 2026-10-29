@@ -118,19 +118,28 @@
 | headlineLarge/Medium/Small | 갈무리11 Bold | 24 | 빈·오류 상태 제목, 결과 라벨(큰) |
 | titleLarge | 갈무리11 Bold | 24 | 앱바 제목 |
 | titleMedium | 갈무리11 Bold | 24 | 섹션 제목, 대화상자 제목, 시트 제목, VS 인트로 이름 |
-| titleSmall | 갈무리11 Bold | 12 | 작은 소제목("기간", "나 (이름)") |
-| labelLarge | 갈무리11 Bold | 12 | 모든 버튼 글자 |
-| labelMedium | 갈무리11 Regular | 12 | 칩, 탭 이름, 입력 필드 카운터 |
-| labelSmall | 갈무리11 Regular | 12 | 유형 배지, 결과 라벨(작은), 태그 |
-| bodyLarge / bodyMedium / bodySmall | 기기 기본 | 16 / 14 / 12 | 할 일 내용, 목록 본문(대결 제목·상대 이름), 안내·오류 문장, 대화상자 본문, 토스트, 입력한 글자, 라이선스 고지 |
+| titleSmall | 기기 기본 Bold | 14 / height 1.4 | 작은 소제목("기간", "나 (이름)") |
+| labelLarge | 기기 기본 Bold | 14 / height 1.4 | 모든 버튼 글자, 창 제목 띠, 작은 태그·칩 |
+| labelMedium | 기기 기본 Bold | 14 / height 1.4 | 칩, 탭 이름(비선택은 w400), 입력 필드 카운터 |
+| labelSmall | 기기 기본 Bold | 14 / height 1.4 | 유형 배지, 결과 라벨(작은), 태그 |
+| bodyLarge / bodyMedium | 기기 기본 | 16 / 14, height 1.6 | 할 일 내용, 목록 본문(대결 제목·상대 이름), 안내·오류 문장, 대화상자 본문, 토스트, 입력한 글자, 라이선스 고지 |
+| bodySmall | 기기 기본 | 13 / height 1.55 | 메타데이터(날짜, "vs 이름"), 입력 오류 줄 |
+
+> **2026-10-29 개정(`readability.md` 방안 1·2, 오너 승인).** titleSmall·labelLarge·labelMedium·labelSmall이
+> 원래 "갈무리11 12"였다. 12dp 픽셀은 받침 있는 한글이 번져(갈무리11은 12px 격자, Flutter는 텍스트
+> 안티에일리어싱을 끌 수 없다) 짧은 라벨 전부를 읽기 어렵게 만들었다. **픽셀의 경계를 12dp에서 24dp로
+> 올린다** — 픽셀 글꼴은 위의 24dp 이상 슬롯과 `RetroText.numeric`, VS 인트로, 이니셜 배지에만 남는다.
+> 본문 3슬롯에는 한글용 행간(1.6 / 1.6 / 1.55)을 명시한다. 비워 두면 `ThemeData.localize`가 englishLike
+> 기하(1.50 / 1.43 / 1.33)를 머지해 WCAG SC 1.4.12(1.5em)에 미달한다. bodySmall은 12 → 13dp.
+> "놓치면 손해 보는 문장"(마감, "판정은 한 번만", 기간 경고, 기준 힌트)은 bodySmall → bodyMedium으로 올렸다.
 
 추가로 `RetroText.numeric`(갈무리11 Regular 12, 필요 시 24/36으로 `copyWith`)을 테마 확장 없이 정적 상수로 둔다 — "숫자가 독립적으로 표시될 때"(점수, 남은 시간 칸, n/5 카운터, 전적 수) 쓰는 스타일.
 
-Material 위젯 기본 슬롯이 이 분담과 맞는지 확인: AppBar 제목=titleLarge, AlertDialog 제목=headlineSmall(→24 픽셀)·본문=bodyMedium, 버튼=labelLarge, NavigationBar 라벨=labelMedium, ListTile 제목=bodyLarge·부제=bodyMedium, SnackBar=bodyMedium, TextField 입력=bodyLarge. 따라서 **할 일 내용·토스트·대화상자 본문은 자동으로 본문 글꼴, 제목·버튼·탭은 자동으로 픽셀 글꼴**이 된다.
+Material 위젯 기본 슬롯이 이 분담과 맞는지 확인: AppBar 제목=titleLarge, AlertDialog 제목=headlineSmall(→24 픽셀)·본문=bodyMedium, 버튼=labelLarge, NavigationBar 라벨=labelMedium, ListTile 제목=bodyLarge·부제=bodyMedium, SnackBar=bodyMedium, TextField 입력=bodyLarge. 따라서 **앱바·대화상자 제목은 자동으로 픽셀 글꼴(24dp 이상), 버튼·탭·칩과 할 일 내용·토스트·대화상자 본문은 자동으로 본문 글꼴**이 된다(2026-10-29 개정 전에는 버튼·탭도 픽셀이었다).
 
 #### 한 요소 안 혼용 규칙 (spec "설계에서 정한다")
 1. **Text 위젯 하나에는 글꼴 하나.** 한 줄 안에서 글꼴을 섞지 않는다(`TextSpan`으로 섞기 금지).
-2. **짧은 라벨(버튼·칩·배지·탭·태그)은 괄호 설명까지 통째로 픽셀.** 예: ai-judge "다시 검사하기(1회 차감)", "제출(한 번만 낼 수 있어요)"는 전부 픽셀 12.
+2. **짧은 라벨(버튼·칩·배지·탭·태그)은 괄호 설명까지 통째로 한 글꼴.** 예: ai-judge "다시 검사하기(1회 차감)", "제출(한 번만 낼 수 있어요)"는 전부 라벨 글꼴로 쓴다. **2026-10-29 개정:** 그 글꼴이 "픽셀 12"에서 "본문 14 굵게"로 바뀌었다(위 표). 큰 태그(`PixelTag.large`, 24dp)만 픽셀로 남는다.
 3. **설명이 한 줄을 넘거나 문장이면 라벨에서 떼어** 버튼 아래 별도 `bodySmall` 줄로 둔다(예: ai-judge "판정 n/5회 남음 · AI 실패는 횟수에서 빠져요"는 버튼 아래 본문 줄).
 4. **문장 속 숫자는 문장 글꼴을 따른다.** 숫자만 픽셀로 바꾸는 것은 숫자가 독립된 칸(점수, 남은 시간 칩, 카운터)일 때만.
 5. 사용자가 입력한 문자열(할 일, 대결 제목, 표시 이름)은 **목록·본문 자리에서는 본문 글꼴**, 제목 자리(앱바, VS 인트로 이름, 프로필 이름)에서는 픽셀 글꼴. 갈무리는 한글 11,172자와 라틴 문자를 지원하므로 제목 자리에서도 빈 네모가 생기지 않는다.
@@ -138,6 +147,7 @@ Material 위젯 기본 슬롯이 이 분담과 맞는지 확인: AppBar 제목=t
 ### 1.3 텍스트 크기 상한 (결정 E)
 - **앱 전체에 최대 배율 1.3.** `MaterialApp.builder`에서 `MediaQuery.withClampedTextScaling(maxScaleFactor: 1.3)`으로 감싼다. 최소 배율은 제한하지 않는다.
 - 근거: Android 글꼴 크기 단계는 0.85 / 1.0 / 1.15 / 1.3 / (Android 14+) 1.5 / 1.8 / 2.0이다. 1.3까지는 사용자가 키운 만큼 그대로 따르고, 그 위는 1.3에서 멈춘다. 1.3에서 24dp 픽셀 제목은 31dp, 12dp 버튼 글자는 16dp가 되어 360dp 폭 화면에서 탭바 라벨 5글자("대결 찾기" ≈ 78dp)가 한 칸(90dp)에 들어간다. 1.5부터는 탭 라벨이 칸을 넘는다.
+  - **2026-10-29 개정:** 라벨이 12 → 14dp(본문 글꼴)로 커져 1.3에서 18.2dp다. 탭 라벨은 Material이 한 칸(90dp) 안으로 가두고, 한 줄에 세 칩이 놓이던 자리는 `Wrap`으로 바꿔 넘치는 대신 아래 줄로 내린다. 배율 상한 1.3은 그대로 둔다(1.5 재검증은 배포 후 과제 — `readability.md` 3-2).
 - 픽셀 글꼴과 본문 글꼴에 같은 상한을 쓴다. 따로 두면 한 화면 안에서 제목과 본문의 크기 관계가 뒤집힐 수 있다.
 - VS 인트로·로그인 타이틀처럼 큰 글자는 상한 안에서도 넘칠 수 있으므로 해당 위젯이 자체적으로 줄 수 제한 + 말줄임 / `FittedBox(scaleDown)`을 쓴다(4장).
 
@@ -245,7 +255,7 @@ Material 위젯 기본 슬롯이 이 분담과 맞는지 확인: AppBar 제목=t
 | 대화상자 | `AlertDialog` / `Dialog` | 면 `surface`, 4dp 이중 테두리 `PixelBorder`, 제목 픽셀 24, 본문 bodyMedium, 바깥 가림막 `ink` 55%, 좌우 여백 24 |
 | 바텀시트 | `showModalBottomSheet` | 면 `surface`, 위쪽만 4dp `ink` 선 + 위 두 모서리 계단, 끌기 손잡이 대신 폭 32×4dp `ink` 막대, 가림막 `ink` 55% |
 | 토스트 | `SnackBar` | floating, 면 `ink`, 글자 `surface` bodyMedium, 계단 모서리 2dp, 동작 글자 `amber`, 좌우 여백 16. 모든 `ScaffoldMessenger.showSnackBar` 호출에 자동 |
-| 입력 필드 | `TextField` / `InputDecorationTheme` | 채움 `surface`, 테두리 2dp `ink` 직각, 포커스 2dp `primary` + 안쪽 2dp `ink`(합 4dp), 오류 테두리 `danger`, 힌트 `inkMuted` bodyLarge, 카운터 labelMedium(픽셀), 커서 `ink`, 선택 영역 `amber` 50% |
+| 입력 필드 | `TextField` / `InputDecorationTheme` | 채움 `surface`, 테두리 2dp `ink` 직각, 포커스 2dp `primary` + 안쪽 2dp `ink`(합 4dp), 오류 테두리 `danger`, 힌트 `inkMuted` bodyLarge, 카운터 labelMedium(본문 글꼴 14 Bold — 2026-10-29 개정), 커서 `ink`, 선택 영역 `amber` 50% |
 | 선택 컨트롤 | `SegmentedButton` | 각 칸 `PixelBorder` 2dp `ink`, 선택 = 면 `primary`·글자 `surface`·`PixelIcons.check`, 비선택 = 면 `surface`·글자 `ink`, 글자 labelLarge |
 | 체크박스 | `Checkbox` | 20dp 칸, 2dp `ink` 직각 테두리, 체크됨 = 면 `ink` + 체크 `surface`(체크 모양은 Material 벡터 그대로 — 테마로 교체 불가, 칸 모양만 픽셀) |
 | 목록 행 | `ListTile` | 아이콘 `ink`, 제목 bodyLarge, 부제 bodyMedium `inkMuted` |
@@ -263,9 +273,9 @@ Material 위젯 기본 슬롯이 이 분담과 맞는지 확인: AppBar 제목=t
 | 위젯 | 목적과 변형 | 상태 |
 |---|---|---|
 | `PixelIcon` | 2장 참고 | 색은 IconTheme, 크기 12/24/36/48 |
-| `PixelFrame` | "무언가를 감싸는" 영역. 변형: **raised**(surface + 2dp ink + 바닥 두께 — 카드·상대 카드·결과 배너 바탕), **flat**(surface + 2dp ink, 바닥 두께 없음 — 섹션 묶음·기준 목록 블록), **inset**(sunken 면, 테두리 없음 — 인용된 텍스트 증거·짧은 요약), **tone**(아래 표). 선택 속성: `title`(위쪽에 `ink` 띠 + `surface` 픽셀 12 글자 = 창 제목 띠), `onTap`(누르면 눌림 변형) | 기본 / 눌림(onTap 있을 때) |
-| `PixelFrame.tone` (안내 블록) | 문장이 들어가는 강조 블록. `info`: primaryPale 면 + 2dp primary 테두리 + `info` 아이콘. `success`: surface 면 + 2dp success 테두리 + `pass` 아이콘. `danger`: dangerPale 면 + 2dp danger 테두리 + `warning` 아이콘. `neutral`: sunken 면 + 2dp inkMuted 테두리. 제목(선택, 픽셀 12 Bold) + 본문(bodyMedium ink) | — |
-| `PixelTag` | 짧은 글자 한 덩어리의 기본 조각. 속성: 면색, 테두리(실선/점선/없음, 색), 글자색, 크기(small: 높이 24·글자 12 / large: 높이 40·글자 24). 계단 모서리 2dp, 좌우 8 | — |
+| `PixelFrame` | "무언가를 감싸는" 영역. 변형: **raised**(surface + 2dp ink + 바닥 두께 — 카드·상대 카드·결과 배너 바탕), **flat**(surface + 2dp ink, 바닥 두께 없음 — 섹션 묶음·기준 목록 블록), **inset**(sunken 면, 테두리 없음 — 인용된 텍스트 증거·짧은 요약), **tone**(아래 표). 선택 속성: `title`(위쪽에 `ink` 띠 + `surface` 라벨 글자(본문 글꼴 14 Bold — 2026-10-29 개정) = 창 제목 띠), `onTap`(누르면 눌림 변형) | 기본 / 눌림(onTap 있을 때) |
+| `PixelFrame.tone` (안내 블록) | 문장이 들어가는 강조 블록. `info`: primaryPale 면 + 2dp primary 테두리 + `info` 아이콘. `success`: surface 면 + 2dp success 테두리 + `pass` 아이콘. `danger`: dangerPale 면 + 2dp danger 테두리 + `warning` 아이콘. `neutral`: sunken 면 + 2dp inkMuted 테두리. 제목(선택, 본문 글꼴 14 Bold — 2026-10-29 개정) + 본문(bodyMedium ink) | — |
+| `PixelTag` | 짧은 글자 한 덩어리의 기본 조각. 속성: 면색, 테두리(실선/점선/없음, 색), 글자색, 크기(small: 높이 24·본문 글꼴 14 Bold / large: 높이 40·픽셀 24 — 2026-10-29 개정). 계단 모서리 2dp, 좌우 8 | — |
 | `BattleTypeBadge` (기존 유지·재작성) | `PixelTag` 기반. surface 면 + 2dp ink 테두리 + **왼쪽 색 칸**(속도전 amber / 품질전 mint, 20×20) 안에 ink 픽셀 아이콘(`speed`/`quality`, 12dp) + 오른쪽 글자 labelSmall ink. 색·아이콘·글자 세 가지로 구분 | — |
 | `BattleStatusChip` (기존 유지·재작성) | 아래 표의 스타일 매핑을 `PixelTag`로 그림. 글자는 기존 `battleStatusLabel` 그대로 | — |
 | `ResultLabel` (신규, `battle_chips.dart`에 함께) | 결과 라벨. 아래 표. small(프로필 기록 목록 오른쪽) / large(결과 배너) | — |
@@ -515,7 +525,7 @@ Material 위젯 기본 슬롯이 이 분담과 맞는지 확인: AppBar 제목=t
 | 13 | `battle_detail_screen.dart` 승인·이의제기 `Row(FilledButton, OutlinedButton)` | `Row`에 줄바꿈 없음 → 1.3배에서 두 버튼 합 폭 확인 필요("승인" 2자·"이의제기" 4자라 여유 있음) | 수동 확인만. 넘치면 `Wrap`으로(배치 의미 동일) |
 | 14 | `battle_detail_screen.dart` 대화상자 2개의 `FilledButton.styleFrom(backgroundColor: scheme.error)` | 테마와 합쳐져 danger 면 + 계단 모양 | 수정 없음(자동) |
 | 15 | `battle_detail_screen.dart` 앱바 제목 = 대결 제목 | 픽셀 24 한 줄 → AppBar 기본 말줄임으로 잘림 표시 | 수정 없음(자동) |
-| 16 | `battle_detail_screen.dart` `_EvidenceSection` 소제목 `titleSmall`("나 (이름)") | 픽셀 12 Bold, 긴 이름은 줄바꿈 | 수정 없음 |
+| 16 | `battle_detail_screen.dart` `_EvidenceSection` 소제목 `titleSmall`("나 (이름)") | 본문 글꼴 14 Bold(2026-10-29 개정), 긴 이름은 줄바꿈 | 수정 없음 |
 | 17 | `battle_detail_screen.dart` `TextField` 텍스트 증거(maxLines 3) | 자동 | 수정 없음 |
 | 18 | `profile_screen.dart` 기록 행 결과 글자 | `titleMedium` bold Text | `ResultLabel.small`(5.4) |
 | 19 | 앱 전체 `RefreshIndicator` | Material 원형 새로고침 표시 | 색만 테마. 모양 교체 없음(당겨서 새로고침 전용 위젯이라 교체하면 동작을 새로 만들어야 함) |

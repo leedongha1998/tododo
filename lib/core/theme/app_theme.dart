@@ -114,10 +114,12 @@ class AppTheme {
                 : RetroPalette.inkMuted,
           ),
         ),
+        // 라벨 슬롯이 전부 w700이 됐으므로(readability.md 방안 2) 비선택만 w400으로 되돌려
+        // "선택된 탭이 굵다"는 기존 구분을 유지한다. 색은 둘 다 ink다.
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected)
-              ? text.labelMedium!.copyWith(fontWeight: FontWeight.w700)
-              : text.labelMedium!,
+              ? text.labelMedium!
+              : text.labelMedium!.copyWith(fontWeight: FontWeight.w400),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(

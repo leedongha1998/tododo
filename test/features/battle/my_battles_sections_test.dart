@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_theme.dart';
+import 'package:todododo/core/widgets/pixel_tag.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
@@ -82,6 +84,9 @@ Future<ProviderContainer> _pumpMyBattles(
   WidgetTester tester, {
   required _MyBattlesRepository repository,
   List<BattleSummary> summaries = const [],
+  // 칩 줄 검증만 실제 테마와 글자 배율을 쓴다(나머지 테스트는 기본 테마 그대로 둔다).
+  ThemeData? theme,
+  double textScale = 1,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -96,7 +101,14 @@ Future<ProviderContainer> _pumpMyBattles(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(home: MyBattlesScreen()),
+      child: MaterialApp(
+        theme: theme,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        ),
+        home: const MyBattlesScreen(),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -199,5 +211,42 @@ void main() {
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
+  });
+
+  // 칩 라벨이 12dp 픽셀에서 14dp 본문 글꼴로 커졌다(readability.md 방안 2).
+  // 좁은 화면·큰 글자에서 한 줄에 다 못 들어가면 칩을 빼지 않고 다음 줄로 내린다(3-1).
+  testWidgets('글자 크기 1.3배·360dp 폭에서도 모집 카드 칩 세 개가 다 남고 칸을 넘지 않는다', (tester) async {
+    tester.view.physicalSize = const Size(360, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(recruits: [_recruit()]),
+      theme: AppTheme.light,
+      textScale: 1.3,
+    );
+
+    expect(tester.takeException(), isNull);
+
+    // 유형 배지 + 모집 중 + 기간. 하나라도 빼면 사용자가 정보를 잃는다.
+    final badge = find.byType(BattleTypeBadge);
+    expect(badge, findsOneWidget);
+    expect(find.text(AppStrings.battleStatusPending), findsOneWidget);
+    expect(find.text(battleDurationLabel(30)), findsOneWidget);
+
+    // Row로 되돌리면(= 줄바꿈이 사라지면) 이 단정이 깨진다.
+    final wrap = find.ancestor(of: badge, matching: find.byType(Wrap));
+    expect(wrap, findsOneWidget);
+
+    // 어떤 칩도 화면 밖으로 나가지 않는다(세 개가 한 줄에 다 못 들어가면 아래 줄로 내려간다).
+    final screen = tester.getRect(find.byType(MyBattlesScreen));
+    expect(screen.width, 360);
+    final chips = <Finder>[badge, ...List.generate(2, (i) => find.byType(PixelTag).at(i))];
+    for (final chip in chips) {
+      final rect = tester.getRect(chip);
+      expect(rect.left, greaterThanOrEqualTo(screen.left - 0.5));
+      expect(rect.right, lessThanOrEqualTo(screen.right + 0.5));
+    }
   });
 }

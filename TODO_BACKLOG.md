@@ -5,3 +5,5 @@
 - 증거 신고/차단 (UGC 정책) — Play는 사용자끼리 콘텐츠를 주고받는 앱에 신고·차단 수단을 요구한다. 모집 방식이라 모르는 사람의 사진을 보게 되는데 지금은 둘 다 없다. 심사에서 지적될 수 있음, `store/listing-ko.md` 하단 참고
 - 스토어 스크린샷 재촬영·스토어 배너 이미지 제작 — retro-theme·ai-judge 구현이 모두 끝났으므로 이제 찍을 수 있다. 현재 스크린샷은 대결 진행·프로필 장면이 새 규칙(AI 판정, 점수·전적)과 어긋난다. `DEPLOY.md` 4번, `docs/specs/retro-theme/spec.md` 범위 밖 참고
 - 탈퇴한 상대의 지난 대결에서 사진 자리 안내 — 탈퇴하면 `battle_submissions.object_path`가 null이 되어 종결 뒤 공개되는 이력에 판정 사유만 남고 사진 자리는 비어 보인다. "사진 없음(탈퇴한 사용자)" 같은 안내가 있으면 좋다(design.md "탈퇴와의 상호작용"). 기능이 막히지는 않아 배포 후로 미룸
+- 글자 배율 상한 1.5 재검증 — `main.dart`의 `maxTextScale = 1.3`을 올릴 여지가 생겼다(짧은 라벨이 본문 글꼴이 되어 줄바꿈이 가능해졌고 칩 줄은 `Wrap`이 됐다). 전 화면을 1.5배로 다시 봐야 해서 MVP 직전에는 하지 않았다. `docs/specs/retro-theme/readability.md` 3-2 참고
+- 레트로 테마 가독성 2차(방안 4·5) — 칩 테두리 2dp→1dp, 구분선 `line`→`inkMuted`, 프레임 중첩 평면화. 레이아웃 변동이 커서 배포 후로 미뤘다. `docs/specs/retro-theme/readability.md` 4장 참고

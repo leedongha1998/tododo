@@ -186,7 +186,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
           const SizedBox(height: 4),
           Text(
             AppStrings.battleEvidenceReplaceHint,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: Theme.of(context).textTheme.bodyMedium,
           ),
         ];
       }
@@ -277,7 +277,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       const SizedBox(height: 8),
       Text(
         AppStrings.battleEvidenceQualityOnce,
-        style: Theme.of(context).textTheme.bodySmall,
+        style: Theme.of(context).textTheme.bodyMedium,
       ),
     ];
   }

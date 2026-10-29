@@ -9,10 +9,9 @@ Google Play 내부 테스트 → 프로덕션까지의 절차. 한 번 하고 �
 
 ## 0. 지금 막혀 있는 것 (배포 전 반드시 해결)
 
-- [ ] **업로드 키가 아직 없다** — Gradle 배선은 끝났다(키가 있으면 release 서명을 쓰고, 없으면
-      릴리스 빌드가 즉시 실패한다 — 디버그 키로 서명된 AAB가 나갈 일은 이제 없다).
-      남은 것은 키스토어 생성과 `android/key.properties` 작성뿐이고, **비밀번호가 들어가므로
-      직접 하셔야 한다** → 1번
+- [x] ~~업로드 키가 아직 없다~~ — 만들었다(2026-10-29). `C:/workspaces/todododo-upload.jks`(PKCS12,
+      별칭 `upload`), `android/key.properties` 작성됨, 릴리스 AAB·APK가 그 키로 서명되는 것까지 확인했다.
+      **남은 것은 키스토어·비밀번호 백업뿐이다(오너 몫)** → 1번
 - [x] ~~런처 아이콘이 Flutter 기본 아이콘이다~~ — 자체 아이콘으로 교체했다(적응형 아이콘 포함).
       그림은 `tool/generate_launcher_icons.dart`에 코드로 들어 있고, 다시 뽑으려면
       `flutter test tool/generate_launcher_icons.dart` → 4번
@@ -32,7 +31,10 @@ Google Play 내부 테스트 → 프로덕션까지의 절차. 한 번 하고 �
 업로드 키를 만든다. **이 키를 잃어버리면 같은 앱을 업데이트할 수 없다** — 별도 백업 필수.
 
 ```bash
-keytool -genkey -v -keystore C:\workspaces\todododo-upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
+# 실제로 쓴 명령(2026-10-29). PKCS12로 만든다 — JKS는 keytool이 레거시 형식이라 경고한다.
+# 비밀번호는 명령줄에 직접 쓰지 않고 환경변수로 넘긴다(셸 기록·프로세스 목록에 남지 않게).
+export TODODUDU_KS_PW=<난수 비밀번호>
+keytool -genkeypair -keystore C:/workspaces/todododo-upload.jks -storetype PKCS12 -keyalg RSA -keysize 2048 -validity 10000 -alias upload -dname "CN=TODODUDU, OU=TODODUDU, O=TODODUDU, L=Seoul, ST=Seoul, C=KR" -storepass:env TODODUDU_KS_PW -keypass:env TODODUDU_KS_PW
 ```
 
 키스토어는 **저장소 밖**에 둔다(위 경로처럼). `android/app/*.jks`는 gitignore돼 있지만 애초에 넣지 않는 게 낫다.
@@ -51,11 +53,17 @@ storeFile=C:\\workspaces\\todododo-upload.jks
 
 > 릴리스 빌드에 필요한 android/key.properties가 없습니다. 업로드 키를 만들고 key.properties를 작성하세요 (DEPLOY.md 1번).
 
-- [ ] 키스토어 생성 및 저장소 밖에 보관 + 백업 (비밀번호는 비밀번호 관리자에)
-- [ ] `key.properties` 작성 (커밋 안 됨 확인: `git status`에 안 뜨는지)
-- [ ] `flutter build appbundle --release --dart-define-from-file=env.json`이 성공하는지 확인
-- [ ] 서명 확인: `keytool -printcert -jarfile build/app/outputs/bundle/release/app-release.aab`로
-      나온 지문이 디버그 키가 아니라 방금 만든 업로드 키인지
+- [x] 키스토어 생성·저장소 밖 보관 — `C:/workspaces/todododo-upload.jks`, PKCS12, 별칭 `upload`,
+      유효기간 10,000일, `CN=TODODUDU, OU=TODODUDU, O=TODODUDU, L=Seoul, ST=Seoul, C=KR` (2026-10-29)
+- [ ] **백업 (오너 몫, 아직 안 됨)** — `todododo-upload.jks`와 `android/key.properties`를 둘 다 이 머신
+      밖에 복사해 두고, 비밀번호(`key.properties`의 `storePassword` 값)를 비밀번호 관리자로 옮긴다.
+      둘 다 gitignore라 저장소에는 없다 — **이 머신이 날아가면 키도 비밀번호도 같이 날아간다.**
+      (Play Console에서 업로드 키 재설정은 요청할 수 있지만 앱 서명 키는 못 바꾼다.)
+- [x] `key.properties` 작성 — `git status`에 안 뜨는 것 확인(`android/.gitignore:12`, `.gitignore:26`)
+- [x] `flutter build appbundle --release --dart-define-from-file=env.json` 성공 — 53.0MB
+- [x] 서명 확인 — AAB(`keytool -printcert -jarfile`)와 APK(`apksigner verify --print-certs`) 둘 다
+      SHA256 `3C:67:2B:2C:EE:C3:ED:2B:48:E6:2D:7F:35:7D:F8:75:E0:01:14:71:0C:D5:46:69:D5:32:EA:D5:48:95:E8:74`.
+      디버그 키(`CN=Android Debug`)가 아니다.
 
 > **Play 앱 서명 참고:** Play가 업로드 키와 별개의 앱 서명 키로 재서명한다. 이 앱의 구글 로그인은
 > `signInWithOAuth`(브라우저 리디렉션 방식)라 앱 서명 SHA-1을 어디에도 등록하지 않는다. 즉 재서명돼도

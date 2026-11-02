@@ -100,6 +100,12 @@ class AppStrings {
   // mutual-judge: judging은 이제 AI가 아니라 참가자 상호 판정 창이다. 두 유형 공통.
   static const battleListJudging = '서로 판정하는 중이에요';
   static const battleListOpponentSubmitted = '상대가 제출했어요';
+  // 판정 창 단계별 한 줄. 단계는 judgmentStageOf가 서버 값으로 고르고 여기서 문장만 붙인다.
+  // "AI가 다시 보고 있어요"는 상세 화면 문구(battleJudgmentAiTitle)를 그대로 쓴다.
+  static const battleListMyJudgeTurn = '내가 판정할 차례예요';
+  static const battleListWaitingOpponentJudge = '상대 판정을 기다려요';
+  // 제출 창인데 내 사진이 아직 없다. 푸시가 없으니 이 줄이 유일한 독촉이다.
+  static const battleListNotSubmitted = '아직 사진을 내지 않았어요';
 
   static const battleVersus = 'vs';
   static const battleMe = '나';

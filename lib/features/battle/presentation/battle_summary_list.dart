@@ -27,9 +27,15 @@ class BattleSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
     final Battle battle = summary.battle;
-    final statusLine = summary.statusLine;
+    // 상태 줄과 남은 시간 줄이 같은 시각을 보게 now를 한 번만 구한다(경계에서 두 줄이 어긋나지 않는다).
+    // 이 줄은 카드를 다시 그릴 때마다 갱신된다 — 주기적 갱신은 이번 범위가 아니다(audit M19).
+    final now = DateTime.now();
+    final notice = summary.noticeAt(now);
+    final statusLine = notice.line;
+    final deadlineLine = summary.deadlineLineAt(now);
 
     return Card(
       clipBehavior: Clip.antiAlias,
@@ -68,13 +74,29 @@ class BattleSummaryCard extends StatelessWidget {
                       ],
                     ),
                     // 알림이 없으므로 "그 사이 무슨 일이 있었는지"를 이 줄이 알린다.
+                    // 내가 손을 써야 하는 줄만 강조색·굵은 글씨로 띄우고, 그냥 소식은 흐리게 둔다.
+                    // 둘을 같은 모양으로 그리면 "들어가서 눌러야 하는가"가 다시 가려진다.
                     if (statusLine != null) ...[
                       const SizedBox(height: 8),
                       Text(
                         statusLine,
+                        style: notice.needsMyAction
+                            ? textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.w600,
+                              )
+                            : textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                      ),
+                    ],
+                    // 남은 시간. 어느 시계인지(사진 마감/판정 마감)는 문구가 말한다.
+                    if (deadlineLine != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        deadlineLine,
                         style: textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],

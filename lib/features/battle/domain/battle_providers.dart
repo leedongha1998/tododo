@@ -44,7 +44,8 @@ final myBattlesProvider = FutureProvider.autoDispose<List<BattleSummary>>((ref) 
   final battles = await repo.fetchMyBattles();
   final otherIds = battles.map((b) => b.creatorId == myId ? b.opponentId! : b.creatorId);
   final names = await repo.fetchDisplayNames(otherIds);
-  // 카드의 상태 줄이 "상대가 제출했다 / 합격했다"를 말하려면 상대 요약 행이 필요하다.
+  // 카드의 상태 줄이 "상대가 제출했다 / 내가 판정할 차례다"를 말하려면 양쪽 요약 행이 필요하다.
+  // 한 번에 받은 행에서 내 것과 상대 것을 골라 쓴다 — 추가 조회는 없다.
   final participants = await repo.fetchParticipantsOf(battles.map((b) => b.id));
 
   BattleParticipant? participantOf(String battleId, String userId) {
@@ -59,6 +60,7 @@ final myBattlesProvider = FutureProvider.autoDispose<List<BattleSummary>>((ref) 
     return BattleSummary(
       battle: b,
       otherPartyName: names[otherId] ?? '알 수 없음',
+      me: participantOf(b.id, myId),
       opponent: participantOf(b.id, otherId),
     );
   }).toList();

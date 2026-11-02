@@ -6,6 +6,7 @@ import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/core/widgets/pixel_tag.dart';
 import 'package:todododo/features/battle/data/battle.dart';
+import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
@@ -249,4 +250,130 @@ void main() {
       expect(rect.right, lessThanOrEqualTo(screen.right + 0.5));
     }
   });
+
+  // 푸시가 없는 MVP에서 "지금 내가 할 일"을 말하는 자리가 이 카드뿐이다(mobile-ux M1).
+  // 카드는 DateTime.now()를 읽으므로 고정 날짜 픽스처가 아니라 지금 시각 기준으로 만든다
+  // (유닛 테스트는 statusLineAt(now)로 덮는다).
+  testWidgets('판정 창에서 내 차례면 카드가 그 말을 강조하고 판정 기한을 함께 보여 준다', (tester) async {
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(),
+      summaries: [_judgingSummaryNow()],
+    );
+
+    expect(find.text(AppStrings.battleListMyJudgeTurn), findsOneWidget);
+    expect(
+      find.text(
+        '${AppStrings.battleJudgeDeadlineLabel} · '
+        '${AppStrings.battleDeadlineLeft('2시간')}',
+      ),
+      findsOneWidget,
+    );
+
+    // 할 일이 있는 줄만 굵게 띄운다. 모든 줄을 같은 모양으로 그리면 구분이 사라진다.
+    final line = tester.widget<Text>(
+      find.text(AppStrings.battleListMyJudgeTurn),
+    );
+    expect(line.style?.fontWeight, FontWeight.w600);
+  });
+
+  testWidgets('제출 창에서 내 사진이 없으면 카드가 그 말을 하고, 상대 소식은 흐리게 둔다', (tester) async {
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(),
+      summaries: [_activeSummaryNow(iSubmitted: false)],
+    );
+
+    expect(find.text(AppStrings.battleListNotSubmitted), findsOneWidget);
+    expect(
+      find.text(
+        '${AppStrings.battleSubmitDeadlineLabel} · '
+        '${AppStrings.battleDeadlineLeft('5시간')}',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<Text>(find.text(AppStrings.battleListNotSubmitted))
+          .style
+          ?.fontWeight,
+      FontWeight.w600,
+    );
+
+  });
+
+  // 내가 이미 냈으면 남은 소식은 "상대가 제출했어요"이고, 그것은 내 할 일이 아니다.
+  testWidgets('상대 제출 소식은 내 할 일 줄과 다른 모양으로 둔다', (tester) async {
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(),
+      summaries: [_activeSummaryNow(opponentSubmitted: true)],
+    );
+
+    expect(find.text(AppStrings.battleListNotSubmitted), findsNothing);
+    final news = tester.widget<Text>(
+      find.text(AppStrings.battleListOpponentSubmitted),
+    );
+    expect(news.style?.fontWeight, isNot(FontWeight.w600));
+  });
+}
+
+/// 판정 창(판정 기한 2시간 남음)에 들어간 내 대결. 상대는 사진을 냈고 나는 아직 판정하지 않았다.
+BattleSummary _judgingSummaryNow() {
+  final now = DateTime.now();
+  return BattleSummary(
+    battle: Battle(
+      id: 'j1',
+      type: 'quality',
+      status: 'judging',
+      title: '방 청소하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      createdAt: now.subtract(const Duration(days: 2)),
+      startedAt: now.subtract(const Duration(days: 2)),
+      deadlineAt: now.subtract(const Duration(hours: 1)),
+      judgingOpenedAt: now.subtract(const Duration(hours: 1)),
+      judgeDeadlineAt: now.add(const Duration(hours: 2, minutes: 1)),
+      durationMinutes: 2880,
+      minCriteria: const ['바닥이 보인다'],
+      superiorityCriteria: const ['먼지가 없다'],
+    ),
+    otherPartyName: '도윤',
+    me: const BattleParticipant(battleId: 'j1', userId: 'me', hasSubmitted: true),
+    opponent: const BattleParticipant(
+      battleId: 'j1',
+      userId: 'friend',
+      hasSubmitted: true,
+    ),
+  );
+}
+
+/// 제출 창(사진 마감 5시간 남음)인 내 대결.
+BattleSummary _activeSummaryNow({
+  bool iSubmitted = true,
+  bool opponentSubmitted = false,
+}) {
+  final now = DateTime.now();
+  return BattleSummary(
+    battle: Battle(
+      id: 'a2',
+      type: 'speed',
+      status: 'active',
+      title: '아침 운동하기',
+      creatorId: 'me',
+      opponentId: 'friend',
+      createdAt: now.subtract(const Duration(hours: 1)),
+      startedAt: now.subtract(const Duration(hours: 1)),
+      deadlineAt: now.add(const Duration(hours: 5, minutes: 1)),
+      durationMinutes: 360,
+      minCriteria: const ['운동복을 입은 사진'],
+    ),
+    otherPartyName: '도윤',
+    me: BattleParticipant(battleId: 'a2', userId: 'me', hasSubmitted: iSubmitted),
+    opponent: BattleParticipant(
+      battleId: 'a2',
+      userId: 'friend',
+      hasSubmitted: opponentSubmitted,
+    ),
+  );
 }

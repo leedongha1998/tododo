@@ -12,6 +12,7 @@ import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_outcome.dart';
 import '../domain/battle_providers.dart';
+import '../domain/remaining_time.dart';
 import 'battle_chips.dart';
 import 'evidence_section.dart';
 import 'judgment_section.dart';
@@ -378,7 +379,7 @@ String? _submitDeadlineText(BattleDetail detail) {
   }
 
   return '${AppStrings.battleSubmitDeadlineLabel} ${_formatDateTime(deadline)}'
-      ' · ${AppStrings.battleDeadlineLeft(_formatRemaining(left))}';
+      ' · ${AppStrings.battleDeadlineLeft(formatRemaining(left))}';
 }
 
 // 서로 판정할 수 있는 시간(판정 창). 서버가 창을 열 때 기록한 judge_deadline_at을 그대로 보여 준다.
@@ -392,12 +393,5 @@ String? _judgeDeadlineText(BattleDetail detail) {
   }
 
   return '${AppStrings.battleJudgeDeadlineLabel} ${_formatDateTime(deadline)}'
-      ' · ${AppStrings.battleDeadlineLeft(_formatRemaining(left))}';
-}
-
-String _formatRemaining(Duration gap) {
-  if (gap.inDays > 0) return '${gap.inDays}일';
-  if (gap.inHours > 0) return '${gap.inHours}시간';
-  if (gap.inMinutes > 0) return '${gap.inMinutes}분';
-  return '${gap.inSeconds}초';
+      ' · ${AppStrings.battleDeadlineLeft(formatRemaining(left))}';
 }

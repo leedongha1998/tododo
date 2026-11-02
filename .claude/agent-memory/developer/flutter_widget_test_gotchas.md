@@ -1,6 +1,6 @@
 ---
 name: flutter-widget-test-gotchas
-description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump
+description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump, PopScope는 maybePop으로만 검증된다
 metadata:
   type: feedback
 ---
@@ -58,9 +58,17 @@ metadata:
    `pump()`(제거 반영) 세 번이 필요하다. `FloatingActionButtonAnimator.noAnimation`을 줘도
    이 지연은 남는다(크기·회전 연출만 사라진다).
 
+10. **`PopScope`는 `Navigator.pop`으로 테스트할 수 없다.** `Navigator.pop`은 조건 없이 닫으므로
+    `canPop: false`여도 그냥 나가 버린다(그래서 제품 코드의 "제출 성공 뒤 pop"은 가드를 걸어도
+    멀쩡히 동작한다). 시스템 뒤로가기 제스처·앱바 뒤로가기와 같은 길은
+    `tester.state<NavigatorState>(find.byType(Navigator)).maybePop()`이다. 그리고 **되돌아갈 화면이
+    있어야** 하므로 검증 대상 화면은 `pumpWidget`으로 직접 세우지 말고 host 화면에서 `push`해 띄운다
+    (아니면 "나갔다"를 볼 수 없다).
+
 **Why:** 1~3번은 mutual-judge 판정 화면(4단계), 4~5번은 recruit-browse의 찾기 탭(검색·필터·무한 스크롤),
 6~7번은 retro-theme 가독성 개정(2026-10-29, 글꼴 표를 바꾸고 배율 1.3 넘침 테스트를 쓸 때),
-9번은 recruit-list-scan(2026-11-02, 찾기 탭의 "내리면 FAB이 비킨다" 테스트)
+9번은 recruit-list-scan(2026-11-02, 찾기 탭의 "내리면 FAB이 비킨다" 테스트),
+10번은 mobile-ux M7(2026-11-02, 기준 생성 화면의 뒤로가기 가드)
 작업에서 실제로 테스트를 깨뜨렸다. 1·3번은 설계를 되돌려야 할 수도 있는 판단(활성화 조건을 무엇에
 걸 것인가)에 영향을 줬다.
 

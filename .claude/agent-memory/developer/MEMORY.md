@@ -4,3 +4,4 @@
 - [riverpod 비동기 함정](riverpod_async_pitfalls.md) — AsyncError는 직전 값을 들고 있고, AsyncNotifier 세대 가드는 한 방향만 막는다. 실패 provider는 자동 재시도된다.
 - [Bash heredoc 길이 한계](workflow_bash_heredoc_limit.md) — 큰 파일은 한 호출로 못 쓴다. 300~400줄씩 append하고 줄 수를 확인할 것. python은 없다.
 - [CLAUDE.md 판정 규칙은 낡았다](project_judging_rule_claudemd_stale.md) — 판정 주체는 AI가 아니라 참가자 상호 판정(mutual-judge, 2026-09-18 확정·구현됨).
+- [떠나기 확인창 가드 기준](feedback_leave_guard_criteria.md) — "결과 보유"가 아니라 "자원을 썼는가"로 막고, 오류 화면은 막지 않는다. 제목은 화면이 넘긴다.

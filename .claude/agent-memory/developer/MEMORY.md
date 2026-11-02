@@ -2,6 +2,6 @@
 - [SQL 스모크 테스트의 now() 고정](sql_smoke_test_now_frozen.md) — do $$ 블록 안에서 now()는 트랜잭션 내내 고정이다. pg_sleep으로 시각 차이를 만들 수 없다.
 - [위젯 테스트 함정](flutter_widget_test_gotchas.md) — NetworkImage 400, 화면 밖 버튼, now() getter, 재시도 타이머, finder 모호성, 정사각 글꼴, 두 번 pumpWidget, 끌기·FAB 제거 pump.
 - [riverpod 비동기 함정](riverpod_async_pitfalls.md) — AsyncError는 직전 값을 들고 있고, AsyncNotifier 세대 가드는 한 방향만 막는다. 실패 provider는 자동 재시도된다.
-- [Bash heredoc 길이 한계](workflow_bash_heredoc_limit.md) — 큰 파일은 한 호출로 못 쓴다. 300~400줄씩 append하고 줄 수를 확인할 것. python은 없다.
+- [Bash heredoc 길이 한계·append 함정](workflow_bash_heredoc_limit.md) — 큰 파일은 한 호출로 못 쓴다. 테스트 파일 끝 append는 main 밖으로 떨어져 조용히 안 돈다. python은 없다.
 - [CLAUDE.md 판정 규칙은 낡았다](project_judging_rule_claudemd_stale.md) — 판정 주체는 AI가 아니라 참가자 상호 판정(mutual-judge, 2026-09-18 확정·구현됨).
 - [떠나기 확인창 가드 기준](feedback_leave_guard_criteria.md) — "결과 보유"가 아니라 "자원을 썼는가"로 막고, 오류 화면은 막지 않는다. 제목은 화면이 넘긴다.

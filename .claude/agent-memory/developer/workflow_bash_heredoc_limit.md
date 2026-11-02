@@ -25,3 +25,12 @@ TS 파일을 heredoc 하나로 쓰려 하면 두 가지 증상이 난다.
 이 환경에는 **python이 없다**(`python`은 Microsoft Store 앱 실행 별칭으로 가로채진다). 파일 중간에
 텍스트를 끼워 넣을 때는 `awk`/`perl`/`sed`/`node`를 쓴다 — 예: `awk 'NR==380{print; ...}'`로 특정 줄
 뒤에 다른 파일 내용을 삽입. 참고: [[workflow-edit-hooks]]
+
+**테스트 파일 끝에 `>>`로 append하면 테스트가 조용히 안 돌 수 있다.** 이 저장소의 테스트 파일은
+`void main() { ... }` **뒤에 픽스처 헬퍼 함수들이 더 붙어 있는** 모양이 흔하다
+(`my_battles_sections_test.dart`는 main이 319줄에서 끝나고 그 뒤로 100줄이 헬퍼다).
+그래서 "마지막 `}`를 지우고 append"하면 새 `testWidgets`가 **main이 아니라 마지막 헬퍼 함수 안**에
+들어가고, `return` 뒤의 죽은 코드가 되어 **컴파일도 되고 analyze도 통과하는데 그 테스트만 실행되지 않는다.**
+`All tests passed!`가 떠서 성공으로 착각한다. append 전에 `grep -n '^}'`로 **main의 닫는 괄호 줄 번호**를
+찾아 그 앞에 끼워 넣고(`head -N` + 블록 + `tail -n +N`), append 뒤에는 **실행된 테스트 개수**가
+기대만큼 늘었는지 반드시 확인한다(`grep -c testWidgets`와 `flutter test`의 `+N`을 맞춰 본다).

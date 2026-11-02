@@ -273,19 +273,37 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
     ];
   }
 
+  /// 뒤로가기를 막아야 하는가. 막는 경우는 둘뿐이다 — AI가 기준을 만드는 중(`_busy`)이거나
+  /// 만들어진 기준을 들고 있을 때(`_result != null`). 둘 다 나가면 결과가 버려지고
+  /// 이미 차감된 횟수는 돌아오지 않는다.
+  ///
+  /// **입력 단계에서는 어떤 경우에도 막지 않는다.** `제목 고치기`는 `_stage`만 input으로 되돌리고
+  /// `_result`는 들고 있으므로, `_result`만 보면 입력 화면에서 사용자가 갇힌다.
+  ///
+  /// **오류 화면(`_error != null`)에서도 막지 않는다.** 재검사가 실패하면 `_result`는 남지만
+  /// 화면은 "횟수는 차감되지 않았어요"를 보여 주므로, 거기서 "쓴 횟수는 돌아오지 않아요"라고
+  /// 묻는 것은 화면과 반대로 말하는 것이다. 게다가 그 자리에서 `_result`로 되돌아갈 길도 없다.
+  /// `_error`는 `_generate`/`_recheck` 시작 시 null로 초기화되므로 정상 흐름에는 영향이 없다.
+  bool get _blocksLeaving =>
+      _stage != _Stage.input && _error == null && (_busy || _result != null);
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.battleCreate)),
-      body: switch (_stage) {
-        _Stage.input => _buildInput(context),
-        _Stage.generating => const StatusMessage.loading(
-            message: AppStrings.battleCriteriaGenerating,
-            detail: AppStrings.battleCriteriaGeneratingDetail,
-            fill: true,
-          ),
-        _Stage.result => _buildResult(context),
-      },
+    return CriteriaLeaveGuard(
+      title: AppStrings.battleCriteriaLeaveTitle,
+      blocked: _blocksLeaving,
+      child: Scaffold(
+        appBar: AppBar(title: const Text(AppStrings.battleCreate)),
+        body: switch (_stage) {
+          _Stage.input => _buildInput(context),
+          _Stage.generating => const StatusMessage.loading(
+              message: AppStrings.battleCriteriaGenerating,
+              detail: AppStrings.battleCriteriaGeneratingDetail,
+              fill: true,
+            ),
+          _Stage.result => _buildResult(context),
+        },
+      ),
     );
   }
 

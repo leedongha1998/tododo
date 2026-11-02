@@ -21,11 +21,17 @@ import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
 
 class _FakeCriteriaRepository implements BattleCriteriaRepository {
-  _FakeCriteriaRepository({this.generateResult, this.checkResult, this.generateError});
+  _FakeCriteriaRepository({
+    this.generateResult,
+    this.checkResult,
+    this.generateError,
+    this.checkError,
+  });
 
   CriteriaCheckResult? generateResult;
   CriteriaCheckResult? checkResult;
   Object? generateError;
+  Object? checkError;
   int generateCount = 0;
   int checkCount = 0;
   List<String>? lastCheckedMin;
@@ -55,6 +61,8 @@ class _FakeCriteriaRepository implements BattleCriteriaRepository {
     checkCount++;
     lastCheckedMin = minCriteria;
     lastCheckedSuperiority = superiorityCriteria;
+    final error = checkError;
+    if (error != null) throw error;
     return checkResult!;
   }
 }
@@ -187,6 +195,44 @@ Future<void> _pumpCreate(
       child: const MaterialApp(home: CreateBattleScreen()),
     ),
   );
+  await tester.pumpAndSettle();
+}
+
+/// 뒤로가기를 검증하려면 **되돌아갈 화면이 있어야** 한다. 그래서 생성 화면을 push해서 띄운다.
+const _hostLabel = '생성 화면 열기';
+
+Future<void> _pushCreate(
+  WidgetTester tester, {
+  required _FakeCriteriaRepository criteria,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        battleCriteriaRepositoryProvider.overrideWithValue(criteria),
+        battleRepositoryProvider.overrideWithValue(_FakeBattleRepository()),
+      ],
+      child: MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CreateBattleScreen()),
+              ),
+              child: const Text(_hostLabel),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text(_hostLabel));
+  await tester.pumpAndSettle();
+}
+
+/// 시스템 뒤로가기 제스처·앱바 뒤로가기와 같은 길(`maybePop`)로 나가 본다.
+/// `Navigator.pop`은 `PopScope`를 거치지 않으므로 여기서 쓰면 아무것도 검증하지 못한다.
+Future<void> _back(WidgetTester tester) async {
+  await tester.state<NavigatorState>(find.byType(Navigator)).maybePop();
   await tester.pumpAndSettle();
 }
 
@@ -408,5 +454,107 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(battles.createdDuration, 1);
+  });
+
+  // ── mobile-ux M7(2026-11-02): 뒤로가기로 기준과 차감된 횟수를 조용히 잃지 않게 ──
+  //
+  // 이 두 건은 **반드시 지켜야 하는 양쪽 경계**다. 앞의 것이 깨지면 사용자가 화면에 갇히고,
+  // 뒤의 것이 깨지면 쓴 횟수가 조용히 사라진다.
+
+  testWidgets('입력 단계에서는 뒤로가기가 확인창 없이 그냥 나간다', (tester) async {
+    await _pushCreate(tester, criteria: _FakeCriteriaRepository());
+
+    await tester.enterText(find.byType(TextField).first, '아침 운동하기');
+    await tester.pumpAndSettle();
+
+    await _back(tester);
+
+    // 확인창을 띄우지 않고 host 화면으로 돌아왔다.
+    expect(find.text(AppStrings.battleCriteriaLeaveTitle), findsNothing);
+    expect(find.text(_hostLabel), findsOneWidget);
+    expect(find.text(AppStrings.battleCreate), findsNothing);
+  });
+
+  // `제목 고치기`는 단계만 입력으로 되돌리고 결과(_result)는 들고 있다.
+  // "결과를 들고 있으면 막는다"만 보면 이 자리에서 사용자가 갇힌다.
+  testWidgets('차단 뒤 제목 고치기로 돌아온 입력 단계에서도 그냥 나간다', (tester) async {
+    await _pushCreate(
+      tester,
+      criteria: _FakeCriteriaRepository(generateResult: _blockedResult),
+    );
+
+    await _enterTitleAndGenerate(tester, '책 읽기');
+    await tester.tap(find.text(AppStrings.battleCriteriaFixTitle));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.battleCriteriaGenerate), findsOneWidget);
+
+    await _back(tester);
+
+    expect(find.text(AppStrings.battleCriteriaLeaveTitle), findsNothing);
+    expect(find.text(_hostLabel), findsOneWidget);
+  });
+
+  testWidgets('만든 기준을 들고 있으면 뒤로가기에 확인창이 뜨고 계속하기로 남는다', (tester) async {
+    await _pushCreate(
+      tester,
+      criteria: _FakeCriteriaRepository(generateResult: _speedResult),
+    );
+
+    await _enterTitleAndGenerate(tester, '아침 운동하기');
+    expect(find.text('운동화를 신고 밖에 있다'), findsOneWidget);
+
+    await _back(tester);
+
+    // 아직 나가지 않았고, 무엇을 잃는지 확인창이 말한다.
+    expect(find.text(AppStrings.battleCriteriaLeaveTitle), findsOneWidget);
+    expect(find.text(AppStrings.battleCriteriaLeaveBody), findsOneWidget);
+    expect(find.text(_hostLabel), findsNothing);
+
+    await tester.tap(find.text(AppStrings.stay));
+    await tester.pumpAndSettle();
+
+    // 기준이 그대로 남아 있다.
+    expect(find.text('운동화를 신고 밖에 있다'), findsOneWidget);
+    expect(find.text(_hostLabel), findsNothing);
+
+    // 나가기를 고르면 그때는 정말 나간다(막는 것이 아니라 한 번 묻는 것이다).
+    await _back(tester);
+    await tester.tap(find.text(AppStrings.leave));
+    await tester.pumpAndSettle();
+
+    expect(find.text(_hostLabel), findsOneWidget);
+  });
+
+  // ── reviewer W3(2026-11-02): 오류 화면에서는 막지 않는다 ──
+  //
+  // 재검사가 실패하면 `_result`는 남지만 화면은 `(횟수는 차감되지 않았어요)`를 보여 준다.
+  // 거기서 `사용한 횟수는 돌아오지 않아요`라고 묻는 것은 화면과 정반대이고, 지키려고 막은
+  // `_result`로 되돌아갈 길도 없다(오류 화면의 `다시 시도`는 `_generate`다).
+  testWidgets('재검사가 실패한 오류 화면에서는 확인창 없이 그냥 나간다', (tester) async {
+    await _pushCreate(
+      tester,
+      criteria: _FakeCriteriaRepository(
+        generateResult: _speedResult,
+        checkError: const CriteriaException('AI_FAILED', callsLeft: 9),
+      ),
+    );
+
+    await _enterTitleAndGenerate(tester, '아침 운동하기');
+    await tester.tap(find.text(AppStrings.battleCriteriaEdit));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '운동화를 신고 공원에 있다');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(AppStrings.battleCriteriaRecheck));
+    await tester.pumpAndSettle();
+
+    // 화면이 말하는 것: 횟수는 차감되지 않았다.
+    expect(find.text(AppStrings.battleErrorAiFailed), findsOneWidget);
+
+    await _back(tester);
+
+    // 그러니 묻지 않고 그냥 나간다.
+    expect(find.text(AppStrings.battleCriteriaLeaveTitle), findsNothing);
+    expect(find.text(AppStrings.battleCriteriaLeaveBody), findsNothing);
+    expect(find.text(_hostLabel), findsOneWidget);
   });
 }

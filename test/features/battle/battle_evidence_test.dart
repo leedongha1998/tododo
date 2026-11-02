@@ -195,6 +195,8 @@ void main() {
     expect(find.text(AppStrings.battleEvidenceTakePhoto), findsOneWidget);
     // 갤러리에서 고르는 길은 어디에도 없다.
     expect(find.textContaining('갤러리'), findsNothing);
+    // 속도전도 찍기 전에는 10분 제약을 말하지 않는다(아직 뜻이 없다). 미리보기에만 붙는 줄이다.
+    expect(find.text(AppStrings.battleEvidenceCaptureWindow), findsNothing);
   });
 
   testWidgets('사진을 찍으면 미리보기와 제출·다시 찍기가 나온다', (tester) async {
@@ -208,6 +210,8 @@ void main() {
     expect(camera.captureCount, 1);
     expect(find.text(AppStrings.battleEvidenceSubmit), findsOneWidget);
     expect(find.text(AppStrings.battleEvidenceRetake), findsOneWidget);
+    // mobile-ux M5: 10분 제약을 업로드를 다 마친 뒤가 아니라 여기서 먼저 말한다.
+    expect(find.text(AppStrings.battleEvidenceCaptureWindow), findsOneWidget);
   });
 
   testWidgets('제출하면 서버를 다시 읽고 업로드·전송 정보가 맞는다', (tester) async {
@@ -281,9 +285,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.battleEvidenceQualityOnce), findsOneWidget);
+    // 찍기 전에는 10분 제약을 말하지 않는다(아직 뜻이 없다).
+    expect(find.text(AppStrings.battleEvidenceCaptureWindow), findsNothing);
 
     await tester.tap(find.text(AppStrings.battleEvidenceTakePhoto));
     await tester.pumpAndSettle();
+
+    // mobile-ux M5: 품질전 미리보기도 같은 줄을 받는다. 한 번만 낼 수 있어 거부당하면 더 아프다.
+    expect(find.text(AppStrings.battleEvidenceCaptureWindow), findsOneWidget);
 
     final submitButton = find.text(AppStrings.battleEvidenceQualitySubmit);
     // 미리보기가 길어 제출 버튼이 기본 테스트 화면(800x600) 아래로 밀린다.

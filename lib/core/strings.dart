@@ -15,6 +15,9 @@ class AppStrings {
   static const cancel = '취소';
   static const retry = '다시 시도';
   static const loading = '불러오는 중';
+  // 잃는 것이 있는 화면을 떠날 때의 확인창 버튼 두 개.
+  static const leave = '나가기';
+  static const stay = '계속하기';
   static const delete = '삭제';
   static const emptyTodos = '아직 할 일이 없어요.\n오른쪽 아래 버튼으로 추가해보세요.';
   static const loadTodosFailed = '할 일을 불러오지 못했습니다.';
@@ -52,6 +55,8 @@ class AppStrings {
   static const battleMyRecruitWaiting = '아직 아무도 참가하지 않았어요.';
   static const battleMyRecruitGo = '내 모집 보기';
   static const battleMyRecruitBlocked = '이미 모집 중인 대결이 있어요. 취소하거나 매칭된 뒤에 새로 올릴 수 있어요.';
+  // 오늘 한도를 이미 쓴 사람에게 찾기 탭 맨 앞에서 미리 알린다. 판단은 서버가 하고 이건 안내일 뿐이다.
+  static const battleDailyLimitBanner = '오늘 대결은 이미 했어요. 내일 다시 참가할 수 있어요.';
 
   static const battleMyBattles = '내 대결';
   static const battleMyBattlesEmpty = '진행 중인 대결이 없어요.';
@@ -145,6 +150,10 @@ class AppStrings {
   static const battleEvidenceReplace = '사진 바꾸기';
   static const battleEvidenceReplaceHint =
       '상대가 제출하기 전까지 바꿀 수 있어요. 바꾸면 제출 시각이 다시 기록돼요.';
+  // 서버가 촬영 시각과 수신 시각을 대조해 10분 넘게 벌어진 사진을 거부한다(도메인 규칙).
+  // 그 사실을 업로드를 다 마친 뒤가 아니라 미리보기에서 미리 말한다. 카운트다운은 두지 않는다.
+  // 속도전·품질전 두 미리보기가 같이 쓴다.
+  static const battleEvidenceCaptureWindow = '찍은 지 10분 안에 제출해야 해요.';
   // 상대 영역. 진행 중에는 사진도 제출 시각도 보여 주지 않는다(서버도 내주지 않는다) — "제출했다"는
   // 사실 하나만 보인다.
   static const battleEvidenceOpponentTitle = '상대 제출';
@@ -254,6 +263,12 @@ class AppStrings {
   static const battleCriteriaTooMany = '기준은 최대 5개까지예요.';
   static const battleCriteriaItemEmpty = '비어 있는 기준이 있어요.';
   static const battleCriteriaItemTooLong = '기준 하나는 100자까지 쓸 수 있어요.';
+  // 기준을 만드는 중이거나 만든 기준을 들고 있을 때 화면을 떠나려 하면 한 번 확인한다.
+  // 입력만 해 둔 상태에서는 묻지 않는다(잃는 것이 없다).
+  static const battleCriteriaLeaveTitle = '기준 만들기를 그만둘까요?';
+  // 제목은 화면이 넘긴다 — 수정 화면에서는 만들던 중이 아니라 고치던 중이다. 본문은 양쪽 모두 맞다.
+  static const battleCriteriaLeaveEditTitle = '기준 수정을 그만둘까요?';
+  static const battleCriteriaLeaveBody = '지금 나가면 만든 기준이 사라져요. 사용한 횟수는 돌아오지 않아요.';
   static const battleCriteriaEditRecruit = '기준 수정';
   static const battleCriteriaApply = '기준 바꾸기';
   static const battleCriteriaApplied = '기준을 바꿨습니다.';

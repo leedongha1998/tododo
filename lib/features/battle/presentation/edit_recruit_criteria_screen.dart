@@ -30,6 +30,14 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
   CriteriaCheckResult? _checked;
   bool _busy = false;
 
+  /// 이 화면에서 재검사(하루 10회 중 1회)를 한 번이라도 썼는가. 뒤로가기를 막을 기준이다.
+  ///
+  /// `_checked`(증서 보유)로는 부족하다 — 재검사를 쓴 뒤 기준을 한 글자만 더 고쳐도
+  /// `CriteriaEditor.onChanged`가 증서를 버리므로(`_checked = null`) 가드가 풀려 버리고,
+  /// 그러면 고친 기준과 이미 쓴 1회가 확인창 없이 사라진다. 쓴 호출은 되돌아오지 않으므로
+  /// 한 번 true가 되면 화면이 살아 있는 동안 되돌리지 않는다(성공·실패 모두 호출은 떠났다).
+  bool _usedCheck = false;
+
   bool get _isQuality => widget.battle.type == 'quality';
 
   bool get _changed =>
@@ -48,7 +56,11 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
   }
 
   Future<void> _recheck() async {
-    setState(() => _busy = true);
+    // 호출이 떠나는 순간 "잃을 것이 있는 화면"이 된다. 결과를 받기 전에 세운다.
+    setState(() {
+      _busy = true;
+      _usedCheck = true;
+    });
     try {
       final result = await ref.read(battleCriteriaRepositoryProvider).check(
             title: widget.battle.title,
@@ -104,64 +116,72 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
     // 고친 뒤에는 반드시 재검사를 통과해야 바꿀 수 있다.
     final canApply = checked != null && checked.provable && !_busy;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.battleCriteriaEditRecruit)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text(widget.battle.title, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 16),
-          if (checked != null && !checked.provable) ...[
-            PixelFrame.tone(
-              tone: PixelTone.danger,
-              title: AppStrings.battleCriteriaBlocked,
-              child: Text(checked.blockReason ?? ''),
-            ),
+    return CriteriaLeaveGuard(
+      // 만들던 중이 아니라 고치던 중이다.
+      title: AppStrings.battleCriteriaLeaveEditTitle,
+      // 이 화면에서 재검사 호출을 한 번이라도 썼으면 막는다(`_usedCheck`). 증서 보유(`_checked`)로
+      // 재면 쓴 뒤에 한 글자 고치는 것만으로 가드가 풀린다. 한 번도 안 썼으면 고치기만 한 상태라
+      // 잃는 것이 없으므로 막지 않는다 — 그때 확인창을 띄우면 길만 막는 것이 된다.
+      blocked: _busy || _usedCheck,
+      child: Scaffold(
+        appBar: AppBar(title: const Text(AppStrings.battleCriteriaEditRecruit)),
+        body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(widget.battle.title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 16),
-          ],
-          CriteriaEditor(
-            title: AppStrings.battleCriteriaMinTitle,
-            hint: AppStrings.battleCriteriaMinHint,
-            items: _editedMin,
-            enabled: !_busy,
-            onChanged: (items) => setState(() {
-              _editedMin = items;
-              _checked = null;
-            }),
-          ),
-          if (_isQuality) ...[
-            const SizedBox(height: 16),
+            if (checked != null && !checked.provable) ...[
+              PixelFrame.tone(
+                tone: PixelTone.danger,
+                title: AppStrings.battleCriteriaBlocked,
+                child: Text(checked.blockReason ?? ''),
+              ),
+              const SizedBox(height: 16),
+            ],
             CriteriaEditor(
-              title: AppStrings.battleCriteriaSuperiorityTitle,
-              hint: AppStrings.battleCriteriaSuperiorityHint,
-              items: _editedSuperiority,
+              title: AppStrings.battleCriteriaMinTitle,
+              hint: AppStrings.battleCriteriaMinHint,
+              items: _editedMin,
               enabled: !_busy,
               onChanged: (items) => setState(() {
-                _editedSuperiority = items;
+                _editedMin = items;
                 _checked = null;
               }),
             ),
+            if (_isQuality) ...[
+              const SizedBox(height: 16),
+              CriteriaEditor(
+                title: AppStrings.battleCriteriaSuperiorityTitle,
+                hint: AppStrings.battleCriteriaSuperiorityHint,
+                items: _editedSuperiority,
+                enabled: !_busy,
+                onChanged: (items) => setState(() {
+                  _editedSuperiority = items;
+                  _checked = null;
+                }),
+              ),
+            ],
+            if (editError != null) ...[
+              const SizedBox(height: 8),
+              Text(editError, style: Theme.of(context).textTheme.bodySmall),
+            ],
+            const SizedBox(height: 24),
+            if (canApply)
+              FilledButton(
+                onPressed: _apply,
+                child: _busy
+                    ? const PixelLoader.small()
+                    : const Text(AppStrings.battleCriteriaApply),
+              )
+            else
+              FilledButton(
+                onPressed: _busy || editError != null || !_changed ? null : _recheck,
+                child: _busy
+                    ? const PixelLoader.small()
+                    : const Text(AppStrings.battleCriteriaRecheck),
+              ),
           ],
-          if (editError != null) ...[
-            const SizedBox(height: 8),
-            Text(editError, style: Theme.of(context).textTheme.bodySmall),
-          ],
-          const SizedBox(height: 24),
-          if (canApply)
-            FilledButton(
-              onPressed: _apply,
-              child: _busy
-                  ? const PixelLoader.small()
-                  : const Text(AppStrings.battleCriteriaApply),
-            )
-          else
-            FilledButton(
-              onPressed: _busy || editError != null || !_changed ? null : _recheck,
-              child: _busy
-                  ? const PixelLoader.small()
-                  : const Text(AppStrings.battleCriteriaRecheck),
-            ),
-        ],
+        ),
       ),
     );
   }

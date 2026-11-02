@@ -154,6 +154,12 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
           onPressed: _submit,
           child: const Text(AppStrings.battleEvidenceSubmit),
         ),
+        const SizedBox(height: 4),
+        // 서버는 업로드를 다 받은 뒤에 10분을 넘긴 사진을 거부한다. 그 전에 한 번 말해 둔다.
+        Text(
+          AppStrings.battleEvidenceCaptureWindow,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: _capture,
@@ -247,6 +253,12 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         FilledButton(
           onPressed: _confirmAndSubmitQuality,
           child: const Text(AppStrings.battleEvidenceQualitySubmit),
+        ),
+        const SizedBox(height: 4),
+        // 품질전도 같은 10분 제약을 받는다. 한 번만 낼 수 있어 거부당하면 더 아프다.
+        Text(
+          AppStrings.battleEvidenceCaptureWindow,
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(

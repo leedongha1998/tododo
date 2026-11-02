@@ -42,11 +42,13 @@ class _BrowseRepository implements BattleRepository {
   _BrowseRepository({
     this.all = const [],
     this.hasPending = false,
+    this.dailyBattleUsed = false,
     this.failFirstPage = false,
   });
 
   final List<OpenRecruit> all;
   final bool hasPending;
+  final bool dailyBattleUsed;
   final bool failFirstPage;
 
   final calls = <Map<String, Object?>>[];
@@ -59,7 +61,7 @@ class _BrowseRepository implements BattleRepository {
   Future<MyLimits> fetchMyLimits() async => MyLimits(
     consented: true,
     hasPending: hasPending,
-    dailyBattleUsed: false,
+    dailyBattleUsed: dailyBattleUsed,
     criteriaCallsLeft: 10,
   );
 
@@ -463,10 +465,60 @@ void main() {
     final container = await _pumpFind(tester, repository);
 
     expect(find.text(AppStrings.battleMyRecruitBlocked), findsOneWidget);
+    // 한도는 아직 안 썼으므로 한도 줄은 끼어들지 않는다.
+    expect(find.text(AppStrings.battleDailyLimitBanner), findsNothing);
     await tester.tap(find.text(AppStrings.battleMyRecruitGo));
     await tester.pumpAndSettle();
 
     expect(container.read(selectedTabProvider), AppTab.myBattles);
+  });
+
+  // ── mobile-ux M8(2026-11-02): 오늘 한도를 다 쓴 사실을 "참가 실패"로 처음 알지 않게 ──
+
+  testWidgets('오늘 대결을 이미 했으면 목록 맨 앞에서 미리 알린다', (tester) async {
+    final repository = _BrowseRepository(
+      all: [_recruit(0)],
+      dailyBattleUsed: true,
+    );
+    await _pumpFind(tester, repository);
+
+    expect(find.text(AppStrings.battleDailyLimitBanner), findsOneWidget);
+    // 모집 중은 아니므로 그 줄과 `내 모집 보기`는 나오지 않는다(갈 곳이 없다).
+    expect(find.text(AppStrings.battleMyRecruitBlocked), findsNothing);
+    expect(find.text(AppStrings.battleMyRecruitGo), findsNothing);
+
+    // 목록과 시트는 그대로 열린다 — 기준을 구경하는 것은 한도와 무관하다.
+    expect(find.text('모집 0'), findsOneWidget);
+    await tester.tap(find.text('모집 0'));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsOneWidget);
+    // 참가 버튼을 죽이지 않는다(3차 재량 결정 M8) — 차단은 서버가 하고, 캐시된 한도로 버튼을
+    // 비활성화하면 "서버는 허용하는데 버튼이 죽은" 오차가 생긴다. 문구만 보면 이 결정이
+    // 바뀌어도 테스트가 통과하므로 누를 수 있는지까지 본다.
+    final join = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, AppStrings.battleRecruitJoinWithCriteria),
+    );
+    expect(join.onPressed, isNotNull);
+  });
+
+  testWidgets('한도와 모집이 둘 다 걸려 있으면 한 배너에 두 줄로 말한다', (tester) async {
+    final repository = _BrowseRepository(
+      all: [_recruit(0)],
+      hasPending: true,
+      dailyBattleUsed: true,
+    );
+    await _pumpFind(tester, repository);
+
+    expect(find.text(AppStrings.battleDailyLimitBanner), findsOneWidget);
+    expect(find.text(AppStrings.battleMyRecruitBlocked), findsOneWidget);
+    expect(find.text(AppStrings.battleMyRecruitGo), findsOneWidget);
+  });
+
+  testWidgets('한도를 안 썼고 모집도 없으면 배너가 없다', (tester) async {
+    await _pumpFind(tester, _BrowseRepository(all: [_recruit(0)]));
+
+    expect(find.text(AppStrings.battleDailyLimitBanner), findsNothing);
+    expect(find.text(AppStrings.battleMyRecruitBlocked), findsNothing);
   });
 
   testWidgets('이미 모집 중이면 만들기 버튼이 사유를 알리고 생성 화면으로 보내지 않는다', (tester) async {

@@ -152,3 +152,61 @@ class _CriteriaEditorState extends State<CriteriaEditor> {
     );
   }
 }
+
+/// 기준을 만드는 중이거나 만들어 둔 기준을 들고 있을 때만 뒤로가기를 막고 한 번 확인한다.
+///
+/// [blocked]가 false면 평소와 똑같이 즉시 나가진다. 입력만 해 둔 단계에서 확인창을 띄우면
+/// **잃는 것이 없는데 길을 막는 것**이라 더 나쁘다(audit.md M7). 그래서 이 위젯은 무엇을
+/// 막을지 판단하지 않고, 화면이 넘겨준 [blocked]만 따른다.
+///
+/// [title]도 같은 이유로 화면이 넘긴다 — 만들기 화면과 수정 화면은 사용자가 하던 일이 다르다.
+/// 본문은 양쪽이 같아서(`만든 기준이 사라지고 쓴 횟수는 돌아오지 않는다`) 여기에 둔다.
+///
+/// `Navigator.pop()`(코드가 직접 닫는 길)은 `PopScope`를 거치지 않으므로 제출 성공 뒤 화면을
+/// 닫는 흐름은 그대로 동작한다. 막히는 것은 시스템 뒤로가기 제스처와 앱바 뒤로가기뿐이다.
+class CriteriaLeaveGuard extends StatelessWidget {
+  const CriteriaLeaveGuard({
+    super.key,
+    required this.title,
+    required this.blocked,
+    required this.child,
+  });
+
+  final String title;
+  final bool blocked;
+  final Widget child;
+
+  Future<void> _confirmLeave(BuildContext context) async {
+    // await 뒤에 context를 다시 쓰지 않으려고 navigator를 미리 잡아 둔다.
+    final navigator = Navigator.of(context);
+    final leave = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: const Text(AppStrings.battleCriteriaLeaveBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text(AppStrings.stay),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text(AppStrings.leave),
+          ),
+        ],
+      ),
+    );
+    if (leave == true) navigator.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !blocked,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _confirmLeave(context);
+      },
+      child: child,
+    );
+  }
+}

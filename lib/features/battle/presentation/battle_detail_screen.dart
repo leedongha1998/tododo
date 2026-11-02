@@ -8,6 +8,7 @@ import '../../../core/theme/retro_text.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_icon.dart';
 import '../../../core/widgets/pixel_loader.dart';
+import '../../../core/widgets/status_message.dart';
 import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_outcome.dart';
@@ -116,10 +117,23 @@ class BattleDetailScreen extends ConsumerWidget {
             ],
           ),
         ),
-        loading: () => const Center(child: PixelLoader.medium()),
+        // 점 세 개만 놓으면 빈 화면으로 읽힌다. 처음 기다리는 자리라 무엇을 기다리는지 적는다.
+        loading: () => const StatusMessage.loading(
+          message: AppStrings.loading,
+          fill: true,
+        ),
+        // 실패하면 당겨서 새로고침도 쓸 수 없다(RefreshIndicator가 data 갈래 안에 있다).
+        // 복구 수단이 "뒤로 갔다가 다시 들어오기"뿐이 되지 않게 이 자리에서 다시 읽는다.
         error: (error, stackTrace) {
           debugPrint('battleDetailProvider error: $error');
-          return Center(child: Text(AppStrings.battleLoadDetailFailed));
+          return StatusMessage.error(
+            message: AppStrings.battleLoadDetailFailed,
+            fill: true,
+            action: TextButton(
+              onPressed: () => ref.invalidate(battleDetailProvider(battleId)),
+              child: const Text(AppStrings.retry),
+            ),
+          );
         },
       ),
     );

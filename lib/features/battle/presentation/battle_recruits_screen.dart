@@ -163,7 +163,11 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
   Widget build(BuildContext context) {
     final feedAsync = ref.watch(openRecruitFeedProvider);
     final filter = ref.watch(recruitFilterProvider);
-    final hasPending = ref.watch(myLimitsProvider).value?.hasPending ?? false;
+    // 한도는 서버가 내준 같은 응답(`get_my_limits`)에서 둘 다 읽는다 — 추가 조회가 없다.
+    // 차단은 서버가 하고 여기서는 "지금 참가할 수 있는 몸인가"를 미리 알려 줄 뿐이다.
+    final limits = ref.watch(myLimitsProvider).value;
+    final hasPending = limits?.hasPending ?? false;
+    final dailyBattleUsed = limits?.dailyBattleUsed ?? false;
 
     // 실패는 삼키지 않는다. 두 가지를 구분해 한 번씩만 말한다.
     //   - 목록을 다시 읽다 실패(첫 묶음·조건 변경·당겨서 새로고침): riverpod이 이전 목록을 들고 있어
@@ -211,7 +215,13 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
             // (design.md 1.4 "움직임"이 연속 곡선을 금지한다).
             child: NotificationListener<ScrollNotification>(
               onNotification: _onScrollNotification,
-              child: _buildFeed(context, feedAsync, filter, hasPending),
+              child: _buildFeed(
+                context,
+                feedAsync,
+                filter,
+                hasPending: hasPending,
+                dailyBattleUsed: dailyBattleUsed,
+              ),
             ),
           ),
         ],
@@ -309,9 +319,10 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
   Widget _buildFeed(
     BuildContext context,
     AsyncValue<RecruitFeed> feedAsync,
-    RecruitQuery filter,
-    bool hasPending,
-  ) {
+    RecruitQuery filter, {
+    required bool hasPending,
+    required bool dailyBattleUsed,
+  }) {
     final feed = feedAsync.value;
     final items = feed?.items ?? const <OpenRecruit>[];
 
@@ -364,7 +375,9 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
       };
     }
 
-    final hasBanner = hasPending;
+    // 오늘 한도를 다 썼어도 배너를 띄운다. "참가 실패" 토스트로 처음 알게 되지 않도록
+    // 목록을 훑기 전에 말해 준다. 카드 탭·시트 열기는 막지 않는다 — 기준 구경은 한도와 무관하다.
+    final hasBanner = hasPending || dailyBattleUsed;
     final headCount = hasBanner ? 1 : 0;
     // 카드가 없을 때는 안내 문구 한 칸이 본문을 대신한다.
     final bodyCount = body != null ? 1 : items.length;
@@ -393,7 +406,12 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         itemCount: headCount + bodyCount + tailCount,
         itemBuilder: (context, index) {
-          if (hasBanner && index == 0) return _buildPendingBanner(context);
+          if (hasBanner && index == 0) {
+            return _buildLimitBanner(
+              hasPending: hasPending,
+              dailyBattleUsed: dailyBattleUsed,
+            );
+          }
           final slot = index - headCount;
           if (slot < bodyCount) {
             if (body != null) return body;
@@ -415,8 +433,16 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
     );
   }
 
-  /// 이미 모집 중이라 새 대결을 만들 수 없을 때, 그 이유와 내 모집이 어디 있는지를 알린다.
-  Widget _buildPendingBanner(BuildContext context) {
+  /// 목록 맨 앞의 한도 안내. 두 가지를 말한다.
+  ///   - 오늘 대결을 이미 했다 → 참가 자체가 내일까지 막힌다. 갈 곳이 없으므로 버튼을 달지 않는다.
+  ///   - 이미 모집 중이다 → 새로 올릴 수 없다는 뜻이고, 내 모집이 어디 있는지 알려 준다.
+  ///
+  /// 둘이 동시에 참일 수 있다(오늘 매칭을 끝낸 뒤 또 모집을 올려 둔 경우). 그때는 배너를 두 장으로
+  /// 나누지 않고 한 장 안에 두 줄로 적는다 — 참가를 막는 한도를 먼저 둔다(이 화면에서 하려는 일이다).
+  Widget _buildLimitBanner({
+    required bool hasPending,
+    required bool dailyBattleUsed,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: PixelFrame.tone(
@@ -424,14 +450,18 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(AppStrings.battleMyRecruitBlocked),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: _goToMyBattles,
-                child: const Text(AppStrings.battleMyRecruitGo),
+            if (dailyBattleUsed) const Text(AppStrings.battleDailyLimitBanner),
+            if (hasPending) ...[
+              if (dailyBattleUsed) const SizedBox(height: 8),
+              const Text(AppStrings.battleMyRecruitBlocked),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _goToMyBattles,
+                  child: const Text(AppStrings.battleMyRecruitGo),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

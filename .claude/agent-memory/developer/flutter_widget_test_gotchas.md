@@ -1,6 +1,6 @@
 ---
 name: flutter-widget-test-gotchas
-description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지
+description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump
 metadata:
   type: feedback
 ---
@@ -49,8 +49,18 @@ metadata:
    `A Timer is still pending even after the widget tree was disposed`로 실패한다. 픽스처가 다른 두 상황은
    **테스트를 둘로 쪼갠다**(2026-10-30 mobile-ux M1의 내 대결 카드 테스트).
 
+9. **스크롤 제스처와 FAB 사라짐은 둘 다 "한 번 더 pump"가 필요하다.**
+   ① `startGesture` 뒤 `moveBy`를 **한 번에 크게** 주면 카드의 `GestureDetector`(PixelFrame의
+   onTapDown)와 겨루다 끌기로 인정받지 못해 **리스트가 1픽셀도 안 움직인다**(`position.pixels == 0`).
+   touch slop을 넘기는 작은 걸음(예: -40) → `pump()` → 본 걸음(-200) 순으로 나눠 준다.
+   ② `Scaffold.floatingActionButton`을 null로 바꿔도 **그 프레임에 트리에서 빠지지 않는다.**
+   내부 수명 타이머(200ms) 때문에 `pump()`(교체 반영) → `pump(250ms)`(타이머 소진) →
+   `pump()`(제거 반영) 세 번이 필요하다. `FloatingActionButtonAnimator.noAnimation`을 줘도
+   이 지연은 남는다(크기·회전 연출만 사라진다).
+
 **Why:** 1~3번은 mutual-judge 판정 화면(4단계), 4~5번은 recruit-browse의 찾기 탭(검색·필터·무한 스크롤),
-6~7번은 retro-theme 가독성 개정(2026-10-29, 글꼴 표를 바꾸고 배율 1.3 넘침 테스트를 쓸 때)
+6~7번은 retro-theme 가독성 개정(2026-10-29, 글꼴 표를 바꾸고 배율 1.3 넘침 테스트를 쓸 때),
+9번은 recruit-list-scan(2026-11-02, 찾기 탭의 "내리면 FAB이 비킨다" 테스트)
 작업에서 실제로 테스트를 깨뜨렸다. 1·3번은 설계를 되돌려야 할 수도 있는 판단(활성화 조건을 무엇에
 걸 것인가)에 영향을 줬다.
 

@@ -376,3 +376,103 @@ create 화면에는 이 구멍이 없다(`_result`는 편집해도 유지된다)
   `blocked: _busy || _usedCheck` → `_busy || _checked != null`로 되돌리면 W1 테스트가,
   `_blocksLeaving`에서 `_error == null`을 빼면 W3 테스트가 각각 실패한다(확인 후 원복).
   W2는 "수정 제목이 뜨고 만들기 제목이 뜨지 않는다"를 한 테스트에서 양쪽으로 단정한다.
+
+---
+
+# mobile-ux 4차 구현 계획 — M3 · M4 · M6
+
+작성: 2026-11-02, developer. 입력은 `docs/specs/mobile-ux/audit.md`의 **`### M3.` `### M4.` `### M6.`
+세 절**과 **같은 문서 맨 끝 `## 문구 승인 (2026-11-02, 오너 확인 — 결정 5)` 절**이다.
+위의 1~3차 계획은 끝난 작업이므로 건드리지 않는다.
+
+## 범위 (세 항목)
+
+- **M3** 대결 만들기의 제목 입력 **아래** 한 줄(`bodyMedium`) — 사진으로 증명 가능해야 한다는 안내.
+- **M4** ① 유형 `SegmentedButton` 바로 아래에 `Text(battleTypeTagline(_type))` 한 줄(**새 문자열 0개**).
+  ② 같은 `SegmentedButton`에 빠져 있는 `showSelectedIcon: false` 한 줄.
+- **M6** `내 대결` 빈 상태 **위**에 `PixelFrame.tone(tone: PixelTone.info)` 한 장 + 승인된 세 줄.
+  기존 CTA(`대결 찾기`)는 그대로.
+
+## 문구는 확정본을 쓴다 (초안이 아니다)
+
+audit.md 본문 `### M6.`의 초안 첫 줄은 `먼저 **올린** 사람과 자동으로 매칭돼요`인데,
+문서 맨 끝 승인 절에서 `먼저 **참가한** 사람과 자동으로 매칭돼요`로 **고쳐 승인**됐다
+(매칭되는 쪽은 모집을 올린 사람이 아니라 먼저 참가하는 사람 — CLAUDE.md 도메인 규칙).
+구현은 **승인 절의 확정본**을 쓴다. 초안을 쓰면 사실과 다른 설명이 화면에 남는다.
+
+## 하지 않는 것
+
+- **온보딩 화면·캐러셀·툴팁 투어**(audit.md가 명시적으로 범위 밖이라 적었다). 빈 상태에 블록 하나만 얹는다.
+  뒤로가기 경로를 하나도 늘리지 않는다.
+- M1·M2·M5·M7·M8·M9~M22 전부. **찾기 탭의 두 번째 빈 화면**(`battle_recruits_screen.dart`의 빈 상태)도
+  이번 범위가 아니다 — audit M6이 "빈 화면이 두 번 나온다"고 언급만 했고 고치라고 하지 않았다.
+- 서버(마이그레이션·RPC·RLS·Edge Function), 새 패키지, 테마·팔레트·글꼴,
+  직전 변경물(2차 목록 개편·3차 가드·3차 배너), 커밋.
+
+## 선행 확인 — 문서·규칙 충돌
+
+**구현을 막는 충돌은 없다.** 세 항목 모두 서버 계약을 건드리지 않고 이미 있는 값·함수를 표시만 더한다.
+
+- 1차 계획에 적은 "CLAUDE.md 판정 주체 조항이 낡았다"는 그대로 유효하고, **M6 셋째 줄이 그 지점에 닿는다** —
+  승인본 `서로 판정하고 의견이 갈리면 AI가 기준으로 확정해요.`는 상호 판정(mutual-judge)을 말하는데
+  CLAUDE.md 도메인 규칙은 `ai-judge` 기준으로 "사용자끼리 서로 승인하는 절차는 없다"고 적혀 있다.
+  그러나 ① 오너 확정 문서 `docs/specs/mutual-judge/spec.md`(2026-09-18)가 그 조항을 대체했고,
+  ② 그 구현이 서버·클라이언트에 이미 들어가 동작 중이며(`judgment_rules.dart`, `judgment_section.dart`),
+  ③ 이 세 줄은 2026-11-02에 **오너가 직접 읽고 승인한 문구**다.
+  즉 낡은 쪽은 CLAUDE.md이고, 내가 임의로 한쪽을 고르는 상황이 아니다 — 승인본대로 진행한다.
+  CLAUDE.md 도메인 규칙 문단 갱신은 이번 범위가 아니므로 **고치지 않고 보고에만 적는다.**
+- 판정·승패 계산을 클라이언트로 끌어오는 항목이 없다. M4의 `battleTypeTagline`은 기존 표시용 매핑 함수다.
+
+## 작업 순서
+
+1. **plan.md 작성**(이 절).
+2. `lib/core/strings.dart` — 문구 4개 추가.
+   - `battleTitleProvableHint`(M3) — `battleTitleHint` 바로 아래.
+   - `battleIntroMatching` / `battleIntroEvidence` / `battleIntroJudging`(M6) —
+     `battleMyBattlesEmpty` 근처(이 블록이 그 빈 상태에서만 보이므로 같은 자리에 둔다).
+3. **M4** `lib/features/battle/presentation/create_battle_screen.dart` — 유형 세그먼트에
+   `showSelectedIcon: false` + 아래 `Text(battleTypeTagline(_type), bodyMedium)`.
+   `battle_chips.dart`는 이미 import되어 있다(추가 import 없음).
+4. **M3** 같은 파일 — 제목 `TextField` 아래 `Text(AppStrings.battleTitleProvableHint, bodyMedium)`.
+   (M4를 먼저 하는 이유: 둘이 같은 `_buildInput` 리스트를 고치는데 M4가 더 위쪽이라
+   한 번에 위→아래 순으로 넣으면 수정이 겹치지 않는다.)
+5. **M6** `lib/features/battle/presentation/my_battles_screen.dart` — `_buildBattleSection`의
+   **빈 상태 갈래 안에서만** `PixelFrame.tone(tone: PixelTone.info)` + 세 줄을 `StatusMessage.empty` 위에 둔다.
+6. 위젯 테스트 3건(지우지 않고 더한다).
+   - M3·M4 → `test/features/battle/create_battle_test.dart`
+     (M4는 **유형을 바꾸면 설명 줄도 바뀐다**를 양방향으로 단정한다. `pumpAndSettle`은 입력 단계에서만 쓴다 —
+     생성 중 전면 로더에서는 타임아웃한다(3차 리뷰 N7)).
+   - M6 → `test/features/battle/my_battles_sections_test.dart`
+     (**음성 단언 포함**: 진행 중 대결이 있으면 이 블록이 안 보인다).
+   - 레이아웃·치수 단정은 쓰지 않는다 → 배율 3.0 복사본 검증은 해당 사항 없음(에이전트 메모 6번).
+7. `flutter analyze`(이슈 0) + `flutter test`(기준선 403개 + 새 테스트) 확인. **커밋하지 않는다.**
+
+## 재량으로 정한 것 (audit.md가 적지 않은 것)
+
+- **M6 블록은 "대결 0건 + 모집 0건"일 때만 보인다.** audit.md는 "빈 상태 **위**"라고만 적었다.
+  내 대결 탭에는 빈 상태가 아닌 "모집 1건 + 진행 중 0건" 상태(`battleNoActiveBattlesYet`)도 있는데,
+  거기서는 **보이지 않게** 했다 — 모집을 이미 올려 본 사람에게 "이 앱이 무엇인가"를 다시 말할 이유가 없고,
+  audit.md가 가리킨 대상도 "로그인 직후 새 계정이 보는 첫 화면"이다.
+  구현상 `StatusMessage.empty`를 쓰는 갈래가 정확히 그 조건이라 조건식을 새로 만들지 않았다.
+- **블록 위치는 빈 상태 바로 위, 제목 띠 없이.** `PixelFrame.tone`의 `title`을 주지 않아
+  (`같은 할 일을 걸고…`가 첫 줄로 바로 보인다) 세 줄 외에 읽을 것을 더하지 않는다.
+  info 톤의 기본 아이콘(`PixelIcons.info`)은 그대로 쓴다 — 다른 안내 블록과 같은 모양이 된다.
+- **세 줄 사이 간격은 4dp.** `PixelFrame.tone`이 `bodyMedium`을 `DefaultTextStyle`로 깔아 주므로
+  `Text` 세 개를 `Column`에 넣고 `style`을 따로 주지 않는다.
+
+## 순서 변경 기록 (4차)
+
+- 2026-11-02: 6단계에 적지 않은 **기존 테스트 수정 1건**이 필요했다.
+  `create_battle_test.dart`의 공용 헬퍼 `_enterTitleAndGenerate`에 `ensureVisible`을 더했다.
+  M3·M4가 입력 단계에 세 줄(설명 1 + 안내 1 + 간격)을 더하면서 기본 테스트 화면(800x600)에서
+  `AI 기준 만들기` 버튼이 `Offset(400, 604)`로 내려가 `기간은 빠른 선택과…` 테스트가
+  "would not hit test"로 깨졌다. **테스트를 지우지 않고** 스크롤해서 누르게 고쳤다
+  (실기기 360x800에서는 보이는 자리이고, 이건 테스트 화면 높이 문제다 — 에이전트 메모 2번).
+- 2026-11-02: 레이아웃 단정 **2건**(M3의 "입력창 아래", M6의 "빈 상태 위")은 둘 다
+  **배율 3.0 복사본에서도 통과**했다. 메모 6번의 원칙대로라면 버릴 후보지만, **되돌리기 변이로
+  둘 다 깨지는 것을 확인**하고 남겼다 — 넘침(치수)을 재는 테스트가 아니라 **순서**를 재는 테스트라
+  배율과 무관하게 성립하는 것이 정상이고, 순서가 뒤집히면 실제로 실패한다.
+  - M6: `PixelFrame.tone`을 `StatusMessage.empty` **아래로** 옮기면 그 테스트만 실패(확인 후 원복).
+  - M3: 안내 `Text`를 `TextField` **위로** 옮기면 그 테스트만 실패(확인 후 원복).
+  - 넘침·잘림 단정은 쓰지 않았다. M4②(`showSelectedIcon`)는 `SegmentedButton`이 자식을 clamp해
+    잘림을 측정할 수 없으므로(메모 6번) **설정값 자체**를 단정했다.

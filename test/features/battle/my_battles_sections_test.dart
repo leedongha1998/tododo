@@ -316,6 +316,58 @@ void main() {
     );
     expect(news.style?.fontWeight, isNot(FontWeight.w600));
   });
+
+  // M6 — 로그인 직후 첫 탭이 여기다. 새 계정은 이 앱이 무엇인지 어디서도 듣지 못한 상태로
+  // `진행 중인 대결이 없어요.` 한 줄을 본다. 온보딩 화면을 만들지 않고 빈 상태 위 블록 한 장으로 말한다.
+  testWidgets('대결도 모집도 없는 첫 화면은 이 앱이 무엇인지 세 줄로 먼저 말한다', (tester) async {
+    await _pumpMyBattles(tester, repository: _MyBattlesRepository());
+
+    expect(find.text(AppStrings.battleIntroMatching), findsOneWidget);
+    expect(find.text(AppStrings.battleIntroEvidence), findsOneWidget);
+    expect(find.text(AppStrings.battleIntroJudging), findsOneWidget);
+
+    // 기존 빈 상태와 CTA는 그대로 남는다. 블록이 그것을 대신하지 않는다.
+    expect(find.text(AppStrings.battleMyBattlesEmpty), findsOneWidget);
+    expect(
+      find.widgetWithText(FilledButton, AppStrings.battleFind),
+      findsOneWidget,
+    );
+
+    // 빈 상태 "위"다 — 설명을 읽고 나서 다음 행동 버튼에 닿는다.
+    expect(
+      tester.getTopLeft(find.text(AppStrings.battleIntroMatching)).dy,
+      lessThan(tester.getTopLeft(find.text(AppStrings.battleMyBattlesEmpty)).dy),
+    );
+  });
+
+  // 음성 단언. 이 블록은 빈 상태 전용이다 — 대결이 하나라도 있으면 소개를 다시 읽힐 이유가 없고,
+  // 목록 맨 위를 설명으로 밀어내면 "지금 내가 할 일"이 그만큼 내려간다.
+  testWidgets('진행 중인 대결이 있으면 소개 블록이 보이지 않는다', (tester) async {
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(),
+      summaries: [_activeSummary()],
+    );
+
+    expect(find.text('방 청소하기'), findsOneWidget);
+    expect(find.text(AppStrings.battleIntroMatching), findsNothing);
+    expect(find.text(AppStrings.battleIntroEvidence), findsNothing);
+    expect(find.text(AppStrings.battleIntroJudging), findsNothing);
+  });
+
+  // audit.md가 적지 않은 자리(developer 재량). 모집을 이미 올려 본 사람은 만들기 흐름을 한 번 지났고
+  // 기준·동의 화면에서 설명을 다 읽은 뒤다. 거기서는 빈 상태 자체가 뜨지 않으므로 블록도 두지 않는다.
+  testWidgets('모집 1건만 있는 화면에도 소개 블록을 두지 않는다', (tester) async {
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(recruits: [_recruit()]),
+    );
+
+    expect(find.text(AppStrings.battleNoActiveBattlesYet), findsOneWidget);
+    expect(find.text(AppStrings.battleIntroMatching), findsNothing);
+    expect(find.text(AppStrings.battleIntroEvidence), findsNothing);
+    expect(find.text(AppStrings.battleIntroJudging), findsNothing);
+  });
 }
 
 /// 판정 창(판정 기한 2시간 남음)에 들어간 내 대결. 상대는 사진을 냈고 나는 아직 판정하지 않았다.

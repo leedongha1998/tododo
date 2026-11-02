@@ -28,6 +28,9 @@ class AppStrings {
   static const battleTypeSpeed = '속도전';
   static const battleTypeQuality = '품질전';
   static const battleTitleHint = '무엇을 걸고 대결할까요?';
+  // 사진으로 증명할 수 없는 미션은 서버가 기준 생성 단계에서 차단한다. 그 사실을 제목을 쓰는
+  // 자리에서 미리 말해 준다 — 차단을 겪으면 AI 호출 1회가 이미 차감된 뒤다.
+  static const battleTitleProvableHint = '사진 한 장으로 증명할 수 있는 일이어야 해요. 예: 아침 7시 기상, 책상 정리 완료';
   static const battleRecruitSubmitted = '모집을 등록했습니다.';
 
   static const todoTitle = '할 일';
@@ -60,6 +63,11 @@ class AppStrings {
 
   static const battleMyBattles = '내 대결';
   static const battleMyBattlesEmpty = '진행 중인 대결이 없어요.';
+  // 로그인 직후 첫 탭이 `내 대결`이고, 아무것도 없는 새 계정이 이 앱이 무엇인지 알 수 있는 유일한 자리다.
+  // 온보딩 화면을 따로 만들지 않고 빈 상태 위 블록 한 장으로만 말한다(audit.md M6, 오너 승인 문구).
+  static const battleIntroMatching = '같은 할 일을 걸고 둘이 겨뤄요. 먼저 참가한 사람과 자동으로 매칭돼요.';
+  static const battleIntroEvidence = '증거는 앱에서 찍은 사진 한 장이에요.';
+  static const battleIntroJudging = '서로 판정하고 의견이 갈리면 AI가 기준으로 확정해요.';
   // 모집 1건이 있는 상태의 "진행 중은 아직 없다". 위 빈 상태와 달리 유도 버튼을 달지 않는다.
   static const battleNoActiveBattlesYet = '진행 중인 대결은 아직 없어요.';
   static const battleFinishedInProfile = '지난 대결은 프로필에서 볼 수 있어요.';

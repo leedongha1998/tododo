@@ -319,6 +319,9 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
       padding: const EdgeInsets.all(16),
       children: [
         SegmentedButton<String>(
+          // 테마가 selectedIcon(체크)을 주므로 끄지 않으면 라벨 폭을 먹어 글자가 잘린다
+          // (같은 화면의 기간 세그먼트 둘과 찾기 탭이 쓰는 것과 같은 이유).
+          showSelectedIcon: false,
           segments: const [
             ButtonSegment(value: 'speed', label: Text(AppStrings.battleTypeSpeed)),
             ButtonSegment(value: 'quality', label: Text(AppStrings.battleTypeQuality)),
@@ -326,12 +329,22 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
           selected: {_type},
           onSelectionChanged: (selection) => setState(() => _type = selection.first),
         ),
+        const SizedBox(height: 8),
+        // 두 유형의 차이를 고르는 자리에서 말한다. 모집 상세 시트가 참가자에게 보여 주는 문장과
+        // 같은 함수를 써서, 만드는 사람과 참가하는 사람이 같은 설명을 읽게 한다.
+        Text(battleTypeTagline(_type), style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 24),
         TextField(
           controller: _titleController,
           decoration: const InputDecoration(hintText: AppStrings.battleTitleHint),
           maxLength: battleTitleMaxLength,
           onChanged: (_) => setState(() {}),
+        ),
+        // 사진으로 증명할 수 없는 제목은 기준 생성에서 차단되고 AI 호출 1회가 이미 차감된다.
+        // 그 함정을 제목을 쓰는 동안 말해 준다(차단 자체는 그대로 서버가 한다).
+        Text(
+          AppStrings.battleTitleProvableHint,
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
         Text(AppStrings.battleDuration, style: Theme.of(context).textTheme.titleSmall),

@@ -149,14 +149,35 @@ class MyBattlesScreen extends ConsumerWidget {
             );
           }
           // 대결도 모집도 없을 때 할 일은 하나뿐이다 — 상대를 찾으러 가는 것.
-          return StatusMessage.empty(
-            message: AppStrings.battleMyBattlesEmpty,
-            detail: AppStrings.battleFinishedInProfile,
-            action: FilledButton(
-              onPressed: () =>
-                  ref.read(selectedTabProvider.notifier).select(AppTab.find),
-              child: const Text(AppStrings.battleFind),
-            ),
+          // 그 전에 이 앱이 무엇인지 세 줄로 말한다. 로그인 직후 첫 탭이 여기이고,
+          // 새 계정이 설명을 만나는 자리가 어디에도 없다(동의 화면은 만들기·참가를 누른 뒤에야 뜬다).
+          // 온보딩 화면·투어는 만들지 않는다 — 블록 한 장이면 되고 뒤로가기 경로가 늘지 않는다.
+          return Column(
+            children: [
+              const PixelFrame.tone(
+                tone: PixelTone.info,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(AppStrings.battleIntroMatching),
+                    SizedBox(height: 4),
+                    Text(AppStrings.battleIntroEvidence),
+                    SizedBox(height: 4),
+                    Text(AppStrings.battleIntroJudging),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              StatusMessage.empty(
+                message: AppStrings.battleMyBattlesEmpty,
+                detail: AppStrings.battleFinishedInProfile,
+                action: FilledButton(
+                  onPressed: () =>
+                      ref.read(selectedTabProvider.notifier).select(AppTab.find),
+                  child: const Text(AppStrings.battleFind),
+                ),
+              ),
+            ],
           );
         },
         loading: () => const StatusMessage.loading(),

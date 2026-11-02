@@ -239,6 +239,10 @@ Future<void> _back(WidgetTester tester) async {
 Future<void> _enterTitleAndGenerate(WidgetTester tester, String title) async {
   await tester.enterText(find.byType(TextField).first, title);
   await tester.pumpAndSettle();
+  // 입력 단계에 안내 줄이 늘어나면서(M3·M4) 기본 테스트 화면(800x600)에서는 이 버튼이 접힌 아래로 간다.
+  // 실기기에서는 보이는 자리이므로 테스트가 스크롤해서 누른다.
+  await tester.ensureVisible(find.text(AppStrings.battleCriteriaGenerate));
+  await tester.pumpAndSettle();
   await tester.tap(find.text(AppStrings.battleCriteriaGenerate));
   await tester.pumpAndSettle();
 }
@@ -556,5 +560,59 @@ void main() {
     expect(find.text(AppStrings.battleCriteriaLeaveTitle), findsNothing);
     expect(find.text(AppStrings.battleCriteriaLeaveBody), findsNothing);
     expect(find.text(_hostLabel), findsOneWidget);
+  });
+
+  // M4 — 유형을 고르는 자리에 설명이 없었다. 그 문장은 이미 있었고(`battleTypeTagline`)
+  // 모집 상세 시트에서만 쓰였다. 즉 참가자는 읽는데 만드는 사람만 못 읽는 상태였다.
+  testWidgets('유형 세그먼트 아래에 유형 설명 한 줄이 있고, 유형을 바꾸면 그 줄도 바뀐다', (tester) async {
+    await _pumpCreate(
+      tester,
+      criteria: _FakeCriteriaRepository(generateResult: _speedResult),
+    );
+
+    // 기본값은 속도전이다.
+    expect(find.text(battleTypeTagline('speed')), findsOneWidget);
+    expect(find.text(battleTypeTagline('quality')), findsNothing);
+
+    await tester.tap(find.text(AppStrings.battleTypeQuality));
+    await tester.pumpAndSettle();
+
+    // 유형을 바꾸면 설명도 같이 바뀐다. 두 문장이 동시에 보이지 않는다.
+    expect(find.text(battleTypeTagline('quality')), findsOneWidget);
+    expect(find.text(battleTypeTagline('speed')), findsNothing);
+  });
+
+  // M4② — 테마가 주는 체크 아이콘이 라벨 폭을 먹어 글자가 잘린다. 이 세그먼트 하나만 끄지 않고 있었다.
+  // 잘림 자체는 `SegmentedButton`이 자식을 clamp해 테스트로 측정할 수 없으므로(에이전트 메모)
+  // 설정값을 직접 단정한다.
+  testWidgets('유형 세그먼트는 선택 체크 아이콘을 쓰지 않는다', (tester) async {
+    await _pumpCreate(
+      tester,
+      criteria: _FakeCriteriaRepository(generateResult: _speedResult),
+    );
+
+    final segments = tester.widget<SegmentedButton<String>>(
+      find.byType(SegmentedButton<String>),
+    );
+    expect(segments.showSelectedIcon, isFalse);
+  });
+
+  // M3 — 사진으로 증명할 수 없는 제목은 서버가 차단하는데, 그때는 AI 호출 1회가 이미 차감된 뒤다.
+  // 그 함정을 제목을 쓰는 동안 말해 준다. 차단은 그대로 서버가 한다(이 줄은 안내일 뿐이다).
+  testWidgets('제목 입력 아래에 사진으로 증명할 수 있어야 한다는 안내와 예시가 보인다', (tester) async {
+    await _pumpCreate(
+      tester,
+      criteria: _FakeCriteriaRepository(generateResult: _speedResult),
+    );
+
+    expect(find.text(AppStrings.battleTitleProvableHint), findsOneWidget);
+    // 힌트를 대체한 것이 아니라 더한 것이다.
+    final field = tester.widget<TextField>(find.byType(TextField).first);
+    expect(field.decoration?.hintText, AppStrings.battleTitleHint);
+    // 입력창 "아래"여야 한다 — 위에 두면 예시가 무엇에 대한 예시인지 흐려진다.
+    expect(
+      tester.getTopLeft(find.text(AppStrings.battleTitleProvableHint)).dy,
+      greaterThan(tester.getTopLeft(find.byType(TextField).first).dy),
+    );
   });
 }

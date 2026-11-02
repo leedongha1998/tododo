@@ -7,3 +7,4 @@
 - 탈퇴한 상대의 지난 대결에서 사진 자리 안내 — 탈퇴하면 `battle_submissions.object_path`가 null이 되어 종결 뒤 공개되는 이력에 판정 사유만 남고 사진 자리는 비어 보인다. "사진 없음(탈퇴한 사용자)" 같은 안내가 있으면 좋다(design.md "탈퇴와의 상호작용"). 기능이 막히지는 않아 배포 후로 미룸
 - 글자 배율 상한 1.5 재검증 — `main.dart`의 `maxTextScale = 1.3`을 올릴 여지가 생겼다(짧은 라벨이 본문 글꼴이 되어 줄바꿈이 가능해졌고 칩 줄은 `Wrap`이 됐다). 전 화면을 1.5배로 다시 봐야 해서 MVP 직전에는 하지 않았다. `docs/specs/retro-theme/readability.md` 3-2 참고
 - 레트로 테마 가독성 2차(방안 4·5) — 칩 테두리 2dp→1dp, 구분선 `line`→`inkMuted`, 프레임 중첩 평면화. 레이아웃 변동이 커서 배포 후로 미뤘다. `docs/specs/retro-theme/readability.md` 4장 참고
+- 찾기 탭 고정 조작 영역 축소(M14 / recruit-list-scan S5) — 검색줄에 `필터` 버튼을 합치고 두 세그먼트는 하단 시트로 옮긴다(안 B). 고정 영역 174dp(세로 22%)와 "조작 요소가 전부 엄지 밖"이 남아 있다. 실기기 관측이 "카드 수가 부족하다"는 근거를 무효화해 배포 전 필수는 아니다(2026-11-02 오너 결정 4). `docs/specs/mobile-ux/recruit-list-scan.md` S5 참고

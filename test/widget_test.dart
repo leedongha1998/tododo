@@ -376,7 +376,8 @@ void main() {
     expect(find.text(AppStrings.battleCreate), findsNothing);
   });
 
-  testWidgets('대결 찾기 화면에 대결 만들기 버튼이 있다', (WidgetTester tester) async {
+  testWidgets('대결 찾기 화면의 만들기 버튼은 아이콘 전용이고 이름은 tooltip이 말한다',
+      (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -387,7 +388,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.widgetWithText(FloatingActionButton, AppStrings.battleCreate), findsOneWidget);
+    // 글자 라벨까지 둔 버튼이 카드 오른쪽 절반을 덮어 아이콘 전용(56x56)으로 바꿨다.
+    expect(find.byType(FloatingActionButton), findsOneWidget);
+    expect(find.widgetWithText(FloatingActionButton, AppStrings.battleCreate), findsNothing);
+    expect(
+      find.byTooltip(AppStrings.battleCreate),
+      findsOneWidget,
+      reason: '라벨을 떼는 대신 tooltip으로 이름을 남긴다(스크린리더·롱프레스)',
+    );
   });
 
   // 대결 만들기 화면은 AI 기준 생성·승인 2단계로 바뀌어 create_battle_test.dart에서 따로 본다.

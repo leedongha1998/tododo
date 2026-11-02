@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/app_tab.dart';
@@ -46,6 +47,9 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
   // 입력 중인 글자는 provider에 넣지 않는다. 글자마다 피드가 다시 돌면 안 된다.
   final _searchController = TextEditingController();
   Timer? _debounce;
+
+  /// 목록을 아래로 내리는 동안 만들기 버튼을 치운다(카드를 가리지 않게). 멈추거나 위로 올리면 돌아온다.
+  bool _hideFab = false;
 
   @override
   void dispose() {
@@ -180,90 +184,124 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.battleFind)),
       // 마음에 드는 모집이 없을 때의 다음 행동이 "내가 만든다"이고, 그 판단은 목록을 보는 자리에서 나온다.
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openCreate(context),
-        icon: const PixelIcon(PixelIcons.battle),
-        label: const Text(AppStrings.battleCreate),
-      ),
+      // 라벨을 뗀 아이콘 전용(56x56)이다 — 글자까지 둔 버튼이 카드 오른쪽 절반을 덮었다.
+      // 이름은 tooltip과 빈 상태의 글자 버튼이 말한다.
+      // Scaffold 기본값은 FAB이 생기고 사라질 때 200ms 동안 돌면서 커지는 연출을 넣는다.
+      // design.md 1.4 "움직임"이 연속 곡선을 금지하므로 즉시 교체로 바꾼다.
+      floatingActionButtonAnimator: FloatingActionButtonAnimator.noAnimation,
+      floatingActionButton: _hideFab
+          ? null
+          : FloatingActionButton(
+              onPressed: () => _openCreate(context),
+              tooltip: AppStrings.battleCreate,
+              child: const PixelIcon(PixelIcons.battle),
+            ),
       body: Column(
         children: [
           _buildControls(context, filter),
-          // NavigationBar 위 경계선과 같은 방식. 새 컴포넌트를 만들지 않는다.
+          // 고정 조작 영역과 목록을 가르는 "용기 경계". 카드 테두리(2dp)와 역할을 가르려고
+          // 창·앱바와 같은 4dp를 쓴다(design.md 1.4: 2dp = 요소, 4dp = 창).
           const SizedBox(
-            height: 2,
+            height: 4,
             width: double.infinity,
             child: ColoredBox(color: RetroPalette.ink),
           ),
-          Expanded(child: _buildFeed(context, feedAsync, filter, hasPending)),
+          Expanded(
+            // 목록을 내리는 동안 만들기 버튼을 감춘다. 애니메이션 없이 즉시 교체한다
+            // (design.md 1.4 "움직임"이 연속 곡선을 금지한다).
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _onScrollNotification,
+              child: _buildFeed(context, feedAsync, filter, hasPending),
+            ),
+          ),
         ],
       ),
     );
   }
 
+  /// 아래로 내리는 동안에만 FAB을 감춘다. 멈춤(idle)·위로 올림(forward)은 즉시 되돌린다 —
+  /// 당겨서 새로고침도 forward 신호를 보내므로 그때도 버튼이 돌아온다.
+  /// `ScrollController` 리스너는 오프셋이 변할 때만 불려 "멈췄다"를 놓치므로 알림을 본다.
+  /// 알림은 그대로 흘려보낸다(false) — 바깥 `RefreshIndicator`가 같은 알림을 쓴다.
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (notification is UserScrollNotification) {
+      final hide = notification.direction == ScrollDirection.reverse;
+      if (hide != _hideFab) setState(() => _hideFab = hide);
+    }
+    return false;
+  }
+
   /// 고정 조작 영역. 스크롤되지 않으므로 지금 어떤 조건이 걸려 있는지가 목록을 보는 동안 계속 보인다.
+  ///
+  /// 면은 `sunken`이다 — 화면이 "가라앉은 조작판(sunken) → 종이 목록(paper) → 떠 있는 카드(surface)"
+  /// 세 겹으로 갈려, 목록이 이 아래로 잘려 들어가는 모습이 고장이 아니라 스크롤로 읽힌다.
+  /// 목록 배경을 `sunken`으로 바꾸는 쪽은 쓸 수 없다(기간 칩의 면색이라 칩이 묻힌다).
   Widget _buildControls(BuildContext context, RecruitQuery filter) {
     final notifier = ref.read(recruitFilterProvider.notifier);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TextField(
-            controller: _searchController,
-            textInputAction: TextInputAction.search,
-            decoration: InputDecoration(
-              hintText: AppStrings.battleSearchHint,
-              prefixIcon: const Padding(
-                padding: EdgeInsets.all(12),
-                child: PixelIcon(PixelIcons.search, size: 24),
+    return ColoredBox(
+      color: RetroPalette.sunken,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: AppStrings.battleSearchHint,
+                prefixIcon: const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: PixelIcon(PixelIcons.search, size: 24),
+                ),
+                prefixIconConstraints: const BoxConstraints(),
+                suffixIcon: _searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: _clearSearch,
+                        icon: const PixelIcon(PixelIcons.close, size: 24),
+                      ),
               ),
-              prefixIconConstraints: const BoxConstraints(),
-              suffixIcon: _searchController.text.isEmpty
-                  ? null
-                  : IconButton(
-                      onPressed: _clearSearch,
-                      icon: const PixelIcon(PixelIcons.close, size: 24),
-                    ),
+              onChanged: _onSearchChanged,
+              onSubmitted: _applySearchNow,
             ),
-            onChanged: _onSearchChanged,
-            onSubmitted: _applySearchNow,
-          ),
-          const SizedBox(height: 8),
-          // 테마가 selectedIcon(체크)을 주므로 끄지 않으면 라벨 폭을 먹어 글자가 잘린다.
-          SegmentedButton<RecruitTypeFilter>(
-            showSelectedIcon: false,
-            segments: [
-              for (final type in RecruitTypeFilter.values)
-                ButtonSegment(value: type, label: Text(type.label)),
-            ],
-            selected: {filter.type},
-            onSelectionChanged: (selection) =>
-                notifier.setType(selection.first),
-          ),
-          const SizedBox(height: 8),
-          // 기간대 구간의 분 경계는 서버만 안다. 여기서 보내는 것은 키와 라벨뿐이다.
-          SegmentedButton<RecruitDurationBand>(
-            showSelectedIcon: false,
-            segments: [
-              for (final band in RecruitDurationBand.values)
-                ButtonSegment(value: band, label: Text(band.label)),
-            ],
-            selected: {filter.band},
-            onSelectionChanged: (selection) =>
-                notifier.setBand(selection.first),
-          ),
-          // 조건이 걸려 있을 때만 보인다. 검색어와 두 축을 한 번에 되돌린다.
-          if (filter.hasAnyCondition)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: _clearConditions,
-                icon: const PixelIcon(PixelIcons.close, size: 12),
-                label: const Text(AppStrings.battleFilterClear),
+            const SizedBox(height: 8),
+            // 테마가 selectedIcon(체크)을 주므로 끄지 않으면 라벨 폭을 먹어 글자가 잘린다.
+            SegmentedButton<RecruitTypeFilter>(
+              showSelectedIcon: false,
+              segments: [
+                for (final type in RecruitTypeFilter.values)
+                  ButtonSegment(value: type, label: Text(type.label)),
+              ],
+              selected: {filter.type},
+              onSelectionChanged: (selection) =>
+                  notifier.setType(selection.first),
+            ),
+            const SizedBox(height: 8),
+            // 기간대 구간의 분 경계는 서버만 안다. 여기서 보내는 것은 키와 라벨뿐이다.
+            SegmentedButton<RecruitDurationBand>(
+              showSelectedIcon: false,
+              segments: [
+                for (final band in RecruitDurationBand.values)
+                  ButtonSegment(value: band, label: Text(band.label)),
+              ],
+              selected: {filter.band},
+              onSelectionChanged: (selection) =>
+                  notifier.setBand(selection.first),
+            ),
+            // 조건이 걸려 있을 때만 보인다. 검색어와 두 축을 한 번에 되돌린다.
+            if (filter.hasAnyCondition)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _clearConditions,
+                  icon: const PixelIcon(PixelIcons.close, size: 12),
+                  label: const Text(AppStrings.battleFilterClear),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -361,7 +399,10 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
             if (body != null) return body;
             _maybeLoadMore(feed!, slot, items.length);
             return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              // 카드 사이는 카드 **안쪽** 간격(8/12dp)보다 넓어야 카드가 한 덩어리로 묶이지 않는다.
+              // 카드 면(surface)과 목록 배경(paper)의 대비가 1.13:1이라 여백이 테두리와 함께
+              // 둘뿐인 구분 수단이다. 이 목록 카드 한 곳의 값이다(전역 기본값은 8dp 그대로).
+              padding: const EdgeInsets.only(bottom: 16),
               child: _OpenRecruitCard(
                 recruit: items[slot],
                 onTap: () => _openRecruit(context, items[slot]),
@@ -446,36 +487,74 @@ class _OpenRecruitCard extends StatelessWidget {
 
     return PixelFrame.raised(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
-          Text(
-            battle.title,
-            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              BattleTypeBadge(type: battle.type),
-              const SizedBox(width: 8),
-              PixelTag(
-                label: battleDurationLabel(battle.durationMinutes),
-                style: battleStatusTagStyle('draw'),
+      // 프레임 기본 12dp 패딩을 안쪽(오른쪽 칸)으로 옮겨 색 띠가 카드 높이를 그대로 채운다.
+      padding: EdgeInsets.zero,
+      // `stretch`는 높이가 먼저 정해져 있어야 쓸 수 있다. 이 카드는 ListView 항목이라 세로 제약이
+      // 무한이므로 IntrinsicHeight로 높이를 확정한 뒤 띠를 늘린다.
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 세로로 훑을 때 눈이 멈출 앵커. 유형 색(속도전 앰버 / 품질전 민트)을 그대로 쓴다.
+            // **보조 신호다** — 같은 뜻을 아래 유형 배지의 아이콘과 글자가 그대로 말하므로
+            // 색만으로 전달되는 정보는 하나도 늘지 않는다(색각 이상 대응 유지).
+            SizedBox(
+              width: 8,
+              child: ColoredBox(color: battleTypeAccent(battle.type)),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
+                    // 2줄 상한이 없으면 최대 4줄까지 늘어나 다음 카드의 시작 위치를 예측할 수 없다.
+                    // 제목 전문은 상세 시트가 보여 준다.
+                    Text(
+                      battle.title,
+                      style: textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        BattleTypeBadge(type: battle.type),
+                        const SizedBox(width: 8),
+                        // 카드 안에서 유일하게 테두리를 가진 조각이다(유형 배지는 테두리를 벗었다).
+                        // "내가 낼 수 있는 시간인가"가 두 번째 판단 축이라 그 무게를 여기 둔다.
+                        // 기간은 상태가 아니므로 중립 태그 모양을 쓴다(무승부 칩 모양을 끌어다
+                        // 쓰면 앞으로 무승부 칩을 손댈 때 기간이 따라 변한다).
+                        PixelTag(
+                          label: battleDurationLabel(battle.durationMinutes),
+                          style: neutralPixelTagStyle,
+                          leading: const PixelIcon(PixelIcons.clock, size: 12),
+                        ),
+                      ],
+                    ),
+                    // 목록에서 중요한 것은 무슨 대결인지다. 기준 미리보기를 두 줄까지 보여 준다.
+                    // 기준 첫 문장은 모집끼리 거의 같아(AI가 만든 문장) 제목과 같은 색이면
+                    // 카드 네 장이 같은 실루엣으로 보인다 → 보조 글자색으로 낮춘다.
+                    if (preview != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        preview,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: RetroPalette.inkMuted,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
               ),
-            ],
-          ),
-          // 목록에서 중요한 것은 무슨 대결인지다. 기준 미리보기를 두 줄까지 보여 준다.
-          if (preview != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              preview,
-              style: textTheme.bodySmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
             ),
           ],
-        ],
+        ),
       ),
     );
   }

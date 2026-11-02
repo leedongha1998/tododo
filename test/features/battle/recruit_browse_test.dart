@@ -6,6 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/navigation/app_tab.dart';
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/pixel_icons.dart';
+import 'package:todododo/core/theme/retro_palette.dart';
+import 'package:todododo/core/widgets/pixel_icon.dart';
+import 'package:todododo/core/widgets/pixel_tag.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
@@ -15,6 +19,7 @@ import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/domain/open_recruit_feed.dart';
 import 'package:todododo/features/battle/domain/recruit_query.dart';
+import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 
 OpenRecruit _recruit(int index, {String type = 'speed', int minutes = 30}) =>
@@ -468,7 +473,8 @@ void main() {
     final repository = _BrowseRepository(hasPending: true);
     await _pumpFind(tester, repository);
 
-    await tester.tap(find.widgetWithText(FloatingActionButton, AppStrings.battleCreate));
+    // FAB은 아이콘 전용이라 글자로 찾을 수 없다. 이름은 tooltip에만 남아 있다.
+    await tester.tap(find.byTooltip(AppStrings.battleCreate));
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.battleMyRecruitBlocked), findsWidgets);
@@ -478,4 +484,130 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
   });
+
+  // ── recruit-list-scan(2026-11-02): 목록을 한눈에 훑게 만드는 개편 ──
+
+  testWidgets('목록을 내리는 동안 만들기 버튼이 비키고 위로 올리면 돌아온다', (tester) async {
+    final repository = _BrowseRepository(
+      all: [for (var i = 0; i < 20; i++) _recruit(i)],
+    );
+    await _pumpFind(tester, repository);
+    expect(find.byTooltip(AppStrings.battleCreate), findsOneWidget);
+
+    // 손가락을 떼지 않고 방향만 바꿔 본다(떼면 멈춤 신호가 와서 어차피 돌아온다).
+    // 첫 걸음은 끌기로 인정받는 거리(touch slop)를 넘기는 데 쓰고, 그 뒤에 실제로 내린다.
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(ListView)),
+    );
+    await gesture.moveBy(const Offset(0, -40));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, -200));
+    // Scaffold는 FAB을 치울 때 제 수명 타이머(200ms)를 쓴다. 연출(크기·회전)은 꺼 뒀으므로
+    // 그 동안 모양이 변하지는 않고, 타이머가 끝난 다음 프레임에 트리에서 빠진다.
+    await tester.pump(); // 화면이 FAB을 null로 받는 프레임(= 타이머 시작)
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.pump();
+    expect(
+      find.byTooltip(AppStrings.battleCreate),
+      findsNothing,
+      reason: '내리는 동안에는 카드를 가리지 않는다',
+    );
+
+    await gesture.moveBy(const Offset(0, 80));
+    await tester.pump();
+    expect(
+      find.byTooltip(AppStrings.battleCreate),
+      findsOneWidget,
+      reason: '조금만 위로 올려도 즉시 되돌아온다',
+    );
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(find.byTooltip(AppStrings.battleCreate), findsOneWidget);
+  });
+
+  testWidgets('모집 카드 왼쪽 색 띠가 유형 색으로 카드 높이를 채운다', (tester) async {
+    final repository = _BrowseRepository(
+      all: [_recruit(0, type: 'speed'), _recruit(1, type: 'quality')],
+    );
+    await _pumpFind(tester, repository);
+
+    // 띠는 보조 신호다 — 같은 뜻을 유형 배지의 아이콘·글자가 그대로 말한다.
+    expect(find.byType(BattleTypeBadge), findsNWidgets(2));
+
+    for (final (type, color) in [
+      ('speed', RetroPalette.amber),
+      ('quality', RetroPalette.mint),
+    ]) {
+      final stripe = find.byWidgetPredicate(
+        (widget) =>
+            widget is SizedBox &&
+            widget.width == 8 &&
+            widget.child is ColoredBox &&
+            (widget.child! as ColoredBox).color == color,
+      );
+      expect(stripe, findsOneWidget, reason: type);
+      // 카드 높이를 그대로 채우지 않으면(기본 정렬이면) 높이가 0이 된다.
+      final card = find.ancestor(
+        of: stripe,
+        matching: find.byType(IntrinsicHeight),
+      );
+      expect(tester.getSize(stripe).height, tester.getSize(card).height, reason: type);
+      expect(tester.getSize(stripe).width, 8, reason: type);
+    }
+  });
+
+  testWidgets('기간 칩은 중립 태그 모양에 시계 아이콘을 달고 있다', (tester) async {
+    await _pumpFind(tester, _BrowseRepository(all: [_recruit(0, minutes: 30)]));
+
+    final chip = find.byWidgetPredicate(
+      (widget) => widget is PixelTag && widget.label == battleDurationLabel(30),
+    );
+    expect(chip, findsOneWidget);
+    // 기간은 상태가 아니다. 무승부 칩 모양을 끌어다 쓰지 않는다(모양은 같아도 뜻이 다르다).
+    expect(tester.widget<PixelTag>(chip).style, neutralPixelTagStyle);
+    expect(
+      find.descendant(
+        of: chip,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is PixelIcon && widget.icon == PixelIcons.clock,
+        ),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('제목이 길어도 두 줄까지만 쓰고 카드가 넘치지 않는다', (tester) async {
+    final long = '아침에 일어나서 이불 개고 물 한 잔 마시고 스트레칭까지 끝낸 뒤 사진 찍기';
+    final repository = _BrowseRepository(
+      all: [
+        OpenRecruit(
+          battle: Battle(
+            id: 'long',
+            type: 'quality',
+            status: 'pending',
+            title: long,
+            creatorId: 'creator',
+            createdAt: DateTime(2026, 10, 28),
+            durationMinutes: 4320,
+            minCriteria: const ['정리된 이불과 빈 물컵이 한 장에 보이게 찍는다'],
+          ),
+          creator: const PlayerCard(userId: 'creator', displayName: '도윤'),
+        ),
+      ],
+    );
+    await _pumpFind(tester, repository);
+
+    final title = tester.widget<Text>(find.text(long));
+    expect(title.maxLines, 2);
+    expect(title.overflow, TextOverflow.ellipsis);
+    // Row/Column은 넘치면 예외를 낸다(테스트 글꼴은 글자마다 정사각형이라 실기기보다 넓다).
+    expect(tester.takeException(), isNull);
+  });
+
+  // 칩 한 줄이 좁은 화면·큰 글자에서 넘치는지는 **테스트로 보지 않는다.**
+  // 색 띠(8dp)로 본문이 좁아지고 기간 칩에 아이콘이 붙어 한 줄을 다시 재 봤는데,
+  // 360dp·배율 3.0에서도 두 칩이 x=325에서 끝나(화면 360) 넘치지 않는다 —
+  // 즉 "넘치지 않는다"는 단정은 어떤 배율에서도 통과해 아무것도 보장하지 못한다
+  // (.claude/agent-memory/developer/flutter_widget_test_gotchas.md 6번). 육안 확인으로 넘긴다.
 }

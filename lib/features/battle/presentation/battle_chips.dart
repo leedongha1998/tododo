@@ -139,8 +139,19 @@ PixelTagStyle resultTagStyle(BattleResult result) {
   };
 }
 
+/// 유형을 뜻하는 강조색(속도전 앰버 / 품질전 민트). 배지의 색 칸과 모집 카드 왼쪽 색 띠가
+/// **같은 규칙**을 써야 하므로 매핑은 여기 한 곳에만 둔다.
+Color battleTypeAccent(String type) {
+  return type == 'speed' ? RetroPalette.amber : RetroPalette.mint;
+}
+
 /// 유형 배지. 왼쪽 색 칸(속도전 앰버 / 품질전 민트) + 픽셀 아이콘(번개 / 인장) + 글자.
 /// 색을 구분하지 못해도 아이콘과 글자로 구분된다.
+///
+/// 테두리가 없다(recruit-list-scan.md S3, 2026-11-02 오너 승인). 카드 안에 같은 2dp ink 사각형이
+/// 셋(카드·배지·기간 칩) 있어 카드 경계선이 경계로 읽히지 않았다. 유형은 위계 3위이고 테두리를
+/// 벗어도 색 칸·아이콘·글자로 식별되므로 이 배지의 테두리만 없앴다. **전 화면 공용**이다 —
+/// 화면별 변형(flat 플래그 등)은 만들지 않는다(이 파일 머리말의 존재 이유).
 class BattleTypeBadge extends StatelessWidget {
   const BattleTypeBadge({super.key, required this.type});
 
@@ -152,14 +163,18 @@ class BattleTypeBadge extends StatelessWidget {
 
     return Container(
       constraints: const BoxConstraints(minHeight: 24),
-      decoration: const ShapeDecoration(color: RetroPalette.surface, shape: PixelBorder()),
+      // 면색은 남긴다(surface가 아닌 면 위에 놓여도 칩 모양을 잃지 않는다).
+      decoration: const ShapeDecoration(
+        color: RetroPalette.surface,
+        shape: PixelBorder(side: BorderSide.none),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 20,
             height: 20,
-            color: isSpeed ? RetroPalette.amber : RetroPalette.mint,
+            color: battleTypeAccent(type),
             alignment: Alignment.center,
             child: PixelIcon(
               isSpeed ? PixelIcons.speed : PixelIcons.quality,

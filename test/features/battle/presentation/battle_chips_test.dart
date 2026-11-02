@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/pixel_border.dart';
+import 'package:todododo/core/theme/pixel_icons.dart';
 import 'package:todododo/core/theme/retro_palette.dart';
+import 'package:todododo/core/widgets/pixel_icon.dart';
 import 'package:todododo/core/widgets/pixel_tag.dart';
 import 'package:todododo/features/battle/domain/battle_outcome.dart';
 import 'package:todododo/features/battle/presentation/battle_chips.dart';
@@ -152,6 +155,41 @@ void main() {
       expect(voidedResultTagStyle.dashed, isTrue);
       expect(voidedResultTagStyle.borderColor, RetroPalette.inkMuted);
       expect(voidedResultTagStyle.textColor, RetroPalette.inkMuted);
+    });
+  });
+
+  group('BattleTypeBadge', () {
+    test('유형 강조색은 한 곳에서만 정한다(배지 색 칸과 모집 카드 색 띠가 같이 쓴다)', () {
+      expect(battleTypeAccent('speed'), RetroPalette.amber);
+      expect(battleTypeAccent('quality'), RetroPalette.mint);
+    });
+
+    testWidgets('배지는 테두리 없이 색 칸·아이콘·글자로만 구분된다', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: Center(child: BattleTypeBadge(type: 'speed'))),
+        ),
+      );
+
+      // 카드 안 2dp ink 사각형을 셋에서 둘로 줄인 변경이다(recruit-list-scan.md S3).
+      // 테두리를 얇게(1dp) 하지 않고 없앤다 — 2dp 격자와 계단 한 칸 규칙이 그대로 남는다.
+      final box = tester.widget<Container>(
+        find.descendant(
+          of: find.byType(BattleTypeBadge),
+          matching: find.byType(Container).first,
+        ),
+      );
+      final shape = (box.decoration! as ShapeDecoration).shape as PixelBorder;
+      expect(shape.side.style, BorderStyle.none);
+
+      // 색을 구분하지 못해도 읽을 수 있어야 하므로 글자와 아이콘은 그대로다.
+      expect(find.text(AppStrings.battleTypeSpeed), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is PixelIcon && widget.icon == PixelIcons.speed,
+        ),
+        findsOneWidget,
+      );
     });
   });
 }

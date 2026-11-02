@@ -97,3 +97,96 @@ CLAUDE.md 도메인 규칙 문단 갱신은 이번 범위가 아니므로 **고�
   `battle_providers.dart` 등을 stash 후 확인). 기존 파일을 통째로 재포맷하면 M1과 무관한 거대한 diff가
   생기므로 **재포맷하지 않았다.** 새로 만든 파일(`remaining_time.dart`, 두 테스트 파일)과 새로 쓴
   코드 줄만 80칸 기준을 지켜 포맷을 맞췄고, 판정 기준은 `dart analyze`(이슈 0)로 삼았다.
+
+---
+
+# mobile-ux 2차 구현 계획 — recruit-list-scan (P1·P2·S1·S2·S3·S4-1·S4-2)
+
+작성: 2026-11-02, developer. 입력은 `docs/specs/mobile-ux/recruit-list-scan.md` 전체이고,
+특히 그 문서 끝의 **"## 오너 결정 (2026-11-02)"과 "### 이번 범위 (전부)"**가 유일한 결정 근거다.
+위의 1차(M1) 계획은 이미 끝난 작업이므로 건드리지 않는다.
+
+## 범위 (그대로 옮김)
+
+- **P1** FAB 아이콘 전용(56x56 + tooltip) + 스크롤 내릴 때 숨김
+- **P2** 조작 영역↔목록 경계선 2dp → 4dp, 조작 영역 면 `sunken`
+- **S1** 모집 카드 사이 간격 8 → 16dp
+- **S2** 카드 왼쪽 유형 색 띠 8dp(속도전 `amber` / 품질전 `mint`)
+- **S3** 카드 안 2dp ink 상자 3 → 2 (유형 배지 테두리 제거 = **전 화면 공용**, 기간 칩에 `clock` leading,
+  `battleStatusTagStyle('draw')` → `neutralPixelTagStyle`)
+- **S4-1** 제목 `maxLines: 2` + 말줄임 / **S4-2** 기준 미리보기 `inkMuted`
+
+## 하지 않는 것
+
+- **M14/S5**(상단 조작 영역 축소·하단 시트) — 배포 후. `TODO_BACKLOG.md`에 한 줄만.
+- **S4-3**(미리보기 1줄) — 2줄 유지가 오너 결정 1.
+- 새 색·새 패키지·새 에셋, 글꼴 크기·행간·픽셀 경계 변경, 서버(마이그레이션·RPC·RLS·Edge Function),
+  팔레트 테스트 수정, 범위 밖 화면의 "겸사겸사" 수정, 커밋(`git add`/`commit`/`push`).
+
+## 선행 확인 — 문서 간 어긋남 (구현을 막는 충돌은 아니다)
+
+`docs/specs/retro-theme/design.md:279`는 `BattleTypeBadge`를 **"surface 면 + 2dp ink 테두리"**로 정했다.
+S3-1은 그 테두리를 없앤다. 즉 **retro-theme design.md와 recruit-list-scan.md가 어긋난다.**
+다만 이는 CLAUDE.md 도메인 규칙이나 dev-standards와의 충돌이 아니고, **더 나중에 오너가 직접 승인한 결정**
+(recruit-list-scan.md 오너 결정 2: "전 화면에 적용한다. 화면별 변형은 만들지 않는다")이 앞선 설계 문서의
+한 줄을 덮는 경우다. 그래서 멈추지 않고 진행하되, retro-theme/design.md는 이번 범위가 아니므로
+**고치지 않고 보고에만 적는다**(1차 계획에서 CLAUDE.md 판정 조항을 다룬 것과 같은 방식).
+
+같은 성격의 작은 어긋남 둘:
+- `retro-theme/design.md:344`는 모집 카드의 기준 미리보기를 "bodySmall inkMuted, **한 줄** 말줄임"으로 정했다.
+  줄 수는 뒤에 나온 `recruit-browse/design.md:173`(2줄)과 오너 결정 1이 2줄로 확정했고, 색만 이 문서가 되돌린다.
+- `retro-theme/design.md:158`의 "목록 항목 사이 8"은 전역 기본값이다. S1은 **이 카드 한 곳**만 16으로 올린다
+  (recruit-list-scan.md가 명시). 내 대결 카드·전적 카드는 손대지 않는다.
+
+## 작업 순서
+
+1. **plan.md 작성**(이 절).
+2. `lib/features/battle/presentation/battle_chips.dart`
+   - `Color battleTypeAccent(String type)` 공개 함수 추가 — 앰버/민트 매핑을 **한 곳**에만 둔다
+     (배지와 색 띠가 같이 쓴다. recruit-list-scan.md S2가 "두 번 적지 말 것"으로 지정).
+   - `BattleTypeBadge`의 `PixelBorder()` → `PixelBorder(side: BorderSide.none)`. 면색(`surface`)은 유지한다
+     — 배지가 `surface`가 아닌 면 위에 놓이는 화면이 생겨도 칩 모양을 잃지 않는다.
+3. `lib/features/battle/presentation/battle_recruits_screen.dart`
+   - P1-a: `FloatingActionButton.extended` → `FloatingActionButton`(아이콘 전용 + `tooltip: AppStrings.battleCreate`).
+   - P1-b: 목록을 `NotificationListener<ScrollNotification>`으로 감싸고 `UserScrollNotification.direction`이
+     `reverse`면 FAB을 `null`로, `forward`/`idle`이면 되돌린다. **애니메이션 없음**(design.md 1.4 움직임 규칙).
+     `ScrollController` 대신 알림을 쓰는 이유는 순서 변경 기록에 적는다.
+   - P2: 경계선 `height: 2` → `4`, `_buildControls`의 `Padding`을 `ColoredBox(color: RetroPalette.sunken)`로 감싼다.
+   - S1: 카드 바깥 `EdgeInsets.only(bottom: 8)` → `16`.
+   - S2: `_OpenRecruitCard`를 `PixelFrame.raised(padding: EdgeInsets.zero)` + `IntrinsicHeight(Row(stretch))`로 바꾸고
+     왼쪽에 폭 8dp `ColoredBox(battleTypeAccent(type))`, 오른쪽은 `Expanded(Padding(all: 12, 기존 Column))`.
+     색 띠는 **보조 신호**라는 점(아이콘+글자 배지가 같은 뜻을 말한다)을 주석에 적는다.
+   - S3-2·3: 기간 칩에 `leading: PixelIcon(PixelIcons.clock, size: 12)`, `style: neutralPixelTagStyle`.
+   - S4-1: 제목 `maxLines: 2, overflow: ellipsis`. S4-2: 미리보기 `color: RetroPalette.inkMuted`.
+4. `TODO_BACKLOG.md` — M14 한 줄 추가.
+5. 테스트(지우지 않고 고치거나 더한다)
+   - `test/widget_test.dart:390`, `test/features/battle/recruit_browse_test.dart:471` —
+     `find.widgetWithText(FloatingActionButton, …)`이 라벨을 잃어 깨진다 → `find.byTooltip(...)`/`byType`으로 **고친다**.
+   - `test/features/battle/recruit_browse_test.dart`에 추가: ① 아이콘 전용 FAB + tooltip,
+     ② 목록을 내리면 FAB이 사라지고 위로 올리면 돌아온다, ③ 속도전/품질전 카드에 유형 색 띠가 있다,
+     ④ 기간 칩이 `neutralPixelTagStyle`이고 시계 아이콘을 단다.
+   - **치수(간격 16dp·FAB 폭)를 재는 테스트는 쓰지 않는다** — 메모 `flutter-widget-test-gotchas` 6번
+     (배율만 올려도 통과하는 공허한 레이아웃 테스트). 대신 "무엇이 보이는가/사라지는가"를 단정한다.
+     긴 제목·배율 1.3에서 카드가 넘치지 않는지는 `takeException()`으로 본다(Row/Column은 넘치면 예외).
+6. `flutter analyze`(이슈 0) + `flutter test`(기준선 384개) 확인.
+
+## 순서 변경 기록
+
+- 2026-11-02: P1-b를 recruit-list-scan.md가 적은 `ScrollController` + `position.userScrollDirection` 대신
+  `NotificationListener<UserScrollNotification>`으로 구현했다. 이유: `ScrollController`의 리스너는
+  **오프셋이 변할 때만** 불리므로 "스크롤이 멈췄다(`idle`)"를 놓친다 — 오너 결정 3의 "멈추거나 위로 올리면
+  즉시 되돌린다"를 지킬 수 없다. `UserScrollNotification`은 방향이 바뀌는 순간(`idle` 포함) 그대로 온다.
+  읽는 신호(`ScrollDirection`)와 동작은 문서와 같고, `RefreshIndicator`가 보내는 알림은 `false`를 돌려
+  그대로 통과시킨다(당겨서 새로고침 동작 유지).
+- 2026-11-02: S2의 `Row(crossAxisAlignment: stretch)`를 **`IntrinsicHeight`로 감쌌다.**
+  recruit-list-scan.md는 "stretch를 쓰면 `IntrinsicHeight`가 필요 없다"고 적었지만, 이 카드는
+  `ListView` 항목이라 **세로 제약이 무한**이고 `RenderFlex`는 stretch에서 비-flex 자식에게
+  `BoxConstraints.tightFor(height: constraints.maxHeight)`를 준다(`flex.dart` `_constraintsForNonFlexChild`).
+  즉 띠가 무한 높이를 받아 레이아웃이 터진다. `IntrinsicHeight`가 높이를 먼저 확정하면
+  flex 자식 폭 계산도 정상(`_getIntrinsicSize`의 INTRINSIC CROSS SIZE가 실제 남는 폭으로 재측정)이다.
+- 2026-11-02: 5단계의 "배율 1.3 칩 한 줄 넘침 테스트"를 **썼다가 버렸다.** 배율만 3.0으로 올린
+  복사본도 통과해(두 칩이 x≈325에서 끝난다, 화면 360dp) 아무것도 보장하지 못하는 테스트였다.
+  대신 그 사실을 테스트 파일 끝 주석으로 남겼다. 나머지 새 테스트 둘(색 띠·FAB 숨김)은
+  기대값을 일부러 틀리게 바꿨을 때 실제로 깨지는지 확인했다(stretch→center, hide 상수화).
+- 2026-11-02: P1-b에 `floatingActionButtonAnimator: noAnimation`이 추가로 필요했다(계획에 없던 줄).
+  Scaffold 기본값이 FAB을 돌리며 키우는 200ms 연출을 넣어 design.md 1.4 "움직임"과 어긋나기 때문이다.

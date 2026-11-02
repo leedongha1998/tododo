@@ -44,6 +44,11 @@ metadata:
    (bodyLarge 1.50 / bodyMedium 1.43 / bodySmall 1.33)가 들어온다** — 행간을 보장해야 하면
    테마에서 직접 적어야 한다.
 
+8. **한 `testWidgets` 안에서 `pumpWidget`을 두 번 하면 타이머가 남는다.** 픽스처만 바꿔 같은 화면을
+   다시 세우면 첫 트리가 띄운 타이머(스낵바·provider 재시도 등)가 정리되지 않아
+   `A Timer is still pending even after the widget tree was disposed`로 실패한다. 픽스처가 다른 두 상황은
+   **테스트를 둘로 쪼갠다**(2026-10-30 mobile-ux M1의 내 대결 카드 테스트).
+
 **Why:** 1~3번은 mutual-judge 판정 화면(4단계), 4~5번은 recruit-browse의 찾기 탭(검색·필터·무한 스크롤),
 6~7번은 retro-theme 가독성 개정(2026-10-29, 글꼴 표를 바꾸고 배율 1.3 넘침 테스트를 쓸 때)
 작업에서 실제로 테스트를 깨뜨렸다. 1·3번은 설계를 되돌려야 할 수도 있는 판단(활성화 조건을 무엇에

@@ -166,7 +166,8 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
       if (!mounted) return;
       // 올린 모집이 어느 화면에도 보이지 않는 구간을 만들지 않는다. 결과가 있는 자리로 보낸다.
       // 순서가 중요하다 — pop 뒤에 탭을 바꿔야 push된 화면이 남지 않는다.
-      Navigator.of(context).pop();
+      // true는 "모집을 올렸다"는 신호다. 띄운 쪽(찾기 탭)이 이걸 보고 알림 권한을 묻는다.
+      Navigator.of(context).pop(true);
       ref.read(selectedTabProvider.notifier).select(AppTab.myBattles);
       _showSnackBar(AppStrings.battleRecruitSubmitted);
     } catch (error) {

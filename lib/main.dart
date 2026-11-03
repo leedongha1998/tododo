@@ -1,4 +1,6 @@
-import 'package:flutter/foundation.dart' show LicenseEntryWithLineBreaks, LicenseRegistry;
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart'
+    show LicenseEntryWithLineBreaks, LicenseRegistry, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +28,14 @@ Future<void> main() async {
   });
   if (SupabaseEnv.isConfigured) {
     await initSupabase();
+    // 알림은 어떤 기능의 관문도 아니다. Firebase 초기화가 실패하면(설정 파일 누락 등) 로그만
+    // 남기고 앱은 그대로 뜬다 — 토큰 등록도 알림 수신도 조용히 없는 상태가 된다.
+    // 옵션을 코드로 넘기지 않는다: android/app/google-services.json을 네이티브 플러그인이 읽는다.
+    try {
+      await Firebase.initializeApp();
+    } catch (error) {
+      debugPrint('Firebase.initializeApp failed: $error');
+    }
   }
   runApp(const ProviderScope(child: TododuduApp()));
 }

@@ -5,6 +5,7 @@ import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/app_tab.dart';
+import '../../../core/push/push_providers.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/pixel_icons.dart';
 import '../../../core/theme/retro_palette.dart';
@@ -111,9 +112,11 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
     }
     if (!await ensureAiConsent(context, ref)) return;
     if (!context.mounted) return;
-    await Navigator.of(
+    final created = await Navigator.of(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const CreateBattleScreen()));
+    ).push<bool>(MaterialPageRoute(builder: (_) => const CreateBattleScreen()));
+    // 모집을 올린 것도 "첫 대결이 생겼다"에 든다 — 누군가 참가하면 알릴 일이 생긴다.
+    if (created == true) await _askNotificationPermission();
   }
 
   /// 카드 → 모집 상세 시트. 참가는 시트가 하고, 성공하면 여기서 뒷정리를 이어 간다.
@@ -146,6 +149,18 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
     if (!context.mounted) return;
     _showSnackBar(AppStrings.battleJoined);
     _goToMyBattles();
+    await _askNotificationPermission();
+  }
+
+  /// 알림 권한을 묻는 두 자리(첫 참가·첫 모집 등록)가 공유한다. 아직 묻지 않았을 때만 뜬다.
+  /// 연출·토스트·탭 이동을 모두 마친 **뒤**에 불러 시스템 다이얼로그가 그것들을 가리지 않게 한다.
+  /// 묻지 못해도 알리지 않는다 — 알림은 관문이 아니다.
+  Future<void> _askNotificationPermission() async {
+    try {
+      await ref.read(pushServiceProvider).ensureNotificationPermissionAfterFirstBattle();
+    } catch (error) {
+      debugPrint('notification permission request skipped: $error');
+    }
   }
 
   // 내 표시 이름을 못 읽어도 인트로는 "나"로 띄운다. 장식이라 실패를 알리지 않는다.

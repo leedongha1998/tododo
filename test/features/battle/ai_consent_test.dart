@@ -31,6 +31,8 @@ import 'package:todododo/features/profile/data/player_stats.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 import 'package:todododo/features/profile/presentation/profile_screen.dart';
 
+import '../../core/push/push_fakes.dart';
+
 class _FakeAiConsentRepository implements AiConsentRepository {
   _FakeAiConsentRepository({
     this.consent,
@@ -222,6 +224,7 @@ Future<void> _pumpRecruits(
         vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
         myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '민지')),
         myBattlesProvider.overrideWith((ref) async => const []),
+        ...pushOverrides(),
       ],
       child: const MaterialApp(home: BattleRecruitsScreen()),
     ),
@@ -240,6 +243,7 @@ Future<void> _pumpProfile(
         myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
         myPlayerStatsProvider.overrideWith((ref) async => PlayerStats.empty),
         battleRecordsProvider.overrideWith((ref) async => <BattleRecord>[]),
+        ...pushOverrides(),
       ],
       child: const MaterialApp(home: ProfileScreen()),
     ),

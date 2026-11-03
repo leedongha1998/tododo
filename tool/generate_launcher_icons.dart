@@ -13,6 +13,7 @@
 //   android/app/src/main/res/mipmap-*/ic_launcher.png             (API 25 이하용 정사각 아이콘)
 //   android/app/src/main/res/mipmap-*/ic_launcher_foreground.png  (API 26+ 적응형 아이콘 전경)
 //   android/app/src/main/res/mipmap-*/ic_launcher_monochrome.png  (안드로이드 13+ 테마 아이콘, 그림자 없음)
+//   android/app/src/main/res/drawable-*/ic_notification.png       (알림 작은 아이콘, 흰 실루엣)
 //   android/app/src/main/res/values/colors.xml                    (적응형 배경색, 시작 창 배경색)
 //   store/icon-512.png                                            (Play 스토어 등록용)
 
@@ -26,12 +27,17 @@ import 'package:todododo/core/theme/app_mark.dart';
 import 'package:todododo/core/theme/retro_palette.dart';
 
 /// 밀도별 셀 크기(px). 적응형(108dp 캔버스 중 가운데 48dp)과 정사각(48dp 캔버스).
-const _densities = <String, ({double scale, int foregroundCell, int launcherCell})>{
-  'mdpi': (scale: 1, foregroundCell: 3, launcherCell: 1),
-  'hdpi': (scale: 1.5, foregroundCell: 4, launcherCell: 2),
-  'xhdpi': (scale: 2, foregroundCell: 6, launcherCell: 2),
-  'xxhdpi': (scale: 3, foregroundCell: 9, launcherCell: 3),
-  'xxxhdpi': (scale: 4, foregroundCell: 12, launcherCell: 4),
+///
+/// `notificationCell`은 알림 작은 아이콘(표준 24dp)용이다. 16셀 그림을 정수 픽셀로 세우려고
+/// 캔버스를 `16 * cell`로 두므로 밀도마다 24dp에 정확히 맞지는 않는다(xhdpi 48px·xxxhdpi 96px만
+/// 정확히 일치한다). 어느 밀도에서나 그림이 캔버스를 같은 비율로 채우는 쪽을 택했다 —
+/// 비율을 맞추려고 셀을 소수로 두면 도트가 번진다.
+const _densities = <String, ({double scale, int foregroundCell, int launcherCell, int notificationCell})>{
+  'mdpi': (scale: 1, foregroundCell: 3, launcherCell: 1, notificationCell: 1),
+  'hdpi': (scale: 1.5, foregroundCell: 4, launcherCell: 2, notificationCell: 2),
+  'xhdpi': (scale: 2, foregroundCell: 6, launcherCell: 2, notificationCell: 3),
+  'xxhdpi': (scale: 3, foregroundCell: 9, launcherCell: 3, notificationCell: 4),
+  'xxxhdpi': (scale: 4, foregroundCell: 12, launcherCell: 4, notificationCell: 6),
 };
 
 /// 스토어 512px 아이콘의 셀 크기. 그림 320px(62.5%).
@@ -64,6 +70,20 @@ void main() {
           cell: d.launcherCell,
           rows: AppMark.rows,
           background: _Background.stepped,
+        ),
+      );
+
+      // 알림 작은 아이콘: 시스템이 알파만 쓰고 색을 제 테마로 칠한다. 그림자('k')를 빼지 않으면
+      // 칸과 체크가 한 덩어리로 뭉개지므로 테마 아이콘과 같은 비트맵을 쓰고 전부 흰색으로 그린다.
+      final notificationDir = Directory('android/app/src/main/res/drawable-$name');
+      notificationDir.createSync(recursive: true);
+      await _writePng(
+        File('${notificationDir.path}/ic_notification.png'),
+        await _render(
+          AppMark.size * d.notificationCell,
+          cell: d.notificationCell,
+          rows: AppMark.monochromeRows,
+          overrideColor: const Color(0xFFFFFFFF),
         ),
       );
     }
@@ -101,6 +121,7 @@ Future<Uint8List> _render(
   required int cell,
   required List<String> rows,
   _Background background = _Background.none,
+  Color? overrideColor,
 }) async {
   final side = size.toDouble();
   final recorder = ui.PictureRecorder();
@@ -127,7 +148,7 @@ Future<Uint8List> _render(
     for (var x = 0; x < rows[y].length; x++) {
       final color = AppMark.colorOf(rows[y][x]);
       if (color == null) continue;
-      paint.color = color;
+      paint.color = overrideColor ?? color;
       canvas.drawRect(
         Rect.fromLTWH(origin + x * cell, origin + y * cell, cell.toDouble(), cell.toDouble()),
         paint,

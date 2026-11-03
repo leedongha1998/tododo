@@ -5,6 +5,8 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // google-services는 Flutter 플러그인 뒤에 둔다(앞에 두면 적용 순서가 어긋나 설정을 못 읽는다).
+    id("com.google.gms.google-services")
 }
 
 // 릴리스 서명 키. 키스토어와 비밀번호는 저장소 밖에 두고 android/key.properties로만 참조한다

@@ -1,13 +1,16 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/push/push_service.dart';
+
 /// AndroidManifest.xml의 login-callback intent-filter와 반드시 일치해야 한다.
 const _googleRedirectUrl = 'com.todododo.todododo://login-callback/';
 
 class AuthRepository {
-  AuthRepository(this._client);
+  AuthRepository(this._client, this._push);
 
   final SupabaseClient _client;
+  final PushService _push;
 
   Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
 
@@ -23,8 +26,12 @@ class AuthRepository {
     );
   }
 
-  Future<void> signOut() {
-    return _client.auth.signOut();
+  /// 로그아웃. 이 기기의 알림 토큰을 **먼저** 지운다 — `unregister_push_token`은 내 세션으로만
+  /// 통하므로 로그아웃 뒤에는 지울 수 없고, 남겨 두면 다음 사용자에게 내 알림이 간다.
+  /// 토큰 정리 실패는 로그아웃을 막지 않는다(PushService가 로그만 남긴다).
+  Future<void> signOut() async {
+    await _push.forgetCurrentToken();
+    await _client.auth.signOut();
   }
 
   /// 계정 삭제(탈퇴). 되돌릴 수 없다.

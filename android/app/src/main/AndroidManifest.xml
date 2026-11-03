@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- 알림 권한(안드로이드 13+). 거부돼도 앱의 모든 기능은 그대로 동작한다 — 알림은 관문이 아니다. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="투두두두"
         android:name="${applicationName}"
@@ -33,6 +35,11 @@
                 <data android:scheme="com.todododo.todododo" android:host="login-callback"/>
             </intent-filter>
         </activity>
+        <!-- 알림 작은 아이콘. 지정하지 않으면 API 21+에서 런처 아이콘이 흰 사각형으로 뭉개진다.
+             알파만 쓰이므로 흰 실루엣이고, tool/generate_launcher_icons.dart가 생성한다. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

@@ -27,6 +27,8 @@ import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 
+import '../../core/push/push_fakes.dart';
+
 class _FakeBattleRepository implements BattleRepository {
   _FakeBattleRepository({this.joinError});
 
@@ -213,6 +215,7 @@ Future<ProviderContainer> _pumpSheet(
       battleRepositoryProvider.overrideWithValue(repository),
       authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
       vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),
+      ...pushOverrides(),
       myAiConsentProvider.overrideWith(
         (ref) async => AiConsent(version: '2026-09-14', consentedAt: DateTime(2026, 9, 16)),
       ),

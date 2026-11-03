@@ -41,6 +41,8 @@ import 'package:todododo/features/todo/domain/todo_providers.dart';
 import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import 'package:todododo/main.dart';
 
+import 'core/push/push_fakes.dart';
+
 /// 프로필이 보여 주는 점수·전적은 서버 `player_stats` 값이다. 화면이 목록을 세지 않는지
 /// 보려고 기록 목록과 일부러 다른 숫자를 쓴다.
 const _testStats = PlayerStats(score: 3, wins: 1, losses: 1, draws: 0);
@@ -347,6 +349,7 @@ void main() {
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
           myPlayerStatsProvider.overrideWith((ref) async => _testStats),
           battleRecordsProvider.overrideWith((ref) async => []),
+        ...pushOverrides(),
         ],
         child: const MaterialApp(home: MainShell()),
       ),
@@ -601,6 +604,7 @@ void main() {
               ),
             ],
           ),
+        ...pushOverrides(),
         ],
         child: const MaterialApp(home: ProfileScreen()),
       ),
@@ -647,6 +651,7 @@ void main() {
             ],
           ),
           battleDetailProvider('b1').overrideWith((ref) async => detail),
+        ...pushOverrides(),
         ],
         child: const MaterialApp(home: ProfileScreen()),
       ),
@@ -672,6 +677,7 @@ void main() {
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
           myPlayerStatsProvider.overrideWith((ref) async => _testStats),
           battleRecordsProvider.overrideWith((ref) async => <BattleRecord>[]),
+        ...pushOverrides(),
         ],
         child: const MaterialApp(home: ProfileScreen()),
       ),
@@ -832,6 +838,7 @@ void main() {
           ),
           myPlayerStatsProvider.overrideWith((ref) async => _testStats),
           battleRecordsProvider.overrideWith((ref) async => []),
+        ...pushOverrides(),
         ],
         child: MaterialApp(
           theme: AppTheme.light,

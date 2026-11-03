@@ -39,6 +39,11 @@ dependencies:
   image_picker: ^1.2.3
   # supabase_flutter가 이미 쓰는 전이 의존성을 직접 명시 — VS 인트로 "봤음" 기록(기기 로컬).
   shared_preferences: ^2.5.5
+  # 푸시 알림(FCM). firebase_core는 firebase_messaging의 전제라 대체 수단이 없고,
+  # firebase_messaging이 토큰 발급·갱신·수신과 알림 권한 요청까지 맡으므로
+  # permission_handler는 넣지 않는다(design.md "클라이언트 패키지").
+  firebase_core: ^5.1.0
+  firebase_messaging: ^17.0.1
 
 dev_dependencies:
   flutter_test:

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +9,8 @@ import '../../features/battle/presentation/my_battles_screen.dart';
 import '../../features/profile/domain/profile_providers.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/todo/presentation/todo_list_screen.dart';
+import '../push/push_providers.dart';
+import '../push/push_service.dart';
 import '../strings.dart';
 import '../theme/pixel_icons.dart';
 import '../theme/retro_palette.dart';
@@ -14,11 +18,45 @@ import '../widgets/pixel_icon.dart';
 import 'app_tab.dart';
 
 /// 로그인 후 앱의 뼈대. 탭 전환만 맡고, 각 탭은 자기 앱바와 FAB를 그대로 갖는다.
-class MainShell extends ConsumerWidget {
+///
+/// 이 화면은 세션이 있을 때만 떠 있으므로(AuthGate) 푸시 토큰 등록을 시작·중지하는 자리도 여기다.
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends ConsumerState<MainShell> {
+  PushService? _push;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_startPush());
+  }
+
+  /// 권한이 이미 있으면 토큰을 등록하고 갱신을 따라간다. 권한은 여기서 묻지 않는다.
+  /// provider를 만드는 것부터 실패할 수 있어(Firebase 미초기화 등) 전체를 감싼다 — 알림 배선이
+  /// 어떤 이유로 안 되더라도 화면은 그대로 떠야 한다.
+  Future<void> _startPush() async {
+    try {
+      final push = ref.read(pushServiceProvider);
+      _push = push;
+      await push.start();
+    } catch (error) {
+      debugPrint('pushService start failed: $error');
+    }
+  }
+
+  @override
+  void dispose() {
+    _push?.stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final tab = ref.watch(selectedTabProvider);
 
     // 상대가 증거를 내거나 판정해도 알림이 없다. 탭으로 돌아오는 순간에만 다시 읽어
@@ -39,6 +77,8 @@ class MainShell extends ConsumerWidget {
       if (next == AppTab.profile && previous != AppTab.profile) {
         ref.invalidate(battleRecordsProvider);
         ref.invalidate(myPlayerStatsProvider);
+        // 기기 설정에서 알림을 켜고 돌아왔을 수 있다. "꺼져 있어요" 안내가 남아 있지 않게 다시 읽는다.
+        ref.invalidate(notificationPermissionProvider);
       }
     });
 

@@ -26,6 +26,10 @@ import 'package:todododo/features/battle/presentation/battle_recruits_screen.dar
 import 'package:todododo/features/battle/presentation/vs_intro.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 
+import 'package:todododo/core/push/push_messaging.dart';
+
+import '../../core/push/push_fakes.dart';
+
 /// 참가만 성공하거나 실패하게 두고 나머지는 비워 둔 저장소.
 class _JoinOnlyBattleRepository implements BattleRepository {
   _JoinOnlyBattleRepository({this.joinError});
@@ -167,6 +171,8 @@ Future<void> _pumpRecruits(
   WidgetTester tester, {
   required _JoinOnlyBattleRepository repository,
   required VsIntroSeenStore store,
+  FakePushMessaging? messaging,
+  FakePushRepository? pushRepository,
 }) async {
   final battle = Battle(
     id: 'b1',
@@ -197,6 +203,7 @@ Future<void> _pumpRecruits(
         vsIntroSeenStoreProvider.overrideWithValue(store),
         myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '민지')),
         myBattlesProvider.overrideWith((ref) async => const []),
+        ...pushOverrides(messaging: messaging, repository: pushRepository),
       ],
       child: const MaterialApp(home: BattleRecruitsScreen()),
     ),
@@ -256,6 +263,52 @@ void main() {
     expect(find.text(AppStrings.battleErrorUnknown), findsOneWidget);
     expect(find.text(AppStrings.battleJoined), findsNothing);
     expect(store.seen, isEmpty);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+  });
+
+  // design 흐름 4: 첫 참가·첫 생성 직후에만, 아직 묻지 않았을 때만 권한을 묻는다.
+  testWidgets('참가 성공 뒤에 알림 권한을 묻고, 허용하면 이 기기의 토큰을 등록한다', (tester) async {
+    final repository = _JoinOnlyBattleRepository();
+    final messaging = FakePushMessaging(permission: NotificationPermission.notDetermined);
+    final pushRepository = FakePushRepository();
+    // 인트로는 이 검증에 끼어들지 않게 이미 봤다고 둔다(인트로 순서는 위 테스트가 본다).
+    await _pumpRecruits(
+      tester,
+      repository: repository,
+      store: _MemorySeenStore()..seen.add(VsIntroSeenStore.keyFor('me', 'b1')),
+      messaging: messaging,
+      pushRepository: pushRepository,
+    );
+
+    await _joinFromSheet(tester);
+    await tester.pumpAndSettle();
+
+    expect(repository.joinCount, 1);
+    // 참가 성공 안내가 먼저 뜬 뒤에 권한을 묻는다.
+    expect(find.text(AppStrings.battleJoined), findsOneWidget);
+    expect(messaging.requestCount, 1);
+    expect(pushRepository.registered, ['fcm-token-1']);
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('참가에 실패하면 알림 권한을 묻지 않는다', (tester) async {
+    final repository = _JoinOnlyBattleRepository(joinError: Exception('join failed'));
+    final messaging = FakePushMessaging(permission: NotificationPermission.notDetermined);
+    await _pumpRecruits(
+      tester,
+      repository: repository,
+      store: _MemorySeenStore(),
+      messaging: messaging,
+    );
+
+    await _joinFromSheet(tester);
+    await tester.pumpAndSettle();
+
+    expect(messaging.requestCount, 0);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();

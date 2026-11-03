@@ -16,6 +16,7 @@ import '../data/player_stats.dart';
 import '../domain/battle_record.dart';
 import '../domain/profile_providers.dart';
 import 'ai_consent_section.dart';
+import 'notification_section.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -74,6 +75,8 @@ class ProfileScreen extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 32),
+          // 알림이 꺼져 있을 때만 보인다. 켜져 있으면 자리를 차지하지 않는다.
+          const NotificationSection(),
           // 대결 참여의 전제 조건이라 계정 섹션 위에 둔다.
           const AiConsentSection(),
           const SizedBox(height: 16),

@@ -331,6 +331,12 @@ class AppStrings {
   // AI 판정 실패로 끝난 대결. 내 기록에만 보이고 승/패/무 집계에 들어가지 않는다.
   static const battleRecordVoided = '무효';
 
+  // 알림 안내. 꺼져 있을 때만 보인다 — 앱 안 on/off 스위치는 두지 않는다(design 결정 4).
+  // 알림 **본문** 문구는 여기 없다. 앱이 종료된 상태에서도 시스템이 그려야 하므로 서버가 만든다.
+  static const notificationSection = '알림';
+  static const notificationDisabled = '알림이 꺼져 있어요';
+  static const notificationDisabledGuide = '기기 설정 > 앱 > 투두두두 > 알림에서 켤 수 있어요.';
+
   static const accountSection = '계정';
   static const openSourceLicenses = '오픈소스 라이선스';
   static const accountDelete = '계정 삭제';

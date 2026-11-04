@@ -182,3 +182,37 @@
   - **`push_token_smoke`의 `a_outbox_kept`가 2에서 3으로 늘었다.** 그 스모크의 탈퇴 사용자 U의
     대결 상대가 A라서 3단계부터 N5 `cancelled` 한 행이 A에게 더 생긴다. 의도된 동작이다 —
     1단계 스모크가 3단계 동작을 모르고 쓰인 것이라 기대값을 올렸다.
+
+### 4단계 (구현 완료, 원격 적용·스모크 통과, 2026-11-04)
+- 적용 순서대로: `db push --dry-run`(1개) → `db push` → `migration list --linked` 29개 일치 →
+  스모크 6개 전부 `ok=t`(`notification_dispatch`·`notification_events`·`push_token`·
+  `settle_expired_battles`·`mutual_judge_flow`·`delete_account`). cron 작업 4개 전부 1분·active 확인.
+- `deno test supabase/functions/_shared/` **49개 통과**(기존 25 + 신규 24).
+  `flutter analyze` 이슈 0(Dart 변경 없음), `deno check`로 Edge 함수 타입 확인.
+- **적용해도 알림은 아직 나가지 않는다.** Vault 값이 없으면 `dispatch_notifications`가 0을
+  반환하고 아무것도 보내지 않으며, 원장은 그대로 쌓여 값이 들어온 순간부터 이어서 나간다.
+  남은 것은 오너 작업 네 가지(서비스 계정 키 → `FCM_SERVICE_ACCOUNT` → `NOTIFY_CRON_SECRET`·Vault
+  두 항목 → `functions deploy send-notifications`)와 그 뒤의 실발송 확인이다.
+- 설계와 달라진 점
+  - **자격 증명이 없으면 원장을 집어 오지 않는다.** design의 실행 흐름은 "시크릿 검사 →
+    claim_notifications"였는데, 그 순서면 FCM 자격 증명이 없을 때 집어 온 행이 `sending`으로
+    바뀌었다가 임대 만료로 `failed`가 되어 **영영 전달되지 않는다.** 값이 들어온 뒤 쌓여 있던
+    알림이 그대로 나가려면 claim 자체를 건너뛰어야 한다(200 + `skipped: true`로 답한다).
+  - **응답은 `{claimed, sent, failed}`다.** design이 적은 `dropped`는 `claim_notifications` 안에서
+    결정돼 Edge에 돌아오지 않으므로 셀 수가 없다.
+  - **문구 두 종을 새로 썼다.** design의 문구 표는 ai-judge 시절이라 N4(속도전 합격/불합격)만
+    있고 `judge_turn`이 없었고, N3도 품질전 문장 하나뿐이었다. 같은 말투로 더했다 —
+    판정 차례: "판정할 차례예요 / 「제목」 24시간 안에 판정하지 않으면 자동 승인돼요",
+    속도전 제출: "「제목」 이제 내 사진은 바꿀 수 없어요"(교체가 잠기는 것이 이 유형의 손해다).
+  - **`completed_loss`인데 점수 변화가 0이면 "감점이 줄었어요"를 붙이지 않는다.** 점수 하한 0에
+    걸린 경우라 그 말이 사실과 어긋난다.
+  - 문구 함수는 **아는 키만 읽는다.** 금지 항목을 걸러내는 목록을 두지 않고 구조로 막았다 —
+    payload에 `reason`·`object_path`·`display_name`이 섞여 들어와도 문구에 닿을 길이 없다(테스트로 고정).
+- 함정 메모
+  - **`service_role`의 EXECUTE는 `revoke ... from public, anon, authenticated`로 빠지지 않는다.**
+    Supabase가 기본으로 모든 함수에 준다 — cron 전용 선례(`settle_expired_battles`·
+    `dispatch_ai_judgments`·`close_expired_judging_windows`)도 전부 `service_role`에 execute가 있다.
+    스모크에서 "service_role에 없음"을 기대하면 틀린다. "선례와 같은 모양인가"로 본다.
+  - Deno 2.9/TS 6에서 `crypto.subtle.importKey('pkcs8', ...)`에 `Uint8Array`를 그대로 넘기면
+    `ArrayBufferLike` 때문에 타입 검사가 깨진다. `new Uint8Array(new ArrayBuffer(n))`로 만들고
+    반환 타입을 `Uint8Array<ArrayBuffer>`로 적는다.

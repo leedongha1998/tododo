@@ -419,3 +419,55 @@ cron `notify-tick`(1분) → `enqueue_deadline_reminders()`(N6) → `dispatch_no
 3. **알림 원장(`notification_outbox`)의 행은 지우지 않는다.**
    - 근거: 행을 지우면 dedup_key가 사라져 "한 사건은 한 번만"이 깨진다. 하루 1대결 제한 때문에 증가량도 작다(대결당 15행 미만).
    - 조건: payload에 대결 제목 스냅샷이 남으므로 **7단계에서 개인정보처리방침의 보유 기간과 맞는지 다시 본다.** 어긋나면 그때 정리 정책을 정한다(탈퇴 시 내 수신 행 삭제는 이미 설계에 들어 있다).
+
+---
+
+## mutual-judge 반영 (2026-11-03 오너 결정)
+
+근거는 `spec.md` 맨 끝 "mutual-judge 반영" 절이다. 이 설계는 2026-09-17의 ai-judge 구현을 읽고
+썼으므로 **사건 지점 표와 kind 목록이 현재 코드와 어긋나 있었다.** 3단계 착수 시점에 대조해
+아래로 고친다. 원칙 4가지, 발송 경로(원장→cron→Edge→FCM), 데이터 모델, 권한 규칙, 문구를 서버가
+만든다는 결정, N6의 문턱(6시간)과 cron 구성은 **그대로다.**
+
+### 바뀐 사건 지점 표 (위 "알림 사건과 발송 지점"을 대체한다)
+
+| # | 사건 | 받는 사람 | 원장에 넣는 지점 | 넣지 않는 조건 |
+|---|---|---|---|---|
+| N1 | 모집에 상대가 참가(매칭) | 생성자 | `join_battle` | - |
+| N2 | 종결과 결과 | 양쪽 | `finalize_battle` | 포기한 본인(`battles.forfeited_by`) |
+| N2' | 무효 | 양쪽 | `void_battle` | - |
+| N3 | 상대가 사진을 냈다(**두 유형 공통**) | 상대 | `accept_submission` | **그 제출로 판정 창이 열린 경우**(N4'가 담는다), 교체 제출(dedup로 자동) |
+| N4' | **판정할 차례다** | 상대가 제출한 쪽 | `open_judging_window` | 판정할 증거가 없는 쪽(상대 미제출) |
+| N5 | 상대 탈퇴로 취소 | 남은 사람 | `delete_account` | 상대가 없는 `pending` 모집 |
+| N6 | 마감 임박 | 해당 참가자 | cron `notify-tick`(6단계) | 위 "N6" 절 그대로 |
+
+`record_speed_verdict`는 삭제된 함수라 더 부르지 않는다. 판정 창을 여는 지점은
+`open_judging_window` **하나뿐**이고(`accept_submission`의 양쪽 제출, `settle_expired_battles`의
+마감), 그래서 N4'의 발송 지점도 한 곳이다 — 종결 세 경로가 `finalize_battle` 한 곳으로 모이는 것과
+같은 구조다.
+
+### 바뀐 kind·dedup_key·payload
+
+1단계가 만든 CHECK 제약의 kind 두 개를 바꾼다(`quality_submitted` → `submitted`,
+`speed_verdict` → `judge_turn`). **3단계 전에는 아무도 원장에 넣지 않으므로 기존 행이 없다.**
+
+| kind | dedup_key | payload 키 |
+|---|---|---|
+| `matched` | `matched:<battle_id>` | `title`, `battle_type`, `deadline_at` |
+| `finished` | `finished:<battle_id>` | `title`, `battle_type`, `outcome`, `score_delta` |
+| `voided` | `voided:<battle_id>` | `title`, `battle_type` |
+| `submitted` | `sub:<battle_id>` | `title`, `battle_type` |
+| `judge_turn` | `judge:<battle_id>` | `title`, `battle_type`, `judge_deadline_at` |
+| `cancelled` | `cancelled:<battle_id>` | `title`, `slot_returned` |
+| `deadline_soon` | `deadline:<battle_id>` | `title`, `battle_type`, `deadline_at` |
+
+`submitted`에 `battle_type`을 담는 이유: 두 유형 공통이 되면서 뒷문장이 갈린다(품질전은 "아직 내
+사진을 내지 않았어요", 속도전은 "이제 내 사진은 바꿀 수 없어요"). 유형은 참가 전에 공개된 값이라
+잠금화면 제약에 걸리지 않는다. 문구 확정은 4단계(`notification_text.ts`) 몫이다.
+
+### `claim_notifications`의 폐기 조건 한 줄 추가
+
+`deadline_soon`과 같은 이유로 **`judge_turn`도 보낼 이유가 사라질 수 있다**: 양쪽이 창이 열린
+직후 바로 판정해 버리면 1분 뒤 tick이 집어 들 때 대결은 이미 끝나 있다. "판정할 차례"라고 알리면
+할 수 없는 일을 하라고 말하는 셈이라, 대결이 `judging`이 아니거나 판정 기한이 지난 행은
+`dropped`로 내린다. 1단계 설계에 없던 조건이고 3단계에서 더한다.

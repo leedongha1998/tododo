@@ -69,9 +69,10 @@
 - 검증: `flutter test`(가짜 `pushMessagingProvider`로 기존 위젯 테스트 통과 포함), 실기기에서 첫 참가·첫 생성 직후 권한 다이얼로그 1회·거부해도 전 기능 동작, 허용 시 `device_push_tokens` 1행, 로그아웃 시 그 행 사라짐, 두 기기 로그인 시 2행(오너 확인).
 
 ## 3단계 — 사건 지점 enqueue (스키마 변경 있음)
-- 파일: `supabase/migrations/..._notification_events.sql`(`join_battle`·`finalize_battle`·`void_battle`·`accept_submission`(**인자 시그니처 유지**)·`record_speed_verdict`·`delete_account` 재정의), `supabase/tests/notification_events_smoke.sql`.
+**2026-11-03에 범위를 고쳤다**(오너 결정). 아래는 고친 뒤의 내용이고, 근거는 `spec.md`·`design.md`의 "mutual-judge 반영" 절이다. 옛 계획은 `record_speed_verdict`에 N4를 붙이는 것이었는데 그 함수는 `20260922120000_judging_window.sql`이 삭제했다.
+- 파일: `supabase/migrations/..._notification_events.sql`(`join_battle`·`finalize_battle`·`void_battle`·`accept_submission`(**인자 시그니처 유지**)·`open_judging_window`·`delete_account` 재정의 + kind CHECK 제약 교체 + `claim_notifications`에 `judge_turn` 폐기 조건), `supabase/tests/notification_events_smoke.sql`.
 - 커밋: `feat: 대결 사건에서 알림 원장 적재`.
-- 검증: N2가 판정·포기·마감 정산 세 경로 모두에서 양쪽 1행씩·중복 없음·포기 본인 제외, N4가 `error`·종결 트랜잭션에서 없음, N3가 속도전·이미 제출한 사람에게 없음, N5 `slot_returned` 분기, payload에 `reason`·`object_path`·`display_name` 키 없음, enqueue가 실패해도 종결·점수가 커밋됨.
+- 검증: N2가 판정·포기·마감 정산 세 경로 모두에서 양쪽 1행씩·중복 없음·포기 본인 제외, N4'가 판정할 증거가 있는 쪽에만·종결 뒤에는 `dropped`, N3가 판정 창이 열린 제출에는 없음·교체 제출로 두 번 생기지 않음, N5 `slot_returned` 분기, payload에 `reason`·`object_path`·`display_name` 키 없음, enqueue가 실패해도 종결·점수가 커밋됨.
 
 ## 4단계 — 발송 경로 (스키마 변경 있음)
 - 파일: `supabase/migrations/..._notification_dispatch.sql`(`dispatch_notifications`, cron `notify-tick` 등록), `supabase/functions/send-notifications/index.ts`, `supabase/functions/_shared/{fcm.ts,notification_text.ts}` + `*_test.ts`, `supabase/config.toml`(`verify_jwt = false`).
@@ -116,3 +117,68 @@
   - `public.battles` 직접 insert에는 `min_criteria`가 필수고, 속도전은 `superiority_criteria`가 null이어야 한다(`battles_superiority_by_type`). 한 사람당 `pending` 모집은 1개라 스모크는 전부 `active`로 만든다.
   - RLS를 확인하려면 `set local role authenticated`가 필요하다. `do $$` 블록은 postgres(테이블 소유자)로 돌아 정책을 건너뛴다.
   - 파일 생성은 Bash 히어독이 아니라 파일 쓰기 도구로 했다. 이 환경에서 히어독은 줄바꿈이 CRLF로 전달돼 종료 표시를 못 찾고 깨진다.
+
+### 2단계 (구현 완료, 커밋됨, 2026-11-03)
+- 커밋 2개: `feat: FCM 수신 배선과 알림 권한 요청`(bef8ce2), `feat: 프로필 알림 꺼짐 안내`(a568c34).
+- 로컬 검증: `flutter analyze` 이슈 0, `flutter test` **427개 통과**(기준선 409 + 신규 18),
+  `flutter build apk --debug` 성공(google-services 4.5.0 + AGP 9.1.0 조합 확인, `minSdk`는 Flutter
+  기본값 24라 손대지 않았다).
+- 설계와 달라진 점
+  - **`google-services.json`을 커밋하지 않았다.** design은 "커밋한다"였지만 `.gitignore`에
+    2026-09-28 오너 결정으로 이미 들어가 있어 그쪽을 따랐다. 파일은 오너 기기의 `android/app/`에
+    있고 빌드도 그것으로 통과했다. 다른 기기에서 빌드하려면 Firebase 콘솔에서 다시 받아야 한다.
+  - **firebase_messaging 17이 `getToken`/`onTokenRefresh`/`deleteToken`을 deprecated로 두었다.**
+    새 API(`register()`+`onRegistered`)는 등록 토큰이 아니라 FID를 스트림으로만 내줘 설계의 서버
+    계약(FCM v1 `message.token`)과 "앱 실행 시 즉시 등록"이 둘 다 달라진다. `// ignore:
+    deprecated_member_use` + 이유 주석으로 등록 토큰을 유지했고 전환은 `TODO_BACKLOG.md`에 남겼다.
+  - **로그아웃의 토큰 정리에 5초 상한을 두었다.** 로그아웃 버튼에 진행 표시가 없어 네트워크가
+    느리면 "눌러도 아무 일이 없다"로 보인다. 설계에 없던 값이고, 넘겨서 남은 토큰 행은 다음 발송에서
+    죽은 토큰으로 판별돼 서버가 지운다.
+  - `pendingBattleOpenProvider`와 메시지 스트림은 만들지 않았다. 5단계가 쓸 것이라 지금 넣으면
+    아무도 읽지 않는 코드가 된다(`notification_payload.dart`는 plan의 2단계 파일 목록에 있어 순수
+    함수와 유닛 테스트만 먼저 만들어 두었다).
+- 함정 메모
+  - **`Override` 타입은 `package:flutter_riverpod/flutter_riverpod.dart`에 없다.** riverpod 3에서는
+    `package:flutter_riverpod/misc.dart`에 있다. 테스트 헬퍼(`test/core/push/push_fakes.dart`)가 쓴다.
+  - **푸시 provider를 override하지 않은 위젯 테스트는 조용히 더러워진다.** `pushRepositoryProvider`가
+    `supabase`를 만져 Supabase 미초기화 테스트에서 던지고, `PushService`가 그것을 로그로 삼킨다 —
+    통과하지만 아무것도 검증되지 않는다. `MainShell`·`ProfileScreen`·참가 성공 경로를 띄우는
+    테스트에는 `...pushOverrides()`를 넣는다.
+  - 알림 작은 아이콘은 16셀 그림이라 24dp 캔버스에 정수 셀로 들어가지 않는다. 캔버스를
+    `16 * cell`로 두어 밀도마다 채우는 비율을 같게 맞췄다(xhdpi·xxxhdpi만 표준 크기와 정확히 일치).
+
+### 3단계 (구현 완료, 원격 적용·스모크 통과, 2026-11-04)
+- **착수 직후 문서가 낡은 것을 발견해 오너에게 물었고, 추천안 3건을 모두 승인받았다**(위 "2026-11-03에
+  범위를 고쳤다" 참고). spec·design의 사건 지점 표가 ai-judge 시절 기준이라 N4의 발생 지점
+  `record_speed_verdict`가 이미 삭제된 함수였다. 결정 내용은 spec.md·design.md의 "mutual-judge 반영"
+  절에 근거와 함께 적었다.
+- 적용 순서대로 진행했다: 원장 0행 확인 → `db push --dry-run`(1개) → `db push` →
+  `migration list --linked` 28개 일치 → 스모크. 중간에 바꾸지 않았다.
+- 스모크 결과: 신규 `notification_events_smoke` 포함 **14개 전부 `ok=t`**
+  (`push_token`·`delete_account`·`join_battle`·`mutual_judge_flow`·`settle_expired_battles`·
+  `ai_consent`·`criteria`·`ai_rejudgment`·`forfeit_battle`·`custom_duration`·`recruit_browse`·
+  `resolve_battle`·`ai_judge_flow`, 그리고 `mutual_judge_rules` 40행 전부 `ok: true`).
+  모든 스모크는 마지막에 롤백해 원격 데이터는 그대로다(적용 뒤 원장 0행·토큰 0행 확인).
+- **적용 전에 롤백 검증을 먼저 했다.** `begin;` + 마이그레이션 + 스모크를 한 파일로 이어 붙여
+  `db query --linked -f`로 돌리면 스모크 끝의 `raise exception`이 전체를 되돌린다. 문법·동작을
+  다 보면서 원격 스키마를 건드리지 않는 방법이라, 스키마 변경 단계에서 다시 쓸 만하다
+  (검증 뒤 제약·함수 정의·`schema_migrations` 이력이 그대로인지 확인했다).
+- `flutter analyze` 이슈 0, `flutter test` 427개 통과(Dart 변경 없음 — 숫자가 2단계와 같은 것이 정상).
+  TypeScript를 건드리지 않아 `deno test`는 돌리지 않았다.
+- 설계와 달라진 점
+  - **`claim_notifications`에 `judge_turn` 폐기 조건을 더했다.** 창이 열린 직후 양쪽이 바로 판정해
+    버리면 1분 뒤 tick이 집을 때 대결은 이미 끝나 있다. `deadline_soon`과 같은 성격이라 같은 자리에
+    뒀다(1단계 설계에는 없던 조건).
+  - **`accept_submission`은 판정 창이 열리는 제출에 N3를 보내지 않는다.** 같은 순간에 "상대가
+    냈어요"와 "판정할 차례예요"가 두 줄로 쌓인다 — design 결정 1·2와 같은 처리다.
+  - N1 payload의 `deadline_at`은 update의 `returning`으로 받는다. 마감 계산식이 코드에 한 번만
+    있게 하려는 것이다.
+- 함정 메모
+  - **`battles_create_participants` 트리거가 생성자의 `battle_participants` 행을 이미 만든다.**
+    스모크에서 대결을 직접 insert한 뒤 생성자 행을 또 넣으면 PK 중복으로 죽는다. 상대 행만 넣는다.
+  - **kind 이름을 바꾸면 1단계 스모크도 같이 고쳐야 한다**(`quality_submitted`→`submitted`,
+    `'qsub:'`→`'sub:'`). `enqueue_notification`이 CHECK 위반을 삼키므로 행이 조용히 안 생기고,
+    기대값이 `null`로 어긋나야 비로소 드러난다.
+  - **`push_token_smoke`의 `a_outbox_kept`가 2에서 3으로 늘었다.** 그 스모크의 탈퇴 사용자 U의
+    대결 상대가 A라서 3단계부터 N5 `cancelled` 한 행이 A에게 더 생긴다. 의도된 동작이다 —
+    1단계 스모크가 3단계 동작을 모르고 쓰인 것이라 기대값을 올렸다.

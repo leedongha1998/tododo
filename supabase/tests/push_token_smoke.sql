@@ -177,7 +177,7 @@ begin
   v_bad_kind_rows := (select count(*) from public.notification_outbox where dedup_key = 'bad:' || v_battle);
 
   -- 9. 토큰이 없는 수신자(B)와 마감이 지난 임박 알림은 발송 대상이 아니다.
-  perform public.enqueue_notification(v_b, 'quality_submitted', v_battle, 'qsub:' || v_battle,
+  perform public.enqueue_notification(v_b, 'submitted', v_battle, 'sub:' || v_battle,
                                       jsonb_build_object('title', '알림 원장 대결'));
   perform public.enqueue_notification(v_a, 'deadline_soon', v_battle_past, 'deadline:' || v_battle_past,
                                       jsonb_build_object('title', '마감 지난 대결'));
@@ -226,7 +226,7 @@ begin
     'claim_attempts', (select attempts from public.notification_outbox where id = v_claim_id),
     'second_claim_count', jsonb_array_length(v_claim2),
     'b_row_status', (select status from public.notification_outbox
-                     where recipient_id = v_b and dedup_key = 'qsub:' || v_battle),
+                     where recipient_id = v_b and dedup_key = 'sub:' || v_battle),
     'deadline_row_status', (select status from public.notification_outbox
                             where recipient_id = v_a and dedup_key = 'deadline:' || v_battle_past),
     'sent_status', (select status from public.notification_outbox where id = v_claim_id),
@@ -277,8 +277,9 @@ begin
     'u_outbox_before', 1,
     'u_tokens_after', 0,
     'u_outbox_after', 0,
-    -- A가 받을 2행(matched=sent, deadline_soon=dropped)은 남의 탈퇴로 지워지지 않는다.
-    'a_outbox_kept', 2,
+    -- A가 받을 행은 남의 탈퇴로 지워지지 않는다(matched=sent, deadline_soon=dropped,
+    -- 그리고 3단계부터는 U의 탈퇴로 취소된 대결의 cancelled 1행이 더해진다).
+    'a_outbox_kept', 3,
     'u_battle', 'cancelled',
     'u_profile', '탈퇴한 사용자/true',
     'u_auth_exists', false

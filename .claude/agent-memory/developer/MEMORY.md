@@ -5,3 +5,5 @@
 - [Bash heredoc 길이 한계·append 함정](workflow_bash_heredoc_limit.md) — 큰 파일은 한 호출로 못 쓴다. 테스트 파일 끝 append는 main 밖으로 떨어져 조용히 안 돈다. python은 없다.
 - [CLAUDE.md 판정 규칙은 낡았다](project_judging_rule_claudemd_stale.md) — 판정 주체는 AI가 아니라 참가자 상호 판정(mutual-judge, 2026-09-18 확정·구현됨).
 - [떠나기 확인창 가드 기준](feedback_leave_guard_criteria.md) — "결과 보유"가 아니라 "자원을 썼는가"로 막고, 오류 화면은 막지 않는다. 제목은 화면이 넘긴다.
+- [안드로이드 org.json의 optString 함정](android_json_optstring_null.md) — 값이 명시적 null이면 fallback이 아니라 "null" 네 글자가 온다. Dart에서 null 키를 빼고 Kotlin에서 isNull을 먼저 본다.
+- [백그라운드 isolate의 Supabase 세션](supabase_background_isolate_session.md) — 백그라운드에서 initialize하면 토큰이 회전해 앱이 다음 resume에 조용히 로그아웃된다. IsolateNameServer로 앱에 쓰기를 맡겨라.

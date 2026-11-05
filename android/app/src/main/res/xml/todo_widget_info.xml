@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 홈 화면 투두 위젯의 메타데이터.
+     updatePeriodMillis는 30분이 하한이고(그보다 짧게 적으면 무시된다) 주기 갱신이 하는 일은
+     "기기 캐시를 다시 읽어 그리기"뿐이다 — Dart도 네트워크도 세션도 쓰지 않는다(design 3.3).
+     설정 화면(configure)은 두지 않는다(범위 밖). -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/todo_widget_description"
+    android:initialLayout="@layout/todo_widget"
+    android:minHeight="110dp"
+    android:minResizeHeight="70dp"
+    android:minResizeWidth="140dp"
+    android:minWidth="180dp"
+    android:previewImage="@mipmap/ic_launcher"
+    android:previewLayout="@layout/todo_widget"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellHeight="2"
+    android:targetCellWidth="4"
+    android:updatePeriodMillis="1800000"
+    android:widgetCategory="home_screen" />

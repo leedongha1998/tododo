@@ -44,6 +44,9 @@ dependencies:
   # permission_handler는 넣지 않는다(design.md "클라이언트 패키지").
   firebase_core: ^5.1.0
   firebase_messaging: ^17.0.1
+  # 홈 화면 위젯. 위젯 데이터 전달·갱신 브로드캐스트·위젯 탭의 백그라운드 Dart 콜백·런치 Uri
+  # 전달을 대신한다. shared_preferences로는 값 전달만 되고 나머지 셋은 Kotlin 배관을 직접 써야 한다.
+  home_widget: ^0.10.0
 
 dev_dependencies:
   flutter_test:

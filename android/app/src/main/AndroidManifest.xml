@@ -35,6 +35,19 @@
                 <data android:scheme="com.todododo.todododo" android:host="login-callback"/>
             </intent-filter>
         </activity>
+        <!-- 홈 화면 투두 위젯. exported="false"로 둔다 — 우리 PendingIntent와 시스템의 주기 갱신만
+             이 리시버를 깨우면 된다. 새 권한은 필요 없다. -->
+        <receiver
+            android:name=".TodoWidgetProvider"
+            android:label="@string/todo_widget_name"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/todo_widget_info"/>
+        </receiver>
         <!-- 알림 작은 아이콘. 지정하지 않으면 API 21+에서 런처 아이콘이 흰 사각형으로 뭉개진다.
              알파만 쓰이므로 흰 실루엣이고, tool/generate_launcher_icons.dart가 생성한다. -->
         <meta-data

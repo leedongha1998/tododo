@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 홈 화면 투두 위젯의 고정 레이아웃.
+     RemoteViews는 런처 프로세스가 그리므로 커스텀 View·데이터 바인딩을 쓸 수 없다. 그래서 줄
+     6개를 미리 선언해 두고 TodoWidgetProvider가 남는 줄을 GONE으로 접는다(design 1.2의 안 A).
+     문구는 전부 기기 캐시에서 오고, 이 파일에 한국어가 있는 자리는 없다(캐시가 아예 없을 때의
+     한 줄만 생성된 @string/todo_widget_no_cache를 쓴다). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_frame"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <LinearLayout
+            android:id="@+id/widget_rows"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/widget_row_0"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="2dp"
+                android:background="@drawable/widget_row"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="5dp">
+
+                <ImageView
+                    android:id="@+id/widget_check_0"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/widget_check"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/widget_pending_0"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:textColor="@color/widget_ink_muted"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/widget_title_0"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row_1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="2dp"
+                android:background="@drawable/widget_row"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="5dp">
+
+                <ImageView
+                    android:id="@+id/widget_check_1"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/widget_check"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/widget_pending_1"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:textColor="@color/widget_ink_muted"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/widget_title_1"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="2dp"
+                android:background="@drawable/widget_row"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="5dp">
+
+                <ImageView
+                    android:id="@+id/widget_check_2"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/widget_check"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/widget_pending_2"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:textColor="@color/widget_ink_muted"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/widget_title_2"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row_3"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="2dp"
+                android:background="@drawable/widget_row"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="5dp">
+
+                <ImageView
+                    android:id="@+id/widget_check_3"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/widget_check"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/widget_pending_3"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:textColor="@color/widget_ink_muted"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/widget_title_3"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row_4"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="2dp"
+                android:background="@drawable/widget_row"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="5dp">
+
+                <ImageView
+                    android:id="@+id/widget_check_4"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/widget_check"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/widget_pending_4"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:textColor="@color/widget_ink_muted"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/widget_title_4"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/widget_row_5"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="2dp"
+                android:background="@drawable/widget_row"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="5dp">
+
+                <ImageView
+                    android:id="@+id/widget_check_5"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/widget_check"
+                    android:contentDescription="@null" />
+
+                <TextView
+                    android:id="@+id/widget_pending_5"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:textColor="@color/widget_ink_muted"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/widget_title_5"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="@color/widget_ink"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!-- "그 외 N개". 담기지 않는 할 일이 있을 때 마지막 줄 하나를 이 줄로 바꿔 쓴다. -->
+            <TextView
+                android:id="@+id/widget_more"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="2dp"
+                android:paddingTop="2dp"
+                android:textColor="@color/widget_ink_muted"
+                android:textSize="11sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- 목록 대신 가운데에 띄우는 안내(로그인하지 않음·조회 중·빈 목록·전부 완료·조회 실패).
+             캐시가 아예 없을 때의 한 줄도 이 자리에 들어간다. -->
+        <TextView
+            android:id="@+id/widget_center"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:textColor="@color/widget_ink_muted"
+            android:textSize="12sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <!-- 아래 한 줄. 상태 문구·기준 시각·실패 안내가 모두 여기로 모인다. 자리가 아주 좁을 때도 남긴다. -->
+    <TextView
+        android:id="@+id/widget_note"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:paddingStart="2dp"
+        android:paddingTop="2dp"
+        android:textColor="@color/widget_ink_muted"
+        android:textSize="11sp"
+        android:visibility="gone" />
+</LinearLayout>

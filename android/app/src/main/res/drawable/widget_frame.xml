@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 위젯 전체 틀. 앱의 PixelFrame.raised를 흉내 내 2dp 선 + 2dp 바닥 두께로 그린다.
+     색은 res/values/widget_resources.xml(생성 파일)에서 온다. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:top="2dp" android:left="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_ink" />
+        </shape>
+    </item>
+    <item android:bottom="2dp" android:right="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/widget_paper" />
+            <stroke android:width="2dp" android:color="@color/widget_ink" />
+        </shape>
+    </item>
+</layer-list>

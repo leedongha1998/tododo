@@ -127,6 +127,8 @@ class TodoListScreen extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton(
+        // 찾기 탭 FAB와 같은 이유로 고유 태그를 준다(기본값이면 Hero 태그가 겹친다).
+        heroTag: 'addTodoFab',
         onPressed: () => _openAddDialog(context, ref),
         child: const PixelIcon(PixelIcons.add),
       ),

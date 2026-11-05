@@ -196,6 +196,9 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
       floatingActionButton: _hideFab
           ? null
           : FloatingActionButton(
+              // 탭 네 개가 IndexedStack에 동시에 살아 있어 FAB도 둘이 함께 떠 있다. 기본
+              // heroTag를 그대로 두면 셸에서 화면을 push할 때 "같은 태그 Hero가 둘"로 깨진다.
+              heroTag: 'createBattleFab',
               onPressed: () => _openCreate(context),
               tooltip: AppStrings.battleCreate,
               child: const PixelIcon(PixelIcons.battle),

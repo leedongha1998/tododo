@@ -46,6 +46,18 @@ class PushMessaging {
   // ignore: deprecated_member_use
   Future<void> deleteToken() => _messaging.deleteToken();
 
+  /// 앱을 보고 있는 동안 도착한 메시지. 시스템 트레이에 뜨지 않고 이 스트림으로만 온다.
+  Stream<Map<String, dynamic>> get foregroundMessages =>
+      FirebaseMessaging.onMessage.map((message) => message.data);
+
+  /// 백그라운드에 있던 앱의 알림을 탭해 돌아온 경우.
+  Stream<Map<String, dynamic>> get openedMessages =>
+      FirebaseMessaging.onMessageOpenedApp.map((message) => message.data);
+
+  /// 앱이 **종료된 상태**에서 알림을 탭해 시작된 경우. 그 실행에서 한 번만 값이 있다.
+  Future<Map<String, dynamic>?> initialMessage() async =>
+      (await _messaging.getInitialMessage())?.data;
+
   static NotificationPermission _toPermission(AuthorizationStatus status) {
     return switch (status) {
       AuthorizationStatus.authorized || AuthorizationStatus.provisional =>

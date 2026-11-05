@@ -216,3 +216,27 @@
   - Deno 2.9/TS 6에서 `crypto.subtle.importKey('pkcs8', ...)`에 `Uint8Array`를 그대로 넘기면
     `ArrayBufferLike` 때문에 타입 검사가 깨진다. `new Uint8Array(new ArrayBuffer(n))`로 만들고
     반환 타입을 `Uint8Array<ArrayBuffer>`로 적는다.
+
+### 5단계 (구현 완료, 2026-11-06)
+- `flutter analyze` 이슈 0, `flutter test` **477개 통과**(4단계 466 + 신규 11), `deno test` 49개 통과.
+  스키마 변경이 없어 마이그레이션·스모크는 만들지 않았다.
+- 배선: `push_messaging.dart`에 `foregroundMessages`·`openedMessages`·`initialMessage()` 추가,
+  `push_providers.dart`에 `pendingBattleOpenProvider`(Notifier) 추가, `push_service.dart`가 세 경로를
+  모두 받아 포그라운드는 invalidate·탭은 그 칸에 기록, `main_shell.dart`가 집어 가 상세를 연다.
+- 설계와 달라진 점
+  - **메시지 구독을 권한 검사보다 먼저 건다.** design 흐름 3은 권한이 있을 때만 시작하는 모양이지만,
+    그러면 사용자가 기기 설정에서 알림을 켠 뒤 그 실행 동안 온 알림을 탭해도 아무 일도 하지 않는다.
+    구독은 권한과 무관하게 걸고(권한이 없으면 스트림이 조용할 뿐이다) 토큰 등록만 권한에 건다.
+  - **`PushService`가 `Ref`를 받는다.** 포그라운드 수신은 provider를 invalidate해야 하고 탭은
+    `pendingBattleOpenProvider`에 적어야 하는데, design이 그 둘을 이 클래스에 배정했다.
+  - `pendingBattleOpenProvider`는 `StateProvider`가 아니라 **`Notifier`**다(riverpod 3에서
+    `StateProvider`는 legacy이고, 이 저장소는 `selectedTabProvider`부터 Notifier를 쓴다).
+    `take()`로 읽으면서 비워 같은 알림으로 두 번 열리지 않게 한다.
+- 함께 고친 기존 버그
+  - **두 탭의 FAB가 같은 Hero 태그를 쓰고 있었다.** `IndexedStack`이라 찾기 탭과 할 일 탭의 FAB가
+    항상 동시에 트리에 살아 있어서, 셸에서 **아무 화면이나 push하면** 디버그 빌드에서
+    "같은 태그 Hero가 둘"로 깨진다(릴리스는 assert가 빠져 조용히 지나간다). 알림 탭이 그 경로를
+    쓰면서 드러났다. `heroTag`를 각각 `createBattleFab`·`addTodoFab`로 줬다.
+  - `main_shell.dart`의 찾기 탭 invalidate 주석이 한도 제거 뒤로 사실과 달랐다. 고쳤다.
+- 남은 확인(실기기): 백그라운드·종료 상태에서 알림 탭 → 상세 진입, 취소된 대결 알림 탭 시 오류 화면
+  없음, 포그라운드 수신 시 목록 갱신. 위젯 테스트가 같은 분기를 전부 덮지만 실제 탭은 기기에서 본다.

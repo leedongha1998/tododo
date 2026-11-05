@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/battle/domain/battle_providers.dart';
+import '../../features/battle/presentation/battle_detail_screen.dart';
 import '../../features/battle/presentation/battle_recruits_screen.dart';
 import '../../features/battle/presentation/my_battles_screen.dart';
 import '../../features/profile/domain/profile_providers.dart';
@@ -57,6 +58,33 @@ class _MainShellState extends ConsumerState<MainShell> {
     } catch (error) {
       debugPrint('pushService start failed: $error');
     }
+    // 종료 상태에서 알림을 탭해 시작된 경우, start()가 그 사이에 적어 두었다. 아래 ref.listen은
+    // 이미 적힌 값에는 울리지 않으므로 여기서 한 번 집어 간다.
+    await _openPendingBattle();
+  }
+
+  /// 알림이 가리키는 대결을 연다. 열 수 없으면 조용히 넘어간다 —
+  /// 알림을 눌러서 오류 화면을 보는 일은 없어야 한다(spec "알림을 눌렀을 때").
+  Future<void> _openPendingBattle() async {
+    final battleId = ref.read(pendingBattleOpenProvider.notifier).take();
+    if (battleId == null) return;
+
+    // 탭을 먼저 옮긴다. 상세를 닫았을 때 그 대결이 있는 목록으로 돌아오게 하려는 것이다.
+    ref.read(selectedTabProvider.notifier).select(AppTab.myBattles);
+
+    // 열 수 있는지 먼저 확인한다. 취소된 대결이나 더 볼 수 없는 대결이면 상세가 오류 화면을
+    // 띄우므로, 띄우기 전에 서버에 한 번 물어 본다.
+    try {
+      await ref.read(battleRepositoryProvider).fetchBattle(battleId);
+    } catch (error) {
+      debugPrint('알림으로 연 대결을 읽지 못했다($battleId): $error');
+      return;
+    }
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => BattleDetailScreen(battleId: battleId)),
+    );
   }
 
   @override
@@ -77,7 +105,8 @@ class _MainShellState extends ConsumerState<MainShell> {
         // 자리를 비운 사이 내 모집이 매칭돼 모집 구역에서 진행 중 목록으로 옮겨가 있을 수 있다.
         ref.invalidate(myRecruitsProvider);
       }
-      // 찾기 탭의 안내 배너와 만들기 버튼 분기가 "이미 모집 중인지"에 걸려 있고, 그 값은 서버에서 바뀐다.
+      // 대결 만들기의 사전 안내가 "오늘 남은 기준 생성 횟수"에 걸려 있고, 그 값은 다른 기기나
+      // 지난 시도로 서버에서 바뀐다(대결 개수 한도는 없어졌다 — daily-limit-removal).
       // 모집 목록(피드)은 일부러 포함하지 않는다 — 스크롤 위치와 검색·필터 조건을 지키고,
       // 새 모집은 당겨서 새로고침으로 받는다.
       if (next == AppTab.find && previous != AppTab.find) {
@@ -90,6 +119,11 @@ class _MainShellState extends ConsumerState<MainShell> {
         // 기기 설정에서 알림을 켜고 돌아왔을 수 있다. "꺼져 있어요" 안내가 남아 있지 않게 다시 읽는다.
         ref.invalidate(notificationPermissionProvider);
       }
+    });
+
+    // 앱이 떠 있는 동안 알림을 탭하면(백그라운드에서 돌아온 경우) 여기서 집어 간다.
+    ref.listen(pendingBattleOpenProvider, (previous, next) {
+      if (next != null) unawaited(_openPendingBattle());
     });
 
     // 홈 화면 위젯은 앱이 마지막으로 받아온 목록의 기기 캐시를 보여 준다(서버를 직접 부르지

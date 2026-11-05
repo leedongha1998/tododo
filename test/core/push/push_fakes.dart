@@ -26,10 +26,21 @@ class FakePushMessaging extends PushMessaging {
   int requestCount = 0;
   int deleteTokenCount = 0;
 
+  /// 앱이 종료된 상태에서 알림을 탭해 시작된 경우에 돌려줄 payload.
+  Map<String, dynamic>? initial;
+
   final _refreshes = StreamController<String>.broadcast();
+  final _foreground = StreamController<Map<String, dynamic>>.broadcast();
+  final _opened = StreamController<Map<String, dynamic>>.broadcast();
 
   /// FCM이 토큰을 바꾼 상황을 만든다.
   void emitRefreshedToken(String token) => _refreshes.add(token);
+
+  /// 앱을 보고 있는 동안 알림이 도착한 상황.
+  void emitForeground(Map<String, dynamic> data) => _foreground.add(data);
+
+  /// 백그라운드에 있던 앱의 알림을 탭한 상황.
+  void emitOpened(Map<String, dynamic> data) => _opened.add(data);
 
   @override
   Future<NotificationPermission> permissionStatus() async => permission;
@@ -53,6 +64,15 @@ class FakePushMessaging extends PushMessaging {
     deleteTokenCount++;
     currentToken = null;
   }
+
+  @override
+  Stream<Map<String, dynamic>> get foregroundMessages => _foreground.stream;
+
+  @override
+  Stream<Map<String, dynamic>> get openedMessages => _opened.stream;
+
+  @override
+  Future<Map<String, dynamic>?> initialMessage() async => initial;
 }
 
 /// 토큰 등록·해제 RPC 대신 호출을 기록한다.

@@ -8,6 +8,8 @@ import '../../features/battle/presentation/battle_recruits_screen.dart';
 import '../../features/battle/presentation/my_battles_screen.dart';
 import '../../features/profile/domain/profile_providers.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/todo/data/todo_widget_payload.dart';
+import '../../features/todo/domain/todo_providers.dart';
 import '../../features/todo/presentation/todo_list_screen.dart';
 import '../push/push_providers.dart';
 import '../push/push_service.dart';
@@ -34,6 +36,14 @@ class _MainShellState extends ConsumerState<MainShell> {
   void initState() {
     super.initState();
     unawaited(_startPush());
+    // 이 화면은 세션이 있을 때만 떠 있으므로 여기가 "로그인 직후"다. 기기 캐시를 먼저 되읽어
+    // 지난 목록을 지키고(앱을 다시 켠 뒤 네트워크가 없으면 그 목록이 유일하게 보여 줄 것이다),
+    // 보여 줄 것이 없을 때만 "불러오는 중"으로 덮는다. 그 뒤 아래 ref.listen이 실제 목록으로 덮는다.
+    unawaited(
+      ref
+          .read(todoWidgetServiceProvider)
+          .primeFromCache(now: DateTime.now()),
+    );
   }
 
   /// 권한이 이미 있으면 토큰을 등록하고 갱신을 따라간다. 권한은 여기서 묻지 않는다.
@@ -80,6 +90,33 @@ class _MainShellState extends ConsumerState<MainShell> {
         // 기기 설정에서 알림을 켜고 돌아왔을 수 있다. "꺼져 있어요" 안내가 남아 있지 않게 다시 읽는다.
         ref.invalidate(notificationPermissionProvider);
       }
+    });
+
+    // 홈 화면 위젯은 앱이 마지막으로 받아온 목록의 기기 캐시를 보여 준다(서버를 직접 부르지
+    // 않는다). 그래서 목록이 바뀌는 순간(추가·수정·삭제·체크 뒤의 invalidate 포함) 그 자리에서
+    // 발행한다 — 앱을 나갈 때를 기다리지 않는다. 이 자리에 두는 이유는 할 일 화면에 두면 탭을
+    // 떠난 뒤의 변경을 놓치기 때문이다. 발행 실패는 서비스가 로그만 남긴다(위젯은 관문이 아니다).
+    ref.listen(todosProvider, (previous, next) {
+      // 새로고침 중에는 직전 캐시를 그대로 둔다(빈 화면이나 낡았다는 안내를 깜빡이지 않게).
+      if (next.isLoading) return;
+      final service = ref.read(todoWidgetServiceProvider);
+      final now = DateTime.now();
+      final error = next.error;
+      if (error != null) {
+        // 로그는 화면(TodoListScreen)의 error 갈래가 이미 남긴다. 여기서 또 남기지 않는다.
+        // 마지막으로 받아온 목록은 그대로 두고 "지금은 못 불러왔어요"만 붙인다.
+        unawaited(
+          service.publish(
+            TodoWidgetPayload.fetchFailed(service.lastPublished, now: now),
+          ),
+        );
+        return;
+      }
+      final todos = next.value;
+      if (todos == null) return;
+      unawaited(
+        service.publish(TodoWidgetPayload.fromTodos(todos, now: now)),
+      );
     });
 
     return Scaffold(

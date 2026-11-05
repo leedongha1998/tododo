@@ -37,11 +37,13 @@ import 'package:todododo/features/profile/domain/battle_record.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 import 'package:todododo/features/profile/presentation/profile_screen.dart';
 import 'package:todododo/features/todo/data/todo.dart';
+import 'package:todododo/features/todo/data/todo_widget_payload.dart';
 import 'package:todododo/features/todo/domain/todo_providers.dart';
 import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import 'package:todododo/main.dart';
 
 import 'core/push/push_fakes.dart';
+import 'features/todo/todo_widget_fakes.dart';
 
 /// 프로필이 보여 주는 점수·전적은 서버 `player_stats` 값이다. 화면이 목록을 세지 않는지
 /// 보려고 기록 목록과 일부러 다른 숫자를 쓴다.
@@ -350,6 +352,9 @@ void main() {
           myPlayerStatsProvider.overrideWith((ref) async => _testStats),
           battleRecordsProvider.overrideWith((ref) async => []),
         ...pushOverrides(),
+        // 본 화면이 뜨면 홈 화면 위젯 캐시를 발행한다. 가짜로 바꾸지 않으면 플러그인이 없어
+        // 조용히 실패하고(서비스가 로그로 삼킨다) 출력만 더러워진다.
+        ...todoWidgetOverrides(),
         ],
         child: const MaterialApp(home: MainShell()),
       ),
@@ -839,6 +844,7 @@ void main() {
           myPlayerStatsProvider.overrideWith((ref) async => _testStats),
           battleRecordsProvider.overrideWith((ref) async => []),
         ...pushOverrides(),
+        ...todoWidgetOverrides(),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -872,4 +878,131 @@ void main() {
     // 탭바가 세로로 자라 화면을 밀지 않는다(테마가 정한 72).
     expect(tester.getSize(find.byType(NavigationBar)).height, 72);
   });
+
+  testWidgets('로그인하면 할 일 목록이 홈 화면 위젯 캐시로 발행된다', (
+    WidgetTester tester,
+  ) async {
+    final host = FakeTodoWidgetHost();
+
+    await _pumpMainShellForWidgetCache(
+      tester,
+      host: host,
+      todos: [
+        Todo(
+          id: 'a',
+          title: '설거지하기',
+          isDone: false,
+          createdAt: DateTime(2026, 11, 4, 8),
+        ),
+        Todo(
+          id: 'b',
+          title: '빨래하기',
+          isDone: true,
+          createdAt: DateTime(2026, 11, 4, 9),
+        ),
+      ],
+    );
+
+    // 위젯이 보여 주는 것은 "남은 것"이다. 완료한 할 일이 캐시에 실리면 안 된다.
+    expect(host.saved.last.items.map((item) => item.title), ['설거지하기']);
+    // 캐시만 쓰고 끝나면 홈 화면은 그대로다. 다시 그리라는 브로드캐스트까지 가야 한다.
+    expect(host.updateCount, greaterThan(0));
+  });
+
+  testWidgets('본 화면이 뜨는 순간 위젯 캐시가 먼저 불러오는 중으로 덮인다', (
+    WidgetTester tester,
+  ) async {
+    final host = FakeTodoWidgetHost();
+
+    await _pumpMainShellForWidgetCache(tester, host: host);
+
+    // 로그아웃 캐시(이전 사용자의 할 일)가 로그인한 사용자에게 잠깐 보이지 않게 하는 장치다.
+    expect(host.saved.first.centerText, AppStrings.widgetLoading);
+    expect(host.saved.last.centerText, AppStrings.widgetEmpty);
+  });
+
+  testWidgets('할 일을 불러오지 못하면 위젯 캐시가 그 사실을 말한다', (
+    WidgetTester tester,
+  ) async {
+    final host = FakeTodoWidgetHost();
+
+    await _pumpMainShellForWidgetCache(
+      tester,
+      host: host,
+      todosError: Exception('network down'),
+    );
+
+    // 받아온 목록이 없으니 안내 한 줄뿐이다. 서버 오류 메시지·코드는 위젯에 넣지 않는다.
+    expect(host.saved.last.centerText, AppStrings.widgetFetchFailed);
+  });
+
+  testWidgets('앱을 다시 켰는데 못 불러오면 위젯은 지난 목록을 그대로 둔다', (
+    WidgetTester tester,
+  ) async {
+    // 기기 캐시에 지난 목록이 남아 있는 상태(= 앱을 껐다 켠 뒤)를 만든다.
+    final host = FakeTodoWidgetHost(
+      stored: TodoWidgetPayload.fromTodos([
+        Todo(
+          id: 'a',
+          title: '설거지하기',
+          isDone: false,
+          createdAt: DateTime(2026, 11, 4, 8),
+        ),
+      ], now: DateTime(2026, 11, 4, 9, 14)),
+    );
+
+    await _pumpMainShellForWidgetCache(
+      tester,
+      host: host,
+      todosError: Exception('offline'),
+    );
+
+    // "불러오는 중"으로 캐시를 비우지 않고, 지난 목록 + 낡았다는 한 줄로 끝난다(spec P1 2행).
+    expect(
+      host.saved.map((payload) => payload.centerText),
+      isNot(contains(AppStrings.widgetLoading)),
+    );
+    expect(host.saved.last.items.single.title, '설거지하기');
+    expect(host.saved.last.note, '지금은 못 불러왔어요 · 오전 9:14 기준');
+  });
+}
+
+/// 홈 화면 위젯 캐시 발행을 보려고 본 화면을 띄운다. 네 탭이 모두 서버를 보지 않게 고정한다.
+Future<void> _pumpMainShellForWidgetCache(
+  WidgetTester tester, {
+  required FakeTodoWidgetHost host,
+  List<Todo> todos = const [],
+  Object? todosError,
+}) async {
+  final container = ProviderContainer(
+    overrides: [
+      todosProvider.overrideWith((ref) async {
+        final error = todosError;
+        if (error != null) throw error;
+        return todos;
+      }),
+      myBattlesProvider.overrideWith((ref) async => []),
+      myRecruitsProvider.overrideWith((ref) async => []),
+      battleRepositoryProvider.overrideWithValue(_FakeBattleRepository()),
+      myAiConsentProvider.overrideWith((ref) async => null),
+      myProfileProvider.overrideWith(
+        (ref) async => const Profile(id: 'me', displayName: '나'),
+      ),
+      myPlayerStatsProvider.overrideWith((ref) async => _testStats),
+      battleRecordsProvider.overrideWith((ref) async => []),
+      ...pushOverrides(),
+      ...todoWidgetOverrides(host: host),
+    ],
+    // Riverpod의 자동 재시도 타이머가 테스트 종료 뒤까지 남지 않게 끈다.
+    retry: (retryCount, error) => null,
+  );
+  addTearDown(container.dispose);
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: MainShell()),
+    ),
+  );
+  await tester.pumpAndSettle();
 }

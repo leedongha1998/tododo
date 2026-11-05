@@ -346,3 +346,29 @@
   `test/features/todo/todo_widget_fakes.dart`, `test/features/todo/todo_widget_publish_test.dart`,
   `test/widget_test.dart`
 
+
+### 릴리스 빌드 깨짐과 해결 (2026-11-05)
+
+1~3단계 커밋 뒤 실기기 설치를 위해 릴리스 APK를 만들려다 **릴리스 빌드만 깨지는 것**을 발견했다.
+구현 중에는 `flutter build apk --debug`를 두 번 통과시켰고 그것으로 네이티브 빌드를 검증했다고
+봤는데, **디버그는 통과하고 릴리스는 깨지는 종류**였다.
+
+- 증상: `:app:compileReleaseJavaWithJavac`에서 `cannot find symbol` — 처음에는
+  `image_picker_android`의 `ImagePickerApi`, 캐시가 바뀐 뒤에는 `FlutterFirebaseCorePlugin`.
+  **에러에 찍히는 플러그인 이름이 범인이 아니다.**
+- 원인: `home_widget` 0.10.0의 `android/build.gradle`이 buildscript classpath에
+  `kotlin-gradle-plugin:1.9.0`(+ AGP 8.1.2)을 박아 둔다. 이 프로젝트는 Kotlin 2.4.0 / AGP 9.1.0이고
+  `android/gradle.properties`의 `android.builtInKotlin=false`(Flutter 템플릿 기본값) 때문에
+  `firebase_core`와 `home_widget` 둘 다 자체 `kotlin-android`를 적용하는 분기로 들어간다.
+  그 상태에서 1.9.0이 끼어들면 app 모듈의 javac가 플러그인들의 Kotlin 클래스를 못 본다.
+- 범인 가리기: 별도 워크트리(`git worktree add --detach`)에 **위젯 직전 커밋 `1e8a511`**(firebase는
+  이미 들어간 지점)을 꺼내 릴리스 빌드를 돌려 **성공**(54.8MB)하는 것을 확인했다. 즉 다른 세션의
+  firebase 작업이 아니라 `home_widget` 추가가 방아쇠다. 이어서 같은 워크트리를 내 HEAD로 옮기고
+  `android.builtInKotlin=true`만 바꿔 **성공**(56.0MB)하는 것까지 확인한 뒤 본 트리에 적용했다.
+- 해결: `android/gradle.properties`의 `android.builtInKotlin`을 `true`로 바꿨다(이유를 그 파일의
+  주석과 `CLAUDE.md` "개발 환경"에 남겼다). AGP 9의 Built-in Kotlin이 컴파일해 `firebase_core`·
+  `home_widget` 둘 다 통과한다. **프로젝트 전체에 걸리는 플래그**라 같은 트리에서 작업 중인
+  `push-notification` 세션에 알렸다.
+- 남긴 규칙: 네이티브를 가진 패키지를 추가하는 변경은 **릴리스 빌드까지** 돌려야 한다. 그리고
+  빌드 로그를 `tail`로 파이프하면 종료 코드가 가려져 실패를 성공으로 읽게 된다(실제로 그래서
+  11월 3일자 옛 APK를 폰에 설치했다) — `EXIT=$?`를 따로 찍는다.

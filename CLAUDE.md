@@ -78,6 +78,16 @@ supabase secrets set KEY=VALUE     # Edge Function 시크릿 (계정 소유자�
   `%USERPROFILE%\.android`를 쓰면 안 됨. 실행: `emulator -avd todododo_avd`
   (헤드리스로 확인만 하려면 `-no-window -no-audio -gpu swiftshader_indirect` 추가).
   하드웨어 가속용 하이퍼바이저는 이 머신에 이미 있음(Hyper-V 감지됨).
+- `android/gradle.properties`의 `android.builtInKotlin`은 **`true`여야 한다.** Flutter 템플릿 기본값인
+  `false`로 두면 **디버그 빌드는 통과하는데 릴리스 빌드만 깨진다.** `home_widget`의 `build.gradle`이
+  buildscript classpath에 `kotlin-gradle-plugin:1.9.0`을 박아 두는데 이 프로젝트는 Kotlin 2.4.0 /
+  AGP 9.1.0이라, 그 1.9.0이 끼어들면 `:app:compileReleaseJavaWithJavac`가 플러그인들의 Kotlin 클래스를
+  못 찾는다. **증상이 엉뚱한 플러그인 이름으로 나온다** — `FlutterFirebaseCorePlugin not found`,
+  `image_picker`의 `ImagePickerApi` 없음 등. 범인은 그 플러그인이 아니다. 2026-11-05 확인.
+- **새 패키지(특히 네이티브를 가진 플러그인)를 추가하는 변경은 디버그 빌드만으로 검증되지 않는다.**
+  `flutter build apk --release --dart-define-from-file=env.json`까지 돌려 볼 것 — 릴리스가 깨지면
+  Play에 올릴 AAB를 만들 수 없다. 로그를 `tail`로 파이프하면 종료 코드가 가려져 실패를 성공으로
+  읽게 되니(`EXIT=$?`를 따로 찍을 것) 주의한다.
 
 ## 디렉토리 구조
 ```

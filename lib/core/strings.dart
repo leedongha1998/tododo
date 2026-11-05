@@ -346,4 +346,34 @@ class AppStrings {
   static const accountDeleteConfirm = '삭제하기';
   static const accountDeleteDone = '계정을 삭제했습니다.';
   static const accountDeleteFailed = '계정 삭제에 실패했습니다. 다시 시도해주세요.';
+
+  // 홈 화면 위젯
+  //
+  // 위젯에 보이는 문구는 전부 여기서 나가 기기 캐시(JSON) 안에 실린다 — 네이티브(RemoteViews)는
+  // 한국어 문자열을 갖지 않는다. 캐시로 전달할 수 없는 세 개(위젯 선택기 이름·설명, 캐시가 아예
+  // 없을 때의 한 줄)만 tool/generate_widget_resources.dart가 여기서 뽑아 XML 리소스로 쓴다.
+  // 그러므로 어떤 문구든 출처는 이 파일 하나다.
+  static const widgetName = '투두두두 할 일';
+  static const widgetDescription = '남은 할 일을 홈 화면에서 보고 체크해요.';
+  // 캐시가 아직 없거나(설치 직후) 판 번호를 모를 때. 빈 사각형을 보여 주지 않기 위한 마지막 줄이다.
+  static const widgetNoCache = '앱을 한 번 열어 주세요';
+  static const widgetLoggedOut = '로그인하면 할 일이 여기에 보여요';
+  static const widgetLoading = '할 일을 불러오는 중이에요';
+  static const widgetEmpty = '할 일이 없어요. 눌러서 추가해요';
+  static const widgetAllDone = '할 일을 모두 끝냈어요';
+  static const widgetFetchFailed = '할 일을 불러오지 못했어요. 눌러서 다시 시도해요';
+  // 체크(쓰기)가 서버에 반영되지 않았을 때. 그 할 일은 위젯 목록에 그대로 남는다.
+  static const widgetCheckFailed = '체크하지 못했어요. 눌러서 앱에서 확인해요';
+  static const widgetPendingLabel = '쓰는 중';
+  // 네이티브가 숫자 하나를 끼우는 유일한 문자열. %d는 안드로이드 서식이라 그대로 둔다.
+  static const widgetMoreFormat = '그 외 %d개';
+  // 위젯은 낡을 수 있다는 전제를 사용자에게도 알리려고 "기준 시각"을 함께 적는다.
+  static String widgetNoteFresh(String time) => '할 일 · $time 기준';
+  static String widgetNoteStale(String time) => '지금은 못 불러왔어요 · $time 기준';
+  static String widgetTime({
+    required bool isAm,
+    required int hour,
+    required int minute,
+  }) =>
+      '${isAm ? '오전' : '오후'} $hour:${minute.toString().padLeft(2, '0')}';
 }

@@ -66,8 +66,6 @@ class _FakeBattleRepository implements BattleRepository {
   @override
   Future<MyLimits> fetchMyLimits() async => const MyLimits(
         consented: true,
-        hasPending: false,
-        dailyBattleUsed: false,
         criteriaCallsLeft: 10,
       );
 

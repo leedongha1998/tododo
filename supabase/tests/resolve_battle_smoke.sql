@@ -18,8 +18,7 @@
 --   r3        양쪽 불복+AI 미달 -> 즉시 draw
 --   r_pending A 승인, B 불복했지만 AI 결과 아직 없음 -> judging 유지(결론 안 남)
 --   다시 부르기 종결된 r1에 resolve_battle을 또 불러도 점수가 두 번 반영되지 않음
---   v_today   오늘 매칭된 judging 대결 무효 -> voided, 오늘 슬롯 삭제, 점수 불변
---   v_yday    어제 매칭된 대결 무효 -> voided, 어제 슬롯 유지
+--   v_today   judging 대결 무효 -> voided, 점수 불변
 --   종결된 대결 무효화는 거부
 --   perm_*    anon·authenticated가 내부 전용 함수를 부르면 거부된다
 do $$
@@ -181,8 +180,6 @@ begin
   )
   returning id into v_v_today;
   insert into public.battle_participants (battle_id, user_id) values (v_v_today, v_d);
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id)
-  values (v_c, v_today, v_v_today), (v_d, v_today, v_v_today);
 
   insert into public.battles (
     min_criteria, superiority_criteria, type, status, title, creator_id, opponent_id,
@@ -194,8 +191,6 @@ begin
   )
   returning id into v_v_yday;
   insert into public.battle_participants (battle_id, user_id) values (v_v_yday, v_d);
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id)
-  values (v_c, v_today - 1, v_v_yday), (v_d, v_today - 1, v_v_yday);
 
   perform public.void_battle(v_v_today);
   perform public.void_battle(v_v_yday);
@@ -252,8 +247,6 @@ begin
     'd_stats', (select concat_ws('/', score, wins, losses, draws) from public.player_stats where user_id = v_d),
     'v_today_status', (select status from public.battles where id = v_v_today),
     'v_yday_status', (select status from public.battles where id = v_v_yday),
-    'slots_today_left', (select count(*) from public.daily_battle_slots where battle_id = v_v_today),
-    'slots_yday_left', (select count(*) from public.daily_battle_slots where battle_id = v_v_yday),
     'void_finished_rejected', v_void_finished_rejected,
     'perm_resolve', v_perm_resolve,
     'perm_void', v_perm_void,
@@ -278,8 +271,6 @@ begin
     'd_stats', '10/0/0/0',
     'v_today_status', 'voided',
     'v_yday_status', 'voided',
-    'slots_today_left', 0,
-    'slots_yday_left', 2,
     'void_finished_rejected', true,
     'perm_resolve', 'rejected',
     'perm_void', 'rejected',

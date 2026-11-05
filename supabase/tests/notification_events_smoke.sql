@@ -14,7 +14,7 @@
 --   N4' 판정 차례: 창이 열릴 때 판정할 증거가 있는 쪽에만(한쪽만 제출한 채 마감되면 1행)
 --   N2  종결: 상호 판정·포기·마감 정산 세 경로 모두에서 적재, 포기한 본인 제외, 점수 변화 동봉
 --   N2' 무효: 양쪽 2행
---   N5  탈퇴 취소: 남은 상대에게 1행 + slot_returned, 상대 없는 pending 모집에는 0행
+--   N5  탈퇴 취소: 남은 상대에게 1행, 상대 없는 pending 모집에는 0행
 --   공통: payload에 reason·object_path·display_name·winner_id가 없다
 --   장치: enqueue가 실패해도(일부러 제약 위반) 종결과 점수가 커밋된다
 --   폐기: 창이 닫힌 뒤 남은 judge_turn은 claim_notifications가 dropped로 내린다
@@ -26,7 +26,6 @@ declare
   v_b uuid := gen_random_uuid();
   v_d uuid := gen_random_uuid();
   v_e uuid := gen_random_uuid();
-  v_today date := (now() at time zone 'Asia/Seoul')::date;
 
   v_bt1 uuid := gen_random_uuid();   -- 속도전: 매칭 -> 제출 -> 교체 -> 양쪽 제출 -> 종결
   v_bt2 uuid := gen_random_uuid();   -- 품질전: 포기
@@ -60,7 +59,6 @@ declare
   v_bt6_score integer;
   v_n5_rows integer;
   v_n5_to_e integer;
-  v_n5_slot_returned boolean;
   v_n5_pending_rows integer;
   v_forbidden integer;
   v_judge_dropped text;
@@ -238,8 +236,6 @@ begin
   values (v_bt7, '["우산을 들고 있다"]'::jsonb, null, 'speed', 'active', '우산 챙기기',
           v_d, v_e, 1440, now(), now() + interval '1 day');
   insert into public.battle_participants (battle_id, user_id) values (v_bt7, v_e);
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id)
-  values (v_d, v_today, v_bt7), (v_e, v_today, v_bt7);
 
   -- 상대가 없는 모집은 취소되지만 알릴 사람이 없다.
   insert into public.battles (id, min_criteria, superiority_criteria, type, status, title,
@@ -253,8 +249,6 @@ begin
   from public.notification_outbox where kind = 'cancelled' and battle_id in (v_bt7, v_bt8);
   select count(*) into v_n5_to_e
   from public.notification_outbox where kind = 'cancelled' and battle_id = v_bt7 and recipient_id = v_e;
-  select (payload->>'slot_returned')::boolean into v_n5_slot_returned
-  from public.notification_outbox where kind = 'cancelled' and battle_id = v_bt7;
   select count(*) into v_n5_pending_rows
   from public.notification_outbox where battle_id = v_bt8;
 
@@ -299,7 +293,6 @@ begin
     'bt6_score', v_bt6_score,
     'n5_rows', v_n5_rows,
     'n5_to_e', v_n5_to_e,
-    'n5_slot_returned', v_n5_slot_returned,
     'n5_pending_rows', v_n5_pending_rows,
     'forbidden', v_forbidden,
     'judge_dropped', v_judge_dropped
@@ -336,7 +329,6 @@ begin
     -- 탈퇴: 남은 상대에게만, 오늘 슬롯이 돌아온다는 사실과 함께.
     'n5_rows', 1,
     'n5_to_e', 1,
-    'n5_slot_returned', true,
     'n5_pending_rows', 0,
     'forbidden', 0,
     'judge_dropped', 'dropped'

@@ -14,14 +14,14 @@
 --   limit_11th        성공 10회를 채우면 11번째는 CRITERIA_CALL_LIMIT
 --   speed_battle      속도전은 우열 기준 없이 생성된다
 --   quality_battle    품질전은 두 목록으로 생성된다
---   pending_second    모집 중 대결이 있으면 두 번째 생성은 PENDING_EXISTS
+--   pending_second    모집이 있어도 두 번째 기준 생성이 막히지 않는다(예외 없음)
 --   check_reuse       한 번 쓴 증서는 다시 못 쓴다(CHECK_INVALID)
 --   blocked_check     차단된 증서로는 만들 수 없다(CHECK_INVALID)
 --   speed_superiority 속도전에 우열 기준을 넣으면 DB 제약이 막는다
 --   quality_missing   품질전에 우열 기준이 없으면 DB 제약이 막는다
 --   update_version    모집 중 기준 수정은 버전을 올린다
 --   update_matched    매칭된 뒤에는 NOT_PENDING
---   limits            get_my_limits가 모집 중·남은 횟수를 알려 준다
+--   limits            get_my_limits가 동의 여부와 남은 기준 생성 횟수를 알려 준다
 --   delete_account    탈퇴하면 증서·호출 원장이 사라진다
 do $$
 declare
@@ -89,7 +89,7 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
   v_battle := public.create_battle(v_check, 4320);
 
-  -- 4. 모집 중 대결이 있으면 두 번째 생성은 막힌다.
+  -- 4. 모집이 이미 있어도 기준 생성이 막히지 않는다(daily-limit-removal: 모집 개수 제한 없음).
   v_call := public.begin_criteria_call(v_b, 'generate', null);
   v_check2 := (public.finish_criteria_call(
     v_call, '설거지하기', 'speed', '["싱크대가 비어 있다"]'::jsonb, null, true, null, null, 'test/p1'
@@ -101,6 +101,7 @@ begin
     get stacked diagnostics v_hint = pg_exception_hint;
     v_pending_second := coalesce(v_hint, '(힌트 없음)');
   end;
+  -- A의 호출이 한 번 더 늘었다(이 호출은 성공한다). 아래 기대값이 그만큼 큰 이유다.
 
   -- 5. 한 번 쓴 증서는 다시 못 쓴다(B의 증서를 A가 쓰는 것도 막히지만, 여기서는 재사용을 본다).
   perform set_config('request.jwt.claims', json_build_object('sub', v_b, 'role', 'authenticated')::text, true);
@@ -227,14 +228,14 @@ begin
   v_expected := jsonb_build_object(
     'no_consent', 'CONSENT_REQUIRED',
     -- A: 실패 1회는 세지 않고 성공 1회만 센다.
-    'a_calls_counted', 1,
+    'a_calls_counted', 2,
     -- C: 생성 3회(차단 1 포함) + 수정 1회 + 7회 = 11회지만 11번째는 막혔으므로 10회.
     'c_calls_counted', 10,
     'limit_11th', 'CRITERIA_CALL_LIMIT',
     'speed_battle', 'speed/null/바닥이 보인다/1',
     'quality_battle', 'quality/먼지가 없다/상판이 보인다',
     'update_version', 2,
-    'pending_second', 'PENDING_EXISTS',
+    'pending_second', '(예외 없음)',
     'check_reuse', 'CHECK_INVALID',
     'blocked_check', 'CHECK_INVALID',
     'update_matched', 'NOT_PENDING',
@@ -242,7 +243,7 @@ begin
     'quality_missing_blocked', true,
     'consumed_checks', 4,
     'limits_a', jsonb_build_object(
-      'consented', true, 'has_pending', true, 'daily_battle_used', false, 'criteria_calls_left', 9
+      'consented', true, 'criteria_calls_left', 8
     ),
     'c_checks_left', 0,
     'c_calls_left', 0

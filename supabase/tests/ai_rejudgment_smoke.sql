@@ -20,7 +20,7 @@
 --                     (우열 모델은 battles에만 남고 제출 행의 ai_model은 건드리지 않는다)
 --   bad_winner_*      승자가 참가자가 아니면 성공으로 치지 않고 실패 1회(대결은 judging 유지)
 --   stale_token       임대 토큰이 맞지 않는 기록은 조용히 버린다(skipped)
---   exhausted_*       4회 소진 -> voided, 점수·전적 무반영, 오늘 매칭 슬롯만 반환
+--   exhausted_*       4회 소진 -> voided, 점수·전적 무반영
 --   lease_*           임대 만료 = 실패 1회(dispatch가 정리)
 --   old_token_*       임대가 만료돼 새 토큰으로 재claim된 뒤 옛 토큰으로 온 응답은 버려진다
 --   forfeit_jobs      포기하면 남은 잡이 사라진다
@@ -152,11 +152,6 @@ begin
   returning id into v_delete;
   insert into public.battle_participants (battle_id, user_id) values (v_delete, v_b);
 
-  -- 슬롯 원장: 무효 대결은 오늘 매칭, 다른 대결은 어제 매칭(PK가 (user, kst_date)라 하루 한 행뿐이다).
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id)
-  values
-    (v_a, v_today, v_exhausted), (v_b, v_today, v_exhausted),
-    (v_a, v_today - 1, v_reject_one), (v_b, v_today - 1, v_reject_one);
 
   -- 1. 불복 1건 -> 잡 1개. a가 b의 사진을 불복하고, b는 a의 사진을 승인한다.
   perform public.accept_submission(v_a, v_reject_one, format('%s/%s/1.jpg', v_reject_one, v_a), now());
@@ -423,8 +418,6 @@ begin
     'exhausted_deltas', (select count(*) from public.battle_participants
                          where battle_id = v_exhausted and score_delta_applied is not null),
     'exhausted_jobs', (select count(*) from public.ai_judgment_jobs where battle_id = v_exhausted),
-    'exhausted_today_slots', (select count(*) from public.daily_battle_slots where battle_id = v_exhausted),
-    'yesterday_slots_kept', (select count(*) from public.daily_battle_slots where battle_id = v_reject_one),
     'lease_attempts', v_lease_attempts,
     'lease_token_cleared', v_lease_token_cleared,
     'lease_error', v_lease_error,
@@ -483,8 +476,6 @@ begin
     'exhausted_outcomes', 0,
     'exhausted_deltas', 0,
     'exhausted_jobs', 0,
-    'exhausted_today_slots', 0,
-    'yesterday_slots_kept', 2,
     'lease_attempts', 1,
     'lease_token_cleared', true,
     'lease_error', '판정 임대가 만료됐습니다.',

@@ -46,25 +46,16 @@ class CriteriaCheckResult {
 class MyLimits {
   const MyLimits({
     required this.consented,
-    required this.hasPending,
-    required this.dailyBattleUsed,
     required this.criteriaCallsLeft,
   });
 
   final bool consented;
 
-  /// 모집 중인 내 대결이 이미 있는지(사용자당 1개).
-  final bool hasPending;
-
-  /// 오늘(KST) 매칭된 대결이 있는지(하루 1대결).
-  final bool dailyBattleUsed;
-
+  /// 오늘 남은 기준 생성 AI 호출 수. 대결 개수 제한은 없다(daily-limit-removal).
   final int criteriaCallsLeft;
 
   factory MyLimits.fromMap(Map<String, dynamic> map) => MyLimits(
         consented: map['consented'] as bool,
-        hasPending: map['has_pending'] as bool,
-        dailyBattleUsed: map['daily_battle_used'] as bool,
         criteriaCallsLeft: (map['criteria_calls_left'] as num).toInt(),
       );
 }

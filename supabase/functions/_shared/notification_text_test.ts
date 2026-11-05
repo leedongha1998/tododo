@@ -112,13 +112,14 @@ Deno.test("N4' 판정 차례: 안 하면 자동 승인된다는 사실을 남은
   );
 });
 
-Deno.test('N5 취소: 한도가 돌아왔을 때만 그 문장을 붙인다', () => {
-  assertEquals(notificationText('cancelled', { title: '우산 챙기기', slot_returned: true }, now), {
+Deno.test('N5 취소: 사실만 말하고 탈퇴한 사람의 이름은 담지 않는다', () => {
+  assertEquals(notificationText('cancelled', { title: '우산 챙기기' }, now), {
     title: '대결이 취소됐어요',
-    body: '「우산 챙기기」 상대가 탈퇴해서 취소됐어요. 오늘 대결 한도가 돌아왔어요.',
+    body: '「우산 챙기기」 상대가 탈퇴해서 취소됐어요.',
   });
+  // 한도가 없어졌으므로(daily-limit-removal) 옛 payload가 남아 있어도 그 문장을 붙이지 않는다.
   assertEquals(
-    notificationText('cancelled', { title: '우산 챙기기', slot_returned: false }, now)?.body,
+    notificationText('cancelled', { title: '우산 챙기기', slot_returned: true }, now)?.body,
     '「우산 챙기기」 상대가 탈퇴해서 취소됐어요.',
   );
 });

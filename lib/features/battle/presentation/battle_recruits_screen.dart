@@ -99,17 +99,8 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
 
   // 대결을 만들기 전에도 동의를 받는다. 제목과 기준이 AI로 넘어가기 때문이다(3단계 기준 생성).
   Future<void> _openCreate(BuildContext context) async {
-    // 찾기 탭에는 더 이상 내 모집이 보이지 않으므로, 막힌 이유와 그것이 어디 있는지를 이 자리에서 말한다.
-    if (ref.read(myLimitsProvider).value?.hasPending ?? false) {
-      _showSnackBar(
-        AppStrings.battleMyRecruitBlocked,
-        action: SnackBarAction(
-          label: AppStrings.battleMyRecruitGo,
-          onPressed: _goToMyBattles,
-        ),
-      );
-      return;
-    }
+    // 모집 개수·하루 대결 한도가 없어져(daily-limit-removal) 여기서 막을 것이 없다.
+    // 남은 사전 조건은 AI 동의뿐이고, 기준 생성 10회 한도는 생성 화면이 따로 알린다.
     if (!await ensureAiConsent(context, ref)) return;
     if (!context.mounted) return;
     final created = await Navigator.of(
@@ -178,12 +169,6 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
   Widget build(BuildContext context) {
     final feedAsync = ref.watch(openRecruitFeedProvider);
     final filter = ref.watch(recruitFilterProvider);
-    // 한도는 서버가 내준 같은 응답(`get_my_limits`)에서 둘 다 읽는다 — 추가 조회가 없다.
-    // 차단은 서버가 하고 여기서는 "지금 참가할 수 있는 몸인가"를 미리 알려 줄 뿐이다.
-    final limits = ref.watch(myLimitsProvider).value;
-    final hasPending = limits?.hasPending ?? false;
-    final dailyBattleUsed = limits?.dailyBattleUsed ?? false;
-
     // 실패는 삼키지 않는다. 두 가지를 구분해 한 번씩만 말한다.
     //   - 목록을 다시 읽다 실패(첫 묶음·조건 변경·당겨서 새로고침): riverpod이 이전 목록을 들고 있어
     //     값만 보면 성공처럼 보인다. hasError가 켜지는 순간을 잡는다.
@@ -230,13 +215,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
             // (design.md 1.4 "움직임"이 연속 곡선을 금지한다).
             child: NotificationListener<ScrollNotification>(
               onNotification: _onScrollNotification,
-              child: _buildFeed(
-                context,
-                feedAsync,
-                filter,
-                hasPending: hasPending,
-                dailyBattleUsed: dailyBattleUsed,
-              ),
+              child: _buildFeed(context, feedAsync, filter),
             ),
           ),
         ],
@@ -334,10 +313,8 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
   Widget _buildFeed(
     BuildContext context,
     AsyncValue<RecruitFeed> feedAsync,
-    RecruitQuery filter, {
-    required bool hasPending,
-    required bool dailyBattleUsed,
-  }) {
+    RecruitQuery filter,
+  ) {
     final feed = feedAsync.value;
     final items = feed?.items ?? const <OpenRecruit>[];
 
@@ -362,20 +339,15 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         hasAnyCondition: filter.hasAnyCondition,
       )) {
         RecruitEmptyKind.none => null,
-        // 올라온 모집이 없다 → 내가 먼저 걸어 보라고 권한다. 단 이미 모집 중이면 막힌 버튼을 권하지 않는다.
+        // 올라온 모집이 없다 → 내가 먼저 걸어 보라고 권한다(모집 개수 제한이 없어 항상 권할 수 있다).
         RecruitEmptyKind.noRecruits => StatusMessage.empty(
           icon: PixelIcons.battle,
           message: AppStrings.battleRecruitsEmptyNone,
           detail: AppStrings.battleRecruitsEmptyNoneHint,
-          action: hasPending
-              ? TextButton(
-                  onPressed: _goToMyBattles,
-                  child: const Text(AppStrings.battleMyRecruitGo),
-                )
-              : FilledButton(
-                  onPressed: () => _openCreate(context),
-                  child: const Text(AppStrings.battleCreate),
-                ),
+          action: FilledButton(
+            onPressed: () => _openCreate(context),
+            child: const Text(AppStrings.battleCreate),
+          ),
         ),
         // 조건 때문에 비었다 → 조건을 되돌리는 것이 먼저다. 여기서 대결 만들기를 권하지 않는다.
         RecruitEmptyKind.noMatches => StatusMessage.empty(
@@ -390,10 +362,6 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
       };
     }
 
-    // 오늘 한도를 다 썼어도 배너를 띄운다. "참가 실패" 토스트로 처음 알게 되지 않도록
-    // 목록을 훑기 전에 말해 준다. 카드 탭·시트 열기는 막지 않는다 — 기준 구경은 한도와 무관하다.
-    final hasBanner = hasPending || dailyBattleUsed;
-    final headCount = hasBanner ? 1 : 0;
     // 카드가 없을 때는 안내 문구 한 칸이 본문을 대신한다.
     final bodyCount = body != null ? 1 : items.length;
     // 목록이 아니라 안내 한 칸을 그리고 있으면 꼬리(이어 불러오기 상태)는 뜻이 없다.
@@ -419,15 +387,9 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         // 아래 여백은 만들기 버튼(FAB)이 마지막 카드를 가리지 않게 하려는 것이다.
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
-        itemCount: headCount + bodyCount + tailCount,
+        itemCount: bodyCount + tailCount,
         itemBuilder: (context, index) {
-          if (hasBanner && index == 0) {
-            return _buildLimitBanner(
-              hasPending: hasPending,
-              dailyBattleUsed: dailyBattleUsed,
-            );
-          }
-          final slot = index - headCount;
+          final slot = index;
           if (slot < bodyCount) {
             if (body != null) return body;
             _maybeLoadMore(feed!, slot, items.length);
@@ -448,40 +410,6 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
     );
   }
 
-  /// 목록 맨 앞의 한도 안내. 두 가지를 말한다.
-  ///   - 오늘 대결을 이미 했다 → 참가 자체가 내일까지 막힌다. 갈 곳이 없으므로 버튼을 달지 않는다.
-  ///   - 이미 모집 중이다 → 새로 올릴 수 없다는 뜻이고, 내 모집이 어디 있는지 알려 준다.
-  ///
-  /// 둘이 동시에 참일 수 있다(오늘 매칭을 끝낸 뒤 또 모집을 올려 둔 경우). 그때는 배너를 두 장으로
-  /// 나누지 않고 한 장 안에 두 줄로 적는다 — 참가를 막는 한도를 먼저 둔다(이 화면에서 하려는 일이다).
-  Widget _buildLimitBanner({
-    required bool hasPending,
-    required bool dailyBattleUsed,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: PixelFrame.tone(
-        tone: PixelTone.info,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (dailyBattleUsed) const Text(AppStrings.battleDailyLimitBanner),
-            if (hasPending) ...[
-              if (dailyBattleUsed) const SizedBox(height: 8),
-              const Text(AppStrings.battleMyRecruitBlocked),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: _goToMyBattles,
-                  child: const Text(AppStrings.battleMyRecruitGo),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
   /// 목록 끝. 받는 중이면 로더, 실패했으면 다시 시도, 더 없으면 아무것도 두지 않는다
   /// (끝을 알리는 요란한 장치는 만들지 않는다).

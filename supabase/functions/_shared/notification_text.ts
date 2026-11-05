@@ -114,11 +114,11 @@ function deadlineSoonText(payload: NotificationPayload, now: Date): Notification
 }
 
 function cancelledText(payload: NotificationPayload): NotificationText {
-  // 탈퇴한 사람의 이름은 담지 않는다. 한도가 돌아온 것은 오늘 매칭된 대결일 때만이다.
-  const tail = payload.slot_returned === true ? ' 오늘 대결 한도가 돌아왔어요.' : '';
+  // 탈퇴한 사람의 이름은 담지 않는다. 하루 대결 한도가 없어졌으므로(daily-limit-removal)
+  // "오늘 대결 한도가 돌아왔어요"는 더 붙이지 않는다 - 돌려줄 슬롯이 없다.
   return {
     title: '대결이 취소됐어요',
-    body: `${quoted(payload.title)} 상대가 탈퇴해서 취소됐어요.${tail}`,
+    body: `${quoted(payload.title)} 상대가 탈퇴해서 취소됐어요.`,
   };
 }
 

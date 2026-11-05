@@ -5,18 +5,8 @@ import 'package:todododo/features/battle/data/battle_criteria_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/domain/criteria_rules.dart';
 
-MyLimits _limits({
-  bool consented = true,
-  bool hasPending = false,
-  bool dailyBattleUsed = false,
-  int criteriaCallsLeft = 10,
-}) {
-  return MyLimits(
-    consented: consented,
-    hasPending: hasPending,
-    dailyBattleUsed: dailyBattleUsed,
-    criteriaCallsLeft: criteriaCallsLeft,
-  );
+MyLimits _limits({bool consented = true, int criteriaCallsLeft = 10}) {
+  return MyLimits(consented: consented, criteriaCallsLeft: criteriaCallsLeft);
 }
 
 void main() {
@@ -66,10 +56,6 @@ void main() {
 
     test('RPC 힌트도 같은 방식으로 읽는다', () {
       expect(
-        criteriaErrorMessage(PostgrestException(message: '...', hint: 'PENDING_EXISTS')),
-        AppStrings.battleErrorPendingExists,
-      );
-      expect(
         criteriaErrorMessage(PostgrestException(message: '...', hint: 'CHECK_INVALID')),
         AppStrings.battleErrorCheckInvalid,
       );
@@ -87,14 +73,6 @@ void main() {
       expect(
         criteriaErrorMessage(PostgrestException(message: '...', hint: 'ALREADY_MATCHED')),
         AppStrings.battleErrorAlreadyMatched,
-      );
-      expect(
-        criteriaErrorMessage(PostgrestException(message: '...', hint: 'CREATOR_DAILY_LIMIT')),
-        AppStrings.battleErrorCreatorDailyLimit,
-      );
-      expect(
-        criteriaErrorMessage(PostgrestException(message: '...', hint: 'MY_DAILY_LIMIT')),
-        AppStrings.battleErrorDailyLimit,
       );
     });
 
@@ -120,21 +98,13 @@ void main() {
       expect(createBattleBlockMessage(_limits()), isNull);
     });
 
-    test('동의·모집 1개·하루 1대결·기준 횟수 순서로 이유를 알려 준다', () {
+    // 대결 개수 한도가 사라져(daily-limit-removal) 남은 사전 조건은 동의와 기준 생성 횟수뿐이다.
+    test('동의·기준 횟수 순서로 이유를 알려 준다', () {
       expect(createBattleBlockMessage(_limits(consented: false)), AppStrings.aiConsentRequired);
-      expect(createBattleBlockMessage(_limits(hasPending: true)), AppStrings.battleErrorPendingExists);
-      expect(
-        createBattleBlockMessage(_limits(dailyBattleUsed: true)),
-        AppStrings.battleErrorDailyLimit,
-      );
       expect(
         createBattleBlockMessage(_limits(criteriaCallsLeft: 0)),
         AppStrings.battleErrorCriteriaCallLimit,
       );
-    });
-
-    test('하루 한도 안내에는 유료 예고가 들어 있다', () {
-      expect(AppStrings.battleErrorDailyLimit, contains('유료'));
     });
   });
 }

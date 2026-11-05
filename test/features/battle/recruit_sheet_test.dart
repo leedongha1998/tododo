@@ -80,8 +80,6 @@ class _FakeBattleRepository implements BattleRepository {
   @override
   Future<MyLimits> fetchMyLimits() async => const MyLimits(
         consented: true,
-        hasPending: false,
-        dailyBattleUsed: false,
         criteriaCallsLeft: 10,
       );
 
@@ -342,37 +340,6 @@ void main() {
     expect(repository.refreshCount, 1);
     expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
     expect(find.text(AppStrings.battleCriteriaChanged), findsNothing);
-
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('오늘 한도를 이미 썼으면 유료 예고가 담긴 안내가 뜨고 시트는 남는다', (tester) async {
-    final repository = _FakeBattleRepository(
-      joinError: PostgrestException(message: '오늘 한도', hint: 'MY_DAILY_LIMIT'),
-    );
-    await _pumpSheet(tester, repository: repository);
-    await _openSheet(tester);
-    await _tapJoin(tester);
-
-    expect(find.text(AppStrings.battleErrorDailyLimit), findsOneWidget);
-    expect(AppStrings.battleErrorDailyLimit, contains('유료'));
-    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsOneWidget);
-
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pumpAndSettle();
-  });
-
-  testWidgets('생성자가 오늘 한도를 다 썼으면 그 이유를 알려 준다', (tester) async {
-    final repository = _FakeBattleRepository(
-      joinError: PostgrestException(message: '생성자 한도', hint: 'CREATOR_DAILY_LIMIT'),
-    );
-    await _pumpSheet(tester, repository: repository);
-    await _openSheet(tester);
-    await _tapJoin(tester);
-
-    expect(find.text(AppStrings.battleErrorCreatorDailyLimit), findsOneWidget);
-    expect(AppStrings.battleErrorCreatorDailyLimit, contains('유료'));
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();

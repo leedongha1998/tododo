@@ -10,13 +10,9 @@
 -- 확인하는 것
 --   wrong_version    참가자가 본 기준과 현재 기준이 다르면 CRITERIA_CHANGED
 --   joined           올바른 버전이면 매칭(active, 마감 설정, 참가자 2명)
---   slots_after_join 매칭 순간 양쪽에 그날 슬롯 1행씩
 --   already_matched  매칭된 모집에 또 참가하면 ALREADY_MATCHED
---   my_limit         오늘 이미 대결한 사람은 MY_DAILY_LIMIT
---   creator_limit    생성자가 오늘 한도를 다 썼으면 CREATOR_DAILY_LIMIT
 --   no_consent       동의하지 않은 사람은 CONSENT_REQUIRED
 --   self_join        본인 모집에는 참가할 수 없다
---   yesterday_slot   어제 매칭 슬롯은 오늘 한도를 막지 않는다
 --   recruits         list_open_recruits는 내 모집을 빼고 생성자 전적을 함께 준다
 --   card_opponent    같은 대결 상대의 전적은 볼 수 있다
 --   card_creator     모집 중 대결 생성자의 전적은 볼 수 있다
@@ -31,7 +27,6 @@ declare
   v_e uuid := gen_random_uuid();  -- 동의하지 않은 사람
   v_f uuid := gen_random_uuid();  -- 어제 슬롯만 있는 사람
   v_g uuid := gen_random_uuid();  -- 한도가 남은 생성자
-  v_today date := (now() at time zone 'Asia/Seoul')::date;
   v_call uuid;
   v_check uuid;
   v_p_a uuid;
@@ -40,14 +35,11 @@ declare
   v_hint text;
   v_wrong_version text := '(예외 없음)';
   v_already text := '(예외 없음)';
-  v_my_limit text := '(예외 없음)';
-  v_creator_limit text := '(예외 없음)';
   v_no_consent text := '(예외 없음)';
   v_self_join boolean := false;
   v_card_stranger boolean := false;
   v_recruits jsonb;
   v_joined text;
-  v_slots_after_join integer;
   v_actual jsonb;
   v_expected jsonb;
   v_diff text;
@@ -118,27 +110,8 @@ begin
   ) ->> 'check_id')::uuid;
   perform set_config('request.jwt.claims', json_build_object('sub', v_d, 'role', 'authenticated')::text, true);
   v_p_d := public.create_battle(v_check, 1440);
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id) values (v_d, v_today, v_p_a);
 
-  -- 4. 오늘 이미 대결한 B는 다른 모집에 참가할 수 없다(내 한도가 먼저 걸린다).
-  perform set_config('request.jwt.claims', json_build_object('sub', v_b, 'role', 'authenticated')::text, true);
-  begin
-    perform public.join_battle(v_p_d, 1);
-  exception when others then
-    get stacked diagnostics v_hint = pg_exception_hint;
-    v_my_limit := coalesce(v_hint, '(힌트 없음)');
-  end;
-
-  -- 5. 생성자가 오늘 한도를 다 썼으면 참가자에게 이유를 알린다.
-  perform set_config('request.jwt.claims', json_build_object('sub', v_c, 'role', 'authenticated')::text, true);
-  begin
-    perform public.join_battle(v_p_d, 1);
-  exception when others then
-    get stacked diagnostics v_hint = pg_exception_hint;
-    v_creator_limit := coalesce(v_hint, '(힌트 없음)');
-  end;
-
-  -- 6. 동의하지 않은 사람은 막힌다.
+  -- 4. 동의하지 않은 사람은 막힌다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_e, 'role', 'authenticated')::text, true);
   begin
     perform public.join_battle(v_p_d, 1);
@@ -147,7 +120,7 @@ begin
     v_no_consent := coalesce(v_hint, '(힌트 없음)');
   end;
 
-  -- 7. 본인 모집에는 참가할 수 없다.
+  -- 5. 본인 모집에는 참가할 수 없다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_d, 'role', 'authenticated')::text, true);
   begin
     perform public.join_battle(v_p_d, 1);
@@ -155,7 +128,7 @@ begin
     v_self_join := true;
   end;
 
-  -- G가 모집을 올린다(생성자 한도 남음). F는 어제 슬롯만 있다.
+  -- G가 모집을 올린다. F가 참가한다(한도 없이 누구나 참가할 수 있다).
   v_call := public.begin_criteria_call(v_g, 'generate', null);
   v_check := (public.finish_criteria_call(
     v_call, '빨래 개기', 'speed', '["옷이 개켜져 있다"]'::jsonb, null, true, null, null, 'test/p1'
@@ -163,9 +136,7 @@ begin
   perform set_config('request.jwt.claims', json_build_object('sub', v_g, 'role', 'authenticated')::text, true);
   v_p_g := public.create_battle(v_check, 1440);
 
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id) values (v_f, v_today - 1, v_p_a);
-
-  -- 8. 어제 슬롯은 오늘 한도를 막지 않는다.
+  -- 6. 하루 대결 한도가 없어져 F는 언제든 참가할 수 있다.
   perform set_config('request.jwt.claims', json_build_object('sub', v_f, 'role', 'authenticated')::text, true);
   perform public.join_battle(v_p_g, 1);
 
@@ -194,11 +165,9 @@ begin
     v_card_stranger := true;
   end;
 
-  -- A가 탈퇴하면 v_p_a가 취소되고 그날 슬롯이 반납된다. 매칭 결과는 그 전에 잡아 둔다.
+  -- A가 탈퇴하면 v_p_a가 취소된다. 매칭 결과는 그 전에 잡아 둔다.
   v_joined := (select status || '/' || (opponent_id = v_b)::text || '/' || (deadline_at is not null)::text
                from public.battles where id = v_p_a);
-  v_slots_after_join := (select count(*) from public.daily_battle_slots
-                         where battle_id = v_p_a and kst_date = v_today and user_id in (v_a, v_b));
 
   -- 탈퇴한 상대의 카드.
   perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
@@ -209,14 +178,10 @@ begin
     'wrong_version', v_wrong_version,
     'joined', v_joined,
     'participants', (select count(*) from public.battle_participants where battle_id = v_p_a),
-    'slots_after_join', v_slots_after_join,
     'already_matched', v_already,
-    'my_limit', v_my_limit,
-    'creator_limit', v_creator_limit,
     'no_consent', v_no_consent,
     'self_join_rejected', v_self_join,
     'yesterday_slot_joined', (select status from public.battles where id = v_p_g),
-    'f_slots', (select count(*) from public.daily_battle_slots where user_id = v_f),
     'recruits_count', jsonb_array_length(coalesce(v_recruits, '[]'::jsonb)),
     'recruits_title', v_recruits -> 0 -> 'battle' ->> 'title',
     'recruits_version', v_recruits -> 0 -> 'battle' ->> 'criteria_version',
@@ -232,15 +197,11 @@ begin
     'wrong_version', 'CRITERIA_CHANGED',
     'joined', 'active/true/true',
     'participants', 2,
-    'slots_after_join', 2,
     'already_matched', 'ALREADY_MATCHED',
-    'my_limit', 'MY_DAILY_LIMIT',
-    'creator_limit', 'CREATOR_DAILY_LIMIT',
     'no_consent', 'CONSENT_REQUIRED',
     'self_join_rejected', true,
     'yesterday_slot_joined', 'active',
     -- 어제 1행 + 오늘 매칭으로 1행.
-    'f_slots', 2,
     'recruits_count', 1,
     'recruits_title', '설거지하기',
     'recruits_version', '1',

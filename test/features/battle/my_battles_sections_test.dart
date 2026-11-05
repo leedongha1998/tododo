@@ -70,12 +70,7 @@ class _MyBattlesRepository implements BattleRepository {
   }
 
   @override
-  Future<MyLimits> fetchMyLimits() async => MyLimits(
-    consented: true,
-    hasPending: recruits.isNotEmpty,
-    dailyBattleUsed: false,
-    criteriaCallsLeft: 10,
-  );
+  Future<MyLimits> fetchMyLimits() async => const MyLimits(consented: true, criteriaCallsLeft: 10);
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();

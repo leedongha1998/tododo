@@ -56,10 +56,6 @@ class AppStrings {
   static const battleRecruitsEmptyFilteredHint = '검색어나 필터를 바꿔 보세요.';
   static const battleRecruitsLoadMoreFailed = '다음 목록을 불러오지 못했어요.';
   static const battleMyRecruitWaiting = '아직 아무도 참가하지 않았어요.';
-  static const battleMyRecruitGo = '내 모집 보기';
-  static const battleMyRecruitBlocked = '이미 모집 중인 대결이 있어요. 취소하거나 매칭된 뒤에 새로 올릴 수 있어요.';
-  // 오늘 한도를 이미 쓴 사람에게 찾기 탭 맨 앞에서 미리 알린다. 판단은 서버가 하고 이건 안내일 뿐이다.
-  static const battleDailyLimitBanner = '오늘 대결은 이미 했어요. 내일 다시 참가할 수 있어요.';
 
   static const battleMyBattles = '내 대결';
   static const battleMyBattlesEmpty = '진행 중인 대결이 없어요.';
@@ -293,11 +289,6 @@ class AppStrings {
 
   // 서버 오류 코드별 문구. 서버 메시지를 그대로 보여 주지 않는다.
   static const battleErrorAlreadyMatched = '이미 다른 사람이 참가했어요.';
-  static const battleErrorCreatorDailyLimit = '모집한 사람이 오늘 대결 한도를 다 썼어요. 내일 다시 시도해주세요.\n'
-      '(유료 사용자는 더 할 수 있게 될 예정이에요)';
-  static const battleErrorPendingExists = '모집 중인 대결은 한 번에 1개만 올릴 수 있어요.';
-  static const battleErrorDailyLimit = '오늘은 이미 대결을 했어요. 지금은 하루에 한 번 대결할 수 있어요.\n'
-      '(유료 사용자는 더 할 수 있게 될 예정이에요)';
   static const battleErrorCriteriaCallLimit = '오늘 기준 만들기 횟수를 다 썼어요. 내일 다시 시도해주세요.';
   static const battleErrorCheckInvalid = '기준 확인이 만료됐어요. 기준을 다시 만들어 주세요.';
   static const battleErrorNotPending = '이미 매칭되어 기준을 바꿀 수 없어요.';

@@ -16,7 +16,6 @@
 --   anon_denied        anon 롤은 give_ai_consent 실행 권한이 없다
 --   impact             철회 전 영향 조회 = 진행 중 2, 모집 중 1
 --   withdraw           진행 중 2개는 포기(-3, 상대 승), 모집 중 1개는 취소
---   slots_kept         포기로 끝났으므로 하루 한도는 돌려주지 않는다
 --   events             given -> withdrawn 순서로 이력이 남는다
 --   join_after_withdraw 철회 후 참가는 다시 막힌다
 --   withdraw_twice     동의 기록이 없으면 철회는 거부된다
@@ -134,8 +133,6 @@ begin
   insert into public.battles (min_criteria, superiority_criteria, type, status, title, creator_id, duration_minutes)
   values ('["상판이 보인다"]'::jsonb, null, 'speed', 'pending', '내 모집', v_a, 4320) returning id into v_w3;
 
-  -- 오늘 매칭된 대결의 한도. 포기로 끝나면 돌려받지 못해야 한다.
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id) values (v_a, v_today, v_w1);
 
   v_impact := public.get_consent_withdrawal_impact();
   v_result := public.withdraw_ai_consent();
@@ -178,7 +175,6 @@ begin
                    where user_id = v_a and battle_id in (v_w1, v_w2)),
     'a_stats', (select concat_ws('/', score, wins, losses, draws) from public.player_stats where user_id = v_a),
     'b_stats', (select concat_ws('/', score, wins, losses, draws) from public.player_stats where user_id = v_b),
-    'slots_kept', (select count(*) from public.daily_battle_slots where user_id = v_a),
     'a_consent_rows', (select count(*) from public.ai_consents where user_id = v_a),
     'a_events', (select string_agg(event, ',' order by id) from public.ai_consent_events where user_id = v_a),
     'c_consent_rows', (select count(*) from public.ai_consents where user_id = v_c),
@@ -203,7 +199,6 @@ begin
     'a_outcomes', 'forfeit,forfeit',
     'a_stats', '4/0/2/0',
     'b_stats', '16/2/0/0',
-    'slots_kept', 1,
     'a_consent_rows', 0,
     'a_events', 'given,withdrawn',
     'c_consent_rows', 1,

@@ -45,11 +45,8 @@ bool isCriteriaChangedError(Object error) => errorCodeOf(error) == 'CRITERIA_CHA
 String criteriaErrorMessage(Object error) {
   return switch (errorCodeOf(error)) {
     'CONSENT_REQUIRED' => AppStrings.aiConsentRequired,
-    'PENDING_EXISTS' => AppStrings.battleErrorPendingExists,
     'CRITERIA_CHANGED' => AppStrings.battleCriteriaChanged,
     'ALREADY_MATCHED' => AppStrings.battleErrorAlreadyMatched,
-    'CREATOR_DAILY_LIMIT' => AppStrings.battleErrorCreatorDailyLimit,
-    'MY_DAILY_LIMIT' => AppStrings.battleErrorDailyLimit,
     'CRITERIA_CALL_LIMIT' => AppStrings.battleErrorCriteriaCallLimit,
     'CHECK_INVALID' => AppStrings.battleErrorCheckInvalid,
     'NOT_PENDING' => AppStrings.battleErrorNotPending,
@@ -62,8 +59,6 @@ String criteriaErrorMessage(Object error) {
 /// 같은 검사를 Edge Function과 `create_battle`이 다시 하므로 이 값은 편의일 뿐이다.
 String? createBattleBlockMessage(MyLimits limits) {
   if (!limits.consented) return AppStrings.aiConsentRequired;
-  if (limits.hasPending) return AppStrings.battleErrorPendingExists;
-  if (limits.dailyBattleUsed) return AppStrings.battleErrorDailyLimit;
   if (limits.criteriaCallsLeft <= 0) return AppStrings.battleErrorCriteriaCallLimit;
   return null;
 }

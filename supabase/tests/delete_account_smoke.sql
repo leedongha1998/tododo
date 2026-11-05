@@ -60,11 +60,6 @@ begin
   returning id into v_b_done;
   insert into public.battle_participants (battle_id, user_id) values (v_b_done, v_o);
 
-  insert into public.daily_battle_slots (user_id, kst_date, battle_id)
-  values
-    (v_u, v_today, v_b_today), (v_o, v_today, v_b_today),
-    (v_u, v_today - 1, v_b_yday), (v_o, v_today - 1, v_b_yday);
-
   insert into public.battle_submissions (battle_id, user_id, object_path, captured_at, submitted_at, reason)
   values (v_b_today, v_u, v_b_today || '/' || v_u || '/smoke.jpg', now(), now(), '책상이 비어 있다');
 
@@ -84,9 +79,6 @@ begin
     'cancelled_outcomes', (select count(*) from public.battle_participants
                            where battle_id in (v_b_today, v_b_yday) and outcome is not null),
     'o_score', (select score from public.player_stats where user_id = v_o),
-    'o_slot_today', (select count(*) from public.daily_battle_slots where user_id = v_o and kst_date = v_today),
-    'o_slot_yday', (select count(*) from public.daily_battle_slots where user_id = v_o and kst_date = v_today - 1),
-    'u_slots', (select count(*) from public.daily_battle_slots where user_id = v_u),
     'u_stats_rows', (select count(*) from public.player_stats where user_id = v_u),
     'u_submission', (select coalesce(object_path, '(null)') || '/' || coalesce(reason, '(null)')
                      from public.battle_submissions where user_id = v_u)
@@ -102,9 +94,6 @@ begin
     'b_done', 'finished',
     'cancelled_outcomes', 0,
     'o_score', 5,
-    'o_slot_today', 0,
-    'o_slot_yday', 1,
-    'u_slots', 0,
     'u_stats_rows', 0,
     'u_submission', '(null)/책상이 비어 있다'
   );

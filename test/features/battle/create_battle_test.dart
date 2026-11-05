@@ -81,8 +81,6 @@ class _FakeBattleRepository implements BattleRepository {
   @override
   Future<MyLimits> fetchMyLimits() async => const MyLimits(
         consented: true,
-        hasPending: false,
-        dailyBattleUsed: false,
         criteriaCallsLeft: 9,
       );
 
@@ -374,8 +372,6 @@ void main() {
       criteria: criteria,
       limits: const MyLimits(
         consented: true,
-        hasPending: false,
-        dailyBattleUsed: false,
         criteriaCallsLeft: 0,
       ),
     );
@@ -389,21 +385,6 @@ void main() {
     );
     expect(button.onPressed, isNull);
     expect(criteria.generateCount, 0);
-  });
-
-  testWidgets('모집 중인 대결이 이미 있으면 이유를 안내한다', (tester) async {
-    await _pumpCreate(
-      tester,
-      criteria: _FakeCriteriaRepository(),
-      limits: const MyLimits(
-        consented: true,
-        hasPending: true,
-        dailyBattleUsed: false,
-        criteriaCallsLeft: 9,
-      ),
-    );
-
-    expect(find.text(AppStrings.battleErrorPendingExists), findsOneWidget);
   });
 
   testWidgets('AI 호출이 실패하면 횟수가 차감되지 않았다고 알리고 다시 시도할 수 있다', (tester) async {

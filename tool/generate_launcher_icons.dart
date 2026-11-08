@@ -3,16 +3,16 @@
 // 실행: flutter test tool/generate_launcher_icons.dart
 //
 // flutter_test 바인딩 위에서 Flutter의 렌더러로 직접 그려 PNG로 떨군다. 그림은
-// lib/core/theme/app_mark.dart의 16×16 비트맵, 색은 lib/core/theme/retro_palette.dart에서
+// lib/core/theme/app_mark.dart의 벡터 마크(AppMark.paint), 색은 lib/core/theme/app_palette.dart에서
 // 가져온다 — 로그인 화면 마크·앱 화면 색과 출처가 한 곳이다. 모양이나 색을 바꾸려면 그 두
 // 파일을 고치고 이 명령을 다시 돌린다.
 //
-// 번짐 없이 도트가 서도록 셀 크기를 밀도마다 정수 픽셀로 맞추고, 안티에일리어싱을 끈다.
+// 벡터라 밀도마다 배율만 바꿔 같은 비율로 그린다(안티에일리어싱 켬).
 //
 // 만들어지는 것:
 //   android/app/src/main/res/mipmap-*/ic_launcher.png             (API 25 이하용 정사각 아이콘)
 //   android/app/src/main/res/mipmap-*/ic_launcher_foreground.png  (API 26+ 적응형 아이콘 전경)
-//   android/app/src/main/res/mipmap-*/ic_launcher_monochrome.png  (안드로이드 13+ 테마 아이콘, 그림자 없음)
+//   android/app/src/main/res/mipmap-*/ic_launcher_monochrome.png  (안드로이드 13+ 테마 아이콘, 두께 없음)
 //   android/app/src/main/res/drawable-*/ic_notification.png       (알림 작은 아이콘, 흰 실루엣)
 //   android/app/src/main/res/values/colors.xml                    (적응형 배경색, 시작 창 배경색)
 //   store/icon-512.png                                            (Play 스토어 등록용)
@@ -24,66 +24,75 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/theme/app_mark.dart';
-import 'package:todododo/core/theme/retro_palette.dart';
+import 'package:todododo/core/theme/app_palette.dart';
 
-/// 밀도별 셀 크기(px). 적응형(108dp 캔버스 중 가운데 48dp)과 정사각(48dp 캔버스).
-///
-/// `notificationCell`은 알림 작은 아이콘(표준 24dp)용이다. 16셀 그림을 정수 픽셀로 세우려고
-/// 캔버스를 `16 * cell`로 두므로 밀도마다 24dp에 정확히 맞지는 않는다(xhdpi 48px·xxxhdpi 96px만
-/// 정확히 일치한다). 어느 밀도에서나 그림이 캔버스를 같은 비율로 채우는 쪽을 택했다 —
-/// 비율을 맞추려고 셀을 소수로 두면 도트가 번진다.
-const _densities = <String, ({double scale, int foregroundCell, int launcherCell, int notificationCell})>{
-  'mdpi': (scale: 1, foregroundCell: 3, launcherCell: 1, notificationCell: 1),
-  'hdpi': (scale: 1.5, foregroundCell: 4, launcherCell: 2, notificationCell: 2),
-  'xhdpi': (scale: 2, foregroundCell: 6, launcherCell: 2, notificationCell: 3),
-  'xxhdpi': (scale: 3, foregroundCell: 9, launcherCell: 3, notificationCell: 4),
-  'xxxhdpi': (scale: 4, foregroundCell: 12, launcherCell: 4, notificationCell: 6),
+/// 밀도 이름 → dp당 픽셀.
+const _densities = <String, double>{
+  'mdpi': 1,
+  'hdpi': 1.5,
+  'xhdpi': 2,
+  'xxhdpi': 3,
+  'xxxhdpi': 4,
 };
 
-/// 스토어 512px 아이콘의 셀 크기. 그림 320px(62.5%).
-const _storeCell = 20;
+// 캔버스와 마크 상자 크기(dp, redesign design 7.2).
+
+/// 적응형 아이콘 캔버스. 가운데 지름 66dp(반지름 33)가 어떤 모양으로 깎여도 남는 안전 원이다.
+const _adaptiveCanvas = 108.0;
+const _adaptiveBox = 44.0;
+
+/// API 25 이하 정사각 아이콘: 브랜드 둥근 사각 배경(모서리 10dp) 위 상자 34dp.
+const _legacyCanvas = 48.0;
+const _legacyBox = 34.0;
+const _legacyRadius = 10.0;
+
+/// 알림 작은 아이콘: 밀도마다 정확히 24dp, 상자 20dp, 흰 실루엣.
+const _notificationCanvas = 24.0;
+const _notificationBox = 20.0;
+
+/// 스토어 아이콘: 512px 꽉 찬 브랜드 정사각(모서리는 Play가 깎음), 상자 300px.
+const _storeSize = 512;
+const _storeBox = 300.0;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('런처 아이콘과 스토어 아이콘을 생성한다', () async {
-    for (final MapEntry(key: name, value: d) in _densities.entries) {
+    for (final MapEntry(key: name, value: scale) in _densities.entries) {
       final dir = Directory('android/app/src/main/res/mipmap-$name');
       dir.createSync(recursive: true);
 
-      final foregroundSize = (108 * d.scale).round();
+      final foregroundSize = (_adaptiveCanvas * scale).round();
       await _writePng(
         File('${dir.path}/ic_launcher_foreground.png'),
-        await _render(foregroundSize, cell: d.foregroundCell, rows: AppMark.rows),
+        await _render(foregroundSize, box: _adaptiveBox * scale),
       );
-      // 테마 아이콘은 알파만 쓰인다. 그림자까지 넣으면 칸과 체크가 한 덩어리로 뭉개진다.
+      // 테마 아이콘은 알파만 쓰인다. 두께까지 넣으면 칸과 체크가 한 덩어리로 뭉개진다.
       await _writePng(
         File('${dir.path}/ic_launcher_monochrome.png'),
-        await _render(foregroundSize, cell: d.foregroundCell, rows: AppMark.monochromeRows),
+        await _render(foregroundSize, box: _adaptiveBox * scale, monochrome: true),
       );
 
-      final launcherSize = (48 * d.scale).round();
       await _writePng(
         File('${dir.path}/ic_launcher.png'),
         await _render(
-          launcherSize,
-          cell: d.launcherCell,
-          rows: AppMark.rows,
-          background: _Background.stepped,
+          (_legacyCanvas * scale).round(),
+          box: _legacyBox * scale,
+          background: _Background.rounded,
+          radius: _legacyRadius * scale,
         ),
       );
 
-      // 알림 작은 아이콘: 시스템이 알파만 쓰고 색을 제 테마로 칠한다. 그림자('k')를 빼지 않으면
-      // 칸과 체크가 한 덩어리로 뭉개지므로 테마 아이콘과 같은 비트맵을 쓰고 전부 흰색으로 그린다.
+      // 알림 작은 아이콘: 시스템이 알파만 쓰고 색을 제 테마로 칠한다. 두께를 빼야 칸과 체크가
+      // 뭉개지지 않으므로 테마 아이콘과 같은 단색 그림을 흰색으로 그린다.
       final notificationDir = Directory('android/app/src/main/res/drawable-$name');
       notificationDir.createSync(recursive: true);
       await _writePng(
         File('${notificationDir.path}/ic_notification.png'),
         await _render(
-          AppMark.size * d.notificationCell,
-          cell: d.notificationCell,
-          rows: AppMark.monochromeRows,
-          overrideColor: const Color(0xFFFFFFFF),
+          (_notificationCanvas * scale).round(),
+          box: _notificationBox * scale,
+          monochrome: true,
         ),
       );
     }
@@ -92,69 +101,59 @@ void main() {
     Directory('store').createSync(recursive: true);
     await _writePng(
       File('store/icon-512.png'),
-      await _render(512, cell: _storeCell, rows: AppMark.rows, background: _Background.square),
+      await _render(_storeSize, box: _storeBox, background: _Background.square),
     );
 
     final colors = File('android/app/src/main/res/values/colors.xml');
     await colors.writeAsString(
       '<?xml version="1.0" encoding="utf-8"?>\n'
       '<!-- tool/generate_launcher_icons.dart가 생성한다. 직접 고치지 말 것 —\n'
-      '     색은 lib/core/theme/retro_palette.dart에서 온다. -->\n'
+      '     색은 lib/core/theme/app_palette.dart에서 온다. -->\n'
       '<resources>\n'
-      '    <!-- 적응형 아이콘 배경 = 앱 주 강조색 -->\n'
-      '    <color name="ic_launcher_background">${_hex(RetroPalette.primary)}</color>\n'
-      '    <!-- 시작 창 배경 = 앱 화면 배경. 다크 모드 기기에서도 같다. -->\n'
-      '    <color name="launch_background">${_hex(RetroPalette.paper)}</color>\n'
+      '    <!-- 적응형 아이콘 배경 = 브랜드색(primary) -->\n'
+      '    <color name="ic_launcher_background">${_hex(AppPalette.primary)}</color>\n'
+      '    <!-- 시작 창 배경 = 앱 화면 배경(background). 다크 모드 기기에서도 같다. -->\n'
+      '    <color name="launch_background">${_hex(AppPalette.background)}</color>\n'
       '</resources>\n',
     );
     debugPrint('wrote ${colors.path}');
   });
 }
 
-enum _Background { none, stepped, square }
+enum _Background { none, rounded, square }
 
 String _hex(Color color) =>
     '#${color.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}';
 
+/// [size]px 정사각 캔버스 가운데 [box]px 상자에 마크를 그린다.
 Future<Uint8List> _render(
   int size, {
-  required int cell,
-  required List<String> rows,
+  required double box,
+  bool monochrome = false,
   _Background background = _Background.none,
-  Color? overrideColor,
+  double radius = 0,
 }) async {
   final side = size.toDouble();
+  final canvasRect = Rect.fromLTWH(0, 0, side, side);
   final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, side, side));
+  final canvas = Canvas(recorder, canvasRect);
 
-  if (background != _Background.none) {
-    final paint = Paint()
-      ..color = RetroPalette.primary
-      ..isAntiAlias = false;
-    if (background == _Background.square) {
-      canvas.drawRect(Rect.fromLTWH(0, 0, side, side), paint);
-    } else {
-      // 둥근 모서리 대신 계단 모서리: 네 모서리에서 셀 한 칸을 비운다.
-      final notch = cell.toDouble();
-      canvas.drawRect(Rect.fromLTWH(notch, 0, side - notch * 2, side), paint);
-      canvas.drawRect(Rect.fromLTWH(0, notch, side, side - notch * 2), paint);
-    }
+  final backgroundPaint = Paint()..color = AppPalette.primary;
+  switch (background) {
+    case _Background.none:
+      break;
+    case _Background.square:
+      canvas.drawRect(canvasRect, backgroundPaint);
+    case _Background.rounded:
+      canvas.drawRRect(RRect.fromRectAndRadius(canvasRect, Radius.circular(radius)), backgroundPaint);
   }
 
-  final drawing = AppMark.size * cell;
-  final origin = ((size - drawing) / 2).floorToDouble();
-  final paint = Paint()..isAntiAlias = false;
-  for (var y = 0; y < rows.length; y++) {
-    for (var x = 0; x < rows[y].length; x++) {
-      final color = AppMark.colorOf(rows[y][x]);
-      if (color == null) continue;
-      paint.color = overrideColor ?? color;
-      canvas.drawRect(
-        Rect.fromLTWH(origin + x * cell, origin + y * cell, cell.toDouble(), cell.toDouble()),
-        paint,
-      );
-    }
-  }
+  AppMark.paint(
+    canvas,
+    Rect.fromCenter(center: canvasRect.center, width: box, height: box),
+    monochrome: monochrome,
+    monoColor: const Color(0xFFFFFFFF),
+  );
 
   final picture = recorder.endRecording();
   final image = await picture.toImage(size, size);

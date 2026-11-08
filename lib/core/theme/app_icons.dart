@@ -89,6 +89,9 @@ class AppIcons {
   /// 판정은 한 번만.
   static const lock = Icons.lock_rounded;
 
+  /// 판정 진행 줄 "판정할 사진 없음"(design-judging-buttons 1C의 "—" 배지).
+  static const dash = Icons.remove_rounded;
+
   /// 안내 블록.
   static const info = Icons.info_outline_rounded;
 

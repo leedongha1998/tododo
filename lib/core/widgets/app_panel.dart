@@ -29,7 +29,8 @@ class AppPanel extends StatefulWidget {
     this.padding = const EdgeInsets.all(16),
   }) : _variant = _PanelVariant.raised,
        tone = null,
-       icon = null;
+       icon = null,
+       leading = null;
 
   const AppPanel.flat({
     super.key,
@@ -39,7 +40,8 @@ class AppPanel extends StatefulWidget {
     this.padding = const EdgeInsets.all(16),
   }) : _variant = _PanelVariant.flat,
        tone = null,
-       icon = null;
+       icon = null,
+       leading = null;
 
   const AppPanel.inset({
     super.key,
@@ -49,16 +51,18 @@ class AppPanel extends StatefulWidget {
   }) : _variant = _PanelVariant.inset,
        title = null,
        tone = null,
-       icon = null;
+       icon = null,
+       leading = null;
 
   /// [icon]을 주지 않으면 성격별 기본 아이콘(info → info, success → pass, danger → warning,
-  /// neutral → 없음)을 쓴다.
+  /// neutral → 없음)을 쓴다. [leading]을 주면 아이콘 자리에 그 위젯을 둔다(판정 진행 카드의 28 원형 배지).
   const AppPanel.tone({
     super.key,
     required AppTone this.tone,
     required this.child,
     this.title,
     this.icon,
+    this.leading,
     this.padding = const EdgeInsets.all(16),
   }) : _variant = _PanelVariant.tone,
        onTap = null;
@@ -69,6 +73,7 @@ class AppPanel extends StatefulWidget {
   final EdgeInsetsGeometry padding;
   final AppTone? tone;
   final IconData? icon;
+  final Widget? leading;
   final _PanelVariant _variant;
 
   /// 손을 뗀 뒤 되돌아오는 길이(design 4.2).
@@ -193,7 +198,10 @@ class _AppPanelState extends State<AppPanel> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (icon != null) ...[
+        if (widget.leading != null) ...[
+          widget.leading!,
+          const SizedBox(width: 12),
+        ] else if (icon != null) ...[
           Icon(icon, size: 24, color: iconColor),
           const SizedBox(width: 12),
         ],

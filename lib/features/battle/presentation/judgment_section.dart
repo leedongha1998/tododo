@@ -12,6 +12,7 @@ import '../../../core/widgets/initial_badge.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
+import '../domain/judgment_progress.dart';
 import '../domain/judgment_rules.dart';
 import 'criteria_views.dart';
 import 'judgment_choice.dart';
@@ -106,34 +107,11 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
   Widget build(BuildContext context) {
     final detail = widget.detail;
 
-    return switch (detail.judgmentStage) {
-      JudgmentStage.notOpen => const SizedBox.shrink(),
-      JudgmentStage.nothingToJudge => const AppPanel.tone(
-          tone: AppTone.info,
-          icon: AppIcons.hourglass,
-          title: AppStrings.battleJudgmentNothingTitle,
-          child: KeepWordsText(AppStrings.battleJudgmentNothing),
-        ),
-      JudgmentStage.windowClosed => const AppPanel.tone(
-          tone: AppTone.neutral,
-          icon: AppIcons.clock,
-          title: AppStrings.battleJudgmentWindowClosedTitle,
-          child: KeepWordsText(AppStrings.battleJudgmentWindowClosed),
-        ),
-      JudgmentStage.waitingOpponent => const AppPanel.tone(
-          tone: AppTone.success,
-          title: AppStrings.battleJudgmentSentTitle,
-          child: KeepWordsText(AppStrings.battleJudgmentWaitingOpponent),
-        ),
-      // 3단계(AI 재판정 배선)가 오기 전에는 이 상태가 서버에서 끝나지 않는다.
-      JudgmentStage.waitingAi => const AppPanel.tone(
-          tone: AppTone.info,
-          icon: AppIcons.hourglass,
-          title: AppStrings.battleJudgmentAiTitle,
-          child: KeepWordsText(AppStrings.battleJudgmentAi),
-        ),
-      JudgmentStage.myTurn => _form(context, detail),
-    };
+    final now = DateTime.now();
+    final stage = detail.judgmentStageAt(now);
+    if (stage == JudgmentStage.notOpen) return const SizedBox.shrink();
+    if (stage == JudgmentStage.myTurn) return _form(context, detail);
+    return JudgmentProgressCard(stage: stage, rows: detail.judgmentProgressAt(now));
   }
 
   Widget _form(BuildContext context, BattleDetail detail) {
@@ -322,6 +300,180 @@ class _ChoiceThumbnail extends ConsumerWidget {
             return const EvidencePhotoFrame.small(failed: true);
           },
         );
+  }
+}
+
+/// 판정을 보낸 뒤·대기 단계의 "판정 진행 카드"(design-judging-buttons 1C 확장형).
+///
+/// 안내 블록(AppPanel.tone) 한 장: 왼쪽 28 원형 배지 + 제목 + 진행 줄(내 판정 / 상대 판정 / AI 재판정) + 본문.
+/// 줄 구성은 [judgmentProgressOf]가 정하고 이 위젯은 그리기만 한다. 상대 줄은 "보냈는가"만 — 무엇을 골랐는지는 없다.
+class JudgmentProgressCard extends StatelessWidget {
+  const JudgmentProgressCard({super.key, required this.stage, required this.rows});
+
+  final JudgmentStage stage;
+  final List<JudgmentProgressRow> rows;
+
+  /// 단계별 (패널 성격, 배지 면, 배지 아이콘, 아이콘 색, 제목, 본문).
+  static (AppTone, Color, IconData, Color, String, String) styleOf(JudgmentStage stage) =>
+      switch (stage) {
+        JudgmentStage.waitingOpponent => (
+            AppTone.success,
+            AppPalette.success,
+            AppIcons.check,
+            AppPalette.surface,
+            AppStrings.battleJudgmentSentTitle,
+            AppStrings.battleJudgmentWaitingOpponent,
+          ),
+        JudgmentStage.waitingAi => (
+            AppTone.info,
+            AppPalette.surface,
+            AppIcons.aiReview,
+            AppPalette.primary,
+            AppStrings.battleJudgmentAiTitle,
+            AppStrings.battleJudgmentAi,
+          ),
+        JudgmentStage.nothingToJudge => (
+            AppTone.info,
+            AppPalette.surface,
+            AppIcons.hourglass,
+            AppPalette.primary,
+            AppStrings.battleJudgmentNothingTitle,
+            AppStrings.battleJudgmentNothing,
+          ),
+        // 판정 창 밖(notOpen·myTurn)에는 이 카드를 그리지 않는다. 기한 경과와 같은 중립 모양으로 둔다.
+        JudgmentStage.windowClosed || JudgmentStage.notOpen || JudgmentStage.myTurn => (
+            AppTone.neutral,
+            AppPalette.surface,
+            AppIcons.clock,
+            AppPalette.inkMuted,
+            AppStrings.battleJudgmentWindowClosedTitle,
+            AppStrings.battleJudgmentWindowClosed,
+          ),
+      };
+
+  /// 패널 면색(AppPanel.tone과 같다). 진행 줄 글자 대비를 고르는 데 쓴다.
+  static Color faceOf(AppTone tone) => switch (tone) {
+        AppTone.info => AppPalette.primaryPale,
+        AppTone.success => AppPalette.successPale,
+        AppTone.danger => AppPalette.dangerPale,
+        AppTone.neutral => AppPalette.sunken,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final (tone, badgeFill, badgeIcon, badgeIconColor, title, body) = styleOf(stage);
+    return AppPanel.tone(
+      key: ValueKey('judgment-progress-${stage.name}'),
+      tone: tone,
+      title: title,
+      leading: ExcludeSemantics(
+        child: Container(
+          key: const ValueKey('judgment-progress-badge'),
+          width: JudgmentStepBadge.size,
+          height: JudgmentStepBadge.size,
+          alignment: Alignment.center,
+          decoration: ShapeDecoration(color: badgeFill, shape: const CircleBorder()),
+          child: Icon(badgeIcon, size: 20, color: badgeIconColor),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final row in rows) JudgmentProgressLine(row: row, face: faceOf(tone)),
+          if (rows.isNotEmpty) const SizedBox(height: 8),
+          KeepWordsText(body),
+        ],
+      ),
+    );
+  }
+}
+
+/// 진행 줄 하나: 최소 높이 40, [배지 24] 8 [주체 bodyMedium ink] 8 [상태 labelMedium 14/700].
+/// 좁거나 글자가 커지면 주체·상태가 각자 칸 안에서 어절 단위로 줄을 바꾼다(넘치지 않는다).
+class JudgmentProgressLine extends StatelessWidget {
+  const JudgmentProgressLine({super.key, required this.row, required this.face});
+
+  final JudgmentProgressRow row;
+
+  /// 이 줄이 놓이는 패널 면색.
+  final Color face;
+
+  static const minHeight = 40.0;
+  static const badgeSize = 24.0;
+
+  String get partyLabel => switch (row.party) {
+        JudgmentProgressParty.me => AppStrings.battleJudgmentProgressMine,
+        JudgmentProgressParty.opponent => AppStrings.battleJudgmentProgressOpponent,
+        JudgmentProgressParty.ai => AppStrings.battleJudgmentProgressAi,
+      };
+
+  String get stateLabel => switch (row.state) {
+        JudgmentProgressState.sent => AppStrings.battleJudgmentProgressSent,
+        JudgmentProgressState.waiting => AppStrings.battleJudgmentProgressWaiting,
+        JudgmentProgressState.reviewing => AppStrings.battleJudgmentProgressReviewing,
+        JudgmentProgressState.nothingToJudge => AppStrings.battleJudgmentProgressNoPhoto,
+        JudgmentProgressState.missedDeadline => AppStrings.battleJudgmentProgressMissed,
+      };
+
+  /// 상태 글자색. "보냈어요"의 success는 successPale 위에서만 4.5를 넘는다(primaryPale 4.41·sunken 4.29) —
+  /// 그 밖의 면에서는 ink로 쓴다(뜻은 초록 체크 배지가 함께 전한다).
+  Color get stateColor => switch (row.state) {
+        JudgmentProgressState.sent => face == AppPalette.successPale ? AppPalette.success : AppPalette.ink,
+        JudgmentProgressState.reviewing => AppPalette.primaryDeep,
+        JudgmentProgressState.waiting ||
+        JudgmentProgressState.nothingToJudge ||
+        JudgmentProgressState.missedDeadline =>
+          AppPalette.inkMuted,
+      };
+
+  /// 배지 (면, 아이콘, 아이콘 색). 회색 계열 배지는 흰 원 — 패널 면(sunken·primaryPale)과 같은 색이면 원이 사라진다.
+  (Color, IconData, Color) get badge => switch (row.state) {
+        JudgmentProgressState.sent => (AppPalette.success, AppIcons.check, AppPalette.surface),
+        JudgmentProgressState.waiting => (AppPalette.surface, AppIcons.hourglass, AppPalette.inkMuted),
+        JudgmentProgressState.reviewing => (AppPalette.surface, AppIcons.aiReview, AppPalette.primary),
+        JudgmentProgressState.nothingToJudge => (AppPalette.surface, AppIcons.dash, AppPalette.inkMuted),
+        JudgmentProgressState.missedDeadline => (AppPalette.surface, AppIcons.clock, AppPalette.inkMuted),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final (fill, icon, iconColor) = badge;
+    return MergeSemantics(
+      child: ConstrainedBox(
+        key: ValueKey('judgment-progress-${row.party.name}'),
+        constraints: const BoxConstraints(minHeight: minHeight),
+        child: Row(
+          children: [
+            ExcludeSemantics(
+              child: Container(
+                width: badgeSize,
+                height: badgeSize,
+                alignment: Alignment.center,
+                decoration: ShapeDecoration(color: fill, shape: const CircleBorder()),
+                child: Icon(icon, size: 16, color: iconColor),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: KeepWordsText(
+                partyLabel,
+                style: textTheme.bodyMedium!.copyWith(color: AppPalette.ink),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: KeepWordsText(
+                stateLabel,
+                textAlign: TextAlign.end,
+                style: textTheme.labelMedium!.copyWith(color: stateColor),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

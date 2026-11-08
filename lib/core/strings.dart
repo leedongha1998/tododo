@@ -200,6 +200,15 @@ class AppStrings {
   static const battleJudgmentAi = '판정이 갈려서 AI가 확정된 기준으로 다시 판정해요. 결과가 나오면 여기에 보여요.';
   static const battleJudgmentWindowClosedTitle = '판정 기한이 지났어요';
   static const battleJudgmentWindowClosed = '판정하지 않으면 상대를 인정한 것으로 처리돼요. 곧 결과가 정리돼요.';
+  // 판정 진행 줄(보낸 뒤·대기 — design-judging-buttons 1C, 오너 결정 4). 상대 줄은 "보냈는가"만 말한다.
+  static const battleJudgmentProgressMine = '내 판정';
+  static const battleJudgmentProgressOpponent = '상대 판정';
+  static const battleJudgmentProgressAi = 'AI 재판정';
+  static const battleJudgmentProgressSent = '보냈어요';
+  static const battleJudgmentProgressWaiting = '기다리는 중';
+  static const battleJudgmentProgressReviewing = '보고 있어요';
+  static const battleJudgmentProgressNoPhoto = '판정할 사진 없음';
+  static const battleJudgmentProgressMissed = '기한 지남';
 
   static const battleForfeit = '대결 포기';
   static const battleForfeitConfirmTitle = '대결을 포기할까요?';

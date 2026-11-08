@@ -110,6 +110,23 @@ void main() {
     expect(tester.widget<Icon>(find.byType(Icon)).color, AppPalette.inkMuted);
   });
 
+  testWidgets('tone에 leading을 주면 아이콘 자리에 그 위젯을 둔다(판정 진행 카드 배지)', (tester) async {
+    await pump(
+      tester,
+      const AppPanel.tone(
+        tone: AppTone.success,
+        leading: SizedBox(key: ValueKey('badge'), width: 28, height: 28),
+        child: Text('안내'),
+      ),
+    );
+    expect(find.byKey(const ValueKey('badge')), findsOneWidget);
+    // 성격별 기본 아이콘은 그리지 않는다.
+    expect(find.byType(Icon), findsNothing);
+    final badge = tester.getRect(find.byKey(const ValueKey('badge')));
+    final text = tester.getRect(find.text('안내'));
+    expect(text.left - badge.right, 12);
+  });
+
   testWidgets('제목은 ink 띠 없이 묶음 안 첫 줄 titleSmall 글자로만 그린다', (tester) async {
     await pump(tester, const AppPanel.flat(title: '최소 기준', child: Text('본문')));
     final title = tester.widget<KeepWordsText>(findText('최소 기준'));

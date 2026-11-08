@@ -745,4 +745,110 @@ void main() {
       expect(repository.photoUrlRequests, isNot(contains('b1/me/photo.jpg')));
     });
   });
+
+  // design-judging-buttons 1C 확장형(오너 결정 4): 28 원형 배지 + 진행 줄. 상대 줄은 "보냈는가"만.
+  group('판정 진행 카드', () {
+    Finder line(String party) => find.byKey(ValueKey('judgment-progress-$party'));
+    String stateOf(WidgetTester tester, String party) => tester
+        .widget<JudgmentProgressLine>(
+          find.ancestor(of: line(party), matching: find.byType(JudgmentProgressLine)),
+        )
+        .stateLabel;
+
+    final cases = <(String, BattleDetail, String, List<(String, String)>)>[
+      (
+        '내 판정만 보냄',
+        _judging(myHasJudged: true),
+        'waitingOpponent',
+        [('me', AppStrings.battleJudgmentProgressSent), ('opponent', AppStrings.battleJudgmentProgressWaiting)],
+      ),
+      (
+        'AI 재판정 중',
+        _judging(myHasJudged: true, opponentHasJudged: true),
+        'waitingAi',
+        [
+          ('me', AppStrings.battleJudgmentProgressSent),
+          ('opponent', AppStrings.battleJudgmentProgressSent),
+          ('ai', AppStrings.battleJudgmentProgressReviewing),
+        ],
+      ),
+      (
+        '판정할 것이 없음',
+        _judging(opponentHasSubmitted: false),
+        'nothingToJudge',
+        [('me', AppStrings.battleJudgmentProgressNoPhoto), ('opponent', AppStrings.battleJudgmentProgressWaiting)],
+      ),
+      (
+        '기한 경과',
+        _judging(judgeLeft: const Duration(minutes: -1), opponentHasJudged: true),
+        'windowClosed',
+        [('me', AppStrings.battleJudgmentProgressMissed), ('opponent', AppStrings.battleJudgmentProgressSent)],
+      ),
+    ];
+
+    for (final (name, detail, stage, expected) in cases) {
+      testWidgets('$name: 단계 카드·배지 28·진행 줄이 서버 값대로, 글자 대비 4.5 이상', (tester) async {
+        await tester.pumpWidget(_screen(detail, _FakeBattleRepository(), photo: photoOk));
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(ValueKey('judgment-progress-$stage')), findsOneWidget);
+        expect(tester.getSize(find.byKey(const ValueKey('judgment-progress-badge'))), const Size(28, 28));
+        expect(find.byType(JudgmentProgressLine), findsNWidgets(expected.length));
+        for (final (party, label) in expected) {
+          expect(stateOf(tester, party), label, reason: party);
+        }
+        for (final widget in tester.widgetList<JudgmentProgressLine>(find.byType(JudgmentProgressLine))) {
+          expect(contrastRatio(widget.stateColor, widget.face), greaterThanOrEqualTo(4.5), reason: widget.stateLabel);
+        }
+        expect(findText(AppStrings.battleJudgmentSend), findsNothing);
+      });
+    }
+
+    testWidgets('상대 판정 줄은 무엇을 골랐는지 말하지 않는다', (tester) async {
+      await tester.pumpWidget(
+        _screen(_judging(type: 'quality', myHasJudged: true, opponentHasJudged: true), _FakeBattleRepository(),
+            photo: photoOk),
+      );
+      await tester.pumpAndSettle();
+
+      for (final label in [
+        AppStrings.battleJudgmentPassed,
+        AppStrings.battleJudgmentFailed,
+        AppStrings.battleJudgmentSuperiorMe,
+        AppStrings.battleJudgmentSuperiorOpponent,
+      ]) {
+        expect(findText(label), findsNothing, reason: label);
+      }
+    });
+
+    for (final scale in [1.0, 1.5]) {
+      testWidgets('360dp·$scale배: AI 재판정 카드의 진행 줄이 넘치지 않고 최소 높이 40', (tester) async {
+        tester.view.physicalSize = const Size(720, 1600);
+        tester.view.devicePixelRatio = 2;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(_screen(
+          _judging(myHasJudged: true, opponentHasJudged: true),
+          _FakeBattleRepository(),
+          photo: photoOk,
+          theme: AppTheme.light,
+          textScale: scale,
+        ));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+
+        for (final party in ['me', 'opponent', 'ai']) {
+          final rect = tester.getRect(line(party));
+          expect(rect.height, greaterThanOrEqualTo(40), reason: party);
+          expect(rect.right, lessThanOrEqualTo(340 + 0.5), reason: party);
+        }
+        for (final widget in tester.widgetList<JudgmentProgressLine>(find.byType(JudgmentProgressLine))) {
+          final paragraph = tester.renderObject<RenderParagraph>(find.descendant(
+            of: findText(widget.stateLabel).first,
+            matching: find.byType(RichText),
+          ));
+          expect(breaksOnlyAtSpaces(paragraph), isTrue, reason: widget.stateLabel);
+        }
+      });
+    }
+  });
 }

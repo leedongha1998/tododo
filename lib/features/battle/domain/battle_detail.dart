@@ -2,6 +2,7 @@ import '../data/battle.dart';
 import '../data/battle_participant.dart';
 import '../data/battle_submission.dart';
 import 'battle_outcome.dart';
+import 'judgment_progress.dart';
 import 'judgment_rules.dart';
 
 /// 대결 상세 화면이 쓰는 상태 판별 모음.
@@ -81,6 +82,13 @@ class BattleDetail {
       );
 
   JudgmentStage get judgmentStage => judgmentStageAt(DateTime.now());
+
+  /// 판정을 보낸 뒤·대기 단계의 진행 줄(내 판정 / 상대 판정 / AI 재판정). 판단은 [judgmentProgressOf] 순수 함수가 한다.
+  List<JudgmentProgressRow> judgmentProgressAt(DateTime now) => judgmentProgressOf(
+        stage: judgmentStageAt(now),
+        iSubmitted: me.hasSubmitted,
+        opponentJudged: opponent.hasJudged,
+      );
 
   /// 내가 판정할 차례인지. 같은 검사를 서버(`submit_judgment`)가 다시 한다.
   bool get isMyJudgmentTurn => judgmentStage == JudgmentStage.myTurn;

@@ -55,7 +55,8 @@ enum KeepWordsWrap {
   /// 제목·라벨·버튼·칩처럼 짧은 글자용. 위젯이 차지하는 폭과 정렬은 그대로다.
   balanced,
 
-  /// 문단의 마지막 줄에 한 어절만 남지 않게 마지막 두 어절을 붙인다(고아 방지). 붙인 두 어절이 칸보다 넓으면 붙이지 않는다.
+  /// 문단의 마지막 줄에 한 어절만 남지 않게 마지막 두 어절을 붙인다(고아 방지). 그 앞 어절이 한 글자("쓸 수 있어요")면
+  /// 함께 붙인다([joinLastWords]). 붙인 꼬리가 칸보다 넓으면 붙이지 않는다. 전체가 두 줄이면 균형까지 맞춘다.
   /// 설명·안내·동의 문구·할 일 내용 같은 본문용.
   pretty,
 
@@ -317,60 +318,91 @@ _WrapPlan _computePlan(_WrapConfig config, double maxWidth, _WrapPlan base) {
       case KeepWordsWrap.none:
         return base;
       case KeepWordsWrap.pretty:
-        final joined = joinLastWords(config.text, (pair) {
-          final measure = config.painter(pair, maxLines: null)..layout();
+        final joined = joinLastWords(config.text, (tail) {
+          final measure = config.painter(tail, maxLines: null)..layout();
           final width = measure.width;
           measure.dispose();
           return width <= maxWidth;
         });
-        if (joined == config.text) return base;
-        // 붙인 두 어절이 칸 안에 들어가면 줄 수는 늘지 않는다 — 그래도 확인하고, 어긋나면 붙이지 않는다.
-        final check = config.painter(joined)..layout(maxWidth: maxWidth);
-        final ok = !check.didExceedMaxLines && check.computeLineMetrics().length <= lines;
-        check.dispose();
-        return ok ? _WrapPlan(joined) : base;
-      case KeepWordsWrap.balanced:
-        if (lines > balancedMaxLines || config.textAlign == TextAlign.justify) return base;
-        var lo = painter.minIntrinsicWidth;
-        var hi = maxWidth;
-        // 줄 수가 그대로인 가장 좁은 폭. 0.5dp까지 좁히면 충분하다(최대 약 10번).
-        while (hi - lo > 0.5) {
-          final mid = (lo + hi) / 2;
-          painter.layout(maxWidth: mid);
-          if (!painter.didExceedMaxLines && painter.computeLineMetrics().length == lines) {
-            hi = mid;
-          } else {
-            lo = mid;
-          }
+        // 붙인 꼬리가 칸 안에 들어가면 줄 수는 늘지 않는다 — 그래도 확인하고, 어긋나면 붙이지 않는다.
+        var text = joined;
+        if (joined != config.text) {
+          final check = config.painter(joined)..layout(maxWidth: maxWidth);
+          if (check.didExceedMaxLines || check.computeLineMetrics().length > lines) text = config.text;
+          check.dispose();
         }
-        return hi >= maxWidth - 0.5 ? base : _WrapPlan(config.text, hi);
+        // 두 줄짜리 짧은 본문은 둘째 줄이 몇 글자만 남지 않게 균형까지 맞춘다
+        // ("통과하지 못했다고 하면 AI가 / 다시 봐요." → "통과하지 못했다고 하면 / AI가 다시 봐요.").
+        final plan = _WrapPlan(text, lines == 2 ? _balancedWidth(config, text, maxWidth, 2) : null);
+        return plan == base ? base : plan;
+      case KeepWordsWrap.balanced:
+        if (lines > balancedMaxLines) return base;
+        return _WrapPlan(config.text, _balancedWidth(config, config.text, maxWidth, lines));
     }
   } finally {
     painter.dispose();
   }
 }
 
-/// 문단(`\n`으로 나뉜 덩어리)마다 마지막 공백 뒤에 [wordJoiner]를 넣어 마지막 두 어절이 한 줄에 같이 있게 한다.
-/// [fits]가 그 두 어절(사이 공백 포함)을 받아 거짓을 돌려주면 그 문단은 그대로 둔다. 어절이 하나뿐인 문단도 그대로다.
-/// 공백은 U+0020만 본다(줄바꿈 금지 공백 등은 이미 붙어 있다).
-String joinLastWords(String text, bool Function(String pair) fits) {
+/// [text]를 [lines]줄 그대로 두는 가장 좁은 폭(0.5dp 단위, 최대 약 10번 배치). 칸 폭과 거의 같거나 양쪽 정렬이면 null(칸 폭 그대로).
+double? _balancedWidth(_WrapConfig config, String text, double maxWidth, int lines) {
+  if (config.textAlign == TextAlign.justify) return null;
+  final painter = config.painter(text)..layout(maxWidth: maxWidth);
+  try {
+    var lo = painter.minIntrinsicWidth;
+    var hi = maxWidth;
+    while (hi - lo > 0.5) {
+      final mid = (lo + hi) / 2;
+      painter.layout(maxWidth: mid);
+      if (!painter.didExceedMaxLines && painter.computeLineMetrics().length == lines) {
+        hi = mid;
+      } else {
+        lo = mid;
+      }
+    }
+    return hi >= maxWidth - 0.5 ? null : hi;
+  } finally {
+    painter.dispose();
+  }
+}
+
+/// pretty가 마지막 줄에 함께 두는 어절 수의 상한.
+const _maxTailWords = 4;
+
+/// 글자·숫자가 한 글자뿐인 어절("수", "쓸", "더", "때"). 혼자서는 줄의 무게가 없어 뒤 어절과 함께 센다.
+bool _isShortWord(String word) =>
+    word.replaceAll(RegExp(r'[^\p{L}\p{N}]', unicode: true), '').runes.length <= 1;
+
+/// 문단(`\n`으로 나뉜 덩어리)마다 마지막 어절 앞의 공백들 뒤에 [wordJoiner]를 넣어 꼬리 어절들이 한 줄에 같이 있게 한다.
+///
+/// 꼬리는 마지막 두 어절이고, 그 앞 어절이 한 글자뿐이면("쓸 수 있어요") 한 글자가 아닌 어절이 나올 때까지 앞으로 늘린다
+/// (최대 [_maxTailWords]어절). [fits]가 꼬리(사이 공백 포함)를 받아 거짓이면 마지막 두 어절만으로 다시 묻고, 그것도 거짓이면
+/// 그 문단은 그대로 둔다. 어절이 하나뿐인 문단도 그대로다. 공백은 U+0020만 본다.
+String joinLastWords(String text, bool Function(String tail) fits) {
   final paragraphs = text.split('\n');
+  final word = RegExp(r'[^ ]+');
   for (var i = 0; i < paragraphs.length; i++) {
     final paragraph = paragraphs[i];
-    final end = paragraph.trimRight().length;
-    if (end == 0) continue;
-    final lastSpace = paragraph.lastIndexOf(' ', end - 1);
-    if (lastSpace < 0) continue;
-    // 마지막 공백 덩어리의 앞 끝과, 그 앞 어절의 시작.
-    var spaceStart = lastSpace;
-    while (spaceStart > 0 && paragraph[spaceStart - 1] == ' ') {
-      spaceStart--;
+    final words = word.allMatches(paragraph).toList();
+    if (words.length < 2) continue;
+    var first = words.length - 2;
+    while (first > 0 && words.length - first < _maxTailWords && _isShortWord(words[first].group(0)!)) {
+      first--;
     }
-    if (spaceStart == 0 || paragraph.substring(0, spaceStart).trim().isEmpty) continue;
-    final previousSpace = paragraph.lastIndexOf(' ', spaceStart - 1);
-    final pair = paragraph.substring(previousSpace + 1, end);
-    if (!fits(pair)) continue;
-    paragraphs[i] = '${paragraph.substring(0, lastSpace + 1)}$wordJoiner${paragraph.substring(lastSpace + 1)}';
+    String tailFrom(int index) => paragraph.substring(words[index].start, words.last.end);
+    if (!fits(tailFrom(first))) {
+      first = words.length - 2;
+      if (!fits(tailFrom(first))) continue;
+    }
+    final buffer = StringBuffer(paragraph.substring(0, words[first + 1].start));
+    for (var w = first + 1; w < words.length; w++) {
+      if (w > first + 1) buffer.write(paragraph.substring(words[w - 1].end, words[w].start));
+      buffer
+        ..write(wordJoiner)
+        ..write(words[w].group(0));
+    }
+    buffer.write(paragraph.substring(words.last.end));
+    paragraphs[i] = buffer.toString();
   }
   return paragraphs.join('\n');
 }

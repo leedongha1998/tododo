@@ -313,14 +313,67 @@ void main() {
       expect(breaksOnlyAtSpaces(paragraph), isTrue);
     });
 
-    test('joinLastWords는 마지막 공백 뒤에만 WORD JOINER를 넣고, fits가 거짓이면 그대로 둔다', () {
-      expect(joinLastWords('가 나 다', (_) => true), '가 나 ⁠다');
-      expect(joinLastWords('가 나 다', (pair) => pair == '나 다'), '가 나 ⁠다');
-      expect(joinLastWords('가 나 다', (_) => false), '가 나 다');
+    test('joinLastWords는 꼬리 어절 앞 공백 뒤에만 WORD JOINER를 넣고, fits가 거짓이면 그대로 둔다', () {
+      expect(joinLastWords('가나 다라 마바', (_) => true), '가나 다라 ⁠마바');
+      expect(joinLastWords('가나 다라 마바', (_) => false), '가나 다라 마바');
       expect(joinLastWords('하나', (_) => true), '하나');
       expect(joinLastWords('', (_) => true), '');
-      expect(joinLastWords('가  나 ', (_) => true), '가  ⁠나 ');
-      expect(joinLastWords('가 나\n다 라', (_) => true), '가 ⁠나\n다 ⁠라');
+      expect(joinLastWords('가나  다라 ', (_) => true), '가나  ⁠다라 ');
+      expect(joinLastWords('가나 다라\n마바 사아', (_) => true), '가나 ⁠다라\n마바 ⁠사아');
+    });
+
+    test('joinLastWords: 꼬리 앞 어절이 한 글자면 함께 붙이고(최대 네 어절), 안 들어가면 두 어절만', () {
+      const consent = '할 일 기능은 그대로 쓸 수 있어요.';
+      expect(joinLastWords(consent, (_) => true), '할 일 기능은 그대로 ⁠쓸 ⁠수 ⁠있어요.');
+      expect(joinLastWords(consent, (tail) => tail.length <= 6), '할 일 기능은 그대로 쓸 수 ⁠있어요.');
+      expect(joinLastWords('가 나 다 라 마', (_) => true), '가 나 ⁠다 ⁠라 ⁠마');
+    });
+
+    testWidgets('pretty: 두 줄짜리 본문은 둘째 줄이 짧게 남지 않게 균형도 맞춘다(끄면 남는다)', (tester) async {
+      const hint = '통과하지 못했다고 하면 AI가 다시 봐요.';
+      // 폭 200(20칸): 엔진 기본은 "통과하지 못했다고 하면 AI가 다시 / 봐요."(19 / 3칸).
+      await pumpAt(
+        tester,
+        200,
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            KeepWordsText(hint, key: Key('none'), style: body, wrap: KeepWordsWrap.none),
+            KeepWordsText(hint, key: Key('pretty'), style: body),
+          ],
+        ),
+      );
+      final none = paragraphOf(tester, find.byKey(const Key('none')));
+      final pretty = paragraphOf(tester, find.byKey(const Key('pretty')));
+      expect(lineWidths(none), hasLength(2));
+      expect(lineWidths(pretty), hasLength(2));
+      expect(spread(lineWidths(pretty)), lessThan(spread(lineWidths(none))));
+      expect(lastLineWords(pretty).length, greaterThanOrEqualTo(2));
+      expect(lineWidths(none), [190, 30]);
+      // 고아 방지로 "다시 봐요."를 붙이고, 두 줄 균형으로 "통과하지 못했다고 하면 / AI가 다시 봐요."(12 / 10칸).
+      expect(lineWidths(pretty), [120, 100]);
+      expect(tester.getSize(find.byKey(const Key('pretty'))).width, 200);
+    });
+
+    testWidgets('pretty: "쓸 수 있어요."처럼 한 글자 어절이 끼면 마지막 줄에 함께 내린다', (tester) async {
+      const consent = '동의하지 않으면 대결을 만들거나 참가할 수 없고, 할 일 기능은 그대로 쓸 수 있어요.';
+      // 폭 140(14칸)이면 엔진 기본의 마지막 줄은 "수 있어요."
+      await pumpAt(
+        tester,
+        140,
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            KeepWordsText(consent, key: Key('none'), style: body, wrap: KeepWordsWrap.none),
+            KeepWordsText(consent, key: Key('pretty'), style: body),
+          ],
+        ),
+      );
+      final none = paragraphOf(tester, find.byKey(const Key('none')));
+      final pretty = paragraphOf(tester, find.byKey(const Key('pretty')));
+      expect(lastLineWords(none), ['수', '있어요.']);
+      expect(lastLineWords(pretty), ['그대로', '쓸', '수', '있어요.']);
+      expect(lineStarts(pretty).length, lineStarts(none).length);
     });
 
     for (final wrap in KeepWordsWrap.values) {

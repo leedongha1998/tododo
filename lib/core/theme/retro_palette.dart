@@ -52,11 +52,3 @@ class RetroPalette {
   static const dangerPale = Color(0xFFF4C7C0);
 }
 
-/// WCAG 2.x 대비비. 팔레트 조합이 읽을 수 있는지 테스트로 고정하는 데 쓴다.
-double contrastRatio(Color a, Color b) {
-  final la = a.computeLuminance();
-  final lb = b.computeLuminance();
-  final lighter = la > lb ? la : lb;
-  final darker = la > lb ? lb : la;
-  return (lighter + 0.05) / (darker + 0.05);
-}

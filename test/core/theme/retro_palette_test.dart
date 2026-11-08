@@ -1,5 +1,6 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/retro_palette.dart';
 
 /// design.md 1.1 대비비 표. 글자/배경, 설계에 적은 값, 지켜야 할 기준.

@@ -109,6 +109,8 @@ class JudgmentChoicePair<T extends Object> extends StatelessWidget {
 
 /// 선택 타일 한 칸(design-judging-buttons 1A.2).
 ///
+/// 내용(머리 → 8 → 라벨)은 칸 위쪽에 붙는다 — 두 칸의 머리가 같은 높이에 온다.
+///
 /// | 상태 | 면 | 테두리 | 그 밖 |
 /// |---|---|---|---|
 /// | 미선택 | surface | 1.5dp outline | 라벨 ink |
@@ -206,7 +208,10 @@ class _JudgmentChoiceTileState extends State<JudgmentChoiceTile> {
         children: [
           Padding(
             padding: JudgmentChoiceTile.padding,
+            // 위 정렬: 두 칸의 라벨 줄 수가 달라도(통과했어요 1줄 / 통과하지 못했어요 2줄) 아이콘·배지·사진이 같은 높이에
+            // 놓인다. 가운데 정렬이면 머리가 어긋나 두 칸을 비교하기 어렵다(설계 1A.2 "세로 가운데"에서 바꿈).
             child: Align(
+              alignment: Alignment.topCenter,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

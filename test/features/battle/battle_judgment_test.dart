@@ -9,6 +9,7 @@ import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_icons.dart';
 import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/app_theme.dart';
+import 'package:todododo/core/widgets/evidence_photo_frame.dart';
 import 'package:todododo/core/widgets/keep_words_text.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
@@ -50,8 +51,13 @@ class _FakeBattleRepository implements BattleRepository {
     return 'judging';
   }
 
+  final photoUrlRequests = <String>[];
+
   @override
-  Future<String> createEvidencePhotoUrl(String path) async => 'https://example.com/$path';
+  Future<String> createEvidencePhotoUrl(String path) async {
+    photoUrlRequests.add(path);
+    return 'https://example.com/$path';
+  }
 
   @override
   Future<PlayerCard> fetchPlayerCard(String userId) async => const PlayerCard(
@@ -699,5 +705,44 @@ void main() {
         expect(send.onPressed, isNotNull);
       });
     }
+  });
+
+  // 오너 결정 8: 우열 타일에 그 사람의 사진 썸네일. 이미 상세에 있는 제출의 objectPath를 같은 서명 URL provider로 쓴다.
+  group('우열 타일 사진 썸네일', () {
+    Finder thumbnailIn(String label) => find.descendant(
+          of: find.ancestor(of: _choice(label), matching: find.byType(JudgmentChoiceTile)),
+          matching: find.byType(EvidencePhotoFrame),
+        );
+
+    testWidgets('품질전 우열 칸마다 사진 썸네일(높이 96)과 이니셜 배지가 있다', (tester) async {
+      final repository = _FakeBattleRepository();
+      await tester.pumpWidget(_screen(_judging(type: 'quality'), repository, photo: photoOk));
+      await tester.pumpAndSettle();
+
+      for (final label in [
+        AppStrings.battleJudgmentSuperiorMe,
+        AppStrings.battleJudgmentSuperiorOpponent,
+      ]) {
+        expect(thumbnailIn(label), findsOneWidget, reason: label);
+        expect(tester.getSize(thumbnailIn(label)).height, 96, reason: label);
+        expect(tester.widget<EvidencePhotoFrame>(thumbnailIn(label)).small, isTrue);
+      }
+      // 내 사진은 내 제출 경로로, 상대 사진은 위 큰 사진과 같은 경로(같은 provider)로 받는다.
+      expect(repository.photoUrlRequests, contains('b1/me/photo.jpg'));
+      // 최소 기준 칸에는 사진이 없다(사진은 위에 크게 있다).
+      expect(thumbnailIn(AppStrings.battleJudgmentPassed), findsNothing);
+    });
+
+    testWidgets('속도전에는 우열 칸이 없어 썸네일도 없다', (tester) async {
+      final repository = _FakeBattleRepository();
+      await tester.pumpWidget(_screen(_judging(), repository, photo: photoOk));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(of: find.byType(JudgmentChoiceTile), matching: find.byType(EvidencePhotoFrame)),
+        findsNothing,
+      );
+      expect(repository.photoUrlRequests, isNot(contains('b1/me/photo.jpg')));
+    });
   });
 }

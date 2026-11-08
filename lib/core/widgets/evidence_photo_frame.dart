@@ -22,7 +22,8 @@ class EvidencePhotoFrame extends StatelessWidget {
     this.image,
     this.failed = false,
     this.onRetry,
-  }) : large = false;
+  }) : large = false,
+       small = false;
 
   /// 가로 꽉 참, 높이는 사진 비율.
   const EvidencePhotoFrame.large({
@@ -30,14 +31,27 @@ class EvidencePhotoFrame extends StatelessWidget {
     this.image,
     this.failed = false,
     this.onRetry,
-  }) : large = true;
+  }) : large = true,
+       small = false;
+
+  /// 판정 우열 선택 타일 안(가로 꽉 참, 높이 96 — design-judging-buttons 결정 8). 타일 전체가 누르는 자리라
+  /// 다시 시도 버튼을 두지 않고, 실패는 아이콘만 그린다(낭독은 실패 문구).
+  const EvidencePhotoFrame.small({
+    super.key,
+    this.image,
+    this.failed = false,
+  }) : large = false,
+       small = true,
+       onRetry = null;
 
   final ImageProvider? image;
   final bool failed;
   final VoidCallback? onRetry;
   final bool large;
+  final bool small;
 
   static const thumbnailHeight = 160.0;
+  static const smallHeight = 96.0;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +60,7 @@ class EvidencePhotoFrame extends StatelessWidget {
     if (failed) {
       content = _failure(context);
     } else if (image == null) {
-      content = const Center(child: AppLoader.medium());
+      content = Center(child: small ? const AppLoader.small() : const AppLoader.medium());
     } else {
       content = Image(
         image: image,
@@ -55,9 +69,9 @@ class EvidencePhotoFrame extends StatelessWidget {
         height: large ? null : double.infinity,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
-          return const SizedBox(
-            height: thumbnailHeight,
-            child: Center(child: AppLoader.medium()),
+          return SizedBox(
+            height: small ? smallHeight : thumbnailHeight,
+            child: Center(child: small ? const AppLoader.small() : const AppLoader.medium()),
           );
         },
         errorBuilder: (context, error, stackTrace) {
@@ -78,10 +92,22 @@ class EvidencePhotoFrame extends StatelessWidget {
     );
 
     if (large && !failed && image != null) return framed;
-    return SizedBox(height: thumbnailHeight, width: double.infinity, child: framed);
+    return SizedBox(
+      height: small ? smallHeight : thumbnailHeight,
+      width: double.infinity,
+      child: framed,
+    );
   }
 
   Widget _failure(BuildContext context) {
+    if (small) {
+      return Semantics(
+        label: AppStrings.battleEvidencePhotoLoadFailed,
+        child: const Center(
+          child: Icon(AppIcons.brokenImage, size: 24, color: AppPalette.inkMuted),
+        ),
+      );
+    }
     final onRetry = this.onRetry;
     return Center(
       child: SingleChildScrollView(

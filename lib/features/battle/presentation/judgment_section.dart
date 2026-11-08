@@ -237,15 +237,19 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
             choices: JudgmentChoicePair<String>(
               // 서버에는 상대적 값이 아니라 고른 사람의 user id가 그대로 간다(뒤집기 실수 방지).
               choices: [
+                // 비교하려면 두 사진을 나란히 봐야 한다 — 칸마다 그 사람의 사진 썸네일(오너 결정 8). 판정 창이 열린
+                // 뒤라 서버가 이미 양쪽 제출을 내준다(detail.submissions). 서명 URL도 같은 provider를 쓴다.
                 JudgmentChoiceOption(
                   value: detail.me.userId,
                   label: AppStrings.battleJudgmentSuperiorMe,
                   badge: InitialBadge(name: detail.myName, fill: AppPalette.primary),
+                  thumbnail: _ChoiceThumbnail(path: detail.mySubmission?.objectPath),
                 ),
                 JudgmentChoiceOption(
                   value: detail.opponent.userId,
                   label: AppStrings.battleJudgmentSuperiorOpponent,
                   badge: InitialBadge(name: detail.opponentName, fill: AppPalette.secondary),
+                  thumbnail: _ChoiceThumbnail(path: detail.opponentSubmission?.objectPath),
                 ),
               ],
               selected: _superiorId,
@@ -296,6 +300,28 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
         );
       },
     );
+  }
+}
+
+/// 우열 선택 타일 위쪽의 사진 썸네일(높이 96). 비공개 버킷이라 서명 URL을 받는다 — 상대 사진은 위 큰 사진과
+/// 같은 provider 값을 그대로 쓴다. 실패해도 고르는 것은 막지 않는다(판정 가능 여부는 위 큰 사진이 정한다).
+class _ChoiceThumbnail extends ConsumerWidget {
+  const _ChoiceThumbnail({required this.path});
+
+  final String? path;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final path = this.path;
+    if (path == null) return const EvidencePhotoFrame.small(failed: true);
+    return ref.watch(evidencePhotoUrlProvider(path)).when(
+          data: (url) => EvidencePhotoFrame.small(image: NetworkImage(url)),
+          loading: () => const EvidencePhotoFrame.small(),
+          error: (error, stackTrace) {
+            debugPrint('evidencePhotoUrlProvider error: $error');
+            return const EvidencePhotoFrame.small(failed: true);
+          },
+        );
   }
 }
 

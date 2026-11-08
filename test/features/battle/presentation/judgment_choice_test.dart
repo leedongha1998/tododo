@@ -283,6 +283,17 @@ void main() {
     )), isEmpty);
   });
 
+  testWidgets('라벨 줄 수가 달라도 두 칸의 머리(아이콘)는 같은 높이에 있다', (tester) async {
+    // 288dp·1.0: "통과했어요"는 한 줄, "통과하지 못했어요"는 두 줄(테스트 글꼴).
+    await _pump(tester, const _Harness<bool>(choices: _passFail));
+    final pass = tester.getRect(find.byIcon(AppIcons.pass));
+    final fail = tester.getRect(find.byIcon(AppIcons.fail));
+    expect(pass.top, moreOrLessEquals(fail.top, epsilon: 0.01));
+    final tile = tester.getRect(_tile(AppStrings.battleJudgmentPassed));
+    // 위 안쪽 16 + 테두리 1.5.
+    expect(pass.top - tile.top, moreOrLessEquals(17.5, epsilon: 0.01));
+  });
+
   testWidgets('체크 배지는 오른쪽 위 6 안쪽에 있고 가운데 아이콘과 겹치지 않는다', (tester) async {
     await _pump(tester, const _Harness<bool>(choices: _passFail, initial: true));
 

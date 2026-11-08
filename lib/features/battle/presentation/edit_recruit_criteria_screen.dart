@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_loader.dart';
+import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../data/battle.dart';
 import '../data/criteria_check_result.dart';
 import '../domain/battle_providers.dart';
@@ -126,13 +126,14 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
       child: Scaffold(
         appBar: AppBar(title: const Text(AppStrings.battleCriteriaEditRecruit)),
         body: ListView(
-          padding: const EdgeInsets.all(16),
+          // 화면 가장자리 20(redesign design 4.1).
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
             Text(widget.battle.title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 16),
             if (checked != null && !checked.provable) ...[
-              PixelFrame.tone(
-                tone: PixelTone.danger,
+              AppPanel.tone(
+                tone: AppTone.danger,
                 title: AppStrings.battleCriteriaBlocked,
                 child: Text(checked.blockReason ?? ''),
               ),
@@ -149,7 +150,7 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
               }),
             ),
             if (_isQuality) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               CriteriaEditor(
                 title: AppStrings.battleCriteriaSuperiorityTitle,
                 hint: AppStrings.battleCriteriaSuperiorityHint,
@@ -170,14 +171,14 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
               FilledButton(
                 onPressed: _apply,
                 child: _busy
-                    ? const PixelLoader.small()
+                    ? const AppLoader.small()
                     : const Text(AppStrings.battleCriteriaApply),
               )
             else
               FilledButton(
                 onPressed: _busy || editError != null || !_changed ? null : _recheck,
                 child: _busy
-                    ? const PixelLoader.small()
+                    ? const AppLoader.small()
                     : const Text(AppStrings.battleCriteriaRecheck),
               ),
           ],

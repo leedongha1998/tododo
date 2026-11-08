@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
-import '../../../core/theme/pixel_icons.dart';
-import '../../../core/theme/retro_palette.dart';
-import '../../../core/theme/retro_text.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_icon.dart';
-import '../../../core/widgets/pixel_loader.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/theme/app_palette.dart';
+import '../../../core/theme/app_text.dart';
+import '../../../core/widgets/app_button_styles.dart';
+import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
@@ -38,9 +38,7 @@ class BattleDetailScreen extends ConsumerWidget {
             child: const Text(AppStrings.cancel),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
+            style: AppButtonStyles.danger,
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text(AppStrings.battleForfeit),
           ),
@@ -77,39 +75,42 @@ class BattleDetailScreen extends ConsumerWidget {
         data: (detail) => RefreshIndicator(
           onRefresh: () => ref.refresh(battleDetailProvider(battleId).future),
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            // 화면 가장자리 20, 섹션 사이 24(redesign design 4.1).
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
             children: [
               // 화면에 보이지 않는 판단 전용 조각. 배치는 바뀌지 않는다.
               _VsIntroOnFirstEntry(detail: detail),
               _BattleHeader(detail: detail),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               _ResultBanner(detail: detail),
               // 상호 판정 창. 내 차례면 판정 섹션이 상대 사진을 크게 보여 주므로 양쪽 증거
               // 블록을 겹쳐 그리지 않는다. 판정을 보낸 뒤에는 두 사진을 함께 보여 준다.
               if (detail.isJudging) ...[
                 JudgmentSection(detail: detail),
                 if (!detail.isMyJudgmentTurn && detail.submissions.isNotEmpty) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   RevealedEvidenceSection(detail: detail),
                 ],
               ] else if (detail.isOngoing) ...[
                 MyEvidenceSection(detail: detail),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 OpponentEvidenceSummary(detail: detail),
               ]
               // 종결 뒤에는 서버가 상대 제출까지 내준다. 그때만 양쪽 이력을 함께 보여 준다.
               else if (detail.areSubmissionsRevealed && detail.submissions.isNotEmpty)
                 RevealedEvidenceSection(detail: detail),
               if (detail.canForfeit) ...[
-                const Divider(height: 32),
+                const Divider(height: 48),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () => _forfeit(context, ref),
+                    // 위험 낮음: 투명 면 + danger 글자·아이콘(design 4.2). 비활성 색은 테마를 따른다.
                     style: TextButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.error,
+                      foregroundColor: AppPalette.danger,
+                      iconColor: AppPalette.danger,
                     ),
-                    icon: const PixelIcon(PixelIcons.flag),
+                    icon: const Icon(AppIcons.flag),
                     label: const Text(AppStrings.battleForfeit),
                   ),
                 ),
@@ -152,24 +153,30 @@ class _BattleHeader extends StatelessWidget {
     // 제출 창과 판정 창은 다른 시계다. 한 줄로 합치면 "1분 대결이 하루 걸린다"로 읽힌다.
     final submitDeadline = _submitDeadlineText(detail);
     final judgeDeadline = _judgeDeadlineText(detail);
+    // 바뀌는 숫자의 폭이 흔들리지 않게 고정폭 숫자(design 3.2).
+    final deadlineStyle = textTheme.bodyMedium!.merge(AppText.tabular);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        // 큰 배율에서 한 줄을 넘으면 칩이 다음 줄로 내려간다(design 9.2-4).
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             BattleTypeBadge(type: detail.battle.type),
-            const SizedBox(width: 8),
             BattleStatusChip(status: detail.battle.status),
           ],
         ),
         if (submitDeadline != null) ...[
           const SizedBox(height: 8),
-          Text(submitDeadline, style: textTheme.bodyMedium),
+          Text(submitDeadline, style: deadlineStyle),
         ],
         if (judgeDeadline != null) ...[
-          const SizedBox(height: 4),
-          Text(judgeDeadline, style: textTheme.bodyMedium),
+          // 제출 창과 판정 창이 다른 시계임이 더 잘 갈리게 두 줄 사이 8(design 5.5 기준 화면 2).
+          const SizedBox(height: 8),
+          Text(judgeDeadline, style: deadlineStyle),
         ],
         const SizedBox(height: 12),
         _OpponentCard(detail: detail),
@@ -188,11 +195,11 @@ class _OpponentCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cardAsync = ref.watch(playerCardProvider(detail.opponent.userId));
 
-    return PixelFrame.raised(
+    return AppPanel.raised(
       child: cardAsync.when(
         data: (card) => PlayerCardView(card: card, label: AppStrings.battleOpponent),
         // 전적을 못 읽어도 상대가 누구인지는 보여 준다.
-        loading: () => const Center(child: PixelLoader.small()),
+        loading: () => const Center(child: AppLoader.small()),
         error: (error, stackTrace) {
           debugPrint('playerCardProvider error: $error');
           return PlayerCardView(
@@ -224,30 +231,30 @@ class _ResultBanner extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final String headline;
-    final PixelIconData icon;
-    // null이면 떠 있는 프레임(승리 — 가장 강한 결과). 나머지는 성격별 안내 블록.
-    final PixelTone? tone;
+    final IconData icon;
+    // null이면 떠 있는 묶음(승리 — 가장 강한 결과). 나머지는 성격별 안내 블록.
+    final AppTone? tone;
 
     switch (result) {
       case BattleResult.win:
         headline = AppStrings.battleYouWon;
-        icon = PixelIcons.trophy;
+        icon = AppIcons.trophy;
         tone = null;
       case BattleResult.loss:
         headline = AppStrings.battleYouLost;
         // 얼굴 아이콘 금지 규칙 때문에 표정 대신 아래로 꺾인 화살표.
-        icon = PixelIcons.lose;
-        tone = PixelTone.neutral;
+        icon = AppIcons.lose;
+        tone = AppTone.neutral;
       case BattleResult.draw:
         headline = AppStrings.battleDrawMessage;
-        icon = PixelIcons.hourglass;
+        icon = AppIcons.hourglass;
         // 무승부는 잘못된 일이 아니다. 위험색이 아니라 중립.
-        tone = PixelTone.neutral;
+        tone = AppTone.neutral;
       case BattleResult.voided:
         headline = AppStrings.battleVoidedMessage;
-        icon = PixelIcons.warning;
+        icon = AppIcons.warning;
         // 사용자 잘못이 아니고 점수에도 반영되지 않는 약한 끝. 위험색을 쓰지 않는다.
-        tone = PixelTone.neutral;
+        tone = AppTone.neutral;
     }
 
     final subtitle = _subtitleOf(detail);
@@ -256,14 +263,10 @@ class _ResultBanner extends StatelessWidget {
     final reason = detail.verdictReason;
     final scoreDelta = detail.myScoreDelta;
 
-    // 헤드라인은 문장이라 픽셀 글꼴이 아니라 본문 글꼴이다(결정 A).
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          headline,
-          style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
-        ),
+        Text(headline, style: textTheme.titleMedium),
         if (subtitle != null) ...[
           const SizedBox(height: 4),
           Text(subtitle, style: textTheme.bodyMedium),
@@ -278,10 +281,13 @@ class _ResultBanner extends StatelessWidget {
         if (scoreDelta != null) ...[
           const SizedBox(height: 8),
           Row(
+            // 라벨(문장 15)과 점수 변화(숫자 20)의 글자 기준선을 맞춘다.
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
             children: [
               Text(AppStrings.battleScoreChangeLabel, style: textTheme.bodyMedium),
               const SizedBox(width: 8),
-              Text(AppStrings.battleScoreDelta(scoreDelta), style: RetroText.numeric),
+              Text(AppStrings.battleScoreDelta(scoreDelta), style: AppText.numberMedium),
             ],
           ),
           // 0점인 사람은 더 깎이지 않는다. 표가 말하는 -3과 달라 보이므로 이유를 적는다.
@@ -294,27 +300,30 @@ class _ResultBanner extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 24),
       child: SizedBox(
         width: double.infinity,
         child: tone == null
-            ? PixelFrame.raised(
-                padding: const EdgeInsets.all(16),
+            ? AppPanel.raised(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    PixelIcon(icon, color: RetroPalette.ink),
+                    // 승리만 떠 있는 묶음 + 48dp amber 둥근 칸(design 5.5 대결 상세 그 밖).
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: const BoxDecoration(
+                        color: AppPalette.amber,
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                      child: Icon(icon, color: AppPalette.ink),
+                    ),
                     const SizedBox(width: 12),
                     Expanded(child: content),
                   ],
                 ),
               )
-            : PixelFrame.tone(
-                tone: tone,
-                icon: icon,
-                padding: const EdgeInsets.all(16),
-                child: content,
-              ),
+            : AppPanel.tone(tone: tone, icon: icon, child: content),
       ),
     );
   }

@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
-import '../../../core/theme/pixel_icons.dart';
-import '../../../core/theme/retro_text.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/theme/app_text.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/evidence_photo_frame.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_icon.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/battle_submission.dart';
 import '../data/evidence_camera.dart';
@@ -121,7 +120,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
   Widget build(BuildContext context) {
     final detail = widget.detail;
 
-    return PixelFrame.flat(
+    return AppPanel.flat(
       title: AppStrings.battleEvidenceSectionTitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -154,7 +153,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
           onPressed: _submit,
           child: const Text(AppStrings.battleEvidenceSubmit),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         // 서버는 업로드를 다 받은 뒤에 10분을 넘긴 사진을 거부한다. 그 전에 한 번 말해 둔다.
         Text(
           AppStrings.battleEvidenceCaptureWindow,
@@ -163,7 +162,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: _capture,
-          icon: const PixelIcon(PixelIcons.retry),
+          icon: const Icon(AppIcons.retry),
           label: const Text(AppStrings.battleEvidenceRetake),
         ),
       ];
@@ -178,18 +177,18 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         return [
           mine,
           const SizedBox(height: 12),
-          const PixelFrame.tone(
-            tone: PixelTone.neutral,
-            icon: PixelIcons.camera,
+          const AppPanel.tone(
+            tone: AppTone.neutral,
+            icon: AppIcons.camera,
             child: Text(AppStrings.battleEvidenceSubmittedWaitingOpponent),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _capture,
-            icon: const PixelIcon(PixelIcons.retry),
+            icon: const Icon(AppIcons.retry),
             label: const Text(AppStrings.battleEvidenceReplace),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             AppStrings.battleEvidenceReplaceHint,
             style: Theme.of(context).textTheme.bodyMedium,
@@ -201,9 +200,9 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       return [
         mine,
         const SizedBox(height: 12),
-        const PixelFrame.tone(
-          tone: PixelTone.neutral,
-          icon: PixelIcons.clock,
+        const AppPanel.tone(
+          tone: AppTone.neutral,
+          icon: AppIcons.clock,
           child: Text(AppStrings.battleDeadlinePassed),
         ),
       ];
@@ -213,9 +212,9 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
     if (!detail.canSubmitEvidence) {
       return [
         if (detail.isPastDeadline(DateTime.now()))
-          const PixelFrame.tone(
-            tone: PixelTone.neutral,
-            icon: PixelIcons.clock,
+          const AppPanel.tone(
+            tone: AppTone.neutral,
+            icon: AppIcons.clock,
             child: Text(AppStrings.battleDeadlinePassed),
           ),
       ];
@@ -224,7 +223,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
     return [
       FilledButton.icon(
         onPressed: _capture,
-        icon: const PixelIcon(PixelIcons.camera),
+        icon: const Icon(AppIcons.camera),
         label: const Text(AppStrings.battleEvidenceTakePhoto),
       ),
     ];
@@ -237,8 +236,8 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       return [
         _MySubmittedPhoto(detail: detail),
         const SizedBox(height: 12),
-        const PixelFrame.tone(
-          tone: PixelTone.success,
+        const AppPanel.tone(
+          tone: AppTone.success,
           title: AppStrings.battleEvidenceQualitySubmittedTitle,
           child: Text(AppStrings.battleEvidenceQualityWaiting),
         ),
@@ -254,7 +253,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
           onPressed: _confirmAndSubmitQuality,
           child: const Text(AppStrings.battleEvidenceQualitySubmit),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         // 품질전도 같은 10분 제약을 받는다. 한 번만 낼 수 있어 거부당하면 더 아프다.
         Text(
           AppStrings.battleEvidenceCaptureWindow,
@@ -263,7 +262,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: _capture,
-          icon: const PixelIcon(PixelIcons.retry),
+          icon: const Icon(AppIcons.retry),
           label: const Text(AppStrings.battleEvidenceRetake),
         ),
       ];
@@ -272,9 +271,9 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
     // 마감이 지났는데 아직 정산 전이면 낼 수 없다(서버도 거부한다).
     if (!detail.canSubmitEvidence) {
       return const [
-        PixelFrame.tone(
-          tone: PixelTone.neutral,
-          icon: PixelIcons.clock,
+        AppPanel.tone(
+          tone: AppTone.neutral,
+          icon: AppIcons.clock,
           child: Text(AppStrings.battleDeadlinePassed),
         ),
       ];
@@ -283,7 +282,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
     return [
       FilledButton.icon(
         onPressed: _capture,
-        icon: const PixelIcon(PixelIcons.camera),
+        icon: const Icon(AppIcons.camera),
         label: const Text(AppStrings.battleEvidenceTakePhoto),
       ),
       const SizedBox(height: 8),
@@ -322,7 +321,7 @@ class OpponentEvidenceSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return PixelFrame.flat(
+    return AppPanel.flat(
       title: AppStrings.battleEvidenceOpponentTitle,
       child: Text(
         detail.hasOpponentSubmitted
@@ -348,12 +347,12 @@ class RevealedEvidenceSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PixelFrame.flat(
+        AppPanel.flat(
           title: AppStrings.battleEvidenceSectionTitle,
           child: _submissionOrEmpty(detail.mySubmission),
         ),
-        const SizedBox(height: 16),
-        PixelFrame.flat(
+        const SizedBox(height: 24),
+        AppPanel.flat(
           title: AppStrings.battleEvidenceOpponentTitle,
           child: _submissionOrEmpty(detail.opponentSubmission),
         ),
@@ -381,13 +380,13 @@ class _SubmissionTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(formatEvidenceTime(submission.submittedAt), style: RetroText.numeric),
+        Text(formatEvidenceTime(submission.submittedAt), style: AppText.numberSmall),
         if (submission.reason != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(submission.reason!, style: textTheme.bodyMedium),
         ],
         if (submission.objectPath != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           _SubmissionThumbnail(path: submission.objectPath!),
         ],
       ],

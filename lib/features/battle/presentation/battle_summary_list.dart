@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/theme/app_palette.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../data/battle.dart';
 import '../domain/battle_summary.dart';
 import 'battle_chips.dart';
@@ -15,7 +17,8 @@ List<Widget> battleSummaryCards(List<BattleSummary> summaries) {
   return [
     for (final summary in summaries) ...[
       BattleSummaryCard(summary: summary),
-      const SizedBox(height: 8),
+      // 목록 항목 사이 12(redesign design 4.1).
+      const SizedBox(height: 12),
     ],
   ];
 }
@@ -37,77 +40,72 @@ class BattleSummaryCard extends StatelessWidget {
     final statusLine = notice.line;
     final deadlineLine = summary.deadlineLineAt(now);
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => BattleDetailScreen(battleId: battle.id)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    // 떠 있는 카드. 누르는 동안 두께가 꺼진다(물결 없음, design 5.5).
+    return AppPanel.raised(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => BattleDetailScreen(battleId: battle.id)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  battle.title,
+                  // 대결 제목은 목록 본문이라 픽셀 글꼴이 아니라 본문 글꼴이다.
+                  style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                // 배지 라벨이 14dp가 되면서 긴 이름과 한 줄에 못 들어갈 수 있다.
+                // 이름을 줄여 보여 주는 대신 다음 줄로 내린다(readability.md 3-1).
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
+                    BattleTypeBadge(type: battle.type),
                     Text(
-                      battle.title,
-                      // 대결 제목은 목록 본문이라 픽셀 글꼴이 아니라 본문 글꼴이다.
-                      style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                      '${AppStrings.battleVersus} ${summary.otherPartyName}',
+                      style: textTheme.bodySmall,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    // 배지 라벨이 14dp가 되면서 긴 이름과 한 줄에 못 들어갈 수 있다.
-                    // 이름을 줄여 보여 주는 대신 다음 줄로 내린다(readability.md 3-1).
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        BattleTypeBadge(type: battle.type),
-                        Text(
-                          '${AppStrings.battleVersus} ${summary.otherPartyName}',
-                          style: textTheme.bodySmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                    // 알림이 없으므로 "그 사이 무슨 일이 있었는지"를 이 줄이 알린다.
-                    // 내가 손을 써야 하는 줄만 강조색·굵은 글씨로 띄우고, 그냥 소식은 흐리게 둔다.
-                    // 둘을 같은 모양으로 그리면 "들어가서 눌러야 하는가"가 다시 가려진다.
-                    if (statusLine != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        statusLine,
-                        style: notice.needsMyAction
-                            ? textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              )
-                            : textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                      ),
-                    ],
-                    // 남은 시간. 어느 시계인지(사진 마감/판정 마감)는 문구가 말한다.
-                    if (deadlineLine != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        deadlineLine,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              BattleStatusChip(status: battle.status),
-            ],
+                // 알림이 없으므로 "그 사이 무슨 일이 있었는지"를 이 줄이 알린다.
+                // 내가 손을 써야 하는 줄만 강조색·굵은 글씨로 띄우고, 그냥 소식은 흐리게 둔다.
+                // 둘을 같은 모양으로 그리면 "들어가서 눌러야 하는가"가 다시 가려진다.
+                if (statusLine != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    statusLine,
+                    style: notice.needsMyAction
+                        ? textTheme.bodySmall?.copyWith(
+                            color: AppPalette.primaryDeep,
+                            fontWeight: FontWeight.w700,
+                          )
+                        : textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                  ),
+                ],
+                // 남은 시간. 어느 시계인지(사진 마감/판정 마감)는 문구가 말한다.
+                if (deadlineLine != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    deadlineLine,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-        ),
+          const SizedBox(width: 12),
+          BattleStatusChip(status: battle.status),
+        ],
       ),
     );
   }

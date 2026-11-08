@@ -211,7 +211,9 @@ void main() {
 
   // 칩 라벨이 12dp 픽셀에서 14dp 본문 글꼴로 커졌다(readability.md 방안 2).
   // 좁은 화면·큰 글자에서 한 줄에 다 못 들어가면 칩을 빼지 않고 다음 줄로 내린다(3-1).
-  testWidgets('글자 크기 1.3배·360dp 폭에서도 모집 카드 칩 세 개가 다 남고 칸을 넘지 않는다', (tester) async {
+  // 배율은 앱의 글자 크기 상한(maxTextScale 1.5, redesign design 3.3)에 맞춘다. 테스트 글꼴은 정사각형이라
+  // 실제 글리프 폭과 다르다 — "예외 없이 그려지고 칩이 화면 밖으로 안 나간다"까지만 보장한다.
+  testWidgets('글자 크기 1.5배·360dp 폭에서도 모집 카드 칩 세 개가 다 남고 칸을 넘지 않는다', (tester) async {
     tester.view.physicalSize = const Size(360, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -220,7 +222,7 @@ void main() {
       tester,
       repository: _MyBattlesRepository(recruits: [_recruit()]),
       theme: AppTheme.light,
-      textScale: 1.3,
+      textScale: 1.5,
     );
 
     expect(tester.takeException(), isNull);
@@ -266,10 +268,11 @@ void main() {
     );
 
     // 할 일이 있는 줄만 굵게 띄운다. 모든 줄을 같은 모양으로 그리면 구분이 사라진다.
+    // 굵기는 700 — Pretendard는 400/700/800만 번들한다(redesign design 3.1).
     final line = tester.widget<Text>(
       find.text(AppStrings.battleListMyJudgeTurn),
     );
-    expect(line.style?.fontWeight, FontWeight.w600);
+    expect(line.style?.fontWeight, FontWeight.w700);
   });
 
   testWidgets('제출 창에서 내 사진이 없으면 카드가 그 말을 하고, 상대 소식은 흐리게 둔다', (tester) async {
@@ -292,7 +295,7 @@ void main() {
           .widget<Text>(find.text(AppStrings.battleListNotSubmitted))
           .style
           ?.fontWeight,
-      FontWeight.w600,
+      FontWeight.w700,
     );
 
   });
@@ -309,7 +312,7 @@ void main() {
     final news = tester.widget<Text>(
       find.text(AppStrings.battleListOpponentSubmitted),
     );
-    expect(news.style?.fontWeight, isNot(FontWeight.w600));
+    expect(news.style?.fontWeight, isNot(FontWeight.w700));
   });
 
   // M6 — 로그인 직후 첫 탭이 여기다. 새 계정은 이 앱이 무엇인지 어디서도 듣지 못한 상태로

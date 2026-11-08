@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/strings.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/app_tag.dart';
-import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/battle.dart';
 import '../domain/battle_providers.dart';
@@ -69,7 +69,8 @@ class MyBattlesScreen extends ConsumerWidget {
         child: ListView(
           // 목록이 비었을 때도 당겨지게 한다.
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          // 화면 가장자리 20, 구역 사이 24(redesign design 4.1).
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
             ..._buildRecruitSection(context, ref, recruitsAsync),
             ..._buildBattleSection(context, ref, battlesAsync, recruits),
@@ -98,27 +99,27 @@ class MyBattlesScreen extends ConsumerWidget {
             child: const Text(AppStrings.retry),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
       ];
     }
 
     final recruits = recruitsAsync.value;
     if (recruits == null) {
-      return const [StatusMessage.loading(), SizedBox(height: 16)];
+      return const [StatusMessage.loading(), SizedBox(height: 24)];
     }
     if (recruits.isEmpty) return const [];
 
     return [
       for (final battle in recruits) ...[
-        // 제목 띠가 있는 창이 "여기부터 다른 성격"을 말하므로 구분선을 따로 긋지 않는다.
-        PixelFrame.flat(
+        // 제목이 있는 묶음이 "여기부터 다른 성격"을 말하므로 구분선을 따로 긋지 않는다.
+        AppPanel.flat(
           title: AppStrings.battleMyRecruits,
           child: _MyRecruitBody(
             battle: battle,
             onCancel: () => _cancel(context, ref, battle.id),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
       ],
     ];
   }
@@ -154,20 +155,20 @@ class MyBattlesScreen extends ConsumerWidget {
           // 온보딩 화면·투어는 만들지 않는다 — 블록 한 장이면 되고 뒤로가기 경로가 늘지 않는다.
           return Column(
             children: [
-              const PixelFrame.tone(
-                tone: PixelTone.info,
+              const AppPanel.tone(
+                tone: AppTone.info,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(AppStrings.battleIntroMatching),
-                    SizedBox(height: 4),
+                    SizedBox(height: 8),
                     Text(AppStrings.battleIntroEvidence),
-                    SizedBox(height: 4),
+                    SizedBox(height: 8),
                     Text(AppStrings.battleIntroJudging),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               StatusMessage.empty(
                 message: AppStrings.battleMyBattlesEmpty,
                 detail: AppStrings.battleFinishedInProfile,
@@ -212,7 +213,7 @@ class _MyRecruitBody extends StatelessWidget {
       children: [
         Text(
           battle.title,
-          style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+          style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),

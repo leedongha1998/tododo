@@ -4,10 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/pixel_icons.dart';
 import '../../../core/theme/retro_text.dart';
+import '../../../core/widgets/app_button_styles.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_icon.dart';
 import '../../../core/widgets/pixel_loader.dart';
-import '../../../core/widgets/retro_button_styles.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../battle/domain/battle_outcome.dart';
 import '../../battle/presentation/battle_chips.dart';
@@ -139,7 +139,7 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
             child: const Text(AppStrings.cancel),
           ),
           FilledButton(
-            style: RetroButtonStyles.danger,
+            style: AppButtonStyles.danger,
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text(AppStrings.accountDeleteConfirm),
           ),
@@ -168,7 +168,7 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
   @override
   Widget build(BuildContext context) {
     return FilledButton.icon(
-      style: RetroButtonStyles.danger,
+      style: AppButtonStyles.danger,
       // 진행 중에는 누를 수 없는 모양 + 라벨 자리 로더(버튼 크기 유지).
       onPressed: _isDeleting ? null : _confirmAndDelete,
       icon: const PixelIcon(PixelIcons.accountDelete),

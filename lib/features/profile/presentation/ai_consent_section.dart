@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/widgets/app_button_styles.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_loader.dart';
-import '../../../core/widgets/retro_button_styles.dart';
 import '../../battle/data/ai_consent.dart';
 import '../../battle/domain/ai_consent_providers.dart';
 import '../../battle/domain/ai_consent_rules.dart';
@@ -84,7 +84,7 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
               FilledButton(onPressed: _give, child: const Text(AppStrings.aiConsentGive))
             else
               FilledButton(
-                style: RetroButtonStyles.danger,
+                style: AppButtonStyles.danger,
                 onPressed: _withdrawing ? null : _withdraw,
                 child: _withdrawing
                     ? const PixelLoader.small()
@@ -137,7 +137,7 @@ class _WithdrawConsentDialog extends StatelessWidget {
               child: const Text(AppStrings.cancel),
             ),
             FilledButton(
-              style: RetroButtonStyles.danger,
+              style: AppButtonStyles.danger,
               onPressed: snapshot.hasData ? () => Navigator.of(context).pop(true) : null,
               child: const Text(AppStrings.aiConsentWithdrawConfirm),
             ),

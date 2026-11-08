@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../theme/pixel_border.dart';
-import '../theme/retro_palette.dart';
-import '../theme/retro_text.dart';
+import '../theme/app_palette.dart';
+import '../theme/app_text.dart';
+import '../theme/depth_border.dart';
 
 /// 표시 이름의 이니셜 한 글자.
 ///
@@ -20,9 +20,10 @@ String displayInitial(String name) {
 
 enum InitialBadgeSize { card, intro }
 
-/// 이니셜을 담는 정사각 칸. 카드용 40(글자 24) / VS 인트로용 72(글자 36).
-/// 면색은 호출자가 나(primary) / 상대(amber) 중 고르고, 글자는 면에 맞는 색이 된다.
-/// 캐릭터·사진 없이 글자만 둔다.
+/// 이니셜을 담는 둥근 사각 칸(design 5.2). 카드용 40(모서리 12, 글자 20) / VS 인트로용 72(모서리 16,
+/// 글자 32, 3dp ink 두께). 글자는 Pretendard 800.
+/// 면색은 호출자가 나(primary) / 상대(secondary) 중 고르고, 글자색은 면에 맞춰 팔레트가 정한다
+/// ([AppPalette.onFill]). 캐릭터·사진 없이 글자만 둔다.
 class InitialBadge extends StatelessWidget {
   const InitialBadge({
     super.key,
@@ -43,14 +44,20 @@ class InitialBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final isIntro = size == InitialBadgeSize.intro;
     final side = dimension ?? (isIntro ? 72.0 : 40.0);
-    final fontSize = side >= 72 ? RetroText.grid * 3 : RetroText.grid * 2;
-    final textColor = fill == RetroPalette.primary ? RetroPalette.surface : RetroPalette.ink;
+    final fontSize = side >= 72 ? 32.0 : 20.0;
 
     return ExcludeSemantics(
       child: Container(
         width: side,
         height: side,
-        decoration: ShapeDecoration(color: fill, shape: const PixelBorder(depth: 2)),
+        decoration: ShapeDecoration(
+          color: fill,
+          shape: DepthBorder(
+            radius: isIntro ? 16 : 12,
+            depth: isIntro ? 3 : 0,
+            depthColor: AppPalette.ink,
+          ),
+        ),
         alignment: Alignment.center,
         child: Padding(
           padding: const EdgeInsets.all(2),
@@ -58,7 +65,14 @@ class InitialBadge extends StatelessWidget {
             fit: BoxFit.scaleDown,
             child: Text(
               displayInitial(name),
-              style: RetroText.pixel(fontSize, bold: true, color: textColor),
+              style: TextStyle(
+                fontFamily: AppText.family,
+                fontSize: fontSize,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
+                letterSpacing: 0,
+                color: AppPalette.onFill(fill),
+              ),
             ),
           ),
         ),

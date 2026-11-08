@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/pixel_border.dart';
 import '../../../core/theme/retro_palette.dart';
 import '../../../core/theme/retro_text.dart';
@@ -246,7 +247,7 @@ class _VsIntroState extends State<VsIntro> with SingleTickerProviderStateMixin {
                   offset: Offset(offscreen, 0),
                   child: _Nameplate(
                     name: widget.opponentName,
-                    fill: RetroPalette.amber,
+                    fill: AppPalette.secondary,
                     badgeFirst: false,
                     badge: badge,
                   ),
@@ -291,7 +292,7 @@ class _VsIntroState extends State<VsIntro> with SingleTickerProviderStateMixin {
                   offset: Offset(-offscreen, 0),
                   child: _Nameplate(
                     name: widget.myName,
-                    fill: RetroPalette.primary,
+                    fill: AppPalette.primary,
                     badgeFirst: true,
                     badge: badge,
                   ),

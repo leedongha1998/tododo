@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/strings.dart';
-import '../../../core/theme/retro_palette.dart';
+import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/retro_text.dart';
 import '../../../core/widgets/initial_badge.dart';
 import '../data/player_card.dart';
@@ -24,7 +24,7 @@ class PlayerCardView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // 상대는 앰버, 나는 primary(VS 인트로와 같은 규칙).
-        InitialBadge(name: card.displayName, fill: RetroPalette.amber),
+        InitialBadge(name: card.displayName, fill: AppPalette.secondary),
         const SizedBox(width: 12),
         Expanded(
           child: Column(

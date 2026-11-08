@@ -175,15 +175,12 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       final mine = _MySubmittedPhoto(detail: detail);
 
       if (detail.isReplacingEvidence) {
+        // "상대가 제출하기 전까지 바꿀 수 있어요"가 안내 블록과 아래 힌트에 두 번 나왔다 → 블록을 뺀다
+        // (redesign 후속 결정 7). 힌트에는 "바꾸면 제출 시각이 다시 기록돼요"가 함께 있어 그쪽을 남긴다.
+        // 제출했다는 사실은 위 내 사진이 말한다.
         return [
           mine,
           const SizedBox(height: 12),
-          const AppPanel.tone(
-            tone: AppTone.neutral,
-            icon: AppIcons.camera,
-            child: KeepWordsText(AppStrings.battleEvidenceSubmittedWaitingOpponent),
-          ),
-          const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _capture,
             icon: const Icon(AppIcons.retry),

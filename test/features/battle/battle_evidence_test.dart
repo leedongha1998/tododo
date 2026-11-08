@@ -236,8 +236,11 @@ void main() {
     await tester.pumpWidget(_screen(detail, _FakeBattleRepository(), _FakeCamera()));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceSubmittedWaitingOpponent), findsOneWidget);
     expect(find.text(AppStrings.battleEvidenceReplace), findsOneWidget);
+    // "상대가 제출하기 전까지 바꿀 수 있어요"는 한 번만 — 교체 시각 갱신을 함께 말하는 힌트로(후속 결정 7).
+    expect(find.text(AppStrings.battleEvidenceReplaceHint), findsOneWidget);
+    expect(find.text(AppStrings.battleEvidenceSubmittedWaitingOpponent), findsNothing);
+    expect(find.textContaining('상대가 제출하기 전까지'), findsOneWidget);
     expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
   });
 

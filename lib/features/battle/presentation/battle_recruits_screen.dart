@@ -9,6 +9,7 @@ import '../../../core/push/push_providers.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_palette.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/app_tag.dart';
 import '../../../core/widgets/keep_words_text.dart';
@@ -389,7 +390,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         // 아래 여백은 만들기 버튼(FAB)이 마지막 카드를 가리지 않게 하려는 것이다.
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, AppTheme.fabClearance),
         itemCount: bodyCount + tailCount,
         itemBuilder: (context, index) {
           final slot = index;

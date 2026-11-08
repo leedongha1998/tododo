@@ -338,6 +338,37 @@ void main() {
     });
   }
 
+  // redesign 후속 결정 4: 1.5배에서 FAB가 마지막 할 일의 삭제 버튼을 가렸다. 끝까지 내리면 완전히 드러나야 한다.
+  testWidgets('할 일 목록을 끝까지 내리면 마지막 줄(삭제 버튼 포함)이 FAB에 가리지 않는다(360dp·1.5배)', (WidgetTester tester) async {
+    tester.view.physicalSize = const Size(720, 1600);
+    tester.view.devicePixelRatio = 2;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final todos = [
+      for (var i = 0; i < 8; i++)
+        Todo(id: '$i', title: '할 일 $i번 — 우유와 달걀 사 오기', isDone: i > 5, createdAt: DateTime(2026, 11, 8)),
+    ];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          todosProvider.overrideWith((ref) async => todos),
+          myBattlesProvider.overrideWith((ref) async => const []),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const TodoListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -5000));
+    await tester.pumpAndSettle();
+
+    final fab = tester.getRect(find.byType(FloatingActionButton));
+    final lastDelete = tester.getRect(find.byTooltip(AppStrings.delete).last);
+    final lastTitle = tester.getRect(find.text(todos.last.title));
+    expect(lastDelete.overlaps(fab), isFalse);
+    expect(lastTitle.bottom, lessThanOrEqualTo(fab.top));
+  });
+
   testWidgets('내 대결 화면에는 진행 중인 대결만, 할 일 화면에는 할 일만 보인다', (WidgetTester tester) async {
     final battle = Battle(
       id: 'b1',

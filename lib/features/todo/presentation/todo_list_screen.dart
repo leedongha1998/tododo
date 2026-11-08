@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_palette.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
@@ -85,8 +86,8 @@ class TodoListScreen extends ConsumerWidget {
             );
           }
           return ListView.builder(
-            // 좌우 20·위 16, 아래 96은 FAB가 마지막 줄을 가리지 않게(redesign design 5.5 기준 화면 1).
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
+            // 좌우 20·위 16, 아래는 FAB가 마지막 줄을 가리지 않게(redesign design 5.5 기준 화면 1, 후속 결정 4).
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, AppTheme.fabClearance),
             itemCount: todos.length,
             itemBuilder: (context, index) {
               final todo = todos[index];

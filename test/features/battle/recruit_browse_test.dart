@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/widgets/app_panel.dart';
+import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/core/theme/app_icons.dart';
 import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/widgets/app_tag.dart';
@@ -485,6 +487,39 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     expect(find.byTooltip(AppStrings.battleCreate), findsOneWidget);
+  });
+
+  // redesign 후속 결정 4: 만들기 FAB가 카드 오른쪽 끝을 가렸다. 끝까지 내려 멈추면 마지막 카드가 FAB 위로 드러난다.
+  testWidgets('목록을 끝까지 내리면 마지막 카드가 만들기 버튼에 가리지 않는다(360dp·1.5배)', (tester) async {
+    tester.view.physicalSize = const Size(720, 1600);
+    tester.view.devicePixelRatio = 2;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final repository = _BrowseRepository(all: [for (var i = 0; i < 6; i++) _recruit(i)]);
+    final container = ProviderContainer(
+      overrides: [battleRepositoryProvider.overrideWithValue(repository)],
+      retry: (retryCount, error) => null,
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(theme: AppTheme.light, home: const BattleRecruitsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView), const Offset(0, -5000));
+    await tester.pumpAndSettle();
+
+    // 멈추면 FAB가 돌아온다.
+    final fab = tester.getRect(find.byTooltip(AppStrings.battleCreate));
+    final lastTitle = tester.getRect(find.text('모집 5'));
+    final lastCard = tester.getRect(
+      find.ancestor(of: find.text('모집 5'), matching: find.byType(AppPanel)).first,
+    );
+    expect(lastTitle.bottom, lessThanOrEqualTo(fab.top));
+    expect(lastCard.bottom, lessThanOrEqualTo(fab.top));
   });
 
   testWidgets('모집 카드 왼쪽 색 띠가 유형 색으로 카드 높이를 채운다', (tester) async {

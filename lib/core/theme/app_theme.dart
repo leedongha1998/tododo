@@ -20,6 +20,11 @@ class AppTheme {
   /// 버튼이 손을 뗀 뒤 되돌아오는 길이(design 4.2). 누를 때는 [DepthBorder] 보간이 즉시 처리한다.
   static const buttonAnimation = Duration(milliseconds: 120);
 
+  /// 떠 있는 버튼(FAB)이 있는 목록의 아래 여백. 끝까지 내리면 마지막 항목이 FAB 위로 완전히 드러난다:
+  /// FAB 56 + Scaffold 바깥 여백 16 + 두께 3 + 사이 간격 21 = 96. FAB 크기는 글자 배율과 무관하다
+  /// (할 일·대결 찾기 목록이 쓴다 — redesign 후속 결정 4, 1.5배 끝까지 내린 상태를 위젯 테스트로 고정).
+  static const fabClearance = 56.0 + 16 + _buttonDepth + 21;
+
   static const _buttonRadius = 12.0;
   static const _buttonDepth = 3.0;
 

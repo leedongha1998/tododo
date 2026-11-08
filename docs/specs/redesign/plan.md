@@ -834,3 +834,43 @@ design 3.2 역할표·5.5 "할 일 행 터치 영역 48"을 그대로 지킨다.
 - W3 `fix:` 할 일 행 텍스트 칸 넓히기 — `ListTile` 좌우 여백·`minLeadingWidth`·`horizontalTitleGap` 축소, 체크박스·삭제 버튼 48dp 터치 영역 유지.
   테스트: 360dp·1.5배 긴 할 일 줄 수가 W2 기준보다 줄었는지, 두 버튼 터치 영역 ≥ 48.
 - W4 `docs:` 이 절의 진행 기록.
+
+### 후속 2 진행 기록 (2026-11-08, 클라우드 세션 — Flutter SDK 있음, Android SDK 없음)
+커밋마다 `flutter analyze`·`flutter test` 종료 코드를 따로 확인해 둘 다 0일 때 커밋. `git diff --stat -- lib/core/strings.dart pubspec.lock`
+매번 비어 있음, 새 패키지 0.
+- `802afa6` docs: 이 절의 작업 순서.
+- W1 `d6c2471` `KeepWordsText` → `StatelessWidget`(Text 상속·static 플래그 제거). `Text.build`와 같은 공개 API로 스타일 합성 후
+  `RichText`를 직접 그림(안에 `Text`가 없어 원문·그린 글자가 같은 ASCII 글자도 두 번 잡히지 않는다). 웹 전용 글자 간격 덮어쓰기는 따르지 않음.
+  테스트 18개 파일의 `find.text`/`find.textContaining`/`find.widgetWithText`를 `test/helpers/text_finders.dart`의 같은 이름 finder로
+  기계적 치환, `tester.widget<Text>` 11곳 → `<KeepWordsText>`(대결 만들기 카운터는 Material 내부 Text라 그대로). 단정 변경 0.
+  analyze 0 / test 525(+1: DefaultTextStyle·배율·굵은 글씨 합성).
+- W2 `e20b102` 줄 모양 `KeepWordsWrap { balanced, pretty, none }`. `AbstractLayoutBuilder`로 레이아웃 단계에서 계획값(그릴 글자·폭)을
+  정하고 같으면 다시 빌드하지 않음. 계획값은 설정+칸 폭 키 전역 LRU(512). 고유 크기·dry layout·dry baseline은 TextPainter로 직접 답함
+  (LayoutBuilder처럼 IntrinsicWidth·대화상자에서 죽지 않는다 — 테스트 고정). analyze 0 / test 538.
+- W2 보완 `1eb4750` 360dp 스크린샷 확인 후: pretty가 "쓸 수 있어요."처럼 꼬리 앞 한 글자 어절을 함께 내리고(최대 네 어절, 안 들어가면
+  두 어절만), 전체 두 줄인 본문은 붙인 뒤 두 줄 균형까지. analyze 0 / test 541.
+- W3 `8920b14` 할 일 행 `contentPadding` 좌우 4, `horizontalTitleGap` 8, `minLeadingWidth` 0. 360dp·1.5배 글자 칸 150 → 198dp, 테스트
+  글꼴 기준 긴 할 일 11 → 8줄(Pretendard 스크린샷 8 → 5줄). 체크박스·삭제 버튼 터치 상자 ≥ 48, 키워 그린 체크박스 상자(64)와 글자 칸
+  안 겹침. analyze 0 / test 542.
+- W2 보완 `506342d` 대결 카드 제목(bodyLarge 700 — 글꼴은 본문, 역할은 카드 제목) 4곳에 `wrap: balanced`: 내 대결 진행 카드·모집 카드,
+  찾기 모집 카드, 프로필 전적 카드. analyze 0 / test 543.
+- W4 이 커밋.
+- 순서: W1 → W2 → W3는 plan대로. 스크린샷을 보고 W2 보완 두 개(`1eb4750`은 W3 전, `506342d`는 W3 뒤)를 더했다 — 보완은 W2 기능의
+  기본값 조정이라 W3(할 일 행 여백)와 독립이고, W3 테스트의 기준값(11줄)은 pretty 보완 뒤 값이다.
+- 기능 끄기 확인: `_planFor`가 늘 원래 글자를 돌려주게 바꾸면 keep_words_text_test의 균형·고아·두 줄 균형·"쓸 수" 테스트가 실패,
+  할 일 행 여백을 되돌리면 할 일 행 테스트(글자 칸 150 < 196) 실패, 카드 제목 `wrap`을 빼면 내 대결 제목 테스트(짧은 줄 48 ≤ 84) 실패.
+
+판단 근거(줄 모양 기본값): design 3.2가 이미 역할마다 행간을 갈라 두었다 — 본문 슬롯 1.55~1.6, 제목·라벨·숫자 슬롯 1.2~1.5. 호출부 206곳에
+일일이 옵션을 다는 대신 합성된 스타일의 행간 < 1.55면 balanced, 그 밖(행간 없음 포함)은 pretty로 정했다. 버튼·칩·세그먼트·앱바·
+대화상자 제목처럼 Material이 `DefaultTextStyle`로 슬롯을 내려 주는 자리도 자동으로 맞는다. 행간이 없을 때 pretty로 두는 이유는 pretty가
+글자 폭을 줄이지 않아(두 줄일 때만 균형) 더 보수적이기 때문. 글꼴 슬롯과 역할이 어긋나는 자리(대결 제목 = bodyLarge지만 카드 제목)만
+호출부가 `wrap:`으로 고른다.
+
+남은 위험:
+1. `AbstractLayoutBuilder`/`RenderAbstractLayoutBuilderMixin`은 공개 API지만 Flutter 3.35 무렵 새로 생긴 이름이다(옛 이름
+   `RenderConstrainedLayoutBuilder`는 typedef로 남음). SDK를 크게 올리면 시그니처를 다시 볼 것.
+2. 계획 계산은 칸 폭이 바뀔 때마다 TextPainter 배치를 최대 약 12번 한다(캐시 적중이면 0). 목록 스크롤·애니메이션 중 폭이 계속 바뀌는
+   자리(크기 애니메이션 안의 글자)는 아직 없다.
+3. balanced는 글자를 좁게 그리고 위젯은 칸 폭을 차지한다. `textWidthBasis.longestLine`을 쓰는 곳은 없지만 쓰면 위젯 폭이 좁힌 폭이 된다.
+4. pretty의 "한 글자 어절" 판단은 글자 수만 본다("수"·"쓸"·"더"·"때"). 한 글자 명사("집 청소")도 뒤에 붙는다 — 결과가 어색하지는 않다.
+5. 실기기 글꼴 렌더링은 스크린샷(테스트 환경 + 실제 Pretendard)으로만 봤다. 오너 로컬 육안 확인 필요.

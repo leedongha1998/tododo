@@ -867,7 +867,7 @@ design 3.2 역할표·5.5 "할 일 행 터치 영역 48"을 그대로 지킨다.
 호출부가 `wrap:`으로 고른다.
 
 남은 위험:
-1. `AbstractLayoutBuilder`/`RenderAbstractLayoutBuilderMixin`은 공개 API지만 Flutter 3.35 무렵 새로 생긴 이름이다(옛 이름
+1. `AbstractLayoutBuilder`/`RenderAbstractLayoutBuilderMixin`은 공개 API지만 비교적 최근에 생긴 이름이다(이 세션의 SDK 3.47.9에서 확인, 옛 이름
    `RenderConstrainedLayoutBuilder`는 typedef로 남음). SDK를 크게 올리면 시그니처를 다시 볼 것.
 2. 계획 계산은 칸 폭이 바뀔 때마다 TextPainter 배치를 최대 약 12번 한다(캐시 적중이면 0). 목록 스크롤·애니메이션 중 폭이 계속 바뀌는
    자리(크기 애니메이션 안의 글자)는 아직 없다.

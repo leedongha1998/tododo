@@ -254,6 +254,8 @@ class _BattleRecordTile extends StatelessWidget {
                 KeepWordsText(
                   record.battle.title,
                   style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                  // 글꼴은 본문이지만 역할은 카드 제목이라 줄 길이를 고르게 한다(redesign 후속 2 W2).
+                  wrap: KeepWordsWrap.balanced,
                 ),
                 const SizedBox(height: 8),
                 Row(

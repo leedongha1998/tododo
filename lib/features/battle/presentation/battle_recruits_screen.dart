@@ -498,6 +498,8 @@ class _OpenRecruitCard extends StatelessWidget {
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
+                    // 글꼴은 본문이지만 역할은 카드 제목이라 줄 길이를 고르게 한다(redesign 후속 2 W2).
+                    wrap: KeepWordsWrap.balanced,
                   ),
                   const SizedBox(height: 8),
                   // 큰 배율에서 한 줄을 넘으면 기간 칩이 다음 줄로 내려간다(design 9.2-5).

@@ -217,6 +217,8 @@ class _MyRecruitBody extends StatelessWidget {
           style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
+          // 글꼴은 본문이지만 역할은 카드 제목이라 줄 길이를 고르게 한다(redesign 후속 2 W2).
+          wrap: KeepWordsWrap.balanced,
         ),
         const SizedBox(height: 8),
         // 칩 세 개는 라벨이 14dp가 되면서 좁은 화면·큰 글자에서 한 줄에 다 못 들어갈 수 있다.

@@ -57,6 +57,8 @@ class BattleSummaryCard extends StatelessWidget {
                   battle.title,
                   // 대결 제목은 목록 본문이라 목록 주 텍스트 슬롯(bodyLarge)을 굵게 쓴다.
                   style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                  // 글꼴은 본문이지만 역할은 카드 제목이라 줄 길이를 고르게 한다(redesign 후속 2 W2).
+                  wrap: KeepWordsWrap.balanced,
                 ),
                 const SizedBox(height: 8),
                 // 배지 라벨이 14dp가 되면서 긴 이름과 한 줄에 못 들어갈 수 있다.

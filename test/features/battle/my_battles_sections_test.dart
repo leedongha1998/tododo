@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,6 +17,7 @@ import 'package:todododo/features/battle/domain/battle_summary.dart';
 import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/my_battles_screen.dart';
 import 'package:todododo/core/widgets/keep_words_text.dart';
+import '../../helpers/line_breaks.dart';
 import '../../helpers/text_finders.dart';
 
 Battle _recruit() => Battle(
@@ -248,6 +252,48 @@ void main() {
       expect(rect.left, greaterThanOrEqualTo(screen.left - 0.5));
       expect(rect.right, lessThanOrEqualTo(screen.right + 0.5));
     }
+  });
+
+  // redesign 후속 2 W2: 대결 제목은 본문 글꼴(bodyLarge)이지만 카드 제목 역할이라 균형 줄바꿈을 쓴다.
+  // "냉장고 안 유통기한 지난 음식 전부 / 버리기"처럼 한 어절만 넘어가지 않는다.
+  testWidgets('진행 중 카드의 긴 대결 제목은 360dp·1.5배에서 줄 길이가 고르다', (tester) async {
+    tester.view.physicalSize = const Size(360, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    const title = '냉장고 안 유통기한 지난 음식 전부 버리기';
+    final active = _activeSummary().battle;
+    final battle = Battle(
+      id: active.id,
+      type: active.type,
+      status: active.status,
+      title: title,
+      creatorId: active.creatorId,
+      opponentId: active.opponentId,
+      createdAt: active.createdAt,
+      startedAt: active.startedAt,
+      deadlineAt: active.deadlineAt,
+      durationMinutes: active.durationMinutes,
+      minCriteria: active.minCriteria,
+      superiorityCriteria: active.superiorityCriteria,
+    );
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(),
+      summaries: [BattleSummary(battle: battle, otherPartyName: '도윤')],
+      theme: AppTheme.light,
+      textScale: 1.5,
+    );
+    expect(tester.takeException(), isNull);
+    final text = tester.widget<KeepWordsText>(findText(title));
+    expect(text.wrap, KeepWordsWrap.balanced);
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.descendant(of: findText(title), matching: find.byType(RichText)),
+    );
+    final widths = lineWidths(paragraph);
+    expect(widths.length, greaterThanOrEqualTo(2));
+    // 가장 짧은 줄도 가장 긴 줄의 절반을 넘는다(한 어절만 넘어가면 이 단정이 깨진다).
+    expect(widths.reduce(math.min), greaterThan(widths.reduce(math.max) / 2));
+    expect(breaksOnlyAtSpaces(paragraph), isTrue);
   });
 
   // 푸시가 없는 MVP에서 "지금 내가 할 일"을 말하는 자리가 이 카드뿐이다(mobile-ux M1).

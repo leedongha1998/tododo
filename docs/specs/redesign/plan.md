@@ -747,6 +747,28 @@ PowerShell이면 `echo` 자리에 `"EXIT=$LASTEXITCODE"`. 실패 메시지가 �
     이번 fix는 선택지 라벨만 대상. 1.5배에서 최소 기준 쌍은 세로, 우열 쌍은 가로 두 줄이라 두 질문의 배치가 다르다. VS 가로 모드
     1.5배는 아래 "나" 라벨이 화면 끝에 붙는다(잘리지는 않음).
 
+- 후속(2026-11-08, 클라우드 세션 — Flutter SDK 있음, Android SDK 없음. 커밋마다 `flutter analyze`·`flutter test` 종료 코드를
+  따로 확인해 둘 다 0일 때 커밋. 오너 결정 "2026-11-08 후속" F1–F8):
+  - `64c0eea` docs: 오너 결정·후속 순서 기록.
+  - F1 `9305e6a` 어절 줄바꿈 전역. `KeepWordsText`를 `Text` 하위 클래스로(data는 원문, build 동안만 WORD JOINER 글자를 RichText로,
+    글자가 바뀐 경우에만 semanticsLabel=원문). lib의 표시용 `Text(` 206곳 교체. 제외: `SelectableText`(개인정보처리방침 URL 복사),
+    TextField 입력값·InputDecoration 문자열(힌트·라벨·카운터, Material 내부 Text), 툴팁 문자열, Material 내부 화면(라이선스 페이지 등).
+    `keepWords`는 양쪽 다 ASCII인 글자 사이에는 끼우지 않음. 기존 테스트 finder는 원문 그대로 동작해 1개(낭독 테스트)만 고침.
+    analyze 0 / test 513.
+  - F2 `eff6845` "내 차례" 줄 titleSmall(16/700), 편집·기간 오류 bodyMedium. analyze 0 / test 513.
+  - F3 `3e3e72c` Material Icons CC BY 4.0 고지 자산·등록(`registerFontLicenses`)·테스트, design.md 정정 4곳, DEPLOY.md 항목. analyze 0 / test 515.
+  - F4 `03b2f35` `AppTheme.fabClearance`(값 96 그대로) + 할 일·찾기 1.5배 끝까지 내렸을 때 가림 없음 테스트. 스크린샷의 가림은
+    스크롤 전 모습이었다(여백 16으로 줄이면 두 테스트 실패 확인). analyze 0 / test 517.
+  - F5 `dec10ff` 모집 카드 두 버튼 모두 보조 버튼, 동의 철회 `AppButtonStyles.dangerOutlined`. analyze 0 / test 520.
+  - F6 `c54bb3a` 상대 카드 이름 titleMedium(18/700). analyze 0 / test 521.
+  - F7 `4438636` 카운터 inkMuted·400, "직접 입력" −12 이동 정렬. analyze 0 / test 522.
+  - F7 `d3d5858` 교체 가능 상태의 안내 블록(SubmittedWaitingOpponent) 표시 제거, 힌트(ReplaceHint) 유지. analyze 0 / test 522.
+  - F7 `0181b7b` VS 인트로: 명판 이름이 자리 이름("나"/"상대")과 같으면 자리 이름 줄 숨김. analyze 0 / test 524.
+  - F8 이 커밋: TODO_BACKLOG 다섯 줄(스토어 스크린샷 재촬영은 이미 백로그·DEPLOY.md 4번에 있어 추가 안 함), 이 기록.
+  - 커밋마다 `git diff --stat -- lib/core/strings.dart pubspec.lock` 비어 있음. 새 패키지 0.
+  - 순서 변경 없음(F7을 작은 커밋 셋으로 나눴을 뿐).
+  - 스크린샷(저장소 밖, `fixed_` 접두어): 0181b7b에서 두 촬영 스크립트를 수정 없이 실행.
+
 ## 오너 결정 (2026-11-08)
 - 검증 방식: **구현은 클라우드 세션, 검증은 오너가 Windows 로컬에서.** 단계 단위로 끊는다 — 1단계(C1–C5)를 푸시하고 멈춘 뒤,
   오너의 `flutter analyze`/`flutter test` 결과를 받고 다음 단계로 간다.

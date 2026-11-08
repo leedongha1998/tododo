@@ -8,3 +8,8 @@
 - 찾기 탭 고정 조작 영역 축소(M14 / recruit-list-scan S5) — 검색줄에 `필터` 버튼을 합치고 두 세그먼트는 하단 시트로 옮긴다(안 B). 고정 영역 174dp(세로 22%)와 "조작 요소가 전부 엄지 밖"이 남아 있다. 실기기 관측이 "카드 수가 부족하다"는 근거를 무효화해 배포 전 필수는 아니다(2026-11-02 오너 결정 4). `docs/specs/mobile-ux/recruit-list-scan.md` S5 참고
 - 대결 상세의 당겨서 새로고침 예외 처리 — `battle_detail_screen.dart:78`의 `onRefresh`는 `ref.refresh(...future)`를 그대로 돌려줘서 새로고침이 실패하면 예외가 제스처 밖으로 터진다(사용자에게는 아무 안내가 없다). `my_battles_screen.dart:59`·`battle_recruits_screen.dart:390`처럼 `try/catch`로 받아 로그만 남기고 화면의 `error` 갈래에 맡기는 쪽이 맞다. mobile-ux M2 이전부터 있던 문제라 그 변경 범위 밖으로 두었다(reviewer N5, 2026-11-02)
 - firebase_messaging 토큰 API deprecation 전환 — 17.0.1이 `getToken`/`onTokenRefresh`/`deleteToken`을 deprecated로 두고 `register()`+`onRegistered`(FID)를 권한다. 새 API는 등록 토큰이 아니라 FID를 스트림으로만 내주므로 전송 대상 의미와 "앱 실행 시 즉시 등록" 흐름이 둘 다 바뀐다 — 서버 발송 경로(`push-notification` 4단계)가 실제로 돌아 FCM v1 전송이 검증된 뒤에 다룬다. 지금은 `lib/core/push/push_messaging.dart`에서 `// ignore: deprecated_member_use`로 등록 토큰을 쓴다(2026-11-03)
+- **[배포 전 필수]** AI 동의 화면 첫 문장 "대결 결과는 AI 심판이 판정해요"(`AppStrings.aiConsentIntro`)가 현행 판정 구조(1차 참가자 상호 판정 + 2차 AI 재판정)와 다르다. 동의 고지 문구라 오너 확인 후 수정(2026-11-08 redesign 후속 검토)
+- 승리/결과 화면의 증거 제출 시각이 "01:16"처럼 라벨·날짜 없이 표시된다 — 무엇의 시각인지("제출 시각")와 날짜를 붙일 것(2026-11-08 redesign 후속 검토)
+- 속도전 진행 중 화면에서 촬영하는 동안(미리보기) 최소 기준이 보이지 않는다 — 찍으면서 기준을 확인할 수 없음(2026-11-08 redesign 후속 검토)
+- 남은 시간이 내림으로 표시된다(1시간 42분 → "1시간 남음") — 실제보다 짧아 보여 조급함을 주거나 반대로 마감 직전 착각을 부른다. 분 단위 병기 또는 올림 검토(2026-11-08 redesign 후속 검토)
+- 프로필 전적 카드에 날짜가 없고, 포기로 진 대결이 일반 패와 구분되지 않는다(2026-11-08 redesign 후속 검토)

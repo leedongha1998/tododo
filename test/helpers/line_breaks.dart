@@ -19,3 +19,9 @@ bool breaksOnlyAtSpaces(RenderParagraph paragraph) {
   final text = paragraph.text.toPlainText();
   return lineStarts(paragraph).every((start) => start > 0 && text[start - 1] == ' ');
 }
+
+/// 모든 줄바꿈이 공백·줄바꿈 문자 바로 뒤(어절 경계)에서 일어나는가. 여러 문단(`\n`)이 섞인 문장용.
+bool breaksOnlyAtWhitespace(RenderParagraph paragraph) {
+  final text = paragraph.text.toPlainText();
+  return lineStarts(paragraph).every((start) => start > 0 && text[start - 1].trim().isEmpty);
+}

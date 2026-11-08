@@ -5,6 +5,7 @@ import '../../../core/navigation/app_tab.dart';
 import '../../../core/strings.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/criteria_check_result.dart';
 import '../domain/battle_providers.dart';
@@ -179,7 +180,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: KeepWordsText(message)));
   }
 
   /// 직접 입력 값을 읽어 `_durationMinutes`에 반영한다. 범위 밖이면 반영하지 않고 오류만 보여 준다
@@ -203,7 +204,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         emptySelectionAllowed: true,
         segments: [
           for (final minutes in battleDurationQuickPicks)
-            ButtonSegment(value: minutes, label: Text(battleDurationLabel(minutes))),
+            ButtonSegment(value: minutes, label: KeepWordsText(battleDurationLabel(minutes))),
         ],
         selected: _customDuration ? const <int>{} : {_durationMinutes},
         onSelectionChanged: (selection) {
@@ -228,7 +229,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
                   });
                   if (_customDuration) _applyCustomDuration();
                 },
-          child: Text(
+          child: KeepWordsText(
             _customDuration ? AppStrings.battleDurationQuick : AppStrings.battleDurationCustom,
           ),
         ),
@@ -255,7 +256,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
               showSelectedIcon: false,
               segments: [
                 for (final unit in DurationUnit.values)
-                  ButtonSegment(value: unit, label: Text(unit.label)),
+                  ButtonSegment(value: unit, label: KeepWordsText(unit.label)),
               ],
               selected: {_customUnit},
               onSelectionChanged: (selection) {
@@ -266,7 +267,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        Text(
+        KeepWordsText(
           error ?? battleDurationLabel(_durationMinutes),
           style: Theme.of(context).textTheme.bodySmall,
         ),
@@ -294,7 +295,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
       title: AppStrings.battleCriteriaLeaveTitle,
       blocked: _blocksLeaving,
       child: Scaffold(
-        appBar: AppBar(title: const Text(AppStrings.battleCreate)),
+        appBar: AppBar(title: const KeepWordsText(AppStrings.battleCreate)),
         body: switch (_stage) {
           _Stage.input => _buildInput(context),
           _Stage.generating => const StatusMessage.loading(
@@ -324,8 +325,8 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
           // (같은 화면의 기간 세그먼트 둘과 찾기 탭이 쓰는 것과 같은 이유).
           showSelectedIcon: false,
           segments: const [
-            ButtonSegment(value: 'speed', label: Text(AppStrings.battleTypeSpeed)),
-            ButtonSegment(value: 'quality', label: Text(AppStrings.battleTypeQuality)),
+            ButtonSegment(value: 'speed', label: KeepWordsText(AppStrings.battleTypeSpeed)),
+            ButtonSegment(value: 'quality', label: KeepWordsText(AppStrings.battleTypeQuality)),
           ],
           selected: {_type},
           onSelectionChanged: (selection) => setState(() => _type = selection.first),
@@ -333,7 +334,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         const SizedBox(height: 8),
         // 두 유형의 차이를 고르는 자리에서 말한다. 모집 상세 시트가 참가자에게 보여 주는 문장과
         // 같은 함수를 써서, 만드는 사람과 참가하는 사람이 같은 설명을 읽게 한다.
-        Text(battleTypeTagline(_type), style: Theme.of(context).textTheme.bodyMedium),
+        KeepWordsText(battleTypeTagline(_type), style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 24),
         TextField(
           controller: _titleController,
@@ -343,37 +344,37 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         ),
         // 사진으로 증명할 수 없는 제목은 기준 생성에서 차단되고 AI 호출 1회가 이미 차감된다.
         // 그 함정을 제목을 쓰는 동안 말해 준다(차단 자체는 그대로 서버가 한다).
-        Text(
+        KeepWordsText(
           AppStrings.battleTitleProvableHint,
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 24),
-        Text(AppStrings.battleDuration, style: Theme.of(context).textTheme.titleSmall),
+        KeepWordsText(AppStrings.battleDuration, style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
         ..._buildDurationInput(context),
         const SizedBox(height: 8),
-        Text(AppStrings.battleDurationNotice, style: Theme.of(context).textTheme.bodyMedium),
+        KeepWordsText(AppStrings.battleDurationNotice, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 8),
         // 기간을 짧게 고를 수 있게 됐으므로 그 위험을 같은 자리에서 알린다(spec D6 — 구조가 아니라 경고로만).
-        Text(AppStrings.battleDurationShortWarning, style: Theme.of(context).textTheme.bodyMedium),
+        KeepWordsText(AppStrings.battleDurationShortWarning, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 8),
         // "1분 대결"이 1분 만에 끝나는 것이 아니라는 것을 여기서 한 번 말해 둔다.
-        Text(AppStrings.battleDurationWindowNotice, style: Theme.of(context).textTheme.bodyMedium),
+        KeepWordsText(AppStrings.battleDurationWindowNotice, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 24),
         if (blockMessage != null) ...[
           // 동의 전·한도 소진은 기준 생성 차단이다(redesign design 5.5 "차단·한도 안내 tone danger").
-          AppPanel.tone(tone: AppTone.danger, child: Text(blockMessage)),
+          AppPanel.tone(tone: AppTone.danger, child: KeepWordsText(blockMessage)),
           const SizedBox(height: 16),
         ],
         FilledButton(
           onPressed: canGenerate ? _generate : null,
           child: _busy
               ? const AppLoader.small()
-              : const Text(AppStrings.battleCriteriaGenerate),
+              : const KeepWordsText(AppStrings.battleCriteriaGenerate),
         ),
         if (limits != null) ...[
           const SizedBox(height: 8),
-          Text(
+          KeepWordsText(
             AppStrings.battleCriteriaCallsLeft(limits.criteriaCallsLeft),
             style: Theme.of(context).textTheme.bodyMedium,
           ),
@@ -390,7 +391,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         fill: true,
         action: FilledButton(
           onPressed: _busy ? null : _generate,
-          child: const Text(AppStrings.retry),
+          child: const KeepWordsText(AppStrings.retry),
         ),
       );
     }
@@ -406,12 +407,12 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
           AppPanel.tone(
             tone: AppTone.danger,
             title: AppStrings.battleCriteriaBlocked,
-            child: Text(result.blockReason ?? ''),
+            child: KeepWordsText(result.blockReason ?? ''),
           ),
           const SizedBox(height: 16),
           OutlinedButton(
             onPressed: () => setState(() => _stage = _Stage.input),
-            child: const Text(AppStrings.battleCriteriaFixTitle),
+            child: const KeepWordsText(AppStrings.battleCriteriaFixTitle),
           ),
         ],
       );
@@ -422,14 +423,14 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
-        Text(_titleController.text.trim(), style: Theme.of(context).textTheme.titleMedium),
+        KeepWordsText(_titleController.text.trim(), style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 16),
         if (!result.provable) ...[
           // 수정 중 차단된 경우. 편집은 계속할 수 있다.
           AppPanel.tone(
             tone: AppTone.danger,
             title: AppStrings.battleCriteriaBlocked,
-            child: Text(result.blockReason ?? ''),
+            child: KeepWordsText(result.blockReason ?? ''),
           ),
           const SizedBox(height: 16),
         ],
@@ -468,7 +469,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         ],
         if (editError != null) ...[
           const SizedBox(height: 8),
-          Text(editError, style: Theme.of(context).textTheme.bodySmall),
+          KeepWordsText(editError, style: Theme.of(context).textTheme.bodySmall),
         ],
         const SizedBox(height: 24),
         // 고친 내용이 있으면 먼저 다시 검사해야 올릴 수 있다(수정으로 차단 우회 금지).
@@ -477,12 +478,12 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
             onPressed: _busy || editError != null ? null : _recheck,
             child: _busy
                 ? const AppLoader.small()
-                : const Text(AppStrings.battleCriteriaRecheck),
+                : const KeepWordsText(AppStrings.battleCriteriaRecheck),
           )
         else
           FilledButton(
             onPressed: _busy ? null : _submit,
-            child: _busy ? const AppLoader.small() : const Text(AppStrings.battleCriteriaSubmit),
+            child: _busy ? const AppLoader.small() : const KeepWordsText(AppStrings.battleCriteriaSubmit),
           ),
         const SizedBox(height: 8),
         if (_editing)
@@ -494,12 +495,12 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
                       _editedMin = [...result.minCriteria];
                       _editedSuperiority = [...(result.superiorityCriteria ?? const [])];
                     }),
-            child: const Text(AppStrings.battleCriteriaRevert),
+            child: const KeepWordsText(AppStrings.battleCriteriaRevert),
           )
         else
           OutlinedButton(
             onPressed: _busy ? null : () => setState(() => _editing = true),
-            child: const Text(AppStrings.battleCriteriaEdit),
+            child: const KeepWordsText(AppStrings.battleCriteriaEdit),
           ),
       ],
     );

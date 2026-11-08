@@ -5,6 +5,7 @@ import '../../../core/strings.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/app_tag.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../data/open_recruit.dart';
 import '../domain/ai_consent_providers.dart';
 import '../domain/ai_consent_rules.dart';
@@ -44,7 +45,7 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
   bool _busy = false;
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: KeepWordsText(message)));
   }
 
   /// 바뀐 기준을 다시 읽어 시트 안에서 갱신한다. 그 사이 매칭됐으면 시트를 닫는다.
@@ -132,11 +133,11 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
             if (_criteriaChanged) ...[
               AppPanel.tone(
                 tone: AppTone.info,
-                child: const Text(AppStrings.battleCriteriaChanged),
+                child: const KeepWordsText(AppStrings.battleCriteriaChanged),
               ),
               const SizedBox(height: 24),
             ],
-            Text(battle.title, style: textTheme.titleMedium),
+            KeepWordsText(battle.title, style: textTheme.titleMedium),
             const SizedBox(height: 12),
             // 큰 배율에서 한 줄을 넘으면 기간 칩이 다음 줄로 내려간다.
             Wrap(
@@ -152,7 +153,7 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
               ],
             ),
             const SizedBox(height: 8),
-            Text(battleTypeTagline(battle.type), style: textTheme.bodyMedium),
+            KeepWordsText(battleTypeTagline(battle.type), style: textTheme.bodyMedium),
             const SizedBox(height: 24),
             CriteriaListBlock(
               title: AppStrings.battleCriteriaMinTitle,
@@ -179,7 +180,7 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
               onPressed: _busy ? null : _join,
               child: _busy
                   ? const AppLoader.small()
-                  : const Text(AppStrings.battleRecruitJoinWithCriteria),
+                  : const KeepWordsText(AppStrings.battleRecruitJoinWithCriteria),
             ),
           ],
         ),

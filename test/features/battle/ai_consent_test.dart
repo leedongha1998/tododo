@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/battle/data/ai_consent.dart';
@@ -32,6 +34,7 @@ import 'package:todododo/features/profile/domain/profile_providers.dart';
 import 'package:todododo/features/profile/presentation/profile_screen.dart';
 
 import '../../core/push/push_fakes.dart';
+import '../../helpers/line_breaks.dart';
 
 class _FakeAiConsentRepository implements AiConsentRepository {
   _FakeAiConsentRepository({
@@ -274,6 +277,42 @@ void main() {
     // 정책 문서 주소가 아직 없으므로 링크를 보여 주지 않는다.
     expect(find.text(AppStrings.aiConsentPrivacyPolicy), findsNothing);
   });
+
+  // 앱 전체 어절 줄바꿈(redesign 후속 결정 1). 동의 고지는 끝까지 읽혀야 하는 문장이다.
+  for (final scale in [1.0, 1.5]) {
+    testWidgets('동의 문구는 360dp·배율 $scale에서 어절 경계에서만 줄을 바꾼다', (tester) async {
+      tester.view.physicalSize = const Size(720, 1600);
+      tester.view.devicePixelRatio = 2;
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            aiConsentRepositoryProvider.overrideWithValue(_FakeAiConsentRepository()),
+          ],
+          child: MaterialApp(theme: AppTheme.light, home: const AiConsentScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      const sentences = [
+        AppStrings.aiConsentIntro,
+        AppStrings.aiConsentItems,
+        AppStrings.aiConsentPurpose,
+        AppStrings.aiConsentRefusal,
+      ];
+      var wrapped = 0;
+      for (final sentence in sentences) {
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(of: find.text(sentence), matching: find.byType(RichText)),
+        );
+        expect(breaksOnlyAtSpaces(paragraph), isTrue, reason: sentence);
+        if (lineStarts(paragraph).isNotEmpty) wrapped++;
+      }
+      expect(wrapped, greaterThan(0));
+    });
+  }
 
   testWidgets('동의하지 않은 사용자가 참가를 누르면 동의 화면이 먼저 뜨고, 거부하면 참가하지 않는다', (tester) async {
     final consentRepository = _FakeAiConsentRepository();

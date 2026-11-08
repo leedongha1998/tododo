@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_icons.dart';
 import '../theme/app_palette.dart';
 import 'app_loader.dart';
+import 'keep_words_text.dart';
 
 enum _StatusKind { loading, empty, error }
 
@@ -67,11 +68,11 @@ class StatusMessage extends StatelessWidget {
           ),
         if (message != null) ...[
           const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center, style: textTheme.bodyMedium),
+          KeepWordsText(message, textAlign: TextAlign.center, style: textTheme.bodyMedium),
         ],
         if (detail != null) ...[
           const SizedBox(height: 12),
-          Text(
+          KeepWordsText(
             detail,
             textAlign: TextAlign.center,
             style: textTheme.bodySmall!.copyWith(color: AppPalette.inkMuted),

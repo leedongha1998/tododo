@@ -31,15 +31,66 @@ void main() {
     });
   });
 
-  testWidgets('KeepWordsText는 화면 낭독기에 원문을 읽힌다', (tester) async {
+  test('양쪽이 모두 ASCII인 글자 사이에는 끼우지 않는다(영문·숫자 커닝, URL 줄바꿈 보존)', () {
+    expect(keepWords('Google LLC'), 'Google LLC');
+    expect(keepWords('https://example.com/a'), 'https://example.com/a');
+    expect(keepWords('AI가 3km'), 'AI\u2060가 3km');
+    expect(keepWords('10분'), '10\u2060분');
+  });
+
+  testWidgets('KeepWordsText는 Text이고 data는 원문 — 그리는 글자에만 WORD JOINER가 들어간다', (tester) async {
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(
       const Directionality(textDirection: TextDirection.ltr, child: KeepWordsText('상대가 더 잘했어요')),
     );
+    // 원문으로 찾는다(기존 find.text 검사가 그대로 맞는다). 같은 글자의 Text가 둘 생기지 않는다.
+    expect(find.text('상대가 더 잘했어요'), findsOneWidget);
+    expect(find.text(keepWords('상대가 더 잘했어요')), findsNothing);
+    expect(tester.widget<Text>(find.text('상대가 더 잘했어요')).data, '상대가 더 잘했어요');
+    final rich = tester.widget<RichText>(find.byType(RichText));
+    expect(rich.text.toPlainText(), keepWords('상대가 더 잘했어요'));
+    // 화면 낭독기에는 원문.
     expect(find.bySemanticsLabel('상대가 더 잘했어요'), findsOneWidget);
-    expect(find.text('상대가 더 잘했어요'), findsNothing);
-    expect(find.text(keepWords('상대가 더 잘했어요')), findsOneWidget);
     semantics.dispose();
+  });
+
+  testWidgets('글자가 바뀌지 않으면(ASCII뿐) semanticsLabel을 덧씌우지 않고, 호출부가 준 값은 그대로 쓴다', (tester) async {
+    await tester.pumpWidget(
+      const Directionality(
+        textDirection: TextDirection.ltr,
+        child: Column(
+          children: [
+            KeepWordsText('13/60'),
+            KeepWordsText('러닝 3km', semanticsLabel: '달리기'),
+          ],
+        ),
+      ),
+    );
+    expect(find.byWidgetPredicate((w) => w is Semantics && w.properties.label == '13/60'), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => w is Semantics && w.properties.label == '달리기'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('한 어절이 칸보다 길면 그 어절 안에서 끊긴다 — 넘쳐서 잘리지 않는다', (tester) async {
+    // 테스트 글꼴은 글자마다 10 × 10. 폭 40에 열 글자짜리 한 어절.
+    const word = '가나다라마바사아자차';
+    await tester.pumpWidget(
+      const Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: SizedBox(width: 40, child: KeepWordsText(word, style: TextStyle(fontSize: 10))),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final paragraph = tester.renderObject<RenderParagraph>(find.byType(RichText));
+    expect(lineStarts(paragraph), isNotEmpty);
+    expect(paragraph.size.width, lessThanOrEqualTo(40));
+    expect(paragraph.didExceedMaxLines, isFalse);
+    // 글자는 하나도 빠지지 않고 세로로 이어진다.
+    expect(paragraph.size.height, greaterThanOrEqualTo(30));
   });
 
   test('widestWordWidth는 가장 넓은 어절의 폭을 글자 배율까지 반영해 잰다', () {

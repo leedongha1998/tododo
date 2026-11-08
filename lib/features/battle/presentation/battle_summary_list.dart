@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../data/battle.dart';
 import '../domain/battle_summary.dart';
 import 'battle_chips.dart';
@@ -52,7 +53,7 @@ class BattleSummaryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                KeepWordsText(
                   battle.title,
                   // 대결 제목은 목록 본문이라 목록 주 텍스트 슬롯(bodyLarge)을 굵게 쓴다.
                   style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
@@ -66,7 +67,7 @@ class BattleSummaryCard extends StatelessWidget {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     BattleTypeBadge(type: battle.type),
-                    Text(
+                    KeepWordsText(
                       '${AppStrings.battleVersus} ${summary.otherPartyName}',
                       style: textTheme.bodySmall,
                       overflow: TextOverflow.ellipsis,
@@ -78,7 +79,7 @@ class BattleSummaryCard extends StatelessWidget {
                 // 둘을 같은 모양으로 그리면 "들어가서 눌러야 하는가"가 다시 가려진다.
                 if (statusLine != null) ...[
                   const SizedBox(height: 8),
-                  Text(
+                  KeepWordsText(
                     statusLine,
                     style: notice.needsMyAction
                         ? textTheme.bodySmall?.copyWith(
@@ -93,7 +94,7 @@ class BattleSummaryCard extends StatelessWidget {
                 // 남은 시간. 어느 시계인지(사진 마감/판정 마감)는 문구가 말한다.
                 if (deadlineLine != null) ...[
                   const SizedBox(height: 4),
-                  Text(
+                  KeepWordsText(
                     deadlineLine,
                     style: textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,

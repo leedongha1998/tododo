@@ -8,6 +8,7 @@ import '../../../core/theme/app_text.dart';
 import '../../../core/widgets/app_button_styles.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
@@ -30,17 +31,17 @@ class BattleDetailScreen extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(AppStrings.battleForfeitConfirmTitle),
-        content: const Text(AppStrings.battleForfeitConfirm),
+        title: const KeepWordsText(AppStrings.battleForfeitConfirmTitle),
+        content: const KeepWordsText(AppStrings.battleForfeitConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.cancel),
+            child: const KeepWordsText(AppStrings.cancel),
           ),
           FilledButton(
             style: AppButtonStyles.danger,
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(AppStrings.battleForfeit),
+            child: const KeepWordsText(AppStrings.battleForfeit),
           ),
         ],
       ),
@@ -59,7 +60,7 @@ class BattleDetailScreen extends ConsumerWidget {
   }
 
   void _showSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: KeepWordsText(message)));
   }
 
   @override
@@ -69,7 +70,7 @@ class BattleDetailScreen extends ConsumerWidget {
     return Scaffold(
       // 어느 대결을 보고 있는지가 제목이어야 한다. 목록으로 돌아가지 않아도 구분된다.
       appBar: AppBar(
-        title: Text(detailAsync.value?.battle.title ?? AppStrings.battleMyBattles),
+        title: KeepWordsText(detailAsync.value?.battle.title ?? AppStrings.battleMyBattles),
       ),
       body: detailAsync.when(
         data: (detail) => RefreshIndicator(
@@ -111,7 +112,7 @@ class BattleDetailScreen extends ConsumerWidget {
                       iconColor: AppPalette.danger,
                     ),
                     icon: const Icon(AppIcons.flag),
-                    label: const Text(AppStrings.battleForfeit),
+                    label: const KeepWordsText(AppStrings.battleForfeit),
                   ),
                 ),
               ],
@@ -132,7 +133,7 @@ class BattleDetailScreen extends ConsumerWidget {
             fill: true,
             action: TextButton(
               onPressed: () => ref.invalidate(battleDetailProvider(battleId)),
-              child: const Text(AppStrings.retry),
+              child: const KeepWordsText(AppStrings.retry),
             ),
           );
         },
@@ -171,12 +172,12 @@ class _BattleHeader extends StatelessWidget {
         ),
         if (submitDeadline != null) ...[
           const SizedBox(height: 8),
-          Text(submitDeadline, style: deadlineStyle),
+          KeepWordsText(submitDeadline, style: deadlineStyle),
         ],
         if (judgeDeadline != null) ...[
           // 제출 창과 판정 창이 다른 시계임이 더 잘 갈리게 두 줄 사이 8(design 5.5 기준 화면 2).
           const SizedBox(height: 8),
-          Text(judgeDeadline, style: deadlineStyle),
+          KeepWordsText(judgeDeadline, style: deadlineStyle),
         ],
         const SizedBox(height: 12),
         _OpponentCard(detail: detail),
@@ -266,16 +267,16 @@ class _ResultBanner extends StatelessWidget {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(headline, style: textTheme.titleMedium),
+        KeepWordsText(headline, style: textTheme.titleMedium),
         if (subtitle != null) ...[
           const SizedBox(height: 4),
-          Text(subtitle, style: textTheme.bodyMedium),
+          KeepWordsText(subtitle, style: textTheme.bodyMedium),
         ],
         if (reason != null) ...[
           const SizedBox(height: 8),
-          Text(AppStrings.battleVerdictReasonLabel, style: textTheme.bodyMedium),
+          KeepWordsText(AppStrings.battleVerdictReasonLabel, style: textTheme.bodyMedium),
           const SizedBox(height: 2),
-          Text(reason, style: textTheme.bodyMedium),
+          KeepWordsText(reason, style: textTheme.bodyMedium),
         ],
         // 점수는 서버가 하한(0)까지 적용해 반영한 값이다. 앱이 다시 계산하지 않는다.
         if (scoreDelta != null) ...[
@@ -285,15 +286,15 @@ class _ResultBanner extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              Text(AppStrings.battleScoreChangeLabel, style: textTheme.bodyMedium),
+              KeepWordsText(AppStrings.battleScoreChangeLabel, style: textTheme.bodyMedium),
               const SizedBox(width: 8),
-              Text(AppStrings.battleScoreDelta(scoreDelta), style: AppText.numberMedium),
+              KeepWordsText(AppStrings.battleScoreDelta(scoreDelta), style: AppText.numberMedium),
             ],
           ),
           // 0점인 사람은 더 깎이지 않는다. 표가 말하는 -3과 달라 보이므로 이유를 적는다.
           if (scoreDelta == 0) ...[
             const SizedBox(height: 2),
-            Text(AppStrings.battleScoreFloorNote, style: textTheme.bodyMedium),
+            KeepWordsText(AppStrings.battleScoreFloorNote, style: textTheme.bodyMedium),
           ],
         ],
       ],

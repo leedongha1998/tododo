@@ -5,6 +5,7 @@ import '../../../core/navigation/app_tab.dart';
 import '../../../core/strings.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/app_tag.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/battle.dart';
 import '../domain/battle_providers.dart';
@@ -33,14 +34,14 @@ class MyBattlesScreen extends ConsumerWidget {
       ref.invalidate(myLimitsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(AppStrings.battleRecruitCancelled)),
+          const SnackBar(content: KeepWordsText(AppStrings.battleRecruitCancelled)),
         );
       }
     } catch (e) {
       debugPrint('cancelBattle failed: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(AppStrings.battleRecruitCancelFailed)),
+          const SnackBar(content: KeepWordsText(AppStrings.battleRecruitCancelFailed)),
         );
       }
     }
@@ -53,7 +54,7 @@ class MyBattlesScreen extends ConsumerWidget {
     final recruits = recruitsAsync.value ?? const <Battle>[];
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.battleMyBattles)),
+      appBar: AppBar(title: const KeepWordsText(AppStrings.battleMyBattles)),
       // 빈 상태와 에러까지 감싸야 한다. 목록이 비었을 때야말로 새로고침이 필요하다.
       body: RefreshIndicator(
         onRefresh: () async {
@@ -96,7 +97,7 @@ class MyBattlesScreen extends ConsumerWidget {
           message: AppStrings.battleLoadRecruitsFailed,
           action: TextButton(
             onPressed: () => ref.invalidate(myRecruitsProvider),
-            child: const Text(AppStrings.retry),
+            child: const KeepWordsText(AppStrings.retry),
           ),
         ),
         const SizedBox(height: 24),
@@ -143,7 +144,7 @@ class MyBattlesScreen extends ConsumerWidget {
           if (recruits.isNotEmpty) {
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
+              child: KeepWordsText(
                 AppStrings.battleNoActiveBattlesYet,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
@@ -160,11 +161,11 @@ class MyBattlesScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(AppStrings.battleIntroMatching),
+                    KeepWordsText(AppStrings.battleIntroMatching),
                     SizedBox(height: 8),
-                    Text(AppStrings.battleIntroEvidence),
+                    KeepWordsText(AppStrings.battleIntroEvidence),
                     SizedBox(height: 8),
-                    Text(AppStrings.battleIntroJudging),
+                    KeepWordsText(AppStrings.battleIntroJudging),
                   ],
                 ),
               ),
@@ -175,7 +176,7 @@ class MyBattlesScreen extends ConsumerWidget {
                 action: FilledButton(
                   onPressed: () =>
                       ref.read(selectedTabProvider.notifier).select(AppTab.find),
-                  child: const Text(AppStrings.battleFind),
+                  child: const KeepWordsText(AppStrings.battleFind),
                 ),
               ),
             ],
@@ -188,7 +189,7 @@ class MyBattlesScreen extends ConsumerWidget {
             message: AppStrings.battleLoadListFailed,
             action: TextButton(
               onPressed: () => ref.invalidate(myBattlesProvider),
-              child: const Text(AppStrings.retry),
+              child: const KeepWordsText(AppStrings.retry),
             ),
           );
         },
@@ -211,7 +212,7 @@ class _MyRecruitBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        KeepWordsText(
           battle.title,
           style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
           maxLines: 2,
@@ -239,7 +240,7 @@ class _MyRecruitBody extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         // "아직 아무도 안 들어왔다"는 사실 자체가 이 구역의 의미다.
-        Text(AppStrings.battleMyRecruitWaiting, style: textTheme.bodySmall),
+        KeepWordsText(AppStrings.battleMyRecruitWaiting, style: textTheme.bodySmall),
         const SizedBox(height: 12),
         // 매칭 전까지는 기준을 고칠 수 있다. 매칭된 뒤에는 서버가 거부한다.
         Row(
@@ -251,12 +252,12 @@ class _MyRecruitBody extends StatelessWidget {
                   builder: (_) => EditRecruitCriteriaScreen(battle: battle),
                 ),
               ),
-              child: const Text(AppStrings.battleCriteriaEditRecruit),
+              child: const KeepWordsText(AppStrings.battleCriteriaEditRecruit),
             ),
             const SizedBox(width: 8),
             TextButton(
               onPressed: onCancel,
-              child: const Text(AppStrings.battleRecruitCancel),
+              child: const KeepWordsText(AppStrings.battleRecruitCancel),
             ),
           ],
         ),

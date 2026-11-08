@@ -9,6 +9,7 @@ import 'core/strings.dart';
 import 'core/supabase/supabase_env.dart';
 import 'core/supabase/supabase_init.dart';
 import 'core/theme/app_theme.dart';
+import 'core/widgets/keep_words_text.dart';
 import 'features/auth/presentation/auth_gate.dart';
 
 /// 시스템 글꼴 크기를 따르되 이 배율에서 멈춘다(redesign design 3.3). 1.5배에서 탭 라벨(labelSmall 12)은
@@ -74,7 +75,7 @@ class _SupabaseNotConfigured extends StatelessWidget {
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(AppStrings.supabaseNotConfigured, textAlign: TextAlign.center),
+          child: KeepWordsText(AppStrings.supabaseNotConfigured, textAlign: TextAlign.center),
         ),
       ),
     );

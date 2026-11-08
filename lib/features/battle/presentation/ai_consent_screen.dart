@@ -6,6 +6,7 @@ import '../../../core/strings.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../data/ai_consent.dart';
 import '../domain/ai_consent_providers.dart';
 
@@ -20,7 +21,7 @@ Future<bool> ensureAiConsent(BuildContext context, WidgetRef ref) async {
     debugPrint('myAiConsentProvider failed: $e');
     if (context.mounted) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text(AppStrings.aiConsentLoadFailed)));
+          .showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.aiConsentLoadFailed)));
     }
     return false;
   }
@@ -34,7 +35,7 @@ Future<bool> ensureAiConsent(BuildContext context, WidgetRef ref) async {
 
   if (context.mounted) {
     ScaffoldMessenger.of(context)
-        .showSnackBar(const SnackBar(content: Text(AppStrings.aiConsentRequired)));
+        .showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.aiConsentRequired)));
   }
   return false;
 }
@@ -61,7 +62,7 @@ class _AiConsentScreenState extends ConsumerState<AiConsentScreen> {
       if (!mounted) return;
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text(AppStrings.aiConsentGiveFailed)));
+          .showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.aiConsentGiveFailed)));
     }
   }
 
@@ -70,12 +71,12 @@ class _AiConsentScreenState extends ConsumerState<AiConsentScreen> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.aiConsentTitle)),
+      appBar: AppBar(title: const KeepWordsText(AppStrings.aiConsentTitle)),
       body: ListView(
         // 화면 가장자리 20(redesign design 4.1).
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
-          Text(AppStrings.aiConsentIntro, style: textTheme.bodyMedium),
+          KeepWordsText(AppStrings.aiConsentIntro, style: textTheme.bodyMedium),
           const SizedBox(height: 24),
           const AppPanel.flat(
             title: AppStrings.aiConsentDetailsTitle,
@@ -113,7 +114,7 @@ class _AiConsentScreenState extends ConsumerState<AiConsentScreen> {
                 const SizedBox(width: 8),
                 // 큰 배율에서 Row가 넘치지 않게 남은 폭 안에서 줄바꿈한다.
                 Flexible(
-                  child: Text(AppStrings.aiConsentPrivacyPolicy, style: textTheme.labelLarge),
+                  child: KeepWordsText(AppStrings.aiConsentPrivacyPolicy, style: textTheme.labelLarge),
                 ),
               ],
             ),
@@ -123,12 +124,12 @@ class _AiConsentScreenState extends ConsumerState<AiConsentScreen> {
           const SizedBox(height: 24),
           FilledButton(
             onPressed: _submitting ? null : _agree,
-            child: _submitting ? const AppLoader.small() : const Text(AppStrings.aiConsentAgree),
+            child: _submitting ? const AppLoader.small() : const KeepWordsText(AppStrings.aiConsentAgree),
           ),
           const SizedBox(height: 8),
           OutlinedButton(
             onPressed: _submitting ? null : () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.aiConsentDisagree),
+            child: const KeepWordsText(AppStrings.aiConsentDisagree),
           ),
         ],
       ),
@@ -152,9 +153,9 @@ class _ConsentItem extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: textTheme.titleSmall),
+          KeepWordsText(label, style: textTheme.titleSmall),
           const SizedBox(height: 4),
-          Text(value, style: textTheme.bodyMedium),
+          KeepWordsText(value, style: textTheme.bodyMedium),
         ],
       ),
     );

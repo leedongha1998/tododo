@@ -5,6 +5,7 @@ import '../theme/app_icons.dart';
 import '../theme/app_palette.dart';
 import '../theme/depth_border.dart';
 import 'app_loader.dart';
+import 'keep_words_text.dart';
 
 /// 증거 사진 틀(redesign design.md 5.2, retro-theme 결정 C 승계).
 ///
@@ -90,13 +91,13 @@ class EvidencePhotoFrame extends StatelessWidget {
             const Icon(AppIcons.brokenImage, size: 40, color: AppPalette.ink),
             const SizedBox(height: 4),
             // 글자가 길거나 커져도 가로로 넘치지 않게 줄바꿈한다.
-            Text(
+            KeepWordsText(
               AppStrings.battleEvidencePhotoLoadFailed,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             if (onRetry != null)
-              TextButton(onPressed: onRetry, child: const Text(AppStrings.retry)),
+              TextButton(onPressed: onRetry, child: const KeepWordsText(AppStrings.retry)),
           ],
         ),
       ),

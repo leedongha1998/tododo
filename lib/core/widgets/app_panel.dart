@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_icons.dart';
 import '../theme/app_palette.dart';
 import '../theme/depth_border.dart';
+import 'keep_words_text.dart';
 
 enum _PanelVariant { raised, flat, inset, tone }
 
@@ -140,7 +141,7 @@ class _AppPanelState extends State<AppPanel> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
+                    KeepWordsText(
                       title,
                       style: Theme.of(context).textTheme.titleSmall!
                           .copyWith(color: AppPalette.ink),
@@ -204,7 +205,7 @@ class _AppPanelState extends State<AppPanel> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (title != null) ...[
-                  Text(
+                  KeepWordsText(
                     title,
                     style: textTheme.titleSmall!.copyWith(
                       color: AppPalette.ink,

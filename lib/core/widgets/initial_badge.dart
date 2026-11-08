@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_palette.dart';
 import '../theme/app_text.dart';
 import '../theme/depth_border.dart';
+import 'keep_words_text.dart';
 
 /// 표시 이름의 이니셜 한 글자.
 ///
@@ -63,7 +64,7 @@ class InitialBadge extends StatelessWidget {
           padding: const EdgeInsets.all(2),
           child: FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(
+            child: KeepWordsText(
               displayInitial(name),
               style: TextStyle(
                 fontFamily: AppText.family,

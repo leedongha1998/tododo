@@ -5,6 +5,7 @@ import '../../../core/strings.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../data/todo.dart';
@@ -65,7 +66,7 @@ class TodoListScreen extends ConsumerWidget {
   }
 
   void _showErrorSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: KeepWordsText(message)));
   }
 
   @override
@@ -73,7 +74,7 @@ class TodoListScreen extends ConsumerWidget {
     final todosAsync = ref.watch(todosProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.todoTitle)),
+      appBar: AppBar(title: const KeepWordsText(AppStrings.todoTitle)),
       body: todosAsync.when(
         data: (todos) {
           if (todos.isEmpty) {
@@ -100,7 +101,7 @@ class TodoListScreen extends ConsumerWidget {
                     onChanged: (_) => _toggleDone(context, ref, todo),
                   ),
                 ),
-                title: Text(
+                title: KeepWordsText(
                   todo.title,
                   style: todo.isDone
                       ? const TextStyle(
@@ -155,7 +156,7 @@ Future<String?> _showTodoInputDialog(
     context: context,
     builder: (context) {
       return AlertDialog(
-        title: Text(dialogTitle),
+        title: KeepWordsText(dialogTitle),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -165,11 +166,11 @@ Future<String?> _showTodoInputDialog(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text(AppStrings.cancel),
+            child: const KeepWordsText(AppStrings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: const Text(AppStrings.save),
+            child: const KeepWordsText(AppStrings.save),
           ),
         ],
       );

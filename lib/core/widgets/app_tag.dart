@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_palette.dart';
 import '../theme/depth_border.dart';
+import 'keep_words_text.dart';
 
 /// 태그 한 개의 모양. 상태 칩·결과 라벨이 서버 값을 이 모양으로 바꾸는 매핑의 결과다
 /// (승패를 계산하지 않고 모양만 고른다).
@@ -94,7 +95,7 @@ class AppTag extends StatelessWidget {
             Icon(icon, size: 16, color: border ?? style.textColor),
             const SizedBox(width: 4),
           ],
-          Text(
+          KeepWordsText(
             label,
             style: (isLarge ? textTheme.titleMedium : textTheme.labelMedium)!
                 .copyWith(color: style.textColor),

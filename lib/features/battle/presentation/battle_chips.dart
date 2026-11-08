@@ -5,6 +5,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/depth_border.dart';
 import '../../../core/widgets/app_tag.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../domain/battle_outcome.dart';
 
 /// 대결 카드, 대결 상세, 전적 목록이 유형·상태·결과를 같은 모양으로 보여주기 위한 공용 조각.
@@ -171,7 +172,7 @@ class BattleTypeBadge extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          Text(
+          KeepWordsText(
             battleTypeLabel(type),
             style: Theme.of(context).textTheme.labelMedium!.copyWith(color: AppPalette.ink),
           ),

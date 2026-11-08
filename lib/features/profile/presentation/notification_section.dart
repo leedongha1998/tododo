@@ -5,6 +5,7 @@ import '../../../core/push/push_messaging.dart';
 import '../../../core/push/push_providers.dart';
 import '../../../core/strings.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 
 /// 알림이 꺼져 있을 때만 보이는 안내 한 칸.
 ///
@@ -31,12 +32,12 @@ class NotificationSection extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                KeepWordsText(
                   AppStrings.notificationDisabled,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 8),
-                Text(
+                KeepWordsText(
                   AppStrings.notificationDisabledGuide,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

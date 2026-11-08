@@ -11,6 +11,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/app_tag.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../profile/domain/profile_providers.dart';
@@ -61,7 +62,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
   void _showSnackBar(String message, {SnackBarAction? action}) {
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message), action: action));
+    ).showSnackBar(SnackBar(content: KeepWordsText(message), action: action));
   }
 
   void _goToMyBattles() =>
@@ -185,7 +186,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.battleFind)),
+      appBar: AppBar(title: const KeepWordsText(AppStrings.battleFind)),
       // 마음에 드는 모집이 없을 때의 다음 행동이 "내가 만든다"이고, 그 판단은 목록을 보는 자리에서 나온다.
       // 라벨을 뗀 아이콘 전용(56x56)이다 — 글자까지 둔 버튼이 카드 오른쪽 절반을 덮었다.
       // 이름은 tooltip과 빈 상태의 글자 버튼이 말한다.
@@ -278,7 +279,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
               showSelectedIcon: false,
               segments: [
                 for (final type in RecruitTypeFilter.values)
-                  ButtonSegment(value: type, label: Text(type.label)),
+                  ButtonSegment(value: type, label: KeepWordsText(type.label)),
               ],
               selected: {filter.type},
               onSelectionChanged: (selection) =>
@@ -290,7 +291,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
               showSelectedIcon: false,
               segments: [
                 for (final band in RecruitDurationBand.values)
-                  ButtonSegment(value: band, label: Text(band.label)),
+                  ButtonSegment(value: band, label: KeepWordsText(band.label)),
               ],
               selected: {filter.band},
               onSelectionChanged: (selection) =>
@@ -303,7 +304,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
                 child: TextButton.icon(
                   onPressed: _clearConditions,
                   icon: const Icon(AppIcons.close, size: 16),
-                  label: const Text(AppStrings.battleFilterClear),
+                  label: const KeepWordsText(AppStrings.battleFilterClear),
                 ),
               ),
           ],
@@ -329,7 +330,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         message: AppStrings.battleLoadRecruitsFailed,
         action: TextButton(
           onPressed: () => ref.invalidate(openRecruitFeedProvider),
-          child: const Text(AppStrings.retry),
+          child: const KeepWordsText(AppStrings.retry),
         ),
       );
     } else if (feed == null) {
@@ -348,7 +349,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
           detail: AppStrings.battleRecruitsEmptyNoneHint,
           action: FilledButton(
             onPressed: () => _openCreate(context),
-            child: const Text(AppStrings.battleCreate),
+            child: const KeepWordsText(AppStrings.battleCreate),
           ),
         ),
         // 조건 때문에 비었다 → 조건을 되돌리는 것이 먼저다. 여기서 대결 만들기를 권하지 않는다.
@@ -358,7 +359,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
           detail: AppStrings.battleRecruitsEmptyFilteredHint,
           action: FilledButton(
             onPressed: _clearConditions,
-            child: const Text(AppStrings.battleFilterClear),
+            child: const KeepWordsText(AppStrings.battleFilterClear),
           ),
         ),
       };
@@ -423,7 +424,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         action: TextButton(
           onPressed: () =>
               ref.read(openRecruitFeedProvider.notifier).loadMore(),
-          child: const Text(AppStrings.retry),
+          child: const KeepWordsText(AppStrings.retry),
         ),
       );
     }
@@ -489,7 +490,7 @@ class _OpenRecruitCard extends StatelessWidget {
                   // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
                   // 2줄 상한이 없으면 최대 4줄까지 늘어나 다음 카드의 시작 위치를 예측할 수 없다.
                   // 제목 전문은 상세 시트가 보여 준다.
-                  Text(
+                  KeepWordsText(
                     battle.title,
                     style: textTheme.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w700,
@@ -521,7 +522,7 @@ class _OpenRecruitCard extends StatelessWidget {
                   // 카드 네 장이 같은 실루엣으로 보인다 → 보조 글자색으로 낮춘다.
                   if (preview != null) ...[
                     const SizedBox(height: 8),
-                    Text(
+                    KeepWordsText(
                       preview,
                       style: textTheme.bodySmall?.copyWith(
                         color: AppPalette.inkMuted,

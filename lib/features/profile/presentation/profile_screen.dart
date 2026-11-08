@@ -7,6 +7,7 @@ import '../../../core/theme/app_text.dart';
 import '../../../core/widgets/app_button_styles.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../battle/domain/battle_outcome.dart';
 import '../../battle/presentation/battle_chips.dart';
@@ -30,18 +31,18 @@ class ProfileScreen extends ConsumerWidget {
         recordsAsync.value?.any((record) => record.result == BattleResult.voided) ?? false;
 
     return Scaffold(
-      appBar: AppBar(title: const Text(AppStrings.profileTitle)),
+      appBar: AppBar(title: const KeepWordsText(AppStrings.profileTitle)),
       body: ListView(
         // 화면 가장자리 20(redesign design 4.1).
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
           profileAsync.when(
             data: (profile) =>
-                Text(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
+                KeepWordsText(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
             loading: () => const Center(child: AppLoader.medium()),
             error: (error, stackTrace) {
               debugPrint('myProfileProvider error: $error');
-              return Text(AppStrings.profileLoadFailed);
+              return KeepWordsText(AppStrings.profileLoadFailed);
             },
           ),
           const SizedBox(height: 24),
@@ -49,14 +50,14 @@ class ProfileScreen extends ConsumerWidget {
           // (무효·취소는 서버가 애초에 세지 않고, 완료한 패배도 전적에서는 그냥 패다).
           _StatsFrame(statsAsync: statsAsync, hasVoidedRecord: hasVoidedRecord),
           const SizedBox(height: 24),
-          Text(
+          KeepWordsText(
             AppStrings.profileHistorySection,
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
           recordsAsync.when(
             data: (records) {
-              if (records.isEmpty) return const Text(AppStrings.profileRecordEmpty);
+              if (records.isEmpty) return const KeepWordsText(AppStrings.profileRecordEmpty);
               // 지난 대결은 한 장씩 떠 있는 카드로 나눈다.
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -72,7 +73,7 @@ class ProfileScreen extends ConsumerWidget {
             loading: () => const Center(child: AppLoader.medium()),
             error: (error, stackTrace) {
               debugPrint('battleRecordsProvider error: $error');
-              return Text(AppStrings.profileLoadRecordFailed);
+              return KeepWordsText(AppStrings.profileLoadRecordFailed);
             },
           ),
           const SizedBox(height: 24),
@@ -90,7 +91,7 @@ class ProfileScreen extends ConsumerWidget {
                 OutlinedButton.icon(
                   onPressed: () => ref.read(authRepositoryProvider).signOut(),
                   icon: const Icon(AppIcons.logout),
-                  label: const Text(AppStrings.logout),
+                  label: const KeepWordsText(AppStrings.logout),
                 ),
                 const SizedBox(height: 8),
                 // 번들한 글꼴(OFL)의 고지를 사용자가 찾을 수 있는 자리.
@@ -101,7 +102,7 @@ class ProfileScreen extends ConsumerWidget {
                     applicationName: AppStrings.appName,
                   ),
                   icon: const Icon(AppIcons.document),
-                  label: const Text(AppStrings.openSourceLicenses),
+                  label: const KeepWordsText(AppStrings.openSourceLicenses),
                 ),
                 const SizedBox(height: 8),
                 const Divider(),
@@ -132,17 +133,17 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(AppStrings.accountDeleteConfirmTitle),
-        content: const Text(AppStrings.accountDeleteConfirmMessage),
+        title: const KeepWordsText(AppStrings.accountDeleteConfirmTitle),
+        content: const KeepWordsText(AppStrings.accountDeleteConfirmMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.cancel),
+            child: const KeepWordsText(AppStrings.cancel),
           ),
           FilledButton(
             style: AppButtonStyles.danger,
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(AppStrings.accountDeleteConfirm),
+            child: const KeepWordsText(AppStrings.accountDeleteConfirm),
           ),
         ],
       ),
@@ -158,11 +159,11 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
       await ref.read(authRepositoryProvider).deleteAccount();
       // AuthGate가 로그인 화면으로 바뀌므로 그 위에 쌓여 있던 화면을 걷어낸다.
       navigator.popUntil((route) => route.isFirst);
-      messenger.showSnackBar(const SnackBar(content: Text(AppStrings.accountDeleteDone)));
+      messenger.showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.accountDeleteDone)));
     } catch (error) {
       debugPrint('deleteAccount error: $error');
       if (mounted) setState(() => _isDeleting = false);
-      messenger.showSnackBar(const SnackBar(content: Text(AppStrings.accountDeleteFailed)));
+      messenger.showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.accountDeleteFailed)));
     }
   }
 
@@ -173,7 +174,7 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
       // 진행 중에는 누를 수 없는 모양 + 라벨 자리 로더(버튼 크기 유지).
       onPressed: _isDeleting ? null : _confirmAndDelete,
       icon: const Icon(AppIcons.accountDelete),
-      label: _isDeleting ? const AppLoader.small() : const Text(AppStrings.accountDelete),
+      label: _isDeleting ? const AppLoader.small() : const KeepWordsText(AppStrings.accountDelete),
     );
   }
 }
@@ -204,8 +205,8 @@ class _StatsFrame extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.end,
               children: [
                 // 점수가 이 묶음의 주인공이라 유일하게 큰 숫자다.
-                Text(AppStrings.playerScoreLabel(stats.score), style: AppText.numberLarge),
-                Text(
+                KeepWordsText(AppStrings.playerScoreLabel(stats.score), style: AppText.numberLarge),
+                KeepWordsText(
                   AppStrings.playerRecordLabel(stats.wins, stats.losses, stats.draws),
                   style: AppText.numberSmall,
                 ),
@@ -213,14 +214,14 @@ class _StatsFrame extends StatelessWidget {
             ),
             if (hasVoidedRecord) ...[
               const SizedBox(height: 8),
-              Text(AppStrings.profileVoidedExcluded, style: textTheme.bodySmall),
+              KeepWordsText(AppStrings.profileVoidedExcluded, style: textTheme.bodySmall),
             ],
           ],
         ),
         loading: () => const Center(child: AppLoader.small()),
         error: (error, stackTrace) {
           debugPrint('myPlayerStatsProvider error: $error');
-          return const Text(AppStrings.profileLoadStatsFailed);
+          return const KeepWordsText(AppStrings.profileLoadStatsFailed);
         },
       ),
     );
@@ -250,7 +251,7 @@ class _BattleRecordTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
-                Text(
+                KeepWordsText(
                   record.battle.title,
                   style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
@@ -260,7 +261,7 @@ class _BattleRecordTile extends StatelessWidget {
                     BattleTypeBadge(type: record.battle.type),
                     const SizedBox(width: 8),
                     Flexible(
-                      child: Text(
+                      child: KeepWordsText(
                         '${AppStrings.battleVersus} ${record.otherPartyName}',
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodyMedium?.copyWith(color: mutedColor),

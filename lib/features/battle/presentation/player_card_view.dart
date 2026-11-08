@@ -4,6 +4,7 @@ import '../../../core/strings.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_text.dart';
 import '../../../core/widgets/initial_badge.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../data/player_card.dart';
 
 /// 상대·모집 생성자의 전적 한 줄(이니셜 + 이름 + 점수 + 승/패/무).
@@ -31,8 +32,8 @@ class PlayerCardView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (label != null)
-                Text(label!, style: textTheme.bodySmall),
-              Text(
+                KeepWordsText(label!, style: textTheme.bodySmall),
+              KeepWordsText(
                 card.displayName,
                 style: textTheme.bodyLarge,
                 overflow: TextOverflow.ellipsis,
@@ -43,8 +44,8 @@ class PlayerCardView extends StatelessWidget {
                 Wrap(
                   spacing: 12,
                   children: [
-                    Text(AppStrings.playerScoreLabel(card.score!), style: AppText.numberSmall),
-                    Text(
+                    KeepWordsText(AppStrings.playerScoreLabel(card.score!), style: AppText.numberSmall),
+                    KeepWordsText(
                       AppStrings.playerRecordLabel(card.wins!, card.losses!, card.draws!),
                       style: AppText.numberSmall,
                     ),
@@ -52,7 +53,7 @@ class PlayerCardView extends StatelessWidget {
                 )
               else
                 // 탈퇴한 사용자는 점수 행이 없다.
-                Text(AppStrings.playerStatsUnknown, style: textTheme.bodySmall),
+                KeepWordsText(AppStrings.playerStatsUnknown, style: textTheme.bodySmall),
             ],
           ),
         ),

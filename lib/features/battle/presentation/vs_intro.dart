@@ -7,6 +7,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_text.dart';
 import '../../../core/theme/depth_border.dart';
 import '../../../core/widgets/initial_badge.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../data/vs_intro_seen_store.dart';
 import '../domain/vs_intro_rules.dart';
 
@@ -251,7 +252,7 @@ class _VsIntroState extends State<VsIntro> with SingleTickerProviderStateMixin {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Align(
                     alignment: Alignment.centerRight,
-                    child: Text(AppStrings.battleOpponent, style: label),
+                    child: KeepWordsText(AppStrings.battleOpponent, style: label),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -287,7 +288,7 @@ class _VsIntroState extends State<VsIntro> with SingleTickerProviderStateMixin {
                               height: bandHeight,
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
-                                child: Text(
+                                child: KeepWordsText(
                                   AppStrings.vsIntroVersus,
                                   style: TextStyle(
                                     fontFamily: AppText.family,
@@ -324,7 +325,7 @@ class _VsIntroState extends State<VsIntro> with SingleTickerProviderStateMixin {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(AppStrings.battleMe, style: label),
+                    child: KeepWordsText(AppStrings.battleMe, style: label),
                   ),
                 ),
               ],
@@ -365,7 +366,7 @@ class _Nameplate extends StatelessWidget {
       dimension: badge,
     );
     final text = Expanded(
-      child: Text(
+      child: KeepWordsText(
         name,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,

@@ -6,6 +6,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_text.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/evidence_photo_frame.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/battle_submission.dart';
 import '../data/evidence_camera.dart';
@@ -42,7 +43,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
   bool get _busy => _stage != _Stage.idle;
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: KeepWordsText(message)));
   }
 
   Future<void> _capture() async {
@@ -98,16 +99,16 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(AppStrings.battleEvidenceQualityConfirmTitle),
-        content: const Text(AppStrings.battleEvidenceQualityConfirm),
+        title: const KeepWordsText(AppStrings.battleEvidenceQualityConfirmTitle),
+        content: const KeepWordsText(AppStrings.battleEvidenceQualityConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.cancel),
+            child: const KeepWordsText(AppStrings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(AppStrings.battleEvidenceSubmit),
+            child: const KeepWordsText(AppStrings.battleEvidenceSubmit),
           ),
         ],
       ),
@@ -151,11 +152,11 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         const SizedBox(height: 12),
         FilledButton(
           onPressed: _submit,
-          child: const Text(AppStrings.battleEvidenceSubmit),
+          child: const KeepWordsText(AppStrings.battleEvidenceSubmit),
         ),
         const SizedBox(height: 8),
         // 서버는 업로드를 다 받은 뒤에 10분을 넘긴 사진을 거부한다. 그 전에 한 번 말해 둔다.
-        Text(
+        KeepWordsText(
           AppStrings.battleEvidenceCaptureWindow,
           style: Theme.of(context).textTheme.bodyMedium,
         ),
@@ -163,7 +164,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         OutlinedButton.icon(
           onPressed: _capture,
           icon: const Icon(AppIcons.retry),
-          label: const Text(AppStrings.battleEvidenceRetake),
+          label: const KeepWordsText(AppStrings.battleEvidenceRetake),
         ),
       ];
     }
@@ -180,16 +181,16 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
           const AppPanel.tone(
             tone: AppTone.neutral,
             icon: AppIcons.camera,
-            child: Text(AppStrings.battleEvidenceSubmittedWaitingOpponent),
+            child: KeepWordsText(AppStrings.battleEvidenceSubmittedWaitingOpponent),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: _capture,
             icon: const Icon(AppIcons.retry),
-            label: const Text(AppStrings.battleEvidenceReplace),
+            label: const KeepWordsText(AppStrings.battleEvidenceReplace),
           ),
           const SizedBox(height: 8),
-          Text(
+          KeepWordsText(
             AppStrings.battleEvidenceReplaceHint,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
@@ -203,7 +204,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         const AppPanel.tone(
           tone: AppTone.neutral,
           icon: AppIcons.clock,
-          child: Text(AppStrings.battleDeadlinePassed),
+          child: KeepWordsText(AppStrings.battleDeadlinePassed),
         ),
       ];
     }
@@ -215,7 +216,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
           const AppPanel.tone(
             tone: AppTone.neutral,
             icon: AppIcons.clock,
-            child: Text(AppStrings.battleDeadlinePassed),
+            child: KeepWordsText(AppStrings.battleDeadlinePassed),
           ),
       ];
     }
@@ -224,7 +225,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       FilledButton.icon(
         onPressed: _capture,
         icon: const Icon(AppIcons.camera),
-        label: const Text(AppStrings.battleEvidenceTakePhoto),
+        label: const KeepWordsText(AppStrings.battleEvidenceTakePhoto),
       ),
     ];
   }
@@ -239,7 +240,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         const AppPanel.tone(
           tone: AppTone.success,
           title: AppStrings.battleEvidenceQualitySubmittedTitle,
-          child: Text(AppStrings.battleEvidenceQualityWaiting),
+          child: KeepWordsText(AppStrings.battleEvidenceQualityWaiting),
         ),
       ];
     }
@@ -251,11 +252,11 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         const SizedBox(height: 12),
         FilledButton(
           onPressed: _confirmAndSubmitQuality,
-          child: const Text(AppStrings.battleEvidenceQualitySubmit),
+          child: const KeepWordsText(AppStrings.battleEvidenceQualitySubmit),
         ),
         const SizedBox(height: 8),
         // 품질전도 같은 10분 제약을 받는다. 한 번만 낼 수 있어 거부당하면 더 아프다.
-        Text(
+        KeepWordsText(
           AppStrings.battleEvidenceCaptureWindow,
           style: Theme.of(context).textTheme.bodyMedium,
         ),
@@ -263,7 +264,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         OutlinedButton.icon(
           onPressed: _capture,
           icon: const Icon(AppIcons.retry),
-          label: const Text(AppStrings.battleEvidenceRetake),
+          label: const KeepWordsText(AppStrings.battleEvidenceRetake),
         ),
       ];
     }
@@ -274,7 +275,7 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
         AppPanel.tone(
           tone: AppTone.neutral,
           icon: AppIcons.clock,
-          child: Text(AppStrings.battleDeadlinePassed),
+          child: KeepWordsText(AppStrings.battleDeadlinePassed),
         ),
       ];
     }
@@ -283,10 +284,10 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       FilledButton.icon(
         onPressed: _capture,
         icon: const Icon(AppIcons.camera),
-        label: const Text(AppStrings.battleEvidenceTakePhoto),
+        label: const KeepWordsText(AppStrings.battleEvidenceTakePhoto),
       ),
       const SizedBox(height: 8),
-      Text(
+      KeepWordsText(
         AppStrings.battleEvidenceQualityOnce,
         style: Theme.of(context).textTheme.bodyMedium,
       ),
@@ -323,7 +324,7 @@ class OpponentEvidenceSummary extends StatelessWidget {
 
     return AppPanel.flat(
       title: AppStrings.battleEvidenceOpponentTitle,
-      child: Text(
+      child: KeepWordsText(
         detail.hasOpponentSubmitted
             ? AppStrings.battleEvidenceOpponentSubmitted
             : AppStrings.battleEvidenceOpponentWaiting,
@@ -362,7 +363,7 @@ class RevealedEvidenceSection extends StatelessWidget {
 
   // 한 번도 내지 않은 채 끝난 대결(마감 무승부, 포기 등)도 있다.
   Widget _submissionOrEmpty(BattleSubmission? submission) {
-    if (submission == null) return const Text(AppStrings.battleEvidenceNoSubmission);
+    if (submission == null) return const KeepWordsText(AppStrings.battleEvidenceNoSubmission);
     return _SubmissionTile(submission: submission);
   }
 }
@@ -380,10 +381,10 @@ class _SubmissionTile extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(formatEvidenceTime(submission.submittedAt), style: AppText.numberSmall),
+        KeepWordsText(formatEvidenceTime(submission.submittedAt), style: AppText.numberSmall),
         if (submission.reason != null) ...[
           const SizedBox(height: 8),
-          Text(submission.reason!, style: textTheme.bodyMedium),
+          KeepWordsText(submission.reason!, style: textTheme.bodyMedium),
         ],
         if (submission.objectPath != null) ...[
           const SizedBox(height: 8),

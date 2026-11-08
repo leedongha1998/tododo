@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/strings.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../data/battle.dart';
 import '../data/criteria_check_result.dart';
 import '../domain/battle_providers.dart';
@@ -52,7 +53,7 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
   }
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: KeepWordsText(message)));
   }
 
   Future<void> _recheck() async {
@@ -124,18 +125,18 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
       // 잃는 것이 없으므로 막지 않는다 — 그때 확인창을 띄우면 길만 막는 것이 된다.
       blocked: _busy || _usedCheck,
       child: Scaffold(
-        appBar: AppBar(title: const Text(AppStrings.battleCriteriaEditRecruit)),
+        appBar: AppBar(title: const KeepWordsText(AppStrings.battleCriteriaEditRecruit)),
         body: ListView(
           // 화면 가장자리 20(redesign design 4.1).
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           children: [
-            Text(widget.battle.title, style: Theme.of(context).textTheme.titleMedium),
+            KeepWordsText(widget.battle.title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 16),
             if (checked != null && !checked.provable) ...[
               AppPanel.tone(
                 tone: AppTone.danger,
                 title: AppStrings.battleCriteriaBlocked,
-                child: Text(checked.blockReason ?? ''),
+                child: KeepWordsText(checked.blockReason ?? ''),
               ),
               const SizedBox(height: 16),
             ],
@@ -164,7 +165,7 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
             ],
             if (editError != null) ...[
               const SizedBox(height: 8),
-              Text(editError, style: Theme.of(context).textTheme.bodySmall),
+              KeepWordsText(editError, style: Theme.of(context).textTheme.bodySmall),
             ],
             const SizedBox(height: 24),
             if (canApply)
@@ -172,14 +173,14 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
                 onPressed: _apply,
                 child: _busy
                     ? const AppLoader.small()
-                    : const Text(AppStrings.battleCriteriaApply),
+                    : const KeepWordsText(AppStrings.battleCriteriaApply),
               )
             else
               FilledButton(
                 onPressed: _busy || editError != null || !_changed ? null : _recheck,
                 child: _busy
                     ? const AppLoader.small()
-                    : const Text(AppStrings.battleCriteriaRecheck),
+                    : const KeepWordsText(AppStrings.battleCriteriaRecheck),
               ),
           ],
         ),

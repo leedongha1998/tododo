@@ -5,6 +5,7 @@ import '../../../core/strings.dart';
 import '../../../core/theme/app_mark.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/depth_border.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../domain/auth_providers.dart';
 
 /// 로그인(redesign design 9.4). 구성(마크 + 앱 이름 + 구글 로그인)과 동작은 그대로다.
@@ -19,7 +20,7 @@ class LoginScreen extends ConsumerWidget {
       debugPrint('signInWithGoogle failed: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(AppStrings.signInFailed)),
+          const SnackBar(content: KeepWordsText(AppStrings.signInFailed)),
         );
       }
     }
@@ -41,13 +42,13 @@ class LoginScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
                 FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(AppStrings.appName, style: title),
+                  child: KeepWordsText(AppStrings.appName, style: title),
                 ),
                 const SizedBox(height: 40),
                 FilledButton(
                   style: FilledButton.styleFrom(minimumSize: const Size(240, 56)),
                   onPressed: () => _signIn(context, ref),
-                  child: const Text(AppStrings.googleSignIn),
+                  child: const KeepWordsText(AppStrings.googleSignIn),
                 ),
               ],
             ),

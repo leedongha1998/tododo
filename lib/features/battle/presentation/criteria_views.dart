@@ -5,6 +5,7 @@ import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/app_text.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../domain/criteria_rules.dart';
 
 /// 읽기 모드의 기준 목록 한 블록. 최소 기준과 우열 기준을 같은 모양으로 구분해 보여 준다.
@@ -30,7 +31,7 @@ class CriteriaListBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (hint != null) ...[
-            Text(hint!, style: textTheme.bodyMedium),
+            KeepWordsText(hint!, style: textTheme.bodyMedium),
             const SizedBox(height: 8),
           ],
           for (var i = 0; i < items.length; i++) ...[
@@ -41,12 +42,12 @@ class CriteriaListBlock extends StatelessWidget {
               textBaseline: TextBaseline.alphabetic,
               children: [
                 // 번호는 숫자 슬롯(고정폭) + 글자용 브랜드색, 기준 본문은 문장 슬롯.
-                Text(
+                KeepWordsText(
                   '${i + 1}',
                   style: AppText.numberSmall.copyWith(color: AppPalette.primaryDeep),
                 ),
                 const SizedBox(width: 8),
-                Expanded(child: Text(items[i], style: textTheme.bodyMedium)),
+                Expanded(child: KeepWordsText(items[i], style: textTheme.bodyMedium)),
               ],
             ),
           ],
@@ -116,7 +117,7 @@ class _CriteriaEditorState extends State<CriteriaEditor> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (widget.hint != null) ...[
-            Text(widget.hint!, style: textTheme.bodyMedium),
+            KeepWordsText(widget.hint!, style: textTheme.bodyMedium),
             const SizedBox(height: 8),
           ],
           for (var i = 0; i < _controllers.length; i++) ...[
@@ -149,7 +150,7 @@ class _CriteriaEditorState extends State<CriteriaEditor> {
               child: TextButton.icon(
                 onPressed: widget.enabled ? _add : null,
                 icon: const Icon(AppIcons.add),
-                label: const Text(AppStrings.battleCriteriaAdd),
+                label: const KeepWordsText(AppStrings.battleCriteriaAdd),
               ),
             ),
         ],
@@ -187,16 +188,16 @@ class CriteriaLeaveGuard extends StatelessWidget {
     final leave = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title),
-        content: const Text(AppStrings.battleCriteriaLeaveBody),
+        title: KeepWordsText(title),
+        content: const KeepWordsText(AppStrings.battleCriteriaLeaveBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.stay),
+            child: const KeepWordsText(AppStrings.stay),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(AppStrings.leave),
+            child: const KeepWordsText(AppStrings.leave),
           ),
         ],
       ),

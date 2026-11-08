@@ -42,7 +42,7 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
   bool _sending = false;
 
   void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: KeepWordsText(message)));
   }
 
   /// 되돌릴 수 없는 판정이라 반드시 한 번 확인받는다(서버도 한 번만 받는다).
@@ -50,16 +50,16 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(AppStrings.battleJudgmentConfirmTitle),
-        content: const Text(AppStrings.battleJudgmentConfirm),
+        title: const KeepWordsText(AppStrings.battleJudgmentConfirmTitle),
+        content: const KeepWordsText(AppStrings.battleJudgmentConfirm),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text(AppStrings.cancel),
+            child: const KeepWordsText(AppStrings.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(AppStrings.battleJudgmentSend),
+            child: const KeepWordsText(AppStrings.battleJudgmentSend),
           ),
         ],
       ),
@@ -111,25 +111,25 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
           tone: AppTone.info,
           icon: AppIcons.hourglass,
           title: AppStrings.battleJudgmentNothingTitle,
-          child: Text(AppStrings.battleJudgmentNothing),
+          child: KeepWordsText(AppStrings.battleJudgmentNothing),
         ),
       JudgmentStage.windowClosed => const AppPanel.tone(
           tone: AppTone.neutral,
           icon: AppIcons.clock,
           title: AppStrings.battleJudgmentWindowClosedTitle,
-          child: Text(AppStrings.battleJudgmentWindowClosed),
+          child: KeepWordsText(AppStrings.battleJudgmentWindowClosed),
         ),
       JudgmentStage.waitingOpponent => const AppPanel.tone(
           tone: AppTone.success,
           title: AppStrings.battleJudgmentSentTitle,
-          child: Text(AppStrings.battleJudgmentWaitingOpponent),
+          child: KeepWordsText(AppStrings.battleJudgmentWaitingOpponent),
         ),
       // 3단계(AI 재판정 배선)가 오기 전에는 이 상태가 서버에서 끝나지 않는다.
       JudgmentStage.waitingAi => const AppPanel.tone(
           tone: AppTone.info,
           icon: AppIcons.hourglass,
           title: AppStrings.battleJudgmentAiTitle,
-          child: Text(AppStrings.battleJudgmentAi),
+          child: KeepWordsText(AppStrings.battleJudgmentAi),
         ),
       JudgmentStage.myTurn => _form(context, detail),
     };
@@ -175,10 +175,10 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(AppStrings.battleJudgmentIntro, style: textTheme.bodyMedium),
+              KeepWordsText(AppStrings.battleJudgmentIntro, style: textTheme.bodyMedium),
               const SizedBox(height: 16),
               // 질문이 문장 속에 묻히지 않게 묶음 제목과 같은 titleSmall(design 5.5 기준 화면 2).
-              Text(AppStrings.battleJudgmentMinQuestion, style: textTheme.titleSmall),
+              KeepWordsText(AppStrings.battleJudgmentMinQuestion, style: textTheme.titleSmall),
               const SizedBox(height: 8),
               _ChoicePair<bool>(
                 choices: const [
@@ -189,10 +189,10 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
                 onSelected: _sending ? null : (value) => setState(() => _passed = value),
               ),
               const SizedBox(height: 8),
-              Text(AppStrings.battleJudgmentRejectHint, style: textTheme.bodyMedium),
+              KeepWordsText(AppStrings.battleJudgmentRejectHint, style: textTheme.bodyMedium),
               if (detail.needsSuperiorityPick) ...[
                 const SizedBox(height: 16),
-                Text(AppStrings.battleJudgmentSuperiorityQuestion, style: textTheme.titleSmall),
+                KeepWordsText(AppStrings.battleJudgmentSuperiorityQuestion, style: textTheme.titleSmall),
                 const SizedBox(height: 8),
                 _ChoicePair<String>(
                   // 서버에는 상대적 값이 아니라 고른 사람의 user id가 그대로 간다(뒤집기 실수 방지).
@@ -209,7 +209,7 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
                 onPressed: canSend ? _confirmAndSend : null,
                 child: _sending
                     ? const AppLoader.small()
-                    : const Text(AppStrings.battleJudgmentSend),
+                    : const KeepWordsText(AppStrings.battleJudgmentSend),
               ),
               const SizedBox(height: 12),
               // 놓치면 손해 보는 문장이라 메타 크기가 아니라 bodyMedium + 안내 아이콘(design 5.5 기준 화면 2).
@@ -226,7 +226,7 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
+                    child: KeepWordsText(
                       photoFailed
                           ? AppStrings.battleJudgmentPhotoUnavailable
                           : AppStrings.battleJudgmentOnce,

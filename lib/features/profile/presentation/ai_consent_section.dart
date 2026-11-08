@@ -5,6 +5,7 @@ import '../../../core/strings.dart';
 import '../../../core/widgets/app_button_styles.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../../battle/data/ai_consent.dart';
 import '../../battle/domain/ai_consent_providers.dart';
 import '../../battle/domain/ai_consent_rules.dart';
@@ -54,10 +55,10 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
       ref.invalidate(battleRecordsProvider);
       // 철회는 진행 중 대결을 포기(-3)로 끝내므로 점수도 함께 바뀐다.
       ref.invalidate(myPlayerStatsProvider);
-      messenger.showSnackBar(const SnackBar(content: Text(AppStrings.aiConsentWithdrawDone)));
+      messenger.showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.aiConsentWithdrawDone)));
     } catch (e) {
       debugPrint('withdrawConsent failed: $e');
-      messenger.showSnackBar(const SnackBar(content: Text(AppStrings.aiConsentWithdrawFailed)));
+      messenger.showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.aiConsentWithdrawFailed)));
     } finally {
       if (mounted) setState(() => _withdrawing = false);
     }
@@ -73,7 +74,7 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
         data: (consent) => Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
+            KeepWordsText(
               consent == null
                   ? AppStrings.aiConsentStatusNotGiven
                   : AppStrings.aiConsentStatusGiven(_formatDate(consent)),
@@ -81,21 +82,21 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
             ),
             const SizedBox(height: 12),
             if (consent == null)
-              FilledButton(onPressed: _give, child: const Text(AppStrings.aiConsentGive))
+              FilledButton(onPressed: _give, child: const KeepWordsText(AppStrings.aiConsentGive))
             else
               FilledButton(
                 style: AppButtonStyles.danger,
                 onPressed: _withdrawing ? null : _withdraw,
                 child: _withdrawing
                     ? const AppLoader.small()
-                    : const Text(AppStrings.aiConsentWithdraw),
+                    : const KeepWordsText(AppStrings.aiConsentWithdraw),
               ),
           ],
         ),
         loading: () => const Center(child: AppLoader.medium()),
         error: (error, stackTrace) {
           debugPrint('myAiConsentProvider error: $error');
-          return const Text(AppStrings.aiConsentLoadFailed);
+          return const KeepWordsText(AppStrings.aiConsentLoadFailed);
         },
       ),
     );
@@ -121,25 +122,25 @@ class _WithdrawConsentDialog extends StatelessWidget {
         final Widget content;
         if (snapshot.hasError) {
           debugPrint('fetchWithdrawalImpact failed: ${snapshot.error}');
-          content = const Text(AppStrings.aiConsentWithdrawImpactFailed);
+          content = const KeepWordsText(AppStrings.aiConsentWithdrawImpactFailed);
         } else if (!snapshot.hasData) {
           content = const Align(alignment: Alignment.centerLeft, child: AppLoader.small());
         } else {
-          content = Text(consentWithdrawalMessage(snapshot.data!));
+          content = KeepWordsText(consentWithdrawalMessage(snapshot.data!));
         }
 
         return AlertDialog(
-          title: const Text(AppStrings.aiConsentWithdrawConfirmTitle),
+          title: const KeepWordsText(AppStrings.aiConsentWithdrawConfirmTitle),
           content: content,
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text(AppStrings.cancel),
+              child: const KeepWordsText(AppStrings.cancel),
             ),
             FilledButton(
               style: AppButtonStyles.danger,
               onPressed: snapshot.hasData ? () => Navigator.of(context).pop(true) : null,
-              child: const Text(AppStrings.aiConsentWithdrawConfirm),
+              child: const KeepWordsText(AppStrings.aiConsentWithdrawConfirm),
             ),
           ],
         );

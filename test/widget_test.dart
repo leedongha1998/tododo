@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
@@ -44,6 +45,7 @@ import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import 'package:todododo/main.dart';
 
 import 'core/push/push_fakes.dart';
+import 'helpers/line_breaks.dart';
 import 'features/todo/todo_widget_fakes.dart';
 
 /// 프로필이 보여 주는 점수·전적은 서버 `player_stats` 값이다. 화면이 목록을 세지 않는지
@@ -303,6 +305,38 @@ void main() {
     final doneText = tester.widget<Text>(find.text('빨래하기'));
     expect(doneText.style?.decoration, TextDecoration.lineThrough);
   });
+
+  // 앱 전체 어절 줄바꿈(redesign 후속 결정 1). 사용자가 쓴 긴 할 일도 "우/유", "버리/기"처럼 끊기지 않는다.
+  for (final scale in [1.0, 1.5]) {
+    testWidgets('긴 할 일 내용은 360dp·배율 $scale에서 어절 경계에서만 줄을 바꾼다', (WidgetTester tester) async {
+      const title = '퇴근길에 장 보기 — 우유, 달걀, 두부, 대파, 사과 한 봉지와 내일 아침에 먹을 식빵까지 잊지 말기';
+      tester.view.physicalSize = const Size(720, 1600);
+      tester.view.devicePixelRatio = 2;
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            todosProvider.overrideWith(
+              (ref) async => [Todo(id: '1', title: title, isDone: false, createdAt: DateTime(2026, 11, 8))],
+            ),
+            myBattlesProvider.overrideWith((ref) async => const []),
+          ],
+          child: MaterialApp(theme: AppTheme.light, home: const TodoListScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 원문으로 찾는다(그리는 글자에만 WORD JOINER가 들어간다).
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.descendant(of: find.text(title), matching: find.byType(RichText)),
+      );
+      expect(lineStarts(paragraph), isNotEmpty);
+      expect(breaksOnlyAtSpaces(paragraph), isTrue);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('내 대결 화면에는 진행 중인 대결만, 할 일 화면에는 할 일만 보인다', (WidgetTester tester) async {
     final battle = Battle(

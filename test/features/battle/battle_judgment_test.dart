@@ -508,6 +508,29 @@ void main() {
       expect(directionOf(tester, AppStrings.battleJudgmentSuperiorOpponent), Axis.horizontal);
     });
 
+    // 앱 전체 어절 줄바꿈(redesign 후속 결정 1): 선택지 라벨뿐 아니라 판정 질문·안내 문장도 어절 경계에서만 끊긴다.
+    for (final scale in [1.0, 1.5]) {
+      testWidgets('배율 $scale: 판정 질문·안내 문장도 어절 경계에서만 끊긴다', (tester) async {
+        await pumpPicked(tester, scale);
+        const sentences = [
+          AppStrings.battleJudgmentIntro,
+          AppStrings.battleJudgmentOnce,
+          AppStrings.battleJudgmentMinQuestion,
+          AppStrings.battleJudgmentSuperiorityQuestion,
+        ];
+        var wrapped = 0;
+        for (final sentence in sentences) {
+          final paragraph = tester.renderObject<RenderParagraph>(
+            find.descendant(of: find.text(sentence), matching: find.byType(RichText)),
+          );
+          expect(breaksOnlyAtSpaces(paragraph), isTrue, reason: sentence);
+          if (lineStarts(paragraph).isNotEmpty) wrapped++;
+        }
+        // 실제로 줄이 바뀌는 문장이 있어야 이 검사가 의미 있다.
+        expect(wrapped, greaterThan(0));
+      });
+    }
+
     testWidgets('배율 1.5: 한 어절이 칸보다 넓으면 위아래로 쌓아 어절 안에서 끊기지 않는다', (tester) async {
       await pumpPicked(tester, 1.5);
       for (final label in labels) {

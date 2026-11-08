@@ -176,7 +176,6 @@ class AppStrings {
   // 상호 판정 창(judging). 속도전·품질전 공통. 묻는 것은 정해진 선택지뿐이고 자유 텍스트는 없다.
   // 승패는 서버가 정한다 — 이 화면은 내 답만 보낸다.
   static const battleJudgmentSectionTitle = '판정';
-  static const battleJudgmentIntro = '상대 증거를 확정된 기준으로 판정해 주세요.';
   static const battleJudgmentOnce = '판정은 한 번만 할 수 있어요. 보낸 뒤에는 바꿀 수 없어요.';
   static const battleJudgmentMinQuestion = '상대 사진이 최소 기준을 통과했나요?';
   static const battleJudgmentPassed = '통과했어요';

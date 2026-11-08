@@ -36,10 +36,12 @@ void main() {
     'close': AppIcons.close,
     'edit': AppIcons.edit,
     'fail': AppIcons.fail,
+    'aiReview': AppIcons.aiReview,
+    'lock': AppIcons.lock,
   };
 
-  test('31개 상수가 모두 서로 다른 글리프다', () {
-    expect(icons.length, 31);
+  test('33개 상수가 모두 서로 다른 글리프다', () {
+    expect(icons.length, 33);
     final codePoints = icons.values.map((icon) => icon.codePoint).toSet();
     expect(codePoints.length, icons.length);
   });
@@ -64,6 +66,9 @@ void main() {
       Icons.mood_bad_rounded,
       Icons.sentiment_dissatisfied_rounded,
       Icons.sentiment_very_dissatisfied_rounded,
+      // 로봇 얼굴 — AI는 돋보기로 나타낸다(design-judging-buttons "바꾸지 않는 것").
+      Icons.smart_toy,
+      Icons.smart_toy_rounded,
     ];
     final forbiddenCodePoints = forbidden.map((icon) => icon.codePoint).toSet();
     for (final entry in icons.entries) {

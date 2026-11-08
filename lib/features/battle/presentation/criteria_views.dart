@@ -57,6 +57,63 @@ class CriteriaListBlock extends StatelessWidget {
   }
 }
 
+/// 판정 단계 카드 안의 기준 상자(design-judging-buttons 공통 토큰 "기준 상자"). 읽기 전용.
+///
+/// sunken 면·모서리 12·안쪽 12·테두리 없음. 첫 줄 힌트 bodyMedium inkMuted, 항목 bodyMedium ink, 항목 앞 6dp 원점
+/// inkMuted — 번호를 쓰지 않는다(단계 번호 1·2와 겹치지 않게). 다른 화면(대결 만들기·모집 상세)은 [CriteriaListBlock]을 쓴다.
+class CriteriaChecklistBox extends StatelessWidget {
+  const CriteriaChecklistBox({super.key, required this.items, this.hint});
+
+  final List<String> items;
+  final String? hint;
+
+  static const dotSize = 6.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = Theme.of(context).textTheme.bodyMedium!;
+    // 점을 첫 줄 높이(15 × 글자 배율 × 행간) 가운데에 둔다 — 큰 배율에서도 첫 줄 옆에 온다.
+    final firstLine = MediaQuery.textScalerOf(context).scale(body.fontSize!) * body.height!;
+
+    return Container(
+      key: const ValueKey('criteria-checklist-box'),
+      padding: const EdgeInsets.all(12),
+      decoration: const ShapeDecoration(
+        color: AppPalette.sunken,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (hint != null) ...[
+            KeepWordsText(hint!, style: body.copyWith(color: AppPalette.inkMuted)),
+            const SizedBox(height: 8),
+          ],
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: firstLine,
+                  child: const Center(
+                    child: DecoratedBox(
+                      decoration: ShapeDecoration(color: AppPalette.inkMuted, shape: CircleBorder()),
+                      child: SizedBox.square(dimension: dotSize),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: KeepWordsText(items[i], style: body.copyWith(color: AppPalette.ink))),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// 수정 모드의 기준 목록 한 블록. 항목 편집·추가(최대 5개)·삭제(최소 1개).
 class CriteriaEditor extends StatefulWidget {
   const CriteriaEditor({

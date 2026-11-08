@@ -1,19 +1,20 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_palette.dart';
+import '../../../core/theme/app_text.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/evidence_photo_frame.dart';
+import '../../../core/widgets/initial_badge.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
 import '../domain/judgment_rules.dart';
 import 'criteria_views.dart';
+import 'judgment_choice.dart';
 
 /// 상호 판정 창(`judging`)의 영역. 두 유형 공통이다.
 ///
@@ -145,9 +146,14 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
     final photoReady = urlAsync != null && urlAsync.hasValue;
     final photoFailed = path == null || (urlAsync?.hasError ?? false);
 
-    final answered = _passed != null && (!detail.needsSuperiorityPick || _superiorId != null);
+    final quality = detail.needsSuperiorityPick;
+    final answered = _passed != null && (!quality || _superiorId != null);
     final canSend = answered && photoReady && !_sending;
+    final onPassed = _sending ? null : (bool value) => setState(() => _passed = value);
+    final onSuperior = _sending ? null : (String value) => setState(() => _superiorId = value);
 
+    // 질문 하나 = 경계가 있는 단계 카드 하나. 기준은 그 질문 카드 안에 있다(design-judging-buttons 1A).
+    // 품질전은 두 질문을 한 번에 묻는다 — 순서를 강제하지 않는다(어느 카드부터 골라도 된다).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -156,87 +162,117 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
           child: _photo(detail, path, urlAsync),
         ),
         const SizedBox(height: 24),
-        CriteriaListBlock(
-          title: AppStrings.battleCriteriaMinTitle,
-          items: detail.battle.minCriteria,
-          hint: AppStrings.battleCriteriaMinHint,
+        Semantics(
+          header: true,
+          child: KeepWordsText(
+            AppStrings.battleJudgmentSectionTitle,
+            style: textTheme.titleSmall!.copyWith(color: AppPalette.ink),
+          ),
         ),
-        if (detail.needsSuperiorityPick && detail.superiorityCriteria.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          CriteriaListBlock(
-            title: AppStrings.battleCriteriaSuperiorityTitle,
-            items: detail.superiorityCriteria,
-            hint: AppStrings.battleCriteriaSuperiorityHint,
+        const SizedBox(height: 12),
+        JudgmentStepCard(
+          // 속도전은 질문이 하나라 번호를 그리지 않는다(1/1은 소음).
+          step: quality ? 1 : null,
+          tag: AppStrings.battleCriteriaMinTitle,
+          question: AppStrings.battleJudgmentMinQuestion,
+          answer: switch (_passed) {
+            true => AppStrings.battleJudgmentPassed,
+            false => AppStrings.battleJudgmentFailed,
+            null => null,
+          },
+          criteria: CriteriaChecklistBox(
+            items: detail.battle.minCriteria,
+            hint: AppStrings.battleCriteriaMinHint,
+          ),
+          choices: JudgmentChoicePair<bool>(
+            choices: const [
+              JudgmentChoiceOption(
+                value: true,
+                label: AppStrings.battleJudgmentPassed,
+                icon: AppIcons.pass,
+                iconColor: AppPalette.success,
+              ),
+              JudgmentChoiceOption(
+                value: false,
+                label: AppStrings.battleJudgmentFailed,
+                icon: AppIcons.fail,
+                iconColor: AppPalette.danger,
+              ),
+            ],
+            selected: _passed,
+            onSelected: onPassed,
+          ),
+          // 불복을 고르면 같은 자리에서 안내 블록으로 강조한다(문구는 같다).
+          footer: _passed == false
+              ? const JudgmentNote.emphasized(
+                  key: ValueKey('judgment-reject-hint-emphasized'),
+                  icon: AppIcons.aiReview,
+                  text: AppStrings.battleJudgmentRejectHint,
+                )
+              : const JudgmentNote(
+                  key: ValueKey('judgment-reject-hint'),
+                  icon: AppIcons.aiReview,
+                  text: AppStrings.battleJudgmentRejectHint,
+                  textColor: AppPalette.inkMuted,
+                ),
+        ),
+        if (quality) ...[
+          const SizedBox(height: 12),
+          JudgmentStepCard(
+            step: 2,
+            tag: AppStrings.battleCriteriaSuperiorityTitle,
+            question: AppStrings.battleJudgmentSuperiorityQuestion,
+            answer: _superiorId == null
+                ? null
+                : _superiorId == detail.me.userId
+                    ? AppStrings.battleJudgmentSuperiorMe
+                    : AppStrings.battleJudgmentSuperiorOpponent,
+            // 옛 데이터는 우열 기준이 비어 있을 수 있다 — 상자만 뺀다.
+            criteria: detail.superiorityCriteria.isEmpty
+                ? null
+                : CriteriaChecklistBox(
+                    items: detail.superiorityCriteria,
+                    hint: AppStrings.battleCriteriaSuperiorityHint,
+                  ),
+            choices: JudgmentChoicePair<String>(
+              // 서버에는 상대적 값이 아니라 고른 사람의 user id가 그대로 간다(뒤집기 실수 방지).
+              choices: [
+                JudgmentChoiceOption(
+                  value: detail.me.userId,
+                  label: AppStrings.battleJudgmentSuperiorMe,
+                  badge: InitialBadge(name: detail.myName, fill: AppPalette.primary),
+                ),
+                JudgmentChoiceOption(
+                  value: detail.opponent.userId,
+                  label: AppStrings.battleJudgmentSuperiorOpponent,
+                  badge: InitialBadge(name: detail.opponentName, fill: AppPalette.secondary),
+                ),
+              ],
+              selected: _superiorId,
+              onSelected: onSuperior,
+            ),
           ),
         ],
         const SizedBox(height: 24),
-        AppPanel.flat(
-          title: AppStrings.battleJudgmentSectionTitle,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              KeepWordsText(AppStrings.battleJudgmentIntro, style: textTheme.bodyMedium),
-              const SizedBox(height: 16),
-              // 질문이 문장 속에 묻히지 않게 묶음 제목과 같은 titleSmall(design 5.5 기준 화면 2).
-              KeepWordsText(AppStrings.battleJudgmentMinQuestion, style: textTheme.titleSmall),
-              const SizedBox(height: 8),
-              _ChoicePair<bool>(
-                choices: const [
-                  (true, AppStrings.battleJudgmentPassed),
-                  (false, AppStrings.battleJudgmentFailed),
-                ],
-                selected: _passed,
-                onSelected: _sending ? null : (value) => setState(() => _passed = value),
-              ),
-              const SizedBox(height: 8),
-              KeepWordsText(AppStrings.battleJudgmentRejectHint, style: textTheme.bodyMedium),
-              if (detail.needsSuperiorityPick) ...[
-                const SizedBox(height: 16),
-                KeepWordsText(AppStrings.battleJudgmentSuperiorityQuestion, style: textTheme.titleSmall),
-                const SizedBox(height: 8),
-                _ChoicePair<String>(
-                  // 서버에는 상대적 값이 아니라 고른 사람의 user id가 그대로 간다(뒤집기 실수 방지).
-                  choices: [
-                    (detail.me.userId, AppStrings.battleJudgmentSuperiorMe),
-                    (detail.opponent.userId, AppStrings.battleJudgmentSuperiorOpponent),
-                  ],
-                  selected: _superiorId,
-                  onSelected: _sending ? null : (value) => setState(() => _superiorId = value),
-                ),
-              ],
-              const SizedBox(height: 16),
-              FilledButton(
-                onPressed: canSend ? _confirmAndSend : null,
-                child: _sending
-                    ? const AppLoader.small()
-                    : const KeepWordsText(AppStrings.battleJudgmentSend),
-              ),
-              const SizedBox(height: 12),
-              // 놓치면 손해 보는 문장이라 메타 크기가 아니라 bodyMedium + 안내 아이콘(design 5.5 기준 화면 2).
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 아이콘 20을 첫 줄 높이(15 × 글자 배율 × 1.6) 가운데에 맞춘다 — 큰 배율에서도 첫 줄 옆에 온다.
-                  SizedBox(
-                    height: MediaQuery.textScalerOf(context).scale(textTheme.bodyMedium!.fontSize!) *
-                        textTheme.bodyMedium!.height!,
-                    child: const Center(
-                      child: Icon(AppIcons.info, size: 20, color: AppPalette.inkMuted),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: KeepWordsText(
-                      photoFailed
-                          ? AppStrings.battleJudgmentPhotoUnavailable
-                          : AppStrings.battleJudgmentOnce,
-                      style: textTheme.bodyMedium,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+        // 경고는 누르기 전에 읽혀야 한다 — 보내기 버튼 바로 위. 사진을 못 받았으면 그 자리를 위험 블록이 대신한다.
+        if (photoFailed)
+          const AppPanel.tone(
+            tone: AppTone.danger,
+            child: KeepWordsText(AppStrings.battleJudgmentPhotoUnavailable),
+          )
+        else
+          const JudgmentNote(
+            key: ValueKey('judgment-once-note'),
+            icon: AppIcons.lock,
+            text: AppStrings.battleJudgmentOnce,
           ),
+        const SizedBox(height: 8),
+        // 이 화면에서 두께가 있는 것은 이 버튼 하나다.
+        FilledButton(
+          onPressed: canSend ? _confirmAndSend : null,
+          child: _sending
+              ? const AppLoader.small()
+              : const KeepWordsText(AppStrings.battleJudgmentSend),
         ),
       ],
     );
@@ -263,59 +299,172 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
   }
 }
 
-/// 판정 선택지 칸에서 라벨 말고 차지하는 폭(좌우 여백 + 체크 아이콘 18 + 간격 + 테두리). Material
-/// `SegmentedButton`이 체크 아이콘이 붙은 칸에 쓰는 값(글자 배율에 따라 약 37–45)보다 넉넉히 잡는다.
-const double _choiceChrome = 48;
-
-/// 상호 판정의 정해진 선택지 두 칸(세그먼트). 두 판정 질문이 같이 쓴다.
+/// 판정 단계 카드(design-judging-buttons 1A.1). 질문 하나 = 카드 하나.
 ///
-/// - 선택을 색에만 기대지 않게 체크 아이콘을 켠다(redesign design 5.1·5.5 기준 화면 2).
-/// - 아무것도 고르지 않은 상태로 시작한다(기본값을 두면 실수로 보낼 수 있다).
-/// - 라벨은 어절 단위로만 줄을 바꾼다([KeepWordsText]) — "상대가 더 잘 / 했어요"처럼 끊기지 않게.
-///   그래도 칸 하나에 가장 긴 어절이 안 들어가면(360dp·1.5배에서 체크가 붙은 "통과했어요") 두 칸을
-///   위아래로 쌓는다. 그러면 칸이 줄 폭을 다 쓰므로 어절 안에서 잘리지 않는다.
-class _ChoicePair<T extends Object> extends StatelessWidget {
-  const _ChoicePair({required this.choices, required this.selected, required this.onSelected});
+/// 머리: [step]이 있으면 단계 배지 28(미답 = primary 면 + 흰 숫자, 답함 = success 면 + 흰 체크) + 12 +
+/// [꼬리표 labelMedium primaryDeep / 4 / 질문 titleSmall ink]. 그 아래 기준 상자 → 16 → 선택 타일 → 12 → [footer].
+/// 카드 자체는 누를 수 없다. 낭독: 머리는 header, 배지는 읽지 않고(꼬리표·질문이 대신 읽힌다) 고른 답을 값으로 붙인다.
+class JudgmentStepCard extends StatelessWidget {
+  const JudgmentStepCard({
+    super.key,
+    required this.step,
+    required this.tag,
+    required this.question,
+    required this.answer,
+    required this.criteria,
+    required this.choices,
+    this.footer,
+  });
 
-  /// (서버로 보낼 값, 원문 라벨).
-  final List<(T, String)> choices;
-  final T? selected;
+  /// 단계 번호. null이면 배지를 그리지 않는다(속도전 — 질문이 하나뿐).
+  final int? step;
+  final String tag;
+  final String question;
 
-  /// null이면 고를 수 없다(보내는 중).
-  final ValueChanged<T>? onSelected;
+  /// 고른 답의 원문 라벨. 아직 안 골랐으면 null.
+  final String? answer;
+  final Widget? criteria;
+  final Widget choices;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final labelStyle =
-        theme.segmentedButtonTheme.style?.textStyle?.resolve(const {WidgetState.selected}) ??
-            theme.textTheme.labelLarge;
-    final scaler = MediaQuery.textScalerOf(context);
-    final widestWord = [
-      for (final (_, label) in choices) widestWordWidth(label, style: labelStyle, textScaler: scaler),
-    ].reduce(math.max);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final cellRoom = constraints.maxWidth / choices.length - _choiceChrome;
-        final onSelected = this.onSelected;
-        final selected = this.selected;
-        return SegmentedButton<T>(
-          direction: widestWord <= cellRoom ? Axis.horizontal : Axis.vertical,
-          showSelectedIcon: true,
-          emptySelectionAllowed: true,
-          segments: [
-            for (final (value, label) in choices)
-              ButtonSegment(value: value, label: KeepWordsText(label)),
+    final textTheme = Theme.of(context).textTheme;
+    final step = this.step;
+    final criteria = this.criteria;
+    final footer = this.footer;
+
+    final heading = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        KeepWordsText(tag, style: textTheme.labelMedium!.copyWith(color: AppPalette.primaryDeep)),
+        const SizedBox(height: 4),
+        KeepWordsText(question, style: textTheme.titleSmall!.copyWith(color: AppPalette.ink)),
+      ],
+    );
+
+    return AppPanel.flat(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          MergeSemantics(
+            child: Semantics(
+              header: true,
+              value: answer,
+              child: step == null
+                  ? heading
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        JudgmentStepBadge(step: step, answered: answer != null),
+                        const SizedBox(width: 12),
+                        Expanded(child: heading),
+                      ],
+                    ),
+            ),
+          ),
+          if (criteria != null) ...[
+            const SizedBox(height: 12),
+            criteria,
           ],
-          selected: selected == null ? <T>{} : {selected},
-          onSelectionChanged: onSelected == null
-              ? null
-              : (selection) {
-                  if (selection.isEmpty) return;
-                  onSelected(selection.first);
-                },
-        );
-      },
+          const SizedBox(height: 16),
+          choices,
+          if (footer != null) ...[
+            const SizedBox(height: 12),
+            footer,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 단계 배지: 지름 28. 미답 = primary 면 + 흰 숫자(numberSmall 16/700, 5.41) / 답함 = success 면 + 흰 체크 20(5.33).
+/// 숫자 → 체크로 모양이 바뀌므로 색에만 기대지 않는다.
+class JudgmentStepBadge extends StatelessWidget {
+  const JudgmentStepBadge({super.key, required this.step, required this.answered});
+
+  final int step;
+  final bool answered;
+
+  static const size = 28.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: Container(
+        key: ValueKey('judgment-step-badge-$step'),
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: ShapeDecoration(
+          color: answered ? AppPalette.success : AppPalette.primary,
+          shape: const CircleBorder(),
+        ),
+        child: answered
+            ? const Icon(AppIcons.check, size: 20, color: AppPalette.surface)
+            // 원 안에 고정 크기로 둔다 — 큰 글자 배율에서 숫자가 원 밖으로 나가지 않게.
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                child: KeepWordsText(
+                  '$step',
+                  style: AppText.numberSmall.copyWith(color: AppPalette.surface),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+/// 아이콘 20 + 8 + bodyMedium 한 줄 안내(불복 힌트·한 번만 경고). 아이콘은 첫 줄 높이 가운데에 둔다.
+/// [JudgmentNote.emphasized]는 같은 문장을 primaryPale 블록(모서리 12·안쪽 12, 아이콘 primary, 글자 ink)으로 강조한다.
+class JudgmentNote extends StatelessWidget {
+  const JudgmentNote({
+    super.key,
+    required this.icon,
+    required this.text,
+    this.textColor = AppPalette.ink,
+  }) : emphasized = false;
+
+  const JudgmentNote.emphasized({super.key, required this.icon, required this.text})
+      : textColor = AppPalette.ink,
+        emphasized = true;
+
+  final IconData icon;
+  final String text;
+  final Color textColor;
+  final bool emphasized;
+
+  @override
+  Widget build(BuildContext context) {
+    final body = Theme.of(context).textTheme.bodyMedium!;
+    final firstLine = MediaQuery.textScalerOf(context).scale(body.fontSize!) * body.height!;
+    final row = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: firstLine,
+          child: Center(
+            child: Icon(
+              icon,
+              size: 20,
+              color: emphasized ? AppPalette.primary : AppPalette.inkMuted,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: KeepWordsText(text, style: body.copyWith(color: textColor))),
+      ],
+    );
+    if (!emphasized) return row;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: const ShapeDecoration(
+        color: AppPalette.primaryPale,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+      ),
+      child: row,
     );
   }
 }

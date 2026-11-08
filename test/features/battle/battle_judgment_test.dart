@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_icons.dart';
+import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/core/widgets/keep_words_text.dart';
 import 'package:todododo/features/battle/data/battle.dart';
@@ -20,6 +22,8 @@ import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
+import 'package:todododo/features/battle/presentation/judgment_choice.dart';
+import 'package:todododo/features/battle/presentation/judgment_section.dart';
 
 import '../../helpers/line_breaks.dart';
 import '../../helpers/text_finders.dart';
@@ -489,14 +493,18 @@ void main() {
           find.descendant(of: _choice(label), matching: find.byType(RichText)),
         );
 
-    Axis directionOf(WidgetTester tester, String label) => tester
-        .widget<SegmentedButton>(
-          find.ancestor(
-            of: _choice(label),
-            matching: find.byWidgetPredicate((widget) => widget is SegmentedButton),
-          ),
-        )
-        .direction;
+    // 선택 타일 두 칸이 가로(1:1)로 놓였는지 위아래로 쌓였는지(design-judging-buttons 1A.2 "좁을 때").
+    Axis directionOf(WidgetTester tester, String label) {
+      final pair = find.ancestor(
+        of: _choice(label),
+        matching: find.byWidgetPredicate((widget) => widget is JudgmentChoicePair),
+      );
+      final stacked = find.descendant(
+        of: pair,
+        matching: find.byKey(const ValueKey('judgment-choice-stacked')),
+      );
+      return tester.any(stacked) ? Axis.vertical : Axis.horizontal;
+    }
 
     testWidgets('배율 1.0: 두 줄이 되는 라벨도 어절 경계에서만 끊긴다', (tester) async {
       await pumpPicked(tester, 1.0);
@@ -514,8 +522,8 @@ void main() {
       testWidgets('배율 $scale: 판정 질문·안내 문장도 어절 경계에서만 끊긴다', (tester) async {
         await pumpPicked(tester, scale);
         const sentences = [
-          AppStrings.battleJudgmentIntro,
           AppStrings.battleJudgmentOnce,
+          AppStrings.battleJudgmentRejectHint,
           AppStrings.battleJudgmentMinQuestion,
           AppStrings.battleJudgmentSuperiorityQuestion,
         ];
@@ -541,5 +549,155 @@ void main() {
       expect(directionOf(tester, AppStrings.battleJudgmentPassed), Axis.vertical);
       expect(lineStarts(paragraphOf(tester, AppStrings.battleJudgmentPassed)), isEmpty);
     });
+  });
+
+  // design-judging-buttons 1A: 질문 하나 = 단계 카드 하나, 기준은 그 카드 안, 경고는 보내기 위.
+  group('판정 묶음 1A(단계 카드 + 큰 선택 타일)', () {
+    Finder badge(int step) => find.byKey(ValueKey('judgment-step-badge-$step'));
+    bool badgeChecked(WidgetTester tester, int step) =>
+        tester.any(find.descendant(of: badge(step), matching: find.byIcon(AppIcons.check)));
+
+    testWidgets('품질전: 단계 배지는 답하기 전 숫자, 답하면 초록 체크(1·2 각각)', (tester) async {
+      await tester.pumpWidget(_screen(_judging(type: 'quality'), _FakeBattleRepository(), photo: photoOk));
+      await tester.pumpAndSettle();
+
+      for (final step in [1, 2]) {
+        expect(badge(step), findsOneWidget);
+        expect(find.descendant(of: badge(step), matching: findText('$step')), findsOneWidget);
+        expect(badgeChecked(tester, step), isFalse);
+        expect(
+          (tester.widget<Container>(badge(step)).decoration! as ShapeDecoration).color,
+          AppPalette.primary,
+        );
+      }
+
+      // 질문 순서를 강제하지 않는다 — 2부터 답해도 된다.
+      await _tapChoice(tester, AppStrings.battleJudgmentSuperiorMe);
+      expect(badgeChecked(tester, 2), isTrue);
+      expect(badgeChecked(tester, 1), isFalse);
+      expect(
+        (tester.widget<Container>(badge(2)).decoration! as ShapeDecoration).color,
+        AppPalette.success,
+      );
+
+      await _tapChoice(tester, AppStrings.battleJudgmentPassed);
+      expect(badgeChecked(tester, 1), isTrue);
+    });
+
+    testWidgets('속도전: 질문이 하나라 번호 배지를 그리지 않는다', (tester) async {
+      await tester.pumpWidget(_screen(_judging(), _FakeBattleRepository(), photo: photoOk));
+      await tester.pumpAndSettle();
+
+      expect(badge(1), findsNothing);
+      expect(find.byType(JudgmentStepBadge), findsNothing);
+      expect(find.byType(JudgmentStepCard), findsOneWidget);
+    });
+
+    testWidgets('기준은 질문 카드 안에 있고, 따로 떨어진 기준 블록·안내문은 없다', (tester) async {
+      await tester.pumpWidget(_screen(_judging(type: 'quality'), _FakeBattleRepository(), photo: photoOk));
+      await tester.pumpAndSettle();
+
+      final cards = find.byType(JudgmentStepCard);
+      expect(cards, findsNWidgets(2));
+      expect(find.descendant(of: cards.at(0), matching: findText('상판이 보인다')), findsOneWidget);
+      expect(find.descendant(of: cards.at(0), matching: findText(AppStrings.battleCriteriaMinTitle)), findsOneWidget);
+      expect(find.descendant(of: cards.at(1), matching: findText('먼지가 없다')), findsOneWidget);
+      expect(
+        find.descendant(of: cards.at(1), matching: findText(AppStrings.battleCriteriaSuperiorityTitle)),
+        findsOneWidget,
+      );
+      // 기준 제목은 카드 머리 꼬리표로 한 번씩만 나온다.
+      expect(findText(AppStrings.battleCriteriaMinTitle), findsOneWidget);
+      expect(findText(AppStrings.battleCriteriaSuperiorityTitle), findsOneWidget);
+    });
+
+    testWidgets('불복을 고르면 힌트 줄이 같은 자리에서 안내 블록으로 바뀐다', (tester) async {
+      await tester.pumpWidget(_screen(_judging(), _FakeBattleRepository(), photo: photoOk));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('judgment-reject-hint')), findsOneWidget);
+      expect(find.byKey(const ValueKey('judgment-reject-hint-emphasized')), findsNothing);
+
+      await _tapChoice(tester, AppStrings.battleJudgmentFailed);
+      expect(find.byKey(const ValueKey('judgment-reject-hint')), findsNothing);
+      expect(find.byKey(const ValueKey('judgment-reject-hint-emphasized')), findsOneWidget);
+      // 문구는 같다.
+      expect(findText(AppStrings.battleJudgmentRejectHint), findsOneWidget);
+
+      await _tapChoice(tester, AppStrings.battleJudgmentPassed);
+      expect(find.byKey(const ValueKey('judgment-reject-hint')), findsOneWidget);
+    });
+
+    testWidgets('"판정은 한 번만" 경고는 보내기 버튼 바로 위에 있다', (tester) async {
+      await tester.pumpWidget(_screen(_judging(type: 'quality'), _FakeBattleRepository(), photo: photoOk));
+      await tester.pumpAndSettle();
+
+      final note = tester.getRect(find.byKey(const ValueKey('judgment-once-note')));
+      final send = tester.getRect(findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend));
+      expect(note.bottom, lessThanOrEqualTo(send.top));
+      expect(send.top - note.bottom, moreOrLessEquals(8, epsilon: 0.5));
+      // 마지막 단계 카드보다는 아래.
+      final lastCard = tester.getRect(find.byType(JudgmentStepCard).last);
+      expect(lastCard.bottom, lessThanOrEqualTo(note.top));
+    });
+
+    testWidgets('고른 칸은 낭독에서 selected, 단계 머리는 고른 답을 값으로 읽는다', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(_screen(_judging(), _FakeBattleRepository(), photo: photoOk));
+      await tester.pumpAndSettle();
+
+      await _tapChoice(tester, AppStrings.battleJudgmentPassed);
+      final tile = find.ancestor(
+        of: _choice(AppStrings.battleJudgmentPassed),
+        matching: find.byType(JudgmentChoiceTile),
+      );
+      expect(tester.getSemantics(tile), isSemantics(isSelected: true, isButton: true));
+      expect(
+        find.bySemanticsLabel(RegExp(AppStrings.battleJudgmentMinQuestion.replaceAll('?', r'\?'))),
+        findsOneWidget,
+      );
+      final heading = tester.getSemantics(
+        find.bySemanticsLabel(RegExp(AppStrings.battleJudgmentMinQuestion.replaceAll('?', r'\?'))),
+      );
+      expect(heading, isSemantics(value: AppStrings.battleJudgmentPassed, isHeader: true));
+      handle.dispose();
+    });
+
+    for (final scale in [1.0, 1.5]) {
+      testWidgets('360dp·$scale배: 넘치지 않고 단계 카드·타일·경고·보내기가 화면 폭 안에 있다', (tester) async {
+        tester.view.physicalSize = const Size(720, 1600);
+        tester.view.devicePixelRatio = 2;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(_screen(
+          _judging(type: 'quality'),
+          _FakeBattleRepository(),
+          photo: photoOk,
+          theme: AppTheme.light,
+          textScale: scale,
+        ));
+        await tester.pumpAndSettle();
+        await _tapChoice(tester, AppStrings.battleJudgmentFailed);
+        await _tapChoice(tester, AppStrings.battleJudgmentSuperiorMe);
+        expect(tester.takeException(), isNull);
+
+        for (final finder in [
+          ...List.generate(2, (i) => find.byType(JudgmentStepCard).at(i)),
+          ...List.generate(4, (i) => find.byType(JudgmentChoiceTile).at(i)),
+          find.byKey(const ValueKey('judgment-once-note')),
+          findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend),
+        ]) {
+          await tester.ensureVisible(finder);
+          await tester.pumpAndSettle();
+          final rect = tester.getRect(finder);
+          expect(rect.left, greaterThanOrEqualTo(20 - 0.5), reason: '$finder');
+          expect(rect.right, lessThanOrEqualTo(340 + 0.5), reason: '$finder');
+        }
+        // 다 골랐으면 보낼 수 있다.
+        final send = tester.widget<FilledButton>(
+          findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend),
+        );
+        expect(send.onPressed, isNotNull);
+      });
+    }
   });
 }

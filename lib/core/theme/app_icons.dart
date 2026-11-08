@@ -83,6 +83,12 @@ class AppIcons {
   /// 판정 선택지 "통과하지 못했어요"(design-judging-buttons 1A.2).
   static const fail = Icons.cancel_rounded;
 
+  /// AI가 다시 봄(불복 힌트, AI 재판정). 로봇 얼굴 대신 돋보기.
+  static const aiReview = Icons.manage_search_rounded;
+
+  /// 판정은 한 번만.
+  static const lock = Icons.lock_rounded;
+
   /// 안내 블록.
   static const info = Icons.info_outline_rounded;
 

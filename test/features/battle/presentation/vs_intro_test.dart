@@ -1,5 +1,23 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/features/battle/presentation/vs_intro.dart';
+
+/// 정지 화면(애니메이션 줄이기)으로 인트로를 그린다. 스스로 닫히는 타이머가 돌기 전에 트리에서 내린다.
+Future<void> _pumpStill(WidgetTester tester, {required String myName, required String opponentName}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: AppTheme.light,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: true),
+        child: child!,
+      ),
+      home: VsIntro(myName: myName, opponentName: opponentName),
+    ),
+  );
+  await tester.pump();
+}
 
 void main() {
   group('VsIntroTimeline', () {
@@ -96,6 +114,24 @@ void main() {
       expect(still.versusOpacity, 1);
       expect(still.flash, isFalse);
       expect(still.cover, 0);
+    });
+  });
+
+  // redesign 후속 결정 7: 내 이름 조회가 실패해 "나"로 대신 보일 때 이니셜·이름·자리 이름이 "나"로 세 번 나왔다.
+  group('VS 인트로 자리 이름 중복', () {
+    testWidgets('이름이 있으면 아래 "나"·위 "상대" 자리 이름이 보인다', (tester) async {
+      await _pumpStill(tester, myName: '민지', opponentName: '도윤');
+      expect(find.text(AppStrings.battleMe), findsOneWidget);
+      expect(find.text(AppStrings.battleOpponent), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('내 이름이 "나"(조회 실패 대체)면 아래 "나" 자리 이름을 숨긴다 — 이니셜·이름 두 번만', (tester) async {
+      await _pumpStill(tester, myName: AppStrings.battleMe, opponentName: '도윤');
+      // 이니셜 칸 "나" + 명판 이름 "나". 자리 이름은 없다.
+      expect(find.text(AppStrings.battleMe), findsNWidgets(2));
+      expect(find.text(AppStrings.battleOpponent), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
     });
   });
 }

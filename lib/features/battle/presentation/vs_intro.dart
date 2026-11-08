@@ -238,6 +238,10 @@ class _VsIntroState extends State<VsIntro> with SingleTickerProviderStateMixin {
     final versusSize = compact ? 44.0 : 64.0;
     final offscreen = (1 - frame.slide) * constraints.maxWidth;
     final label = Theme.of(context).textTheme.labelMedium?.copyWith(color: AppPalette.inkMuted);
+    // 자리 이름("상대"/"나")은 명판 이름이 그 말과 같으면 숨긴다. 내 이름 조회가 실패하면 이름 자리에 "나"를 대신 쓰는데
+    // (CLAUDE.md 예외), 그때 이니셜·이름·자리 이름이 모두 "나"로 세 번 나왔다(redesign 후속 결정 7).
+    final showOpponentLabel = widget.opponentName != AppStrings.battleOpponent;
+    final showMeLabel = widget.myName != AppStrings.battleMe;
 
     return Stack(
       children: [
@@ -248,14 +252,16 @@ class _VsIntroState extends State<VsIntro> with SingleTickerProviderStateMixin {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: KeepWordsText(AppStrings.battleOpponent, style: label),
+                if (showOpponentLabel) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: KeepWordsText(AppStrings.battleOpponent, style: label),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
+                  const SizedBox(height: 8),
+                ],
                 Transform.translate(
                   offset: Offset(offscreen, 0),
                   child: _Nameplate(
@@ -320,14 +326,16 @@ class _VsIntroState extends State<VsIntro> with SingleTickerProviderStateMixin {
                     badge: badge,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: KeepWordsText(AppStrings.battleMe, style: label),
+                if (showMeLabel) ...[
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: KeepWordsText(AppStrings.battleMe, style: label),
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),

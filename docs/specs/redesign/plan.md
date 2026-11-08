@@ -752,3 +752,36 @@ PowerShell이면 `echo` 자리에 `"EXIT=$LASTEXITCODE"`. 실패 메시지가 �
   오너의 `flutter analyze`/`flutter test` 결과를 받고 다음 단계로 간다.
 - "## 결정 필요" 5건은 **developer 기본안대로**.
 - 0단계 "전" 스크린샷은 개편 커밋 이전 커밋(이 브랜치의 C1 직전)을 체크아웃해 언제든 찍을 수 있다.
+
+## 오너 결정 (2026-11-08 후속)
+redesign HEAD `faf9058`(analyze 0 / test 504) 이후 스크린샷 검토에서 나온 후속 수정. 전부 추천안.
+
+1. **한글 어절 단위 줄바꿈을 앱 전체 본문에 적용.** 원칙: `strings.dart` 원문 불변, 낭독(semanticsLabel)·복사·TextField 입력값에는
+   넣지 않는다(편집 가능한 텍스트에는 적용 금지). 기존 테스트 finder가 깨지면 원문으로 찾게 고친다. 한 어절이 칸보다 길면 그 어절은
+   끊겨도 된다(무한 넘침 없음을 테스트로 확인). 대표 화면(할 일 긴 내용, 판정 질문, 동의 문구, 1.0/1.5배)을 위젯 테스트로 고정.
+2. 내 대결 카드 "내 차례" 줄(과 같은 성격의 놓치면 손해 보는 강조 문장)을 bodySmall 13 → 16dp 계열 슬롯으로.
+3. **Material Icons 라이선스 고지 추가.** Flutter SDK `bin/cache/artifacts/material_fonts/MaterialIcons_LICENSE.txt` 원문(CC BY 4.0)을
+   자산으로 넣고 Pretendard와 같은 곳에서 `LicenseRegistry.addLicense`로 등록. design.md의 "Apache 2.0" 기재는 틀렸으므로 정정.
+4. FAB가 목록 끝 항목을 가리지 않게(할 일·대결 찾기) 목록 아래 여백 = FAB 높이 + 여백.
+5. 버튼 무게: 모집 카드 "기준 수정" vs "취소" 균형, 프로필 "동의 철회"를 빨간 채움에서 덜 위험한 스타일로.
+6. 상대 카드: 이름을 점수 줄보다 위계상 위로.
+7. 작은 것: 대결 만들기 글자 수 카운터 보조색·보통 굵기, "직접 입력" 텍스트 버튼 들여쓰기 정렬, 속도전 진행 중 "상대가 제출하기 전까지
+   바꿀 수 있어요" 중복 표시 하나 제거(문구 불변), VS 인트로 "나" 세 번 중복 제거(이름 조회 실패 시 "나" 대체 표시 예외는 유지).
+8. 백로그에 한 줄씩만 추가(구현 금지): AI 동의 첫 문장 현행 구조 불일치[배포 전 필수], 결과 화면 제출 시각 라벨 없음, 촬영 중 최소 기준
+   안 보임, 남은 시간 내림 표시, 전적 카드 날짜 없음·포기 패배 구분 없음. 스토어 스크린샷 재촬영은 이미 백로그·DEPLOY.md에 있어 중복 추가 안 함.
+
+### 후속 작업 순서(F1–F8)
+충돌 확인: 위 결정과 CLAUDE.md·dev-standards 사이 충돌 없음(문구 변경 0, 판정 로직 무관, 새 화면 없음, 새 패키지 없음).
+
+- F1 `fix:` 어절 줄바꿈 전역 적용. `KeepWordsText`를 `Text`의 하위 클래스로 바꿔(`data`는 원문 그대로 — `find.text(원문)`·
+  `tester.widget<Text>`가 그대로 동작) 그릴 때만 `keepWords`를 거친 글자를 `RichText`에 넘긴다. lib의 표시용 `Text(`를
+  `KeepWordsText(`로 일괄 교체. 제외: `SelectableText`(복사 대상 URL), `TextField`/`InputDecoration` 문자열(힌트·라벨·카운터 —
+  Material 내부 Text), 툴팁 문자열. `keepWords`는 양쪽이 모두 ASCII인 글자 사이에는 끼우지 않는다(영문·숫자의 커닝·URL 줄바꿈 보존).
+  테스트: 긴 어절 넘침 없음, 할 일 긴 내용·판정 질문·동의 문구 1.0/1.5배 어절 경계.
+- F2 `fix:` "내 차례" 줄 bodySmall → titleSmall(16/700). 편집 오류 문장(bodySmall)도 design 역할표 "오류 = bodyMedium"으로.
+- F3 `chore:` Material Icons CC BY 4.0 고지 등록 + 자산 + 테스트, design.md 정정.
+- F4 `fix:` FAB 여백(공용 상수) + 할 일·찾기 1.5배 끝까지 스크롤 시 겹침 없음 테스트.
+- F5 `fix:` 버튼 무게(모집 카드 두 버튼 보조 버튼으로 통일, 동의 철회 위험 윤곽 버튼).
+- F6 `fix:` 상대 카드 이름 titleMedium.
+- F7 `fix:` 카운터·직접 입력 정렬·중복 문장·VS 라벨 중복.
+- F8 `docs:` TODO_BACKLOG 다섯 줄, 진행 기록.

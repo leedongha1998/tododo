@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_icons.dart';
 import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
@@ -813,15 +814,15 @@ void main() {
     expect(find.byType(VsIntro), findsNothing);
   });
 
-  // 탭 라벨은 12dp 픽셀에서 14dp 본문 글꼴로 커졌다(readability.md 방안 2).
-  // 배율 상한(1.3)과 좁은 화면(360dp)이 겹쳐도 탭바가 무너지지 않는지 보는 스모크 테스트다.
+  // 탭 라벨은 redesign에서 Pretendard labelSmall 12dp다(design 3.2). 배율 상한(1.5 — design 3.3)과
+  // 좁은 화면(360dp)이 겹쳐도 탭바가 무너지지 않는지 보는 스모크 테스트다.
   //
   // **라벨이 칸을 넘는지는 이 테스트로 검증할 수 없다.** NavigationBar는 자체 레이아웃 델리게이트를
   // 써서 (1) 라벨이 넘쳐도 RenderFlex 예외를 내지 않고 (2) 라벨 상자 폭을 칸 폭 이하로 clamp하며
   // (3) 바 높이는 테마의 height: 72가 고정한다. 그래서 "라벨 폭 <= 칸 폭"은 어떤 배율에서도 참이다 —
   // 배율만 3.0으로 올린 복사본도 그대로 통과하는 것을 확인했다. 넘침은 예외가 아니라 2줄
   // 줄바꿈으로 나타나므로 육안 확인 대상이다.
-  testWidgets('글자 크기 1.3배·360dp 폭에서도 탭바가 예외 없이 그려진다(스모크)', (
+  testWidgets('글자 크기 상한(1.5배)·360dp 폭에서도 탭바가 예외 없이 그려진다(스모크)', (
     WidgetTester tester,
   ) async {
     tester.view.physicalSize = const Size(360, 720);
@@ -849,7 +850,7 @@ void main() {
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
               context,
-            ).copyWith(textScaler: const TextScaler.linear(1.3)),
+            ).copyWith(textScaler: const TextScaler.linear(1.5)),
             child: child!,
           ),
           home: const MainShell(),
@@ -875,6 +876,18 @@ void main() {
     }
     // 탭바가 세로로 자라 화면을 밀지 않는다(테마가 정한 72).
     expect(tester.getSize(find.byType(NavigationBar)).height, 72);
+
+    // 선택된 탭(내 대결)만 채운 아이콘, 나머지는 윤곽 아이콘이다(찾기는 윤곽 변형이 없다).
+    Finder barIcon(IconData icon) => find.descendant(
+          of: find.byType(NavigationBar),
+          matching: find.byIcon(icon),
+        );
+    expect(barIcon(AppIcons.battle), findsOneWidget);
+    expect(barIcon(AppIcons.battleOutlined), findsNothing);
+    expect(barIcon(AppIcons.todoOutlined), findsOneWidget);
+    expect(barIcon(AppIcons.todo), findsNothing);
+    expect(barIcon(AppIcons.profileOutlined), findsOneWidget);
+    expect(barIcon(AppIcons.search), findsOneWidget);
   });
 
   testWidgets('로그인하면 할 일 목록이 홈 화면 위젯 캐시로 발행된다', (

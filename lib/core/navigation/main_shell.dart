@@ -15,9 +15,8 @@ import '../../features/todo/presentation/todo_list_screen.dart';
 import '../push/push_providers.dart';
 import '../push/push_service.dart';
 import '../strings.dart';
-import '../theme/pixel_icons.dart';
-import '../theme/retro_palette.dart';
-import '../widgets/pixel_icon.dart';
+import '../theme/app_icons.dart';
+import '../theme/app_palette.dart';
 import 'app_tab.dart';
 
 /// 로그인 후 앱의 뼈대. 탭 전환만 맡고, 각 탭은 자기 앱바와 FAB를 그대로 갖는다.
@@ -164,31 +163,39 @@ class _MainShellState extends ConsumerState<MainShell> {
           ProfileScreen(),
         ],
       ),
-      // NavigationBar에는 shape가 없어 위 경계선을 셸에서 따로 긋는다.
+      // NavigationBar에는 shape가 없어 위 경계선을 셸에서 따로 긋는다(1dp line — design 5.1).
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(height: 2, width: double.infinity, child: ColoredBox(color: RetroPalette.ink)),
+          const SizedBox(
+            height: 1,
+            width: double.infinity,
+            child: ColoredBox(color: AppPalette.line),
+          ),
           NavigationBar(
             selectedIndex: tab.index,
             onDestinationSelected: (index) =>
                 ref.read(selectedTabProvider.notifier).select(AppTab.values[index]),
-            // 선택 표시는 표시기 면색이 맡으므로 selectedIcon을 따로 두지 않는다.
+            // 선택은 색·표시기·아이콘 채움·라벨 굵기 넷으로 구분한다(찾기만 윤곽 변형이 없어 셋).
             destinations: const [
               NavigationDestination(
-                icon: PixelIcon(PixelIcons.battle),
+                icon: Icon(AppIcons.battleOutlined),
+                selectedIcon: Icon(AppIcons.battle),
                 label: AppStrings.battleMyBattles,
               ),
               NavigationDestination(
-                icon: PixelIcon(PixelIcons.search),
+                icon: Icon(AppIcons.search),
+                selectedIcon: Icon(AppIcons.search),
                 label: AppStrings.battleFind,
               ),
               NavigationDestination(
-                icon: PixelIcon(PixelIcons.todo),
+                icon: Icon(AppIcons.todoOutlined),
+                selectedIcon: Icon(AppIcons.todo),
                 label: AppStrings.todoTitle,
               ),
               NavigationDestination(
-                icon: PixelIcon(PixelIcons.profile),
+                icon: Icon(AppIcons.profileOutlined),
+                selectedIcon: Icon(AppIcons.profile),
                 label: AppStrings.profileTitle,
               ),
             ],

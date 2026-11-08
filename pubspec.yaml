@@ -70,9 +70,10 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # 갈무리 라이선스(OFL 1.1) 원문. 앱 안 오픈소스 라이선스 화면에 노출한다.
+  # 갈무리·Pretendard 라이선스(OFL 1.1) 원문. 앱 안 오픈소스 라이선스 화면에 노출한다.
   assets:
     - assets/fonts/galmuri/LICENSE.txt
+    - assets/fonts/pretendard/LICENSE.txt
 
   # 갈무리11 원본 TTF(github.com/quiple/galmuri 릴리스). OFL 예약 이름 규칙상 이름을 바꾸거나 서브셋하지 않는다.
   fonts:
@@ -81,6 +82,16 @@ flutter:
         - asset: assets/fonts/galmuri/Galmuri11.ttf
         - asset: assets/fonts/galmuri/Galmuri11-Bold.ttf
           weight: 700
+    # Pretendard 1.3.9 정적 OTF(npm `pretendard@1.3.9`의 dist/public/static/, 저장소 orioncactus/pretendard).
+    # OFL 예약 이름 규칙상 파일 이름·내부 이름을 바꾸거나 서브셋·병합하지 않는다. 400/700/800만 번들한다.
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/pretendard/Pretendard-Regular.otf
+          weight: 400
+        - asset: assets/fonts/pretendard/Pretendard-Bold.otf
+          weight: 700
+        - asset: assets/fonts/pretendard/Pretendard-ExtraBold.otf
+          weight: 800
 
   # To add assets to your application, add an assets section, like this:
   # assets:

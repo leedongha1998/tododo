@@ -17,6 +17,9 @@ const maxTextScale = 1.3;
 /// 번들한 갈무리 글꼴의 OFL 1.1 원문(배포 zip의 파일 이름 그대로).
 const galmuriLicenseAsset = 'assets/fonts/galmuri/LICENSE.txt';
 
+/// 번들한 Pretendard 글꼴의 OFL 1.1 원문(npm 패키지 dist/LICENSE.txt 그대로).
+const pretendardLicenseAsset = 'assets/fonts/pretendard/LICENSE.txt';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // OFL 폰트는 앱 안 오픈소스 라이선스 화면에 고지해야 한다. pub 패키지 라이선스와 함께 보인다.
@@ -24,6 +27,10 @@ Future<void> main() async {
     yield LicenseEntryWithLineBreaks(
       const ['Galmuri'],
       await rootBundle.loadString(galmuriLicenseAsset),
+    );
+    yield LicenseEntryWithLineBreaks(
+      const ['Pretendard'],
+      await rootBundle.loadString(pretendardLicenseAsset),
     );
   });
   if (SupabaseEnv.isConfigured) {

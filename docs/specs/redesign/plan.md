@@ -699,6 +699,54 @@ PowerShell이면 `echo` 자리에 `"EXIT=$LASTEXITCODE"`. 실패 메시지가 �
     두 줄이고 "통과했어\n요"처럼 음절 단위로 끊긴다 — design 5.5가 허용한 "라벨 두 줄"이지만 끊김이 어색하면 "두 칸 위아래로 쌓기"를 오너가
     판단(9.2-2). 할 일 1.5배에서 마지막 완료 줄이 FAB에 일부 가리지만 아래 여백 96으로 스크롤하면 드러난다.
 
+- 4~6단계(2026-11-08, 클라우드 세션 — Flutter SDK 있음, Android SDK 없음. 커밋마다 `flutter analyze`·`flutter test`를 돌려
+  둘 다 통과한 뒤 커밋. 릴리스 빌드·AAB 크기는 못 돌림 → 오너 로컬 몫):
+  - 선행 fix `3e3bf16` 판정 선택지 라벨이 단어 중간에서 줄바꿈되지 않게. `KeepWordsText`(`lib/core/widgets/keep_words_text.dart`)가
+    그릴 때만 어절 안 글자 사이에 WORD JOINER(U+2060)를 끼운다(strings.dart 그대로, semanticsLabel 원문). 그래도 한 어절이 칸보다
+    넓으면(360dp·1.5배에서 체크 아이콘이 붙은 "통과했어요" — Material이 체크가 붙은 칸의 여백을 덮어써 여백 조정으로는 못 넓힘)
+    가장 넓은 어절을 재서 두 칸을 위아래로 쌓는다(`SegmentedButton.direction`, 판정 두 질문 공용 `_ChoicePair`). 테스트: keepWords 단위,
+    좁은 폭 비교(그냥 Text는 어절 중간·KeepWordsText는 경계), 판정 창 360dp 1.0·1.5에서 네 라벨 모두 어절 경계에서만 끊김 + 1.5에서
+    최소 기준 쌍은 세로. `battle_judgment_test`의 선택지 finder는 `KeepWordsText.text`(원문)로 찾게 바꿨다(단정 그대로).
+    analyze 0 / test 599. 버튼 라벨("판정 보내기" 등)은 1.5배에서도 한 줄이라 손대지 않았다.
+  - C21 `882629a` VS 인트로. analyze 0 / test 601.
+  - C22 `55cfb96` 벡터 앱 마크(옛 비트맵 API 유지). app_mark_test에 벡터 테스트 4개(실제로 그려 픽셀 확인). analyze 0 / test 605.
+  - C23 `cd5797b` 로그인·인증 대기. widget_test에 "로그인 화면에는 반복 움직임이 없다" 추가. analyze 0 / test 606.
+  - C24 `2230624` 런처·알림·스토어 아이콘·colors.xml(생성기 실제 실행 산출물 22개), 옛 비트맵 API·테스트 4개 삭제, launch_background
+    주석, DEPLOY.md 4번. 생성기 재실행 → `git status` 깨끗(재현됨). analyze 0 / test 602.
+  - C25 `828b722` 홈 위젯 색·모양·글자. 생성기 재실행 → 깨끗. `widget_paper` 잔존 0(android·tool·lib), android/ 안의 모든
+    `@color/`·`@drawable/` 참조가 정의돼 있음을 스크립트로 대조, Kotlin이 쓰는 리소스(`R.color.widget_danger`·`widget_ink_muted`,
+    `R.string.todo_widget_no_cache`, `R.layout.todo_widget`) 존재. analyze 0 / test 602.
+  - C26 `fd55d2a` 잔재·갈무리 제거. 최종 grep 세 명령 0건, `git diff --stat 1dac7df -- lib/core/strings.dart` 비어 있음,
+    `pubspec.lock` 변경 없음. analyze 0 / test 504(삭제 100 = retro_palette 3 + pixel_border 5 + pixel_icons 92, 추가 2).
+  - 순서 변경 없음.
+  - plan과 다르게 한 것(사소한 UI·구현 판단 — 결과만 보고):
+    1. 판정 선택지 세로 쌓기(위 fix). plan "위험 요소" 2·3단계 기록의 "두 칸 위아래로 쌓기(오너 판단)"를 **넓이가 모자랄 때만**
+       자동으로 적용했다. 배율 1.0 360dp에서는 지금처럼 가로 두 칸이다.
+    2. C21 VS 명판·라벨 좌우 여백 16 → 20(화면 가장자리 규칙 4.1).
+    3. C22 뚫린 자리는 체크 긴 획의 **가운데~끝** 둘레로만 낸다(긴 획 전체면 아래 꺾임의 둥근 끝이 칸 아랫선을 갉는다). 색 마크는
+       체크 두께(아래 1.5u)까지 둘레로 지운다(체크 면만 지우면 두께가 간격을 메운다).
+    4. C24 plan의 grep(`... RetroPalette" tool ...`)은 C25 전까지 `tool/generate_widget_resources.dart`에 걸린다(plan 자체의 순서
+       모순). C24 시점에는 런처 생성기·app_mark·auth만 0이었고 C26 최종 grep은 0.
+    5. C24 DEPLOY.md는 116행 외에 113행("그림은 tool/에 코드로")도 실제 위치(`app_mark.dart`)로 고쳤다.
+    6. C26 font_manifest_test의 "갈무리 없음"은 옛 글꼴 이름을 적지 않고 "패밀리·글꼴 자산·assets/fonts 폴더가 Pretendard뿐"으로
+       고정했다(이름을 적으면 plan의 최종 grep이 test/에서 걸린다).
+    7. C26 TODO_BACKLOG: 9행(가독성 2차)뿐 아니라 8행(배율 상한 1.5 재검증, `maxTextScale = 1.3` 서술)도 C5로 사실이 바뀌어 닫았다.
+       DEPLOY.md에 "스토어 스크린샷은 옛 화면" 주의와 라이선스 화면 Pretendard 확인 항목을 더했다.
+  - **하지 않은 것(메인 세션·오너 판단 필요)**:
+    1. CLAUDE.md "개발 명령어"에 `flutter test tool/generate_widget_resources.dart  # 홈 위젯 색·문구 리소스 다시 생성` 한 줄
+       (결정 4). 서브에이전트는 CLAUDE.md를 고치지 않는다 — 메인 세션이 넣는다. CLAUDE.md 본문에는 레트로·도트 테마를 전제로 한
+       문장이 없음을 확인했다(도메인 규칙·VS 인트로 예외 문장은 테마와 무관).
+    2. Material Icons 라이선스 고지(결정 3): Flutter 도구는 NOTICES를 pub 패키지 LICENSE와 sky_engine LICENSE로만 만들고
+       (`flutter_tools/lib/src/license_collector.dart`), sky_engine LICENSE에 Material Icons 항목이 없다 → 라이선스 화면에 **없을
+       가능성이 높다**. 그런데 Flutter SDK가 아이콘 글꼴과 함께 두는 원문(`bin/cache/artifacts/material_fonts/MaterialIcons_LICENSE.txt`,
+       sha256 `be698262…8a9e74`)은 design 5.4가 적은 Apache 2.0이 아니라 **CC BY 4.0**이다. 어느 원문을 넣을지 확정하지 못해 추가하지
+       않았다 — 오너가 6단계 4번 육안으로 "없음"을 확인하면 원문 선택과 함께 별도 `chore` 커밋으로.
+  - 스크린샷(저장소 밖, `final_` 접두어): 판정 창 1.0·1.5(위·빈 상태·고른 상태), VS 인트로 정지 화면(짧은/긴 이름, 가로 모드)·
+    진행 중 180/650/800ms, 로그인 1.0·1.5, 할 일 1.0·1.5.
+  - 육안으로 볼 것(스크린샷에서 본 것): 판정 질문·안내 **문장**(titleSmall·bodyMedium)은 여전히 음절 단위로 끊긴다("통과 / 했나요?") —
+    이번 fix는 선택지 라벨만 대상. 1.5배에서 최소 기준 쌍은 세로, 우열 쌍은 가로 두 줄이라 두 질문의 배치가 다르다. VS 가로 모드
+    1.5배는 아래 "나" 라벨이 화면 끝에 붙는다(잘리지는 않음).
+
 ## 오너 결정 (2026-11-08)
 - 검증 방식: **구현은 클라우드 세션, 검증은 오너가 Windows 로컬에서.** 단계 단위로 끊는다 — 1단계(C1–C5)를 푸시하고 멈춘 뒤,
   오너의 `flutter analyze`/`flutter test` 결과를 받고 다음 단계로 간다.

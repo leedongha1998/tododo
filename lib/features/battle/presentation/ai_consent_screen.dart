@@ -3,10 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/app_links.dart';
 import '../../../core/strings.dart';
-import '../../../core/theme/pixel_icons.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_icon.dart';
-import '../../../core/widgets/pixel_loader.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../data/ai_consent.dart';
 import '../domain/ai_consent_providers.dart';
 
@@ -73,11 +72,12 @@ class _AiConsentScreenState extends ConsumerState<AiConsentScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.aiConsentTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        // 화면 가장자리 20(redesign design 4.1).
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
           Text(AppStrings.aiConsentIntro, style: textTheme.bodyMedium),
-          const SizedBox(height: 16),
-          const PixelFrame.flat(
+          const SizedBox(height: 24),
+          const AppPanel.flat(
             title: AppStrings.aiConsentDetailsTitle,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -109,9 +109,12 @@ class _AiConsentScreenState extends ConsumerState<AiConsentScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                const PixelIcon(PixelIcons.document),
+                const Icon(AppIcons.document),
                 const SizedBox(width: 8),
-                Text(AppStrings.aiConsentPrivacyPolicy, style: textTheme.labelLarge),
+                // 큰 배율에서 Row가 넘치지 않게 남은 폭 안에서 줄바꿈한다.
+                Flexible(
+                  child: Text(AppStrings.aiConsentPrivacyPolicy, style: textTheme.labelLarge),
+                ),
               ],
             ),
             const SizedBox(height: 4),
@@ -120,7 +123,7 @@ class _AiConsentScreenState extends ConsumerState<AiConsentScreen> {
           const SizedBox(height: 24),
           FilledButton(
             onPressed: _submitting ? null : _agree,
-            child: _submitting ? const PixelLoader.small() : const Text(AppStrings.aiConsentAgree),
+            child: _submitting ? const AppLoader.small() : const Text(AppStrings.aiConsentAgree),
           ),
           const SizedBox(height: 8),
           OutlinedButton(
@@ -133,7 +136,7 @@ class _AiConsentScreenState extends ConsumerState<AiConsentScreen> {
   }
 }
 
-/// 동의 내용 한 항목. 이름은 짧은 표제라 픽셀 글꼴, 내용은 문장이라 본문 글꼴.
+/// 동의 내용 한 항목. 이름은 짧은 표제(titleSmall), 내용은 문장(bodyMedium).
 class _ConsentItem extends StatelessWidget {
   const _ConsentItem({required this.label, required this.value, this.last = false});
 

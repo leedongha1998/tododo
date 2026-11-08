@@ -29,6 +29,10 @@ class CreateBattleScreen extends ConsumerStatefulWidget {
 
 enum _Stage { input, generating, result }
 
+/// 테마 텍스트 버튼의 안쪽 좌우 여백(app_theme.dart textButtonTheme padding). "직접 입력" 글자를 위아래 글과
+/// 맞추려고 그만큼 왼쪽으로 옮긴다.
+const _textButtonInset = 12.0;
+
 class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
   final _titleController = TextEditingController();
 
@@ -217,20 +221,25 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         },
       ),
       const SizedBox(height: 8),
+      // 텍스트 버튼은 안쪽 좌우 여백(12)이 있어 글자가 위아래 글보다 들여 써진다. 버튼을 그 여백만큼 왼쪽으로
+      // 옮겨 글자 왼쪽 끝을 세그먼트·입력칸과 맞춘다(누를 때 생기는 면은 화면 여백 20 안에 들어간다).
       Align(
         alignment: Alignment.centerLeft,
-        child: TextButton(
-          onPressed: _busy
-              ? null
-              : () {
-                  setState(() {
-                    _customDuration = !_customDuration;
-                    _customDurationError = null;
-                  });
-                  if (_customDuration) _applyCustomDuration();
-                },
-          child: KeepWordsText(
-            _customDuration ? AppStrings.battleDurationQuick : AppStrings.battleDurationCustom,
+        child: Transform.translate(
+          offset: const Offset(-_textButtonInset, 0),
+          child: TextButton(
+            onPressed: _busy
+                ? null
+                : () {
+                    setState(() {
+                      _customDuration = !_customDuration;
+                      _customDurationError = null;
+                    });
+                    if (_customDuration) _applyCustomDuration();
+                  },
+            child: KeepWordsText(
+              _customDuration ? AppStrings.battleDurationQuick : AppStrings.battleDurationCustom,
+            ),
           ),
         ),
       ),

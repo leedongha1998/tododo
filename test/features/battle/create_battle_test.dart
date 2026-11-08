@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/navigation/app_tab.dart';
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_palette.dart';
+import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_criteria_repository.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
@@ -16,6 +18,7 @@ import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/data/open_recruit_page.dart';
 import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
+import 'package:todododo/features/battle/domain/criteria_rules.dart';
 import 'package:todododo/features/battle/domain/duration_rules.dart';
 import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/create_battle_screen.dart';
@@ -182,6 +185,7 @@ Future<void> _pumpCreate(
   required _FakeCriteriaRepository criteria,
   _FakeBattleRepository? battles,
   MyLimits? limits,
+  ThemeData? theme,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -190,7 +194,7 @@ Future<void> _pumpCreate(
         battleRepositoryProvider.overrideWithValue(battles ?? _FakeBattleRepository()),
         if (limits != null) myLimitsProvider.overrideWith((ref) async => limits),
       ],
-      child: const MaterialApp(home: CreateBattleScreen()),
+      child: MaterialApp(theme: theme, home: const CreateBattleScreen()),
     ),
   );
   await tester.pumpAndSettle();
@@ -406,6 +410,27 @@ void main() {
 
     expect(criteria.generateCount, 2);
     expect(find.text('운동화를 신고 밖에 있다'), findsOneWidget);
+  });
+
+  // redesign 후속 결정 7: 카운터가 입력 글자만큼 진하고 굵었고, "직접 입력"이 위아래 글보다 들여 써져 있었다.
+  testWidgets('글자 수 카운터는 보조 글자색·보통 굵기이고 "직접 입력" 글자는 입력칸 왼쪽 끝과 맞는다', (tester) async {
+    await _pumpCreate(
+      tester,
+      criteria: _FakeCriteriaRepository(generateResult: _speedResult),
+      theme: AppTheme.light,
+    );
+
+    final counter = tester.widget<Text>(find.text('0/$battleTitleMaxLength')).style!;
+    expect(counter.color, AppPalette.inkMuted);
+    expect(counter.fontWeight, FontWeight.w400);
+
+    final fieldLeft = tester.getRect(find.byType(TextField)).left;
+    final customLeft = tester.getRect(find.text(AppStrings.battleDurationCustom)).left;
+    expect(customLeft, moreOrLessEquals(fieldLeft, epsilon: 0.5));
+    // 옮긴 버튼도 그대로 눌린다.
+    await tester.tap(find.text(AppStrings.battleDurationCustom));
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.battleDurationQuick), findsOneWidget);
   });
 
   testWidgets('기간은 빠른 선택과 직접 입력으로 정하고 범위 밖이면 즉시 알린다', (tester) async {

@@ -309,7 +309,9 @@ class AppTheme {
         fillColor: AppPalette.surface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         hintStyle: text.bodyLarge!.copyWith(color: AppPalette.inkMuted),
-        counterStyle: text.labelMedium,
+        // 글자 수 카운터("13/60")는 메타데이터다 — 보조 글자색·보통 굵기(redesign 후속 결정 7).
+        // 입력 글자(bodyLarge ink)보다 눈에 덜 띄어야 한다.
+        counterStyle: text.labelMedium!.copyWith(color: AppPalette.inkMuted, fontWeight: FontWeight.w400),
         border: const OutlineInputBorder(borderRadius: _controlRadius, borderSide: _controlSide),
         enabledBorder:
             const OutlineInputBorder(borderRadius: _controlRadius, borderSide: _controlSide),

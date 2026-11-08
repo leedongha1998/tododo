@@ -807,3 +807,30 @@ redesign HEAD `faf9058`(analyze 0 / test 504) 이후 스크린샷 검토에서 �
 - F6 `fix:` 상대 카드 이름 titleMedium.
 - F7 `fix:` 카운터·직접 입력 정렬·중복 문장·VS 라벨 중복.
 - F8 `docs:` TODO_BACKLOG 다섯 줄, 진행 기록.
+
+## 후속 2 — 줄넘김 가독성 (W1–W4, 2026-11-08)
+입력: 오너 요청 "텍스트들 가독성 좋게 줄넘김 처리 해봐"(메인 세션 전달). HEAD `a6ac909`(analyze 0 / test 524) 기준.
+360dp 스크린샷에서 남은 문제: 마지막 줄 한 어절(고아), 2~3줄 제목·라벨의 들쭉날쭉한 줄 길이, 1.5배 할 일 행의 좁은 텍스트 칸.
+
+충돌 확인: CLAUDE.md·dev-standards와 충돌 없음 — 문구(`strings.dart`) 변경 0, 판정 로직 무관, 새 화면 없음, 새 패키지 없음.
+design 3.2 역할표·5.5 "할 일 행 터치 영역 48"을 그대로 지킨다.
+
+### 순서
+- W1 `refactor:` `KeepWordsText`를 `Text` 하위 클래스(static 플래그로 build 중 `data` 바꿔치기)에서 **`Text`를 상속하지 않는
+  StatelessWidget**으로. 원문 `text`를 들고, `Text.build`가 하던 스타일 합성(DefaultTextStyle·굵은 글씨 설정·글자 배율)을 공개 API로 직접 해
+  `RichText`를 그린다. 낭독은 `Semantics(label: 원문)` + `ExcludeSemantics`. 테스트는 `test/helpers/text_finders.dart`의 `findText`·
+  `findTextContaining`·`findWidgetWithText`(Text·EditableText·KeepWordsText 원문을 모두 찾는 공용 finder)로 기계적으로 바꾼다
+  (18개 파일, `find.text(` → `findText(` 등 치환 + `tester.widget<Text>` → `<KeepWordsText>`). 동작(줄바꿈) 변화 없음.
+- W2 `feat:` 줄 모양 옵션 `KeepWordsWrap { balanced, pretty, none }`. 그리기를 레이아웃 단계 빌더(`AbstractLayoutBuilder`, 계획값이 같으면
+  다시 빌드하지 않음)로 옮겨 칸 폭을 알고 결정한다. 고유 크기(IntrinsicWidth·대화상자)는 TextPainter로 직접 답한다.
+  - balanced: 4줄 이하에서 줄 수를 유지하는 최소 폭을 TextPainter 이분 탐색. 글자는 그 폭으로 그리되 위젯 폭은 원래 제약(`textWidthBasis.parent`면
+    칸 전체)을 차지하고, 정렬(왼쪽/가운데/오른쪽)에 맞춰 그 안에 놓는다. justify·한 줄·maxLines 초과는 건너뜀.
+  - pretty: 문단마다 마지막 공백 뒤에 WORD JOINER를 넣어 마지막 두 어절을 붙인다. 붙인 두 어절이 칸 폭보다 넓으면 그 문단은 붙이지 않는다.
+  - 기본값(`wrap` 생략): 합성된 스타일의 행간으로 역할을 가린다 — design 3.2에서 본문 슬롯(bodyLarge·bodyMedium·bodySmall)은 행간 ≥ 1.55,
+    제목·라벨·숫자 슬롯은 ≤ 1.5다. 행간 < 1.55 → balanced, 그 밖(행간 없음 포함) → pretty. 호출부가 역할과 다르게 쓰는 곳만 `wrap:`으로 고른다.
+  - 계획값은 (모드·글자·스타일·배율·폭·maxLines·정렬…) 키로 전역 LRU 캐시.
+  - 테스트: 균형(줄 수 유지 + 줄 길이 차 감소), 고아 방지(마지막 줄 어절 ≥ 2), 붙인 두 어절이 칸보다 넓으면 미적용, 한 어절이 칸보다 길 때 넘침 없음,
+    위젯 폭·정렬 유지, IntrinsicWidth 안에서 동작. 기능을 끄면(`none`) 실패하는지 확인.
+- W3 `fix:` 할 일 행 텍스트 칸 넓히기 — `ListTile` 좌우 여백·`minLeadingWidth`·`horizontalTitleGap` 축소, 체크박스·삭제 버튼 48dp 터치 영역 유지.
+  테스트: 360dp·1.5배 긴 할 일 줄 수가 W2 기준보다 줄었는지, 두 버튼 터치 영역 ≥ 48.
+- W4 `docs:` 이 절의 진행 기록.

@@ -239,6 +239,9 @@ Future<void> _openSheet(WidgetTester tester) async {
 }
 
 Future<void> _tapJoin(WidgetTester tester) async {
+  // 시트가 800x600 테스트 화면보다 길 수 있어 참가 버튼까지 먼저 스크롤한다.
+  await tester.ensureVisible(find.text(AppStrings.battleRecruitJoinWithCriteria));
+  await tester.pumpAndSettle();
   await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
   await tester.pumpAndSettle();
 }

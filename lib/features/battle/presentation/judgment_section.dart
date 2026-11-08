@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
-import '../../../core/theme/pixel_icons.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/theme/app_palette.dart';
+import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/evidence_photo_frame.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_loader.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
 import '../domain/judgment_rules.dart';
@@ -103,27 +104,27 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
 
     return switch (detail.judgmentStage) {
       JudgmentStage.notOpen => const SizedBox.shrink(),
-      JudgmentStage.nothingToJudge => const PixelFrame.tone(
-          tone: PixelTone.info,
-          icon: PixelIcons.hourglass,
+      JudgmentStage.nothingToJudge => const AppPanel.tone(
+          tone: AppTone.info,
+          icon: AppIcons.hourglass,
           title: AppStrings.battleJudgmentNothingTitle,
           child: Text(AppStrings.battleJudgmentNothing),
         ),
-      JudgmentStage.windowClosed => const PixelFrame.tone(
-          tone: PixelTone.neutral,
-          icon: PixelIcons.clock,
+      JudgmentStage.windowClosed => const AppPanel.tone(
+          tone: AppTone.neutral,
+          icon: AppIcons.clock,
           title: AppStrings.battleJudgmentWindowClosedTitle,
           child: Text(AppStrings.battleJudgmentWindowClosed),
         ),
-      JudgmentStage.waitingOpponent => const PixelFrame.tone(
-          tone: PixelTone.success,
+      JudgmentStage.waitingOpponent => const AppPanel.tone(
+          tone: AppTone.success,
           title: AppStrings.battleJudgmentSentTitle,
           child: Text(AppStrings.battleJudgmentWaitingOpponent),
         ),
       // 3단계(AI 재판정 배선)가 오기 전에는 이 상태가 서버에서 끝나지 않는다.
-      JudgmentStage.waitingAi => const PixelFrame.tone(
-          tone: PixelTone.info,
-          icon: PixelIcons.hourglass,
+      JudgmentStage.waitingAi => const AppPanel.tone(
+          tone: AppTone.info,
+          icon: AppIcons.hourglass,
           title: AppStrings.battleJudgmentAiTitle,
           child: Text(AppStrings.battleJudgmentAi),
         ),
@@ -147,36 +148,38 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PixelFrame.flat(
+        AppPanel.flat(
           title: AppStrings.battleEvidenceOpponentTitle,
           child: _photo(detail, path, urlAsync),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         CriteriaListBlock(
           title: AppStrings.battleCriteriaMinTitle,
           items: detail.battle.minCriteria,
           hint: AppStrings.battleCriteriaMinHint,
         ),
         if (detail.needsSuperiorityPick && detail.superiorityCriteria.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           CriteriaListBlock(
             title: AppStrings.battleCriteriaSuperiorityTitle,
             items: detail.superiorityCriteria,
             hint: AppStrings.battleCriteriaSuperiorityHint,
           ),
         ],
-        const SizedBox(height: 16),
-        PixelFrame.flat(
+        const SizedBox(height: 24),
+        AppPanel.flat(
           title: AppStrings.battleJudgmentSectionTitle,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(AppStrings.battleJudgmentIntro, style: textTheme.bodyMedium),
               const SizedBox(height: 16),
-              Text(AppStrings.battleJudgmentMinQuestion, style: textTheme.bodyLarge),
+              // 질문이 문장 속에 묻히지 않게 묶음 제목과 같은 titleSmall(design 5.5 기준 화면 2).
+              Text(AppStrings.battleJudgmentMinQuestion, style: textTheme.titleSmall),
               const SizedBox(height: 8),
               SegmentedButton<bool>(
-                showSelectedIcon: false,
+                // 선택을 색에만 기대지 않게 체크 아이콘을 켠다(redesign design 5.1·5.5 기준 화면 2).
+                showSelectedIcon: true,
                 // 아무것도 고르지 않은 상태로 시작한다(기본값을 두면 실수로 보낼 수 있다).
                 emptySelectionAllowed: true,
                 segments: const [
@@ -191,14 +194,14 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
                         setState(() => _passed = selection.first);
                       },
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(AppStrings.battleJudgmentRejectHint, style: textTheme.bodyMedium),
               if (detail.needsSuperiorityPick) ...[
                 const SizedBox(height: 16),
-                Text(AppStrings.battleJudgmentSuperiorityQuestion, style: textTheme.bodyLarge),
+                Text(AppStrings.battleJudgmentSuperiorityQuestion, style: textTheme.titleSmall),
                 const SizedBox(height: 8),
                 SegmentedButton<String>(
-                  showSelectedIcon: false,
+                  showSelectedIcon: true,
                   emptySelectionAllowed: true,
                   // 서버에는 상대적 값이 아니라 고른 사람의 user id가 그대로 간다(뒤집기 실수 방지).
                   segments: [
@@ -224,15 +227,29 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
               FilledButton(
                 onPressed: canSend ? _confirmAndSend : null,
                 child: _sending
-                    ? const PixelLoader.small()
+                    ? const AppLoader.small()
                     : const Text(AppStrings.battleJudgmentSend),
               ),
-              const SizedBox(height: 8),
-              Text(
-                photoFailed
-                    ? AppStrings.battleJudgmentPhotoUnavailable
-                    : AppStrings.battleJudgmentOnce,
-                style: textTheme.bodyMedium,
+              const SizedBox(height: 12),
+              // 놓치면 손해 보는 문장이라 메타 크기가 아니라 bodyMedium + 안내 아이콘(design 5.5 기준 화면 2).
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    // 아이콘 20을 첫 줄(15 × 1.6 = 24) 가운데에 맞춘다.
+                    padding: EdgeInsets.only(top: 2),
+                    child: Icon(AppIcons.info, size: 20, color: AppPalette.inkMuted),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      photoFailed
+                          ? AppStrings.battleJudgmentPhotoUnavailable
+                          : AppStrings.battleJudgmentOnce,
+                      style: textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

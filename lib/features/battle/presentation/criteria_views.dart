@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/strings.dart';
-import '../../../core/theme/pixel_icons.dart';
-import '../../../core/theme/retro_text.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_icon.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/theme/app_palette.dart';
+import '../../../core/theme/app_text.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../domain/criteria_rules.dart';
 
 /// 읽기 모드의 기준 목록 한 블록. 최소 기준과 우열 기준을 같은 모양으로 구분해 보여 준다.
@@ -24,7 +24,7 @@ class CriteriaListBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return PixelFrame.flat(
+    return AppPanel.flat(
       title: title,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -36,10 +36,15 @@ class CriteriaListBlock extends StatelessWidget {
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0) const SizedBox(height: 8),
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              // 번호(숫자 16)와 기준 첫 줄(문장 15)의 글자 기준선을 맞춘다.
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
-                // 번호는 숫자라 픽셀 글꼴, 기준 본문은 문장이라 본문 글꼴.
-                Text('${i + 1}', style: RetroText.pixel(RetroText.grid, bold: true)),
+                // 번호는 숫자 슬롯(고정폭) + 글자용 브랜드색, 기준 본문은 문장 슬롯.
+                Text(
+                  '${i + 1}',
+                  style: AppText.numberSmall.copyWith(color: AppPalette.primaryDeep),
+                ),
                 const SizedBox(width: 8),
                 Expanded(child: Text(items[i], style: textTheme.bodyMedium)),
               ],
@@ -105,7 +110,7 @@ class _CriteriaEditorState extends State<CriteriaEditor> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return PixelFrame.flat(
+    return AppPanel.flat(
       title: widget.title,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +138,7 @@ class _CriteriaEditorState extends State<CriteriaEditor> {
                   onPressed:
                       widget.enabled && _controllers.length > criteriaMinCount ? () => _removeAt(i) : null,
                   tooltip: AppStrings.battleCriteriaRemove,
-                  icon: const PixelIcon(PixelIcons.remove),
+                  icon: const Icon(AppIcons.remove),
                 ),
               ],
             ),
@@ -143,7 +148,7 @@ class _CriteriaEditorState extends State<CriteriaEditor> {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 onPressed: widget.enabled ? _add : null,
-                icon: const PixelIcon(PixelIcons.add),
+                icon: const Icon(AppIcons.add),
                 label: const Text(AppStrings.battleCriteriaAdd),
               ),
             ),

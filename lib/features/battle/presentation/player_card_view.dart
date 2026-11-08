@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/strings.dart';
 import '../../../core/theme/app_palette.dart';
-import '../../../core/theme/retro_text.dart';
+import '../../../core/theme/app_text.dart';
 import '../../../core/widgets/initial_badge.dart';
 import '../data/player_card.dart';
 
@@ -39,14 +39,14 @@ class PlayerCardView extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               if (card.hasStats)
-                Row(
+                // 숫자 슬롯(16/700, 고정폭). 큰 배율에서 한 줄을 넘으면 전적이 다음 줄로 내려간다.
+                Wrap(
+                  spacing: 12,
                   children: [
-                    // 숫자는 픽셀 글꼴.
-                    Text(AppStrings.playerScoreLabel(card.score!), style: RetroText.numeric),
-                    const SizedBox(width: 12),
+                    Text(AppStrings.playerScoreLabel(card.score!), style: AppText.numberSmall),
                     Text(
                       AppStrings.playerRecordLabel(card.wins!, card.losses!, card.draws!),
-                      style: RetroText.numeric,
+                      style: AppText.numberSmall,
                     ),
                   ],
                 )

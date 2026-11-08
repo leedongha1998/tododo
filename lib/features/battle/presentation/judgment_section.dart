@@ -235,10 +235,13 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Padding(
-                    // 아이콘 20을 첫 줄(15 × 1.6 = 24) 가운데에 맞춘다.
-                    padding: EdgeInsets.only(top: 2),
-                    child: Icon(AppIcons.info, size: 20, color: AppPalette.inkMuted),
+                  // 아이콘 20을 첫 줄 높이(15 × 글자 배율 × 1.6) 가운데에 맞춘다 — 큰 배율에서도 첫 줄 옆에 온다.
+                  SizedBox(
+                    height: MediaQuery.textScalerOf(context).scale(textTheme.bodyMedium!.fontSize!) *
+                        textTheme.bodyMedium!.height!,
+                    child: const Center(
+                      child: Icon(AppIcons.info, size: 20, color: AppPalette.inkMuted),
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(

@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../../core/widgets/app_button_styles.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_loader.dart';
+import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../battle/data/ai_consent.dart';
 import '../../battle/domain/ai_consent_providers.dart';
 import '../../battle/domain/ai_consent_rules.dart';
@@ -67,7 +67,7 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
   Widget build(BuildContext context) {
     final consentAsync = ref.watch(myAiConsentProvider);
 
-    return PixelFrame.flat(
+    return AppPanel.flat(
       title: AppStrings.aiConsentSection,
       child: consentAsync.when(
         data: (consent) => Column(
@@ -79,7 +79,7 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
                   : AppStrings.aiConsentStatusGiven(_formatDate(consent)),
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             if (consent == null)
               FilledButton(onPressed: _give, child: const Text(AppStrings.aiConsentGive))
             else
@@ -87,12 +87,12 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
                 style: AppButtonStyles.danger,
                 onPressed: _withdrawing ? null : _withdraw,
                 child: _withdrawing
-                    ? const PixelLoader.small()
+                    ? const AppLoader.small()
                     : const Text(AppStrings.aiConsentWithdraw),
               ),
           ],
         ),
-        loading: () => const Center(child: PixelLoader.medium()),
+        loading: () => const Center(child: AppLoader.medium()),
         error: (error, stackTrace) {
           debugPrint('myAiConsentProvider error: $error');
           return const Text(AppStrings.aiConsentLoadFailed);
@@ -123,7 +123,7 @@ class _WithdrawConsentDialog extends StatelessWidget {
           debugPrint('fetchWithdrawalImpact failed: ${snapshot.error}');
           content = const Text(AppStrings.aiConsentWithdrawImpactFailed);
         } else if (!snapshot.hasData) {
-          content = const Align(alignment: Alignment.centerLeft, child: PixelLoader.small());
+          content = const Align(alignment: Alignment.centerLeft, child: AppLoader.small());
         } else {
           content = Text(consentWithdrawalMessage(snapshot.data!));
         }

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/push/push_messaging.dart';
 import '../../../core/push/push_providers.dart';
 import '../../../core/strings.dart';
-import '../../../core/widgets/pixel_frame.dart';
+import '../../../core/widgets/app_panel.dart';
 
 /// 알림이 꺼져 있을 때만 보이는 안내 한 칸.
 ///
@@ -25,8 +25,8 @@ class NotificationSection extends ConsumerWidget {
         if (permission != NotificationPermission.denied) return const SizedBox.shrink();
         // 보일 때만 아래 여백을 갖는다 — 숨은 상태에서 빈 칸이 남지 않게 섹션이 직접 들고 있다.
         return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
-          child: PixelFrame.flat(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: AppPanel.flat(
             title: AppStrings.notificationSection,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -35,7 +35,7 @@ class NotificationSection extends ConsumerWidget {
                   AppStrings.notificationDisabled,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
                   AppStrings.notificationDisabledGuide,
                   style: Theme.of(context).textTheme.bodySmall,

@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
-import '../../../core/theme/pixel_icons.dart';
-import '../../../core/theme/retro_text.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/theme/app_text.dart';
 import '../../../core/widgets/app_button_styles.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_icon.dart';
-import '../../../core/widgets/pixel_loader.dart';
+import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../battle/domain/battle_outcome.dart';
 import '../../battle/presentation/battle_chips.dart';
@@ -33,12 +32,13 @@ class ProfileScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text(AppStrings.profileTitle)),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        // 화면 가장자리 20(redesign design 4.1).
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
           profileAsync.when(
             data: (profile) =>
                 Text(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
-            loading: () => const Center(child: PixelLoader.medium()),
+            loading: () => const Center(child: AppLoader.medium()),
             error: (error, stackTrace) {
               debugPrint('myProfileProvider error: $error');
               return Text(AppStrings.profileLoadFailed);
@@ -53,7 +53,7 @@ class ProfileScreen extends ConsumerWidget {
             AppStrings.profileHistorySection,
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           recordsAsync.when(
             data: (records) {
               if (records.isEmpty) return const Text(AppStrings.profileRecordEmpty);
@@ -63,43 +63,44 @@ class ProfileScreen extends ConsumerWidget {
                 children: [
                   for (final record in records) ...[
                     _BattleRecordTile(record: record),
-                    const SizedBox(height: 8),
+                    // 목록 항목 사이 12(redesign design 4.1).
+                    const SizedBox(height: 12),
                   ],
                 ],
               );
             },
-            loading: () => const Center(child: PixelLoader.medium()),
+            loading: () => const Center(child: AppLoader.medium()),
             error: (error, stackTrace) {
               debugPrint('battleRecordsProvider error: $error');
               return Text(AppStrings.profileLoadRecordFailed);
             },
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
           // 알림이 꺼져 있을 때만 보인다. 켜져 있으면 자리를 차지하지 않는다.
           const NotificationSection(),
           // 대결 참여의 전제 조건이라 계정 섹션 위에 둔다.
           const AiConsentSection(),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           // 탭바가 생기면서 앱바 아이콘이 사라졌다. 계정 관련 동작은 전부 이 창 하나에 모은다.
-          PixelFrame.flat(
+          AppPanel.flat(
             title: AppStrings.accountSection,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 OutlinedButton.icon(
                   onPressed: () => ref.read(authRepositoryProvider).signOut(),
-                  icon: const PixelIcon(PixelIcons.logout),
+                  icon: const Icon(AppIcons.logout),
                   label: const Text(AppStrings.logout),
                 ),
                 const SizedBox(height: 8),
-                // 번들한 갈무리 글꼴(OFL)의 고지를 사용자가 찾을 수 있는 자리.
+                // 번들한 글꼴(OFL)의 고지를 사용자가 찾을 수 있는 자리.
                 TextButton.icon(
                   style: TextButton.styleFrom(alignment: Alignment.centerLeft),
                   onPressed: () => showLicensePage(
                     context: context,
                     applicationName: AppStrings.appName,
                   ),
-                  icon: const PixelIcon(PixelIcons.document),
+                  icon: const Icon(AppIcons.document),
                   label: const Text(AppStrings.openSourceLicenses),
                 ),
                 const SizedBox(height: 8),
@@ -171,8 +172,8 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
       style: AppButtonStyles.danger,
       // 진행 중에는 누를 수 없는 모양 + 라벨 자리 로더(버튼 크기 유지).
       onPressed: _isDeleting ? null : _confirmAndDelete,
-      icon: const PixelIcon(PixelIcons.accountDelete),
-      label: _isDeleting ? const PixelLoader.small() : const Text(AppStrings.accountDelete),
+      icon: const Icon(AppIcons.accountDelete),
+      label: _isDeleting ? const AppLoader.small() : const Text(AppStrings.accountDelete),
     );
   }
 }
@@ -189,25 +190,24 @@ class _StatsFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return PixelFrame.flat(
+    return AppPanel.flat(
       title: AppStrings.profileRecordSection,
       child: statsAsync.when(
         data: (stats) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
+            // 큰 배율(32 × 1.5)에서 한 줄을 넘으면 전적이 다음 줄로 내려간다(design 9.2-9). Wrap은 글자 기준선을
+            // 맞추지 못해 아래 끝을 맞춘다(숫자 슬롯 둘 다 아래 여백이 작아 기준선과 거의 같다).
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.end,
               children: [
-                // 점수가 이 창의 주인공이라 유일하게 큰 픽셀 숫자다.
-                Text(
-                  AppStrings.playerScoreLabel(stats.score),
-                  style: RetroText.pixel(20, bold: true),
-                ),
-                const SizedBox(width: 12),
+                // 점수가 이 묶음의 주인공이라 유일하게 큰 숫자다.
+                Text(AppStrings.playerScoreLabel(stats.score), style: AppText.numberLarge),
                 Text(
                   AppStrings.playerRecordLabel(stats.wins, stats.losses, stats.draws),
-                  style: RetroText.numeric,
+                  style: AppText.numberSmall,
                 ),
               ],
             ),
@@ -217,7 +217,7 @@ class _StatsFrame extends StatelessWidget {
             ],
           ],
         ),
-        loading: () => const Center(child: PixelLoader.small()),
+        loading: () => const Center(child: AppLoader.small()),
         error: (error, stackTrace) {
           debugPrint('myPlayerStatsProvider error: $error');
           return const Text(AppStrings.profileLoadStatsFailed);
@@ -239,7 +239,7 @@ class _BattleRecordTile extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final mutedColor = Theme.of(context).colorScheme.onSurfaceVariant;
 
-    return PixelFrame.raised(
+    return AppPanel.raised(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => BattleDetailScreen(battleId: record.battle.id)),
       ),
@@ -252,7 +252,7 @@ class _BattleRecordTile extends StatelessWidget {
                 // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
                 Text(
                   record.battle.title,
-                  style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                  style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
                 Row(

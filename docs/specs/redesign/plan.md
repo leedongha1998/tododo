@@ -874,3 +874,37 @@ design 3.2 역할표·5.5 "할 일 행 터치 영역 48"을 그대로 지킨다.
 3. balanced는 글자를 좁게 그리고 위젯은 칸 폭을 차지한다. `textWidthBasis.longestLine`을 쓰는 곳은 없지만 쓰면 위젯 폭이 좁힌 폭이 된다.
 4. pretty의 "한 글자 어절" 판단은 글자 수만 본다("수"·"쓸"·"더"·"때"). 한 글자 명사("집 청소")도 뒤에 붙는다 — 결과가 어색하지는 않다.
 5. 실기기 글꼴 렌더링은 스크린샷(테스트 환경 + 실제 Pretendard)으로만 봤다. 오너 로컬 육안 확인 필요.
+
+## 후속 3 — 판정 묶음 훑어보기·보조 버튼 위계 (J1–J8, 2026-11-08)
+입력: `docs/specs/redesign/design-judging-buttons.md` 맨 끝 "## 오너 결정 (2026-11-08)"(1A·2A, 추천안 전부). HEAD `97e2b53`
+(analyze 0 / test 543) 기준. 화면만 바꾼다 — 판정 로직·RPC·스키마·서버 데이터 변경 0.
+
+충돌 확인: CLAUDE.md·dev-standards와 충돌 없음. 선택지는 정해진 버튼 두 개씩(점수·부분 승인·자유 텍스트 없음), 품질전은 한 번에
+보내기, 상대 판정은 "보냈는가"만(서버가 이미 주는 `has_judged`), 새 상태 없음, 새 화면 없음(기존 판정 영역 재구성), 새 패키지 없음.
+진행 줄의 "어떤 줄을 그릴지"는 상태 해석이라 domain 순수 함수로 올려 유닛 테스트한다(dev-standards "위젯에 상태 조건을 쓰지 않는다").
+
+문자열(결정 3·4·5·6 해석):
+- 결정 3 "designer 추천안(1A에 필요한 것만)": designer 1A 구성도와 1D 비교표("새 문자열 0, 진행 한 줄은 선택")를 추천안으로 읽어
+  **진행 한 줄(`battleJudgmentProgress`·`battleJudgmentReady`)과 `battleJudgmentOnceShort`는 넣지 않는다**(단계 배지 체크가 같은 정보,
+  경고 줄은 기존 `battleJudgmentOnce`). 1B 문자열도 넣지 않는다.
+- 결정 4: 진행 줄 문자열 8개 추가(`내 판정`·`상대 판정`·`AI 재판정`·`보냈어요`·`기다리는 중`·`보고 있어요`·`판정할 사진 없음`·`기한 지남`).
+- 결정 5: `battleRecruitCancel` 값 '취소' → '모집 취소'(사용처 1곳 확인).
+- 결정 6: `battleJudgmentIntro`는 쓰는 곳이 없어지므로 지운다.
+
+### 순서
+- J1 `feat:` 토큰·버튼 스타일 2A — `AppPalette.primaryTonal`·`primaryTonalPressed`·`dangerDeep`·`dangerTonalPressed`, `outlinedButtonTheme`·
+  `elevatedButtonTheme` → 토널(테두리·두께 없음, 높이 48, 누름 = 면색), `AppButtonStyles.compact`·`dangerTonal`(← `dangerOutlined`, 동의 철회
+  호출부 함께)·`dangerText`. 테스트: 대비 표(2.5) ±0.05, 테마·스타일 단정 교체.
+- J2 `fix:` 사용처 매핑(2.6) — 포기 버튼 인라인 스타일 → `dangerText`. 나머지는 테마가 바꾼다(동의하지 않음은 결정 7로 토널 유지).
+- J3 `fix:` 모집 카드 배치(2.7) — `OverflowBar`, `[모집 취소(위험 텍스트·작은)] [기준 수정(토널·작은, edit 아이콘)]`, 간격 12 → 16,
+  `battleRecruitCancel` = '모집 취소'. `AppIcons.edit`. 테스트: 360dp 1.0 한 줄 / 1.5 세로(기준 수정 위), 터치 ≥ 48.
+- J4 `feat:` 선택 타일 위젯(1A.2) — `JudgmentChoiceTile`·`JudgmentChoicePair`(새 파일), `AppIcons.fail`. 위젯 단위 테스트(상태별 모양·
+  Semantics·좁을 때 쌓기·고르지 않은 쪽 흐리지 않음).
+- J5 `feat:` 판정 묶음 1A — 단계 카드(배지·꼬리표·질문·기준 상자·타일·불복 힌트 줄/강조), 경고 줄을 보내기 위로, 안내문·따로 떨어진 기준
+  블록 제거, `battleJudgmentIntro` 삭제, `AppIcons.aiReview`·`lock`. `battle_judgment_test` 방향 단정 교체 + 배지·힌트 강조·경고 위치·
+  속도전 배지 없음·360dp 1.0/1.5.
+- J6 `feat:` 우열 타일 썸네일(결정 8) — 이미 상세에 있는 `mySubmission`·`opponentSubmission`의 `objectPath` → 기존
+  `evidencePhotoUrlProvider`(새 RPC·API 없음). `EvidencePhotoFrame.small`(높이 96).
+- J7 `feat:` 판정 진행 카드(1C 확장형) — 배지 28 + 진행 줄(내/상대/AI). 줄 구성은 domain `judgmentProgressOf`(순수 함수, 유닛 테스트).
+  상대 줄은 `opponent.hasJudged`만 읽고, 상대가 판정할 대상이 없는 경우(내가 내지 않음)는 줄을 뺀다.
+- J8 `docs:` design.md 4.2·4.3·5.5 갱신(이 문서를 가리킴), 진행 기록.

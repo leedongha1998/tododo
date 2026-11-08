@@ -349,7 +349,7 @@
 | 서체 | 자체 제작 둥근 디스플레이 서체 + 둥근 본문 서체, 버튼 라벨 대문자·넓은 자간 | Pretendard 한 벌(둥근 디스플레이 서체 없음). 대소문자 변형 없음, 자간 0 고정 |
 | 버튼 | 모서리 약 16, 두께 4px, 보조 버튼은 연회색 테두리 + 같은 연회색 두께 | 모서리 12, 두께 3dp, 보조 버튼은 1.5dp 회청색 테두리 + **남색** 두께. 비활성은 두께가 사라진 납작한 면 |
 | 카드 | (학습 카드·일러스트 중심) | 흰 면 + 1dp 선 + 2dp **회색** 두께(누르는 버튼의 남색 두께와 위계를 나눔) |
-| 아이콘 | 자체 제작 색 채운 두꺼운 아이콘·일러스트 | Material Icons Rounded 단색(Apache 2.0). 일러스트 없음 |
+| 아이콘 | 자체 제작 색 채운 두꺼운 아이콘·일러스트 | Material Icons Rounded 단색(CC BY 4.0 — 2026-11-08 정정, 옛 기재 "Apache 2.0"은 틀림). 일러스트 없음 |
 | 마스코트 | 부엉이 등 캐릭터 다수 | **없음**(이니셜 글자만). 얼굴·새 형태 아이콘 금지 |
 | 레이아웃·상징 | 학습 경로 지도, 연속 기록 불꽃, 하트·보석, 리그 | 기존 화면 배치 그대로(목록·카드·상세). 불꽃(`local_fire_department` 등)·하트·보석 아이콘을 쓰지 않는다 |
 | 앱 아이콘 | 부엉이 얼굴 | 칸을 뚫고 나가는 체크 |
@@ -438,8 +438,10 @@
 
 - **출처: Flutter SDK에 들어 있는 Material Icons의 Rounded 변형**(`Icons.*_rounded`). `uses-material-design: true`로 이미 앱에 번들돼 있고
   릴리스 빌드는 쓰는 글리프만 남기는 아이콘 트리 셰이킹을 한다 → **새 패키지 없음**. Material Symbols는 별도 패키지(pub)가 필요해 쓰지 않는다.
-- 라이선스: Material Icons는 Apache 2.0. developer가 앱의 오픈소스 라이선스 화면에 이미 이 고지가 Flutter 엔진 라이선스와 함께 나오는지
-  확인하고, 없으면 Apache 2.0 고지를 Pretendard와 같은 방식으로 추가한다.
+- 라이선스: Material Icons 글꼴은 **CC BY 4.0**이다(2026-11-08 정정 — 옛 기재 "Apache 2.0"은 틀렸다. 근거: Flutter SDK가 아이콘 글꼴과
+  함께 두는 `bin/cache/artifacts/material_fonts/MaterialIcons_LICENSE.txt` 원문). Flutter 도구가 만드는 NOTICES(pub 패키지 LICENSE +
+  sky_engine LICENSE)에는 이 항목이 없어, 원문을 자산(`assets/licenses/material_icons/LICENSE.txt`)으로 넣고 Pretendard와 같은 곳
+  (`main.dart` `registerFontLicenses`)에서 `LicenseRegistry`에 패키지 이름 `Material Icons`로 등록한다(오너 결정 2026-11-08 후속 3).
 - 한 벌 규칙: 전부 Rounded 변형, 한 색(현재 `IconTheme` 색), 크기 16/20/24/40. 탭바만 선택=채움·비선택=윤곽 변형을 쓴다.
 - 얼굴·캐릭터·마스코트·새 형태, 불꽃·하트·보석 금지. 패배 = 얼굴 금지 규칙 유지(아래로 꺾인 화살표).
 - 아래 상수 이름은 **developer가 Flutter `Icons` 클래스에 실제로 있는지 확인**한다. 없으면 같은 줄의 대안을 쓴다.
@@ -525,7 +527,7 @@
 | 대결 상세(그 밖) | 내 증거 제출·교체: 촬영 버튼 주 버튼 + `photo_camera_rounded`, 다시 찍기 보조 버튼 + `refresh_rounded`, 잠금 안내 tone(neutral) + `schedule_rounded`. 제출 시각 `numberSmall`. 결과 배너: 승 = `AppPanel.raised` + 왼쪽 48dp amber 둥근 칸 안 `emoji_events_rounded` ink, 패·무·무효 = `AppPanel.tone(neutral)`, 헤드라인 `titleMedium`, 점수 변화 `numberMedium`. 포기 = 위험 낮은 버튼(왼쪽 정렬 유지) |
 | AI 데이터 제공 동의 | 동의 문구 묶음 `AppPanel.flat`, 문구 `bodyMedium` 15/1.6, 동의 버튼 주 버튼 |
 | 프로필 | 점수 `numberLarge` 32/800 + 전적 `numberSmall`, 기록 목록 줄 오른쪽 `ResultLabel.small`, 동의·알림·계정 섹션 `AppPanel.flat`, 동의 철회·계정 삭제 = 위험 버튼, 로그아웃·라이선스 = 보조/낮은 버튼 + 아이콘 5.4 |
-| 오픈소스 라이선스 | Flutter `showLicensePage` — 테마가 자동 적용. Pretendard(·필요 시 Material Icons) 고지 확인 |
+| 오픈소스 라이선스 | Flutter `showLicensePage` — 테마가 자동 적용. Pretendard·Material Icons(CC BY 4.0) 고지 확인 |
 | 대화상자·시트·토스트 전부 | 5.1 자동 적용 |
 
 - 문구가 1.5배에서 잘리거나 줄바꿈이 어색해도 **문구는 고치지 않는다**. 발견하면 developer가 보고하고 메인 세션이 오너에게 묻는다(spec).
@@ -622,7 +624,7 @@
 ---
 
 ## 8. 라이선스 (P0-7)
-- 추가: Pretendard OFL 1.1(`LICENSE.txt` 원문, 이름 그대로). 필요 시 Material Icons Apache 2.0(5.4).
+- 추가: Pretendard OFL 1.1(`LICENSE.txt` 원문, 이름 그대로). Material Icons CC BY 4.0(Flutter SDK 원문 그대로, 5.4 — 2026-11-08 정정).
 - 제거: 갈무리 고지·자산·글꼴.
 - 서체 파일 이름·글꼴 패밀리 이름을 바꾸지 않는다.
 

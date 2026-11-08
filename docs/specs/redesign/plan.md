@@ -451,8 +451,8 @@ design 5.5 화면별 메모(간격: 가장자리 20, 섹션 사이 24, 목록 �
 1. `flutter analyze` 이슈 0, `flutter test` 전부 통과(0단계 개수 대비 증감을 진행 기록에 남김).
 2. 두 생성 명령 재실행 후 `git status` 깨끗함.
 3. `flutter build appbundle --release --dart-define-from-file=env.json` 성공을 **종료 코드로** 확인, AAB 크기 기록.
-4. 오픈소스 라이선스 화면(프로필 → 라이선스): **Pretendard 항목이 보이고 Galmuri 항목이 없다.** Material Icons(Apache 2.0) 고지가
-   Flutter 항목들 안에 있는지 확인 → 없으면 "결정 필요" 3.
+4. 오픈소스 라이선스 화면(프로필 → 라이선스): **Pretendard 항목이 보이고 Galmuri 항목이 없다.** **Material Icons**(CC BY 4.0 —
+   2026-11-08 후속 F3에서 직접 등록. 옛 기재 "Apache 2.0"은 틀렸다) 항목도 보인다.
 5. design 9.2 육안 목록 1~14 전부(배율 1.0 / 1.5, 360dp 폭).
 6. design 9.3 "사라지는 것" 목록: 픽셀 글꼴(앱·위젯), 계단 모서리, 2dp 전면 잉크 테두리, 창 제목 띠, 12×12 아이콘, 16×16 도트 마크(로그인·
    런처·스토어·알림), 계단식 움직임, ▶ 커서, 이중선 포커스, 크림 팔레트 — 하나도 없음.

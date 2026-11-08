@@ -19,15 +19,29 @@ const maxTextScale = 1.5;
 /// 번들한 Pretendard 글꼴의 OFL 1.1 원문(npm 패키지 dist/LICENSE.txt 그대로).
 const pretendardLicenseAsset = 'assets/fonts/pretendard/LICENSE.txt';
 
-Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  // OFL 글꼴(Pretendard)은 앱 안 오픈소스 라이선스 화면에 고지해야 한다. pub 패키지 라이선스와 함께 보인다.
+/// Material Icons 글꼴의 CC BY 4.0 원문(Flutter SDK `bin/cache/artifacts/material_fonts/MaterialIcons_LICENSE.txt` 그대로).
+const materialIconsLicenseAsset = 'assets/licenses/material_icons/LICENSE.txt';
+
+/// 앱이 번들하는 글꼴의 고지를 앱 안 오픈소스 라이선스 화면(`showLicensePage`)에 올린다. pub 패키지 라이선스와 함께 보인다.
+/// - Pretendard: OFL 글꼴은 고지해야 한다.
+/// - Material Icons: Flutter 도구가 만드는 NOTICES는 pub 패키지 LICENSE와 엔진(sky_engine) LICENSE로만 만들어지고
+///   거기에 Material Icons 항목이 없다. 아이콘 글꼴은 CC BY 4.0이라 저작자 표시가 필요하다(redesign 후속 결정 3).
+void registerFontLicenses() {
   LicenseRegistry.addLicense(() async* {
     yield LicenseEntryWithLineBreaks(
       const ['Pretendard'],
       await rootBundle.loadString(pretendardLicenseAsset),
     );
+    yield LicenseEntryWithLineBreaks(
+      const ['Material Icons'],
+      await rootBundle.loadString(materialIconsLicenseAsset),
+    );
   });
+}
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  registerFontLicenses();
   if (SupabaseEnv.isConfigured) {
     await initSupabase();
     // 알림은 어떤 기능의 관문도 아니다. Firebase 초기화가 실패하면(설정 파일 누락 등) 로그만

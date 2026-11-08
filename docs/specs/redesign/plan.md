@@ -636,8 +636,28 @@ PowerShell이면 `echo` 자리에 `"EXIT=$LASTEXITCODE"`. 실패 메시지가 �
   - C3 `fb00ede` DepthBorder + depth_border_test.
   - C4 `ab6cdd2` AppText·AppIcons·AppTheme 재작성 + app_text_test(git mv)·app_theme_test·app_icons_test.
     plan과 다른 작은 결정: 주 버튼 포커스 링은 ink 2dp(primary 면 위 primary 링이 안 보임), 비활성 버튼 라벨 여백 위아래 0.
-  - C5 (이 커밋) `maxTextScale` 1.5 + main_text_scale_test.
+  - C5 `45cecd3` `maxTextScale` 1.5 + main_text_scale_test.
   - 순서 변경 없음.
+  - 1단계 끝 검증: 2단계 세션이 C6 착수 전에 HEAD `45cecd3`에서 다시 돌림 — analyze 0건, test 566개 통과.
+- 2단계(2026-11-08, 클라우드 세션 — 이번에는 Flutter SDK 있음. 커밋마다 `flutter analyze`·`flutter test`를 돌려 둘 다 통과한 뒤 커밋.
+  Android SDK가 없어 릴리스 빌드는 못 돌림 — 2단계는 네이티브 변경이 없어 plan상 필수 아님, C10 선택 확인은 오너 로컬 몫):
+  - C6 `5fd75a6` AppPanel + app_panel_test(8). analyze 0 / test 574.
+  - C7 `2943fd3` AppTag·상태 칩·결과 라벨 새 매핑, pixel_tag.dart 삭제. battle_chips_test 새 기대값(12 → 19개),
+    recruit_browse_test·my_battles_sections_test 이름 교체. analyze 0 / test 581. grep `PixelTag|neutralPixelTagStyle|pixel_tag` 0.
+  - C8 `49b7ce9` AppLoader, StatusMessage·EvidencePhotoFrame 새 모양, 할 일·찾기의 `StatusMessage.empty(icon:)` 호출부 교체.
+    app_loader_test(5, 선택 항목인 증거 사진 clip 없음·contain 포함). analyze 0 / test 586.
+  - C9 `c293cfd` InitialBadge 새 모양, AppButtonStyles.danger, retro_button_styles.dart 삭제, 호출부 4파일. initial_badge_test 위젯
+    테스트 4개 추가. analyze 0 / test 590. grep `RetroButtonStyles|retro_button_styles` 0.
+  - C10 `a43d5bc` 탭바 1dp line 경계, 윤곽/채움 아이콘. widget_test 탭바 스모크 1.3 → 1.5. analyze 0 / test 590.
+    grep `Pixel|Retro` in main_shell.dart 0.
+  - 커밋마다 `git diff --stat -- lib/core/strings.dart` 비어 있음(문구 변경 0). 새 패키지 0, `pubspec.lock` 변경 없음.
+  - 순서 변경 없음. plan과 다르게 한 작은 결정(사소한 UI — 결과만 보고):
+    1. `AppTag`의 `style.icon` 색은 테두리색, 테두리가 없으면 글자색(plan 그대로). 상태 칩 `voided`는 `voidedResultTagStyle` 상수를
+       그대로 쓴다(값이 같아 두 상수를 따로 둘 이유가 없음 — 무효 칩 = 무효 라벨이 테스트로 고정됨).
+    2. `StatusMessage`의 문장 ↔ 보조 문장 간격 4 → 12(design 5.2 "간격 12"를 모든 요소 사이로 읽음).
+    3. `EvidencePhotoFrame` 실패 아이콘 색은 기존대로 `ink`(plan·design에 색 지정 없음).
+    4. `AppPanel.tone` 제목은 `titleSmall` ink(옛 `labelLarge`), 제목 ↔ 본문 간격 4(design 4.1 "제목 ↔ 본문 4").
+    5. widget_test 탭바 스모크에 "선택 탭만 채운 아이콘" 단정을 더했다(1.5 배율 변경과 같은 테스트).
 
 ## 오너 결정 (2026-11-08)
 - 검증 방식: **구현은 클라우드 세션, 검증은 오너가 Windows 로컬에서.** 단계 단위로 끊는다 — 1단계(C1–C5)를 푸시하고 멈춘 뒤,

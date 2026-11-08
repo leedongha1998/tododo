@@ -33,9 +33,12 @@ class PlayerCardView extends StatelessWidget {
             children: [
               if (label != null)
                 KeepWordsText(label!, style: textTheme.bodySmall),
+              // 이름이 이 카드의 주인공이다. 아래 점수·전적(numberSmall 16/700)보다 위에 서도록
+              // titleMedium(18/700)으로 둔다 — bodyLarge(16/400)면 숫자 줄보다 가늘고 작아 위계가 뒤집힌다
+              // (redesign 후속 결정 6).
               KeepWordsText(
                 card.displayName,
-                style: textTheme.bodyLarge,
+                style: textTheme.titleMedium,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),

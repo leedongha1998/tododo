@@ -504,7 +504,7 @@
 | | 전(retro) | 후 |
 |---|---|---|
 | 머리(유형·상태·마감) | 배지·칩 2dp ink, 마감 두 줄 `bodyMedium` 14 | 배지·칩 5.3 표. 마감 두 줄 `bodyMedium` 15 + 고정폭 숫자. 두 줄 사이 4 → 8(제출 창 / 판정 창이 다른 시계임이 더 잘 갈리게) |
-| 상대 카드 | raised 2dp ink, 점수·전적 **12dp 픽셀** | `AppPanel.raised`, 이니셜 40(상대 = 보조 강조), 이름 `bodyLarge`, 점수·전적 `numberSmall` 16/700 |
+| 상대 카드 | raised 2dp ink, 점수·전적 **12dp 픽셀** | `AppPanel.raised`, 이니셜 40(상대 = 보조 강조), 이름 `titleMedium` 18/700(2026-11-08 후속 — `bodyLarge`면 숫자 줄보다 가늘고 작아 위계가 뒤집힌다), 점수·전적 `numberSmall` 16/700 |
 | "상대의 증거" 묶음 | ink 띠 + 흰 14 라벨 + 2dp ink 틀 | `AppPanel.flat` + 첫 줄 `titleSmall` 제목, 사진 틀 5.2(원본 그대로, clip 없음) |
 | 최소 기준 / 우열 기준 | flat 2dp ink, 번호 12dp 픽셀, 기준 14 | `AppPanel.flat`, 번호 `numberSmall` `primaryDeep`, 기준 `bodyMedium` 15/1.6, 항목 사이 8, 힌트 `bodyMedium` |
 | 판정 묶음 | flat 2dp ink + 제목 띠 | `AppPanel.flat` + `titleSmall` 제목. 안내 `bodyMedium` → 질문 `titleSmall`(16/700, 현 `bodyLarge` 16/400에서 역할 재배정 — 질문이 문장 속에 묻히지 않게) → 세그먼트(높이 52, 선택 시 체크 아이콘) → 불복 힌트 `bodyMedium` |

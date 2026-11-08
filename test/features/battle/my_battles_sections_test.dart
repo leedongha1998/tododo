@@ -256,6 +256,7 @@ void main() {
       tester,
       repository: _MyBattlesRepository(),
       summaries: [_judgingSummaryNow()],
+      theme: AppTheme.light,
     );
 
     expect(find.text(AppStrings.battleListMyJudgeTurn), findsOneWidget);
@@ -273,6 +274,8 @@ void main() {
       find.text(AppStrings.battleListMyJudgeTurn),
     );
     expect(line.style?.fontWeight, FontWeight.w700);
+    // 놓치면 손해 보는 줄은 13dp 메타데이터 슬롯이 아니라 16dp(titleSmall) — redesign 후속 결정 2.
+    expect(line.style?.fontSize, 16);
   });
 
   testWidgets('제출 창에서 내 사진이 없으면 카드가 그 말을 하고, 상대 소식은 흐리게 둔다', (tester) async {
@@ -280,6 +283,7 @@ void main() {
       tester,
       repository: _MyBattlesRepository(),
       summaries: [_activeSummaryNow(iSubmitted: false)],
+      theme: AppTheme.light,
     );
 
     expect(find.text(AppStrings.battleListNotSubmitted), findsOneWidget);
@@ -297,7 +301,10 @@ void main() {
           ?.fontWeight,
       FontWeight.w700,
     );
-
+    expect(
+      tester.widget<Text>(find.text(AppStrings.battleListNotSubmitted)).style?.fontSize,
+      16,
+    );
   });
 
   // 내가 이미 냈으면 남은 소식은 "상대가 제출했어요"이고, 그것은 내 할 일이 아니다.

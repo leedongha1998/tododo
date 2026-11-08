@@ -267,9 +267,12 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
           ],
         ),
         const SizedBox(height: 8),
+        // 기간 범위 오류는 오류 슬롯(bodyMedium), 환산 결과는 보조 문장(bodySmall).
         KeepWordsText(
           error ?? battleDurationLabel(_durationMinutes),
-          style: Theme.of(context).textTheme.bodySmall,
+          style: error != null
+              ? Theme.of(context).textTheme.bodyMedium
+              : Theme.of(context).textTheme.bodySmall,
         ),
       ],
     ];
@@ -469,7 +472,8 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         ],
         if (editError != null) ...[
           const SizedBox(height: 8),
-          KeepWordsText(editError, style: Theme.of(context).textTheme.bodySmall),
+          // 편집 오류는 버튼이 왜 막혔는지 말하는 문장이다 — bodySmall이 아니라 오류 슬롯 bodyMedium.
+          KeepWordsText(editError, style: Theme.of(context).textTheme.bodyMedium),
         ],
         const SizedBox(height: 24),
         // 고친 내용이 있으면 먼저 다시 검사해야 올릴 수 있다(수정으로 차단 우회 금지).

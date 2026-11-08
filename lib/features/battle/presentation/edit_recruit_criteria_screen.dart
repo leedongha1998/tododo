@@ -165,7 +165,8 @@ class _EditRecruitCriteriaScreenState extends ConsumerState<EditRecruitCriteriaS
             ],
             if (editError != null) ...[
               const SizedBox(height: 8),
-              KeepWordsText(editError, style: Theme.of(context).textTheme.bodySmall),
+              // 편집 오류는 버튼이 왜 막혔는지 말하는 문장이다 — bodySmall이 아니라 오류 슬롯 bodyMedium.
+              KeepWordsText(editError, style: Theme.of(context).textTheme.bodyMedium),
             ],
             const SizedBox(height: 24),
             if (canApply)

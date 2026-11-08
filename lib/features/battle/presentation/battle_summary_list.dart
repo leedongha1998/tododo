@@ -77,15 +77,14 @@ class BattleSummaryCard extends StatelessWidget {
                 // 알림이 없으므로 "그 사이 무슨 일이 있었는지"를 이 줄이 알린다.
                 // 내가 손을 써야 하는 줄만 강조색·굵은 글씨로 띄우고, 그냥 소식은 흐리게 둔다.
                 // 둘을 같은 모양으로 그리면 "들어가서 눌러야 하는가"가 다시 가려진다.
+                // 내 차례 줄은 놓치면 손해 보는 문장이라 bodySmall(13, 메타데이터 전용)이 아니라
+                // titleSmall(16/700)로 둔다(redesign 후속 결정 2).
                 if (statusLine != null) ...[
                   const SizedBox(height: 8),
                   KeepWordsText(
                     statusLine,
                     style: notice.needsMyAction
-                        ? textTheme.bodySmall?.copyWith(
-                            color: AppPalette.primaryDeep,
-                            fontWeight: FontWeight.w700,
-                          )
+                        ? textTheme.titleSmall?.copyWith(color: AppPalette.primaryDeep)
                         : textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),

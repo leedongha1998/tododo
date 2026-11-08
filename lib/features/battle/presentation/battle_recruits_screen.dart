@@ -8,11 +8,9 @@ import '../../../core/navigation/app_tab.dart';
 import '../../../core/push/push_providers.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/app_icons.dart';
-import '../../../core/theme/pixel_icons.dart';
-import '../../../core/theme/retro_palette.dart';
+import '../../../core/theme/app_palette.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/app_tag.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_icon.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../profile/domain/profile_providers.dart';
@@ -202,17 +200,17 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
               heroTag: 'createBattleFab',
               onPressed: () => _openCreate(context),
               tooltip: AppStrings.battleCreate,
-              child: const PixelIcon(PixelIcons.battle),
+              child: const Icon(AppIcons.battle),
             ),
       body: Column(
         children: [
           _buildControls(context, filter),
-          // 고정 조작 영역과 목록을 가르는 "용기 경계". 카드 테두리(2dp)와 역할을 가르려고
-          // 창·앱바와 같은 4dp를 쓴다(design.md 1.4: 2dp = 요소, 4dp = 창).
+          // 고정 조작 영역과 목록을 가르는 경계. 층은 면색(sunken → background)이 가르므로 장식 1dp 선이면 된다
+          // (redesign design 5.5 — 옛 4dp ink 선 대체).
           const SizedBox(
-            height: 4,
+            height: 1,
             width: double.infinity,
-            child: ColoredBox(color: RetroPalette.ink),
+            child: ColoredBox(color: AppPalette.line),
           ),
           Expanded(
             // 목록을 내리는 동안 만들기 버튼을 감춘다. 애니메이션 없이 즉시 교체한다
@@ -241,16 +239,16 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
 
   /// 고정 조작 영역. 스크롤되지 않으므로 지금 어떤 조건이 걸려 있는지가 목록을 보는 동안 계속 보인다.
   ///
-  /// 면은 `sunken`이다 — 화면이 "가라앉은 조작판(sunken) → 종이 목록(paper) → 떠 있는 카드(surface)"
+  /// 면은 `sunken`이다 — 화면이 "가라앉은 조작판(sunken) → 목록 배경(background) → 떠 있는 카드(surface)"
   /// 세 겹으로 갈려, 목록이 이 아래로 잘려 들어가는 모습이 고장이 아니라 스크롤로 읽힌다.
   /// 목록 배경을 `sunken`으로 바꾸는 쪽은 쓸 수 없다(기간 칩의 면색이라 칩이 묻힌다).
   Widget _buildControls(BuildContext context, RecruitQuery filter) {
     final notifier = ref.read(recruitFilterProvider.notifier);
 
     return ColoredBox(
-      color: RetroPalette.sunken,
+      color: AppPalette.sunken,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -261,14 +259,14 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
                 hintText: AppStrings.battleSearchHint,
                 prefixIcon: const Padding(
                   padding: EdgeInsets.all(12),
-                  child: PixelIcon(PixelIcons.search, size: 24),
+                  child: Icon(AppIcons.search),
                 ),
                 prefixIconConstraints: const BoxConstraints(),
                 suffixIcon: _searchController.text.isEmpty
                     ? null
                     : IconButton(
                         onPressed: _clearSearch,
-                        icon: const PixelIcon(PixelIcons.close, size: 24),
+                        icon: const Icon(AppIcons.close),
                       ),
               ),
               onChanged: _onSearchChanged,
@@ -304,7 +302,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
                   onPressed: _clearConditions,
-                  icon: const PixelIcon(PixelIcons.close, size: 12),
+                  icon: const Icon(AppIcons.close, size: 16),
                   label: const Text(AppStrings.battleFilterClear),
                 ),
               ),
@@ -390,7 +388,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         physics: const AlwaysScrollableScrollPhysics(),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         // 아래 여백은 만들기 버튼(FAB)이 마지막 카드를 가리지 않게 하려는 것이다.
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
         itemCount: bodyCount + tailCount,
         itemBuilder: (context, index) {
           final slot = index;
@@ -398,10 +396,9 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
             if (body != null) return body;
             _maybeLoadMore(feed!, slot, items.length);
             return Padding(
-              // 카드 사이는 카드 **안쪽** 간격(8/12dp)보다 넓어야 카드가 한 덩어리로 묶이지 않는다.
-              // 카드 면(surface)과 목록 배경(paper)의 대비가 1.13:1이라 여백이 테두리와 함께
-              // 둘뿐인 구분 수단이다. 이 목록 카드 한 곳의 값이다(전역 기본값은 8dp 그대로).
-              padding: const EdgeInsets.only(bottom: 16),
+              // 목록 항목 사이 12(redesign design 4.1). 흰 카드 면 + 1dp 선 + 2dp 아래 두께가 회청 배경과
+              // 층을 가르므로 옛 16dp(크림끼리 대비 1.13:1을 여백으로 메우던 값)는 필요 없다.
+              padding: const EdgeInsets.only(bottom: 12),
               child: _OpenRecruitCard(
                 recruit: items[slot],
                 onTap: () => _openRecruit(context, items[slot]),
@@ -462,10 +459,11 @@ class _OpenRecruitCard extends StatelessWidget {
         ? null
         : battle.minCriteria.first;
 
-    return PixelFrame.raised(
+    return AppPanel.raised(
       onTap: onTap,
-      // 프레임 기본 12dp 패딩을 안쪽(오른쪽 칸)으로 옮겨 색 띠가 카드 높이를 그대로 채운다.
-      padding: EdgeInsets.zero,
+      // 색 띠를 카드 가장자리가 아니라 안쪽 여백 안에 둔다. 모서리 16 카드는 내용을 깎지 않으므로(clip 없음)
+      // 가장자리에 붙이면 띠 끝이 둥근 모서리 밖으로 삐져나온다. 띠 왼쪽 12, 띠와 본문 사이 12.
+      padding: const EdgeInsets.fromLTRB(12, 16, 16, 16),
       // `stretch`는 높이가 먼저 정해져 있어야 쓸 수 있다. 이 카드는 ListView 항목이라 세로 제약이
       // 무한이므로 IntrinsicHeight로 높이를 확정한 뒤 띠를 늘린다.
       child: IntrinsicHeight(
@@ -475,59 +473,64 @@ class _OpenRecruitCard extends StatelessWidget {
             // 세로로 훑을 때 눈이 멈출 앵커. 유형 색(속도전 앰버 / 품질전 민트)을 그대로 쓴다.
             // **보조 신호다** — 같은 뜻을 아래 유형 배지의 아이콘과 글자가 그대로 말하므로
             // 색만으로 전달되는 정보는 하나도 늘지 않는다(색각 이상 대응 유지).
-            SizedBox(
-              width: 8,
-              child: ColoredBox(color: battleTypeAccent(battle.type)),
+            // 폭 8 → 4(redesign design 5.5), 끝을 둥글게.
+            ClipRRect(
+              borderRadius: const BorderRadius.all(Radius.circular(2)),
+              child: SizedBox(
+                width: 4,
+                child: ColoredBox(color: battleTypeAccent(battle.type)),
+              ),
             ),
+            const SizedBox(width: 12),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
-                    // 2줄 상한이 없으면 최대 4줄까지 늘어나 다음 카드의 시작 위치를 예측할 수 없다.
-                    // 제목 전문은 상세 시트가 보여 준다.
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
+                  // 2줄 상한이 없으면 최대 4줄까지 늘어나 다음 카드의 시작 위치를 예측할 수 없다.
+                  // 제목 전문은 상세 시트가 보여 준다.
+                  Text(
+                    battle.title,
+                    style: textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  // 큰 배율에서 한 줄을 넘으면 기간 칩이 다음 줄로 내려간다(design 9.2-5).
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      BattleTypeBadge(type: battle.type),
+                      // 카드 안에서 유일하게 테두리를 가진 조각이다(유형 배지는 테두리를 벗었다).
+                      // "내가 낼 수 있는 시간인가"가 두 번째 판단 축이라 그 무게를 여기 둔다.
+                      // 기간은 상태가 아니므로 중립 태그 모양을 쓴다(무승부 칩 모양을 끌어다
+                      // 쓰면 앞으로 무승부 칩을 손댈 때 기간이 따라 변한다).
+                      AppTag(
+                        label: battleDurationLabel(battle.durationMinutes),
+                        style: neutralTagStyle,
+                        leading: const Icon(AppIcons.clock, size: 16),
+                      ),
+                    ],
+                  ),
+                  // 목록에서 중요한 것은 무슨 대결인지다. 기준 미리보기를 두 줄까지 보여 준다.
+                  // 기준 첫 문장은 모집끼리 거의 같아(AI가 만든 문장) 제목과 같은 색이면
+                  // 카드 네 장이 같은 실루엣으로 보인다 → 보조 글자색으로 낮춘다.
+                  if (preview != null) ...[
+                    const SizedBox(height: 8),
                     Text(
-                      battle.title,
-                      style: textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
+                      preview,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: AppPalette.inkMuted,
                       ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        BattleTypeBadge(type: battle.type),
-                        const SizedBox(width: 8),
-                        // 카드 안에서 유일하게 테두리를 가진 조각이다(유형 배지는 테두리를 벗었다).
-                        // "내가 낼 수 있는 시간인가"가 두 번째 판단 축이라 그 무게를 여기 둔다.
-                        // 기간은 상태가 아니므로 중립 태그 모양을 쓴다(무승부 칩 모양을 끌어다
-                        // 쓰면 앞으로 무승부 칩을 손댈 때 기간이 따라 변한다).
-                        AppTag(
-                          label: battleDurationLabel(battle.durationMinutes),
-                          style: neutralTagStyle,
-                          leading: const PixelIcon(PixelIcons.clock, size: 12),
-                        ),
-                      ],
-                    ),
-                    // 목록에서 중요한 것은 무슨 대결인지다. 기준 미리보기를 두 줄까지 보여 준다.
-                    // 기준 첫 문장은 모집끼리 거의 같아(AI가 만든 문장) 제목과 같은 색이면
-                    // 카드 네 장이 같은 실루엣으로 보인다 → 보조 글자색으로 낮춘다.
-                    if (preview != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        preview,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: RetroPalette.inkMuted,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
                   ],
-                ),
+                ],
               ),
             ),
           ],

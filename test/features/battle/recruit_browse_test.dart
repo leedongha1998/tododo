@@ -5,10 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_icons.dart';
 import 'package:todododo/core/theme/app_palette.dart';
-import 'package:todododo/core/theme/pixel_icons.dart';
 import 'package:todododo/core/widgets/app_tag.dart';
-import 'package:todododo/core/widgets/pixel_icon.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
@@ -504,7 +503,7 @@ void main() {
       final stripe = find.byWidgetPredicate(
         (widget) =>
             widget is SizedBox &&
-            widget.width == 8 &&
+            widget.width == 4 &&
             widget.child is ColoredBox &&
             (widget.child! as ColoredBox).color == color,
       );
@@ -515,7 +514,8 @@ void main() {
         matching: find.byType(IntrinsicHeight),
       );
       expect(tester.getSize(stripe).height, tester.getSize(card).height, reason: type);
-      expect(tester.getSize(stripe).width, 8, reason: type);
+      // 폭 8 → 4(redesign design 5.5).
+      expect(tester.getSize(stripe).width, 4, reason: type);
     }
   });
 
@@ -532,7 +532,7 @@ void main() {
       find.descendant(
         of: chip,
         matching: find.byWidgetPredicate(
-          (widget) => widget is PixelIcon && widget.icon == PixelIcons.clock,
+          (widget) => widget is Icon && widget.icon == AppIcons.clock,
         ),
       ),
       findsOneWidget,
@@ -568,7 +568,7 @@ void main() {
   });
 
   // 칩 한 줄이 좁은 화면·큰 글자에서 넘치는지는 **테스트로 보지 않는다.**
-  // 색 띠(8dp)로 본문이 좁아지고 기간 칩에 아이콘이 붙어 한 줄을 다시 재 봤는데,
+  // 색 띠(당시 8dp, 지금 4dp)로 본문이 좁아지고 기간 칩에 아이콘이 붙어 한 줄을 다시 재 봤는데,
   // 360dp·배율 3.0에서도 두 칩이 x=325에서 끝나(화면 360) 넘치지 않는다 —
   // 즉 "넘치지 않는다"는 단정은 어떤 배율에서도 통과해 아무것도 보장하지 못한다
   // (.claude/agent-memory/developer/flutter_widget_test_gotchas.md 6번). 육안 확인으로 넘긴다.

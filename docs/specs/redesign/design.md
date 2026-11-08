@@ -301,10 +301,10 @@
 | | `radiusXL` | 20 | 대화상자, VS 명판 |
 | | `radiusSheet` | 24(위 두 모서리) | 바텀시트 |
 | | 체크박스 | 6 | |
-| 두께(단단한 아래 그림자) | `depthButton` | 3dp, **`ink` 고정** | 주·보조·위험 버튼, FAB, 승 라벨, VS 명판(4dp) |
+| 두께(단단한 아래 그림자) | `depthButton` | 3dp, **`ink` 고정** | 주·위험 버튼, FAB, 승 라벨, VS 명판(4dp). 보조(토널)·텍스트 버튼은 두께 없음(2026-11-08 후속 3, `design-judging-buttons.md` 2A) |
 | | `depthCard` | 2dp, `edge` | 떠 있는 카드(안 한 할 일, 상대 카드, 모집 카드, 승리 배너) |
 | 테두리 | `hairline` | 1dp `line` | 카드·묶음 |
-| | `control` | 1.5dp `outline` | 입력 필드, 보조 버튼, 세그먼트, 칩 실선·점선 |
+| | `control` | 1.5dp `outline` | 입력 필드, 세그먼트, 판정 선택 타일(미선택), 칩 실선·점선. 보조 버튼은 테두리 없는 토널(2026-11-08 후속 3) |
 | | `strong` | 2dp | 체크박스, 포커스 링(브랜드), 오류 입력(`danger`), 선택 세그먼트 |
 | 간격(4dp 단위) | `s1`·`s2`·`s3`·`s4`·`s5`·`s6`·`s8` | 4·8·12·16·20·24·32 | |
 | | 화면 가장자리 | 20(현 16) | 목록·상세 좌우 |
@@ -330,11 +330,13 @@
 | 위계 | 면 | 라벨 | 테두리 | 두께 | 비활성 |
 |---|---|---|---|---|---|
 | 주(`FilledButton`, FAB) | `primary` | 흰색(A·C) / ink(B) | 없음(B는 1.5dp ink) | 3dp ink | `sunken` 면 + `inkDisabled` 라벨, 두께·테두리 없음(납작) |
-| 보조(`OutlinedButton`·`ElevatedButton`) | `surface` | ink | 1.5dp `outline` | 3dp ink | 같음 |
+| 보조 = 토널(`OutlinedButton`·`ElevatedButton` — 이름과 달리 테두리 없음, 2026-11-08 후속 3 `design-judging-buttons.md` 2A) | `primaryTonal` `#D9E1FF`(누름 `primaryTonalPressed` `#C2CEFF`) | `primaryDeep` | 없음 | **없음**(높이 48) | 같음 |
 | 낮음(`TextButton`, `IconButton`) | 투명(누르면 `sunken`) | `primaryDeep`(텍스트) / ink(아이콘) | 없음 | 없음 | `inkDisabled` |
 | 위험(`AppButtonStyles.danger`) | `danger` | 흰색 | 없음 | 3dp ink | 같음 |
-| 위험 낮음(포기) | 투명 | `danger` | 없음 | 없음 | `inkDisabled` |
-| 위험 윤곽(`AppButtonStyles.dangerOutlined`, 동의 철회 — 2026-11-08 후속) | `surface` | `danger` | 1.5dp `danger` | 3dp ink | 같음(테두리 없음) |
+| 위험 텍스트(`AppButtonStyles.dangerText` — 포기, 모집 취소) | 투명(누르면 `dangerPale` + 라벨 `dangerDeep`) | `danger` | 없음 | 없음 | `inkDisabled` |
+| 위험 토널(`AppButtonStyles.dangerTonal`, 동의 철회 — 옛 `dangerOutlined`, 2026-11-08 후속 3) | `dangerPale`(누름 `dangerTonalPressed` `#F9CDD0`) | `dangerDeep` `#A3202E` | 없음 | 없음 | 같음 |
+
+- **두께는 주 행동만**(2026-11-08 후속 3): 화면 하나에 두께 있는 버튼은 원칙상 하나다. 카드 안 작은 행동은 `AppButtonStyles.compact`(면 40·알약·아이콘 20·터치 48)를 등급 스타일 위에 얹는다(모집 카드). 사용처 매핑은 `design-judging-buttons.md` 2.6.
 
 - 위험 버튼은 주 버튼과 **색(빨강 vs 브랜드) + 아이콘**(깃발·사람 빼기·문서 등 이미 붙은 아이콘)으로 구분된다. 포기는 지금처럼 낮은 위험 버튼(글자 + 깃발).
 - 진행 중: `onPressed: null` + 라벨 자리에 `AppLoader.small`(버튼 크기 유지) — 현행 규칙 그대로.
@@ -346,9 +348,9 @@
 
 | 항목 | 레퍼런스(Duolingo) | 투두두두 |
 |---|---|---|
-| 색 | 초록 `#58CC02` 단일 브랜드, 버튼마다 **같은 색의 진한 톤**을 아래 그림자로 | 파랑 `#3355FF`(+ 앰버). 초록은 의미색(짙은 숲색 `#1D7A4C`, 청록 `#4CC9B0`)으로만. **아래 두께는 모든 버튼 공통 남색 `ink` 한 색** — retro-theme의 "남색 바닥 두께"를 이어받은 우리 표현 |
+| 색 | 초록 `#58CC02` 단일 브랜드, 버튼마다 **같은 색의 진한 톤**을 아래 그림자로 | 파랑 `#3355FF`(+ 앰버). 초록은 의미색(짙은 숲색 `#1D7A4C`, 청록 `#4CC9B0`)으로만. **아래 두께는 주·위험 버튼에만, 남색 `ink` 한 색** — retro-theme의 "남색 바닥 두께"를 이어받은 우리 표현. 보조 버튼은 두께 없는 토널(2026-11-08 후속 3) |
 | 서체 | 자체 제작 둥근 디스플레이 서체 + 둥근 본문 서체, 버튼 라벨 대문자·넓은 자간 | Pretendard 한 벌(둥근 디스플레이 서체 없음). 대소문자 변형 없음, 자간 0 고정 |
-| 버튼 | 모서리 약 16, 두께 4px, 보조 버튼은 연회색 테두리 + 같은 연회색 두께 | 모서리 12, 두께 3dp, 보조 버튼은 1.5dp 회청색 테두리 + **남색** 두께. 비활성은 두께가 사라진 납작한 면 |
+| 버튼 | 모서리 약 16, 두께 4px, 보조 버튼은 연회색 테두리 + 같은 연회색 두께 | 모서리 12, 두께 3dp(주·위험만), 보조 버튼은 테두리·두께 없는 연파랑 토널 면. 비활성은 두께가 사라진 납작한 면 |
 | 카드 | (학습 카드·일러스트 중심) | 흰 면 + 1dp 선 + 2dp **회색** 두께(누르는 버튼의 남색 두께와 위계를 나눔) |
 | 아이콘 | 자체 제작 색 채운 두꺼운 아이콘·일러스트 | Material Icons Rounded 단색(CC BY 4.0 — 2026-11-08 정정, 옛 기재 "Apache 2.0"은 틀림). 일러스트 없음 |
 | 마스코트 | 부엉이 등 캐릭터 다수 | **없음**(이니셜 글자만). 얼굴·새 형태 아이콘 금지 |
@@ -506,13 +508,13 @@
 | 머리(유형·상태·마감) | 배지·칩 2dp ink, 마감 두 줄 `bodyMedium` 14 | 배지·칩 5.3 표. 마감 두 줄 `bodyMedium` 15 + 고정폭 숫자. 두 줄 사이 4 → 8(제출 창 / 판정 창이 다른 시계임이 더 잘 갈리게) |
 | 상대 카드 | raised 2dp ink, 점수·전적 **12dp 픽셀** | `AppPanel.raised`, 이니셜 40(상대 = 보조 강조), 이름 `titleMedium` 18/700(2026-11-08 후속 — `bodyLarge`면 숫자 줄보다 가늘고 작아 위계가 뒤집힌다), 점수·전적 `numberSmall` 16/700 |
 | "상대의 증거" 묶음 | ink 띠 + 흰 14 라벨 + 2dp ink 틀 | `AppPanel.flat` + 첫 줄 `titleSmall` 제목, 사진 틀 5.2(원본 그대로, clip 없음) |
-| 최소 기준 / 우열 기준 | flat 2dp ink, 번호 12dp 픽셀, 기준 14 | `AppPanel.flat`, 번호 `numberSmall` `primaryDeep`, 기준 `bodyMedium` 15/1.6, 항목 사이 8, 힌트 `bodyMedium` |
-| 판정 묶음 | flat 2dp ink + 제목 띠 | `AppPanel.flat` + `titleSmall` 제목. 안내 `bodyMedium` → 질문 `titleSmall`(16/700, 현 `bodyLarge` 16/400에서 역할 재배정 — 질문이 문장 속에 묻히지 않게) → 세그먼트(높이 52, 선택 시 체크 아이콘) → 불복 힌트 `bodyMedium` |
-| 우열 세그먼트 | 두 칸 한 줄 | 같은 배치. 1.5배에서 "상대가 더 잘했다"가 칸을 넘으면 **라벨 두 줄 허용**(높이가 늘어남). 그래도 잘리면 두 칸을 위아래로 쌓는다(배치 조정 허용 범위) — 육안 확인 목록 |
+| 최소 기준 / 우열 기준 | flat 2dp ink, 번호 12dp 픽셀, 기준 14 | **판정 차례 화면에서는 2026-11-08 후속 3으로 바뀜 → `design-judging-buttons.md` 1A**(각 질문 단계 카드 안 기준 상자). 다른 화면(대결 만들기·모집 상세)은 `AppPanel.flat`, 번호 `numberSmall` `primaryDeep`, 기준 `bodyMedium` 15/1.6, 항목 사이 8, 힌트 `bodyMedium` |
+| 판정 묶음 | flat 2dp ink + 제목 띠 | **2026-11-08 후속 3으로 바뀜 → `design-judging-buttons.md` 1A(단계 카드 + 큰 선택 타일)**. 옛 기록: `AppPanel.flat` + `titleSmall` 제목. 안내 `bodyMedium` → 질문 `titleSmall`(16/700, 현 `bodyLarge` 16/400에서 역할 재배정 — 질문이 문장 속에 묻히지 않게) → 세그먼트(높이 52, 선택 시 체크 아이콘) → 불복 힌트 `bodyMedium` |
+| 우열 세그먼트 | 두 칸 한 줄 | **→ `design-judging-buttons.md` 1A.2 선택 타일(+ 결정 8 사진 썸네일)**. 옛 기록: 같은 배치. 1.5배에서 "상대가 더 잘했다"가 칸을 넘으면 **라벨 두 줄 허용**(높이가 늘어남). 그래도 잘리면 두 칸을 위아래로 쌓는다(배치 조정 허용 범위) — 육안 확인 목록 |
 | 판정 보내기 | 주 버튼(계단, 2dp 테두리) | 가로 꽉 찬 주 버튼 52, 3dp ink 두께, 진행 중 `AppLoader.small`. 비활성은 납작한 `sunken` — "아직 못 보냄"이 눈에 보인다 |
-| "판정은 한 번만" / 사진 못 봄 | 버튼 아래 `bodyMedium` 14 | 같은 자리, `bodyMedium` 15 + 왼쪽 `info_outline_rounded` 20 `inkMuted`(놓치면 손해 보는 문장이라 메타 크기에 두지 않음) |
+| "판정은 한 번만" / 사진 못 봄 | 버튼 아래 `bodyMedium` 14 | **→ `design-judging-buttons.md` 1A: 보내기 버튼 바로 위, 자물쇠 아이콘 / 사진 못 봄은 위험 블록**. 옛 기록: 같은 자리, `bodyMedium` 15 + 왼쪽 `info_outline_rounded` 20 `inkMuted`(놓치면 손해 보는 문장이라 메타 크기에 두지 않음) |
 | 확인 대화상자 | 픽셀 제목 | `headlineSmall` 제목, 본문 `bodyMedium`, [취소] [판정 보내기](주) |
-| 판정 단계 블록(대기·기한 경과·보냄·AI 재판정) | tone 2dp 테두리 | `AppPanel.tone` 테두리 없음 + 아이콘(5.4) |
+| 판정 단계 블록(대기·기한 경과·보냄·AI 재판정) | tone 2dp 테두리 | `AppPanel.tone` 테두리 없음 + 28 원형 배지 + 진행 줄(내 판정 / 상대 판정 / AI 재판정) — `design-judging-buttons.md` 1C 확장형(2026-11-08 후속 3) |
 
 #### 나머지 화면
 
@@ -527,7 +529,7 @@
 | 대결 만들기 / 모집 기준 수정 | 입력 필드·세그먼트 5.1, 기준 생성 중 `StatusMessage.loading` + 문장, 차단·한도 안내 `AppPanel.tone(danger)`, 기준 항목 추가·삭제 아이콘 5.4 |
 | 대결 상세(그 밖) | 내 증거 제출·교체: 촬영 버튼 주 버튼 + `photo_camera_rounded`, 다시 찍기 보조 버튼 + `refresh_rounded`, 잠금 안내 tone(neutral) + `schedule_rounded`. 제출 시각 `numberSmall`. 결과 배너: 승 = `AppPanel.raised` + 왼쪽 48dp amber 둥근 칸 안 `emoji_events_rounded` ink, 패·무·무효 = `AppPanel.tone(neutral)`, 헤드라인 `titleMedium`, 점수 변화 `numberMedium`. 포기 = 위험 낮은 버튼(왼쪽 정렬 유지) |
 | AI 데이터 제공 동의 | 동의 문구 묶음 `AppPanel.flat`, 문구 `bodyMedium` 15/1.6, 동의 버튼 주 버튼 |
-| 프로필 | 점수 `numberLarge` 32/800 + 전적 `numberSmall`, 기록 목록 줄 오른쪽 `ResultLabel.small`, 동의·알림·계정 섹션 `AppPanel.flat`, 계정 삭제 = 위험 버튼, 동의 철회 = 위험 윤곽(다시 동의하면 돌아오므로 한 단계 낮춤 — 2026-11-08 후속), 로그아웃·라이선스 = 보조/낮은 버튼 + 아이콘 5.4 |
+| 프로필 | 점수 `numberLarge` 32/800 + 전적 `numberSmall`, 기록 목록 줄 오른쪽 `ResultLabel.small`, 동의·알림·계정 섹션 `AppPanel.flat`, 계정 삭제 = 위험 버튼, 동의 철회 = 위험 토널(다시 동의하면 돌아오므로 한 단계 낮춤 — 2026-11-08 후속, 후속 3에서 윤곽 → 토널), 로그아웃·라이선스 = 보조/낮은 버튼 + 아이콘 5.4 |
 | 오픈소스 라이선스 | Flutter `showLicensePage` — 테마가 자동 적용. Pretendard·Material Icons(CC BY 4.0) 고지 확인 |
 | 대화상자·시트·토스트 전부 | 5.1 자동 적용 |
 

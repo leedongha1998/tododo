@@ -908,3 +908,41 @@ design 3.2 역할표·5.5 "할 일 행 터치 영역 48"을 그대로 지킨다.
 - J7 `feat:` 판정 진행 카드(1C 확장형) — 배지 28 + 진행 줄(내/상대/AI). 줄 구성은 domain `judgmentProgressOf`(순수 함수, 유닛 테스트).
   상대 줄은 `opponent.hasJudged`만 읽고, 상대가 판정할 대상이 없는 경우(내가 내지 않음)는 줄을 뺀다.
 - J8 `docs:` design.md 4.2·4.3·5.5 갱신(이 문서를 가리킴), 진행 기록.
+
+### 후속 3 진행 기록 (2026-11-08, 클라우드 세션 — Flutter SDK 있음, Android SDK 없음)
+커밋마다 `flutter analyze`·`flutter test` 종료 코드를 따로 확인해 둘 다 0일 때 커밋. `pubspec.lock` 변경 없음, 새 패키지 0.
+`strings.dart` 변경은 결정된 것만: `battleRecruitCancel` 값 '모집 취소', `battleJudgmentIntro` 삭제, 진행 줄 8개 추가.
+- `5bc3894` docs: 이 절의 작업 순서.
+- J1 `a8fdc3c` 토큰 4개·보조 버튼 테마 토널·`dangerTonal`(← `dangerOutlined`)·`dangerText`·`compact`. analyze 0 / test 569.
+- J2 `fbe5880` 포기 버튼 → `dangerText`. analyze 0 / test 570.
+- J3 `3665313` 모집 카드 `OverflowBar`(모집 취소 위험 텍스트 · 기준 수정 토널, 작은 크기), '모집 취소', `AppIcons.edit`. analyze 0 / test 572.
+- J4 `6a75c22` `JudgmentChoicePair`·`JudgmentChoiceTile`(새 파일 `judgment_choice.dart`), `AppIcons.fail`. analyze 0 / test 583.
+- J5 `4aaa8b4` 판정 묶음 1A(단계 카드·배지·기준 상자·불복 힌트 강조·경고를 보내기 위로), `battleJudgmentIntro` 삭제,
+  `AppIcons.aiReview`·`lock`. analyze 0 / test 591.
+- J6 `1ffc18f` 우열 타일 사진 썸네일(`EvidencePhotoFrame.small`), 타일 내용 위 정렬. analyze 0 / test 594.
+- J7 `86c3fab` 판정 진행 카드(domain `judgmentProgressOf`, `AppPanel.tone(leading:)`, 진행 줄 문자열 8개, `AppIcons.dash`).
+  analyze 0 / test 609.
+- J8 이 커밋: design.md 4.1·4.2·4.3·5.5 갱신(이 후속 문서를 가리킴), 진행 기록.
+- 순서 변경 없음.
+- 설계와 다르게 한 것(사소한 UI 판단 — 결과만 보고):
+  1. 결정 3 해석: 진행 한 줄(`2개 중 1개 골랐어요`/`다 골랐어요`)과 `battleJudgmentOnceShort`는 넣지 않았다(designer 1A 구성도·
+     1D 표 "새 문자열 0"을 추천안으로 읽음). 원하면 문자열 3개 + 한 줄로 추가 가능.
+  2. 선택 타일 내용을 세로 가운데 → **위 정렬**. 라벨 줄 수가 다르면(통과했어요 1줄 / 통과하지 못했어요 2줄) 가운데 정렬은
+     두 칸의 아이콘·사진 높이가 어긋났다(스크린샷으로 확인).
+  3. 진행 줄 "보냈어요" 글자색: success는 primaryPale 4.41·sunken 4.29로 4.5 미달 → successPale 패널에서만 success, 그 밖은 ink.
+     회색 줄 배지(sunken)·AI 줄 배지(primaryPale)는 패널 면과 같은 색이면 원이 사라져 흰 원으로.
+  4. "판정할 사진 없음" 배지의 "—"는 `AppIcons.dash`(`remove_rounded`) 새 상수(설계의 아이콘 추가 목록 밖, 쓰는 곳 1곳).
+  5. 진행 줄의 상대 줄은 내가 사진을 내지 않았으면 뺀다(상대가 판정할 대상이 없어 "기다리는 중"도 "보냈어요"도 사실이 아님 —
+     속도전 한쪽 제출 + AI 재판정·기한 경과). 설계 표의 waitingAi "상대 ✓"는 그 경우를 다루지 않았다.
+  6. `smart_toy`(로봇 얼굴)를 app_icons_test 금지 도형 목록에 더했다.
+- 서버 호출: 새 RPC·테이블·컬럼 없음. 우열 썸네일의 내 사진은 기존 `evidencePhotoUrlProvider`로 서명 URL을 한 번 더 받는다
+  (판정 차례 화면에서 전에는 받지 않던 것 — 같은 API, 판정 창이 열린 뒤라 서버가 이미 허용). 상대 사진은 위 큰 사진과 같은 값.
+- 스크린샷(저장소 밖, `judge_` 접두어): 촬영 스크립트 `shots_test.dart`의 판정 창 테스트를 미선택·일부 선택(불복)·완료(위/아래)·
+  보낸 뒤(상대 대기)·AI 재판정으로 늘렸다(스크립트만 수정).
+
+남은 위험:
+1. 실기기 글꼴로는 1.5배에서도 최소 기준 두 칸이 가로로 남지만(스크린샷), 테스트 글꼴(정사각형)에서는 세로로 쌓인다 — 판단식은
+   그대로 옮겼다. 기기별 시스템 글꼴 폭에 따라 1.5배 배치가 달라질 수 있다.
+2. 우열 썸네일은 판정 차례 화면에서 서명 URL을 하나 더 받는다(내 사진). 실패해도 고르기는 막지 않는다(아이콘만).
+3. `OutlinedButton`이 이제 토널 모양이라 이름과 모양이 어긋난다(테마 주석으로 남김). 새 화면에서 "윤곽 버튼"을 기대하고 쓰면 안 된다.
+4. 릴리스 빌드·실기기 확인은 못 했다(Android SDK 없음) — 새 패키지·네이티브 변경이 없어 위험은 낮다.

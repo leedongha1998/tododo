@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/pixel_icons.dart';
 import '../../../core/theme/retro_palette.dart';
 import '../../../core/widgets/pixel_frame.dart';
@@ -79,7 +80,7 @@ class TodoListScreen extends ConsumerWidget {
         data: (todos) {
           if (todos.isEmpty) {
             return const StatusMessage.empty(
-              icon: PixelIcons.todo,
+              icon: AppIcons.todoOutlined,
               message: AppStrings.emptyTodos,
               fill: true,
             );

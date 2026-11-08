@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/push/push_providers.dart';
 import '../../../core/strings.dart';
+import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/pixel_icons.dart';
 import '../../../core/theme/retro_palette.dart';
 import '../../../core/widgets/app_tag.dart';
@@ -344,7 +345,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         RecruitEmptyKind.none => null,
         // 올라온 모집이 없다 → 내가 먼저 걸어 보라고 권한다(모집 개수 제한이 없어 항상 권할 수 있다).
         RecruitEmptyKind.noRecruits => StatusMessage.empty(
-          icon: PixelIcons.battle,
+          icon: AppIcons.battle,
           message: AppStrings.battleRecruitsEmptyNone,
           detail: AppStrings.battleRecruitsEmptyNoneHint,
           action: FilledButton(
@@ -354,7 +355,7 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         ),
         // 조건 때문에 비었다 → 조건을 되돌리는 것이 먼저다. 여기서 대결 만들기를 권하지 않는다.
         RecruitEmptyKind.noMatches => StatusMessage.empty(
-          icon: PixelIcons.search,
+          icon: AppIcons.search,
           message: AppStrings.battleRecruitsEmptyFiltered,
           detail: AppStrings.battleRecruitsEmptyFilteredHint,
           action: FilledButton(

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 
-import '../theme/pixel_icons.dart';
-import '../theme/retro_palette.dart';
-import 'pixel_icon.dart';
-import 'pixel_loader.dart';
+import '../theme/app_icons.dart';
+import '../theme/app_palette.dart';
+import 'app_loader.dart';
 
 enum _StatusKind { loading, empty, error }
 
-/// 로딩·빈·오류 상태를 한 모양으로(design.md 3.2).
-/// 아이콘 36(또는 로더) + 문장(본문 글꼴, 가운데) + 보조 문장 + 동작 버튼 하나.
+/// 로딩·빈·오류 상태를 한 모양으로(redesign design.md 5.2).
+/// 아이콘 40(빈 상태 inkMuted, 오류 danger — 또는 로더) + 문장(`bodyMedium`, 가운데) + 보조 문장
+/// (`bodySmall` inkMuted) + 동작 버튼 하나. 요소 사이 간격 12.
 /// [fill]이면 화면 가운데, 아니면 영역 안에서 세로 여백 12.
 class StatusMessage extends StatelessWidget {
   const StatusMessage.loading({
@@ -36,11 +36,11 @@ class StatusMessage extends StatelessWidget {
     this.action,
     this.fill = false,
   })  : _kind = _StatusKind.error,
-        icon = PixelIcons.warning;
+        icon = AppIcons.warning;
 
   final String? message;
   final String? detail;
-  final PixelIconData? icon;
+  final IconData? icon;
   final Widget? action;
   final bool fill;
   final _StatusKind _kind;
@@ -56,19 +56,25 @@ class StatusMessage extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (_kind == _StatusKind.loading)
-          const PixelLoader.medium()
+          const AppLoader.medium()
         else if (icon != null)
-          PixelIcon(icon, size: 36, color: RetroPalette.ink),
+          Icon(
+            icon,
+            size: 40,
+            color: _kind == _StatusKind.error
+                ? AppPalette.danger
+                : AppPalette.inkMuted,
+          ),
         if (message != null) ...[
           const SizedBox(height: 12),
           Text(message, textAlign: TextAlign.center, style: textTheme.bodyMedium),
         ],
         if (detail != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           Text(
             detail,
             textAlign: TextAlign.center,
-            style: textTheme.bodySmall!.copyWith(color: RetroPalette.inkMuted),
+            style: textTheme.bodySmall!.copyWith(color: AppPalette.inkMuted),
           ),
         ],
         if (action != null) ...[

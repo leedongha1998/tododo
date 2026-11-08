@@ -106,11 +106,9 @@ class BattleDetailScreen extends ConsumerWidget {
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
                     onPressed: () => _forfeit(context, ref),
-                    // 위험 낮음: 투명 면 + danger 글자·아이콘(design 4.2). 비활성 색은 테마를 따른다.
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppPalette.danger,
-                      iconColor: AppPalette.danger,
-                    ),
+                    // 위험 낮음: 위험 텍스트(투명 면 + danger, 누르는 동안 dangerPale + dangerDeep —
+                    // design-judging-buttons 2.6 #13). 확인 대화상자가 따로 있다.
+                    style: AppButtonStyles.dangerText,
                     icon: const Icon(AppIcons.flag),
                     label: const KeepWordsText(AppStrings.battleForfeit),
                   ),

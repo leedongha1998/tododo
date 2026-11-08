@@ -43,6 +43,7 @@ import 'package:todododo/features/todo/data/todo_widget_payload.dart';
 import 'package:todododo/features/todo/domain/todo_providers.dart';
 import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import 'package:todododo/main.dart';
+import 'package:todododo/core/widgets/app_button_styles.dart';
 import 'package:todododo/core/widgets/keep_words_text.dart';
 
 import 'core/push/push_fakes.dart';
@@ -671,6 +672,18 @@ void main() {
 
       await tester.pumpWidget(const SizedBox());
     }
+  });
+
+  testWidgets('대결 포기는 위험 텍스트 버튼이다(두께 없는 투명 면 + danger 라벨)', (WidgetTester tester) async {
+    await tester.pumpWidget(_detailScreen(_detail(id: 'ff-style', type: 'speed', status: 'active')));
+    await tester.pumpAndSettle();
+
+    final forfeit = find.ancestor(
+      of: findText(AppStrings.battleForfeit),
+      matching: find.byWidgetPredicate((widget) => widget is TextButton),
+    );
+    expect(forfeit, findsOneWidget);
+    expect(tester.widget<TextButton>(forfeit).style, same(AppButtonStyles.dangerText));
   });
 
   testWidgets('프로필 화면에 이름과 점수·승/패/무 전적이 보인다', (WidgetTester tester) async {

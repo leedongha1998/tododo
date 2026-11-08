@@ -77,8 +77,11 @@ class AppIcons {
   /// 미결, 오류, 위험 블록, 무효 배너.
   static const warning = Icons.warning_amber_rounded;
 
-  /// 성공 블록 기본 아이콘.
+  /// 성공 블록 기본 아이콘, 판정 선택지 "통과했어요".
   static const pass = Icons.check_circle_rounded;
+
+  /// 판정 선택지 "통과하지 못했어요"(design-judging-buttons 1A.2).
+  static const fail = Icons.cancel_rounded;
 
   /// 안내 블록.
   static const info = Icons.info_outline_rounded;

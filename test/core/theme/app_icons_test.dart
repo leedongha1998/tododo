@@ -35,10 +35,11 @@ void main() {
     'document': AppIcons.document,
     'close': AppIcons.close,
     'edit': AppIcons.edit,
+    'fail': AppIcons.fail,
   };
 
-  test('30개 상수가 모두 서로 다른 글리프다', () {
-    expect(icons.length, 30);
+  test('31개 상수가 모두 서로 다른 글리프다', () {
+    expect(icons.length, 31);
     final codePoints = icons.values.map((icon) => icon.codePoint).toSet();
     expect(codePoints.length, icons.length);
   });

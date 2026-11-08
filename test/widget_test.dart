@@ -253,6 +253,18 @@ void main() {
     expect(find.text(AppStrings.googleSignIn), findsOneWidget);
   });
 
+  testWidgets('로그인 화면에는 반복 움직임이 없다(깜빡이는 커서 없음 — 화면이 멈춘다)', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(theme: AppTheme.light, home: const LoginScreen()),
+      ),
+    );
+    // 반복 애니메이션이 있으면 pumpAndSettle이 시간 초과로 실패한다.
+    await tester.pumpAndSettle();
+    expect(find.text(AppStrings.appName), findsOneWidget);
+    expect(tester.hasRunningAnimations, isFalse);
+  });
+
   testWidgets('할 일이 없으면 빈 상태 문구를 보여준다', (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(

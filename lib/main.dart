@@ -11,8 +11,9 @@ import 'core/supabase/supabase_init.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/presentation/auth_gate.dart';
 
-/// 시스템 글꼴 크기를 따르되 이 배율에서 멈춘다. 1.5부터는 360dp 폭에서 탭 이름이 칸을 넘는다.
-const maxTextScale = 1.3;
+/// 시스템 글꼴 크기를 따르되 이 배율에서 멈춘다(redesign design 3.3). 1.5배에서 탭 라벨(labelSmall 12)은
+/// 18dp가 되고, 360dp 폭 4칸(칸당 90dp)에 가장 긴 "대결 찾기"가 약 72dp로 들어간다 — 육안 확인 대상.
+const maxTextScale = 1.5;
 
 /// 번들한 갈무리 글꼴의 OFL 1.1 원문(배포 zip의 파일 이름 그대로).
 const galmuriLicenseAsset = 'assets/fonts/galmuri/LICENSE.txt';

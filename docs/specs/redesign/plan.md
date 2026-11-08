@@ -629,6 +629,15 @@ PowerShell이면 `echo` 자리에 `"EXIT=$LASTEXITCODE"`. 실패 메시지가 �
 (구현 세션이 커밋마다 해시·analyze/test 결과·특이사항을 적는다.)
 
 - 0단계 기준선: analyze __ / test __개 / AAB __ B
+- 1단계(2026-11-08, 클라우드 세션 — Flutter SDK 없음, analyze/test 미실행. 오너 로컬 결과 대기):
+  - C1 `f228076` AppPalette + app_palette_test. 모든 대비 쌍을 WCAG 공식으로 다시 계산해 설계값 ±0.05 확인.
+  - C2 `aeb85df` Pretendard 번들. npm tarball·OTF 3개·LICENSE sha256 모두 이 문서 표와 일치. cmap 한글 11,172 × 3,
+    GSUB `tnum` × 3을 이 세션에서 다시 셌다. AAB 크기 미측정(오너 로컬).
+  - C3 `fb00ede` DepthBorder + depth_border_test.
+  - C4 `ab6cdd2` AppText·AppIcons·AppTheme 재작성 + app_text_test(git mv)·app_theme_test·app_icons_test.
+    plan과 다른 작은 결정: 주 버튼 포커스 링은 ink 2dp(primary 면 위 primary 링이 안 보임), 비활성 버튼 라벨 여백 위아래 0.
+  - C5 (이 커밋) `maxTextScale` 1.5 + main_text_scale_test.
+  - 순서 변경 없음.
 
 ## 오너 결정 (2026-11-08)
 - 검증 방식: **구현은 클라우드 세션, 검증은 오너가 Windows 로컬에서.** 단계 단위로 끊는다 — 1단계(C1–C5)를 푸시하고 멈춘 뒤,

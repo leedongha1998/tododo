@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:todododo/core/theme/app_text.dart';
 import 'package:todododo/core/widgets/keep_words_text.dart';
 
 import '../../helpers/line_breaks.dart';
@@ -141,7 +142,8 @@ void main() {
             child: Column(
               children: [
                 Text(label, key: Key('plain'), style: TextStyle(fontSize: 10)),
-                KeepWordsText(label, key: Key('kept'), style: TextStyle(fontSize: 10)),
+                // 줄 모양 옵션은 끄고 어절 경계만 본다(pretty면 "상대가 / 더 잘했어요"가 된다 — 아래 고아 방지 테스트).
+                KeepWordsText(label, key: Key('kept'), style: TextStyle(fontSize: 10), wrap: KeepWordsWrap.none),
               ],
             ),
           ),
@@ -161,4 +163,218 @@ void main() {
     expect(lineStarts(kept), [keepWords('상대가 더 ').length]);
     expect(breaksOnlyAtSpaces(kept), isTrue);
   });
+
+  group('줄 모양(redesign 후속 2 W2)', () {
+    setUp(debugClearKeepWordsPlanCache);
+
+    // 테스트 글꼴은 글자마다 10 × 10이다(공백 포함). 행간을 1.4로 주면 기본값이 balanced, 1.6이면 pretty.
+    const title = TextStyle(fontSize: 10, height: 1.4);
+    const body = TextStyle(fontSize: 10, height: 1.6);
+
+    Future<void> pumpAt(WidgetTester tester, double width, Widget child, {TextScaler? scaler}) => tester.pumpWidget(
+          MediaQuery(
+            data: MediaQueryData(textScaler: scaler ?? TextScaler.noScaling),
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: Align(alignment: Alignment.topLeft, child: SizedBox(width: width, child: child)),
+            ),
+          ),
+        );
+
+    RenderParagraph paragraphOf(WidgetTester tester, Finder of) =>
+        tester.renderObject<RenderParagraph>(find.descendant(of: of, matching: find.byType(RichText)));
+
+    test('기본값은 design 3.2 역할표의 행간으로 정한다 — 본문 슬롯은 pretty, 제목·라벨·숫자 슬롯은 balanced', () {
+      final theme = AppText.textTheme();
+      for (final style in [theme.bodyLarge, theme.bodyMedium, theme.bodySmall]) {
+        expect(wrapForStyle(style), KeepWordsWrap.pretty);
+      }
+      for (final style in [
+        theme.displayLarge, theme.displayMedium, theme.displaySmall, //
+        theme.headlineLarge, theme.headlineMedium, theme.headlineSmall,
+        theme.titleLarge, theme.titleMedium, theme.titleSmall,
+        theme.labelLarge, theme.labelMedium, theme.labelSmall,
+        AppText.numberLarge, AppText.numberMedium, AppText.numberSmall,
+      ]) {
+        expect(wrapForStyle(style), KeepWordsWrap.balanced, reason: '$style');
+      }
+      expect(wrapForStyle(null), KeepWordsWrap.pretty);
+      expect(wrapForStyle(const TextStyle(fontSize: 10)), KeepWordsWrap.pretty);
+    });
+
+    testWidgets('balanced: 줄 수는 그대로, 줄 길이가 고르게 — 위젯 폭과 왼쪽 정렬은 그대로', (tester) async {
+      const label = '냉장고 안 유통기한 지난 음식 전부 버리기';
+      await pumpAt(
+        tester,
+        200,
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            KeepWordsText(label, key: Key('none'), style: title, wrap: KeepWordsWrap.none),
+            KeepWordsText(label, key: Key('balanced'), style: title),
+          ],
+        ),
+      );
+      final none = paragraphOf(tester, find.byKey(const Key('none')));
+      final balanced = paragraphOf(tester, find.byKey(const Key('balanced')));
+      // 비교 기준: 엔진 기본은 "냉장고 안 유통기한 지난 음식 전부 / 버리기"(한 어절만 넘어간다).
+      expect(lineWidths(none), [190, 30]);
+      expect(lineWidths(balanced), hasLength(2));
+      expect(spread(lineWidths(balanced)), lessThan(spread(lineWidths(none))));
+      expect(spread(lineWidths(balanced)), lessThanOrEqualTo(30));
+      expect(breaksOnlyAtSpaces(balanced), isTrue);
+      // 글자는 좁게 그려도 위젯은 칸 폭 전체를 차지하고, 왼쪽 정렬이라 글자는 왼쪽 끝에 붙는다.
+      expect(tester.getSize(find.byKey(const Key('balanced'))).width, 200);
+      expect(balanced.size.width, lessThan(200));
+      expect(tester.getTopLeft(find.byType(RichText).last).dx, 0);
+    });
+
+    testWidgets('balanced: 가운데 정렬은 칸 가운데를 지킨다', (tester) async {
+      const label = '냉장고 안 유통기한 지난 음식 전부 버리기';
+      await pumpAt(tester, 200, const KeepWordsText(label, style: title, textAlign: TextAlign.center));
+      final paragraph = tester.renderObject<RenderParagraph>(find.byType(RichText));
+      expect(paragraph.size.width, lessThan(200));
+      expect(tester.getSize(find.byType(KeepWordsText)).width, 200);
+      expect(tester.getCenter(find.byType(RichText)).dx, closeTo(100, 0.01));
+    });
+
+    testWidgets('balanced: 한 줄이거나 다섯 줄 이상이면 손대지 않는다', (tester) async {
+      await pumpAt(
+        tester,
+        200,
+        const Column(
+          children: [
+            KeepWordsText('짧은 제목', key: Key('one'), style: title),
+            KeepWordsText('가나 다라 마바 사아 자차 카타 파하 가나 다라 마바', key: Key('five'), style: title),
+          ],
+        ),
+      );
+      await pumpAt(
+        tester,
+        40,
+        const Column(
+          children: [
+            KeepWordsText('짧은 제목', key: Key('one'), style: title),
+            KeepWordsText('가나 다라 마바 사아 자차 카타 파하 가나 다라 마바', key: Key('five'), style: title),
+          ],
+        ),
+      );
+      final five = paragraphOf(tester, find.byKey(const Key('five')));
+      expect(lineStarts(five).length + 1, greaterThan(balancedMaxLines));
+      expect(five.size.width, 40);
+    });
+
+    testWidgets('pretty: 마지막 줄에 한 어절만 남지 않는다(끄면 남는다)', (tester) async {
+      const todo = '냉장고 정리할 때 유통기한 잊지 말기';
+      await pumpAt(
+        tester,
+        90,
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            KeepWordsText(todo, key: Key('none'), style: body, wrap: KeepWordsWrap.none),
+            KeepWordsText(todo, key: Key('pretty'), style: body),
+          ],
+        ),
+      );
+      final none = paragraphOf(tester, find.byKey(const Key('none')));
+      final pretty = paragraphOf(tester, find.byKey(const Key('pretty')));
+      // 비교 기준: 엔진 기본은 "냉장고 정리할 때 / 유통기한 잊지 / 말기".
+      expect(lastLineWords(none), ['말기']);
+      expect(lastLineWords(pretty), ['잊지', '말기']);
+      expect(lineStarts(pretty).length, lineStarts(none).length);
+      expect(breaksOnlyAtSpaces(pretty), isTrue);
+      // 낭독·찾기는 원문 그대로.
+      expect(findText(todo), findsNWidgets(2));
+    });
+
+    testWidgets('pretty: 문단마다 따로, 1.5배에서도', (tester) async {
+      const text = '가나다 라마 바사\n아자차 카타 파하';
+      // 1.5배면 글자가 15 × 15. 폭 120이면 한 줄에 8칸 — "가나다 라마"(6) + " 바사"(9) 넘침 → 문단마다 "바사"·"파하"가 혼자 남는다.
+      await pumpAt(tester, 120, const KeepWordsText(text, style: body), scaler: const TextScaler.linear(1.5));
+      final paragraph = tester.renderObject<RenderParagraph>(find.byType(RichText));
+      final shown = paragraph.text.toPlainText().replaceAll(wordJoiner, '');
+      final starts = lineStarts(paragraph);
+      final plain = paragraph.text.toPlainText();
+      final lines = [
+        for (var i = 0; i <= starts.length; i++)
+          plain.substring(i == 0 ? 0 : starts[i - 1], i == starts.length ? plain.length : starts[i]),
+      ].map((line) => line.replaceAll(wordJoiner, '').trim()).toList();
+      expect(shown, text);
+      expect(lines, ['가나다', '라마 바사', '아자차', '카타 파하']);
+    });
+
+    testWidgets('pretty: 붙인 두 어절이 칸보다 넓으면 붙이지 않는다', (tester) async {
+      // 폭 50(다섯 칸). "가나 다라마바"는 일곱 칸이라 붙이면 그 덩어리가 칸을 넘는다 → 그대로 "가나 / 다라마바".
+      await pumpAt(tester, 50, const KeepWordsText('가나 다라마바', style: body));
+      final paragraph = tester.renderObject<RenderParagraph>(find.byType(RichText));
+      expect(paragraph.text.toPlainText(), keepWords('가나 다라마바'));
+      expect(lastLineWords(paragraph), ['다라마바']);
+      expect(breaksOnlyAtSpaces(paragraph), isTrue);
+    });
+
+    test('joinLastWords는 마지막 공백 뒤에만 WORD JOINER를 넣고, fits가 거짓이면 그대로 둔다', () {
+      expect(joinLastWords('가 나 다', (_) => true), '가 나 ⁠다');
+      expect(joinLastWords('가 나 다', (pair) => pair == '나 다'), '가 나 ⁠다');
+      expect(joinLastWords('가 나 다', (_) => false), '가 나 다');
+      expect(joinLastWords('하나', (_) => true), '하나');
+      expect(joinLastWords('', (_) => true), '');
+      expect(joinLastWords('가  나 ', (_) => true), '가  ⁠나 ');
+      expect(joinLastWords('가 나\n다 라', (_) => true), '가 ⁠나\n다 ⁠라');
+    });
+
+    for (final wrap in KeepWordsWrap.values) {
+      testWidgets('한 어절이 칸보다 길어도 넘치지 않는다 — $wrap', (tester) async {
+        const word = '가나다라마바사아자차';
+        await pumpAt(tester, 40, const KeepWordsText('$word 끝', style: title).copyWithWrap(wrap));
+        expect(tester.takeException(), isNull);
+        final paragraph = tester.renderObject<RenderParagraph>(find.byType(RichText));
+        expect(paragraph.size.width, lessThanOrEqualTo(40));
+        expect(tester.getSize(find.byType(KeepWordsText)).width, lessThanOrEqualTo(40));
+        expect(paragraph.didExceedMaxLines, isFalse);
+      });
+    }
+
+    testWidgets('IntrinsicWidth·대화상자 안에서도 고유 크기를 답한다', (tester) async {
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: IntrinsicWidth(
+              child: Column(
+                children: [
+                  KeepWordsText('가나다 라마', style: title),
+                  KeepWordsText('가나 다라마바사', style: body),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      // 가장 긴 글자("가나 다라마바사", 여덟 칸)의 폭이 고유 폭이 된다.
+      expect(tester.getSize(find.byType(IntrinsicWidth)).width, 80);
+      expect(tester.getSize(find.byType(KeepWordsText).first).height, 14);
+    });
+
+    testWidgets('기준선 정렬(Row baseline)에서도 글자 기준선을 낸다', (tester) async {
+      await pumpAt(
+        tester,
+        200,
+        const Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            KeepWordsText('1', style: TextStyle(fontSize: 20, height: 1.4)),
+            Expanded(child: KeepWordsText('가나 다라마 바사아 자차카타파하 가나다', style: title)),
+          ],
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
+}
+
+extension on KeepWordsText {
+  KeepWordsText copyWithWrap(KeepWordsWrap wrap) => KeepWordsText(text, style: style, wrap: wrap);
 }

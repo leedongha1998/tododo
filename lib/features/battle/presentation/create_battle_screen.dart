@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/strings.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_loader.dart';
+import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/criteria_check_result.dart';
 import '../domain/battle_providers.dart';
@@ -317,7 +317,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         _titleController.text.trim().isNotEmpty && !_busy && limits != null && blockMessage == null;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
         SegmentedButton<String>(
           // 테마가 selectedIcon(체크)을 주므로 끄지 않으면 라벨 폭을 먹어 글자가 잘린다
@@ -347,27 +347,28 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
           AppStrings.battleTitleProvableHint,
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
         Text(AppStrings.battleDuration, style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: 8),
         ..._buildDurationInput(context),
         const SizedBox(height: 8),
         Text(AppStrings.battleDurationNotice, style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         // 기간을 짧게 고를 수 있게 됐으므로 그 위험을 같은 자리에서 알린다(spec D6 — 구조가 아니라 경고로만).
         Text(AppStrings.battleDurationShortWarning, style: Theme.of(context).textTheme.bodyMedium),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         // "1분 대결"이 1분 만에 끝나는 것이 아니라는 것을 여기서 한 번 말해 둔다.
         Text(AppStrings.battleDurationWindowNotice, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 24),
         if (blockMessage != null) ...[
-          PixelFrame.tone(tone: PixelTone.neutral, child: Text(blockMessage)),
+          // 동의 전·한도 소진은 기준 생성 차단이다(redesign design 5.5 "차단·한도 안내 tone danger").
+          AppPanel.tone(tone: AppTone.danger, child: Text(blockMessage)),
           const SizedBox(height: 16),
         ],
         FilledButton(
           onPressed: canGenerate ? _generate : null,
           child: _busy
-              ? const PixelLoader.small()
+              ? const AppLoader.small()
               : const Text(AppStrings.battleCriteriaGenerate),
         ),
         if (limits != null) ...[
@@ -400,10 +401,10 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
     if (!result.provable && !_editing) {
       // 차단. 기준 편집·승인 버튼을 주지 않는다(수정으로 차단을 우회할 수 없다).
       return ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
-          PixelFrame.tone(
-            tone: PixelTone.danger,
+          AppPanel.tone(
+            tone: AppTone.danger,
             title: AppStrings.battleCriteriaBlocked,
             child: Text(result.blockReason ?? ''),
           ),
@@ -419,14 +420,14 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
     final editError = _editing ? _editError : null;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       children: [
         Text(_titleController.text.trim(), style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 16),
         if (!result.provable) ...[
           // 수정 중 차단된 경우. 편집은 계속할 수 있다.
-          PixelFrame.tone(
-            tone: PixelTone.danger,
+          AppPanel.tone(
+            tone: AppTone.danger,
             title: AppStrings.battleCriteriaBlocked,
             child: Text(result.blockReason ?? ''),
           ),
@@ -441,7 +442,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
             onChanged: (items) => setState(() => _editedMin = items),
           ),
           if (_isQuality) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             CriteriaEditor(
               title: AppStrings.battleCriteriaSuperiorityTitle,
               hint: AppStrings.battleCriteriaSuperiorityHint,
@@ -457,7 +458,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
             items: result.minCriteria,
           ),
           if (_isQuality && _resultSuperiority.isNotEmpty) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             CriteriaListBlock(
               title: AppStrings.battleCriteriaSuperiorityTitle,
               hint: AppStrings.battleCriteriaSuperiorityHint,
@@ -475,13 +476,13 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
           FilledButton(
             onPressed: _busy || editError != null ? null : _recheck,
             child: _busy
-                ? const PixelLoader.small()
+                ? const AppLoader.small()
                 : const Text(AppStrings.battleCriteriaRecheck),
           )
         else
           FilledButton(
             onPressed: _busy ? null : _submit,
-            child: _busy ? const PixelLoader.small() : const Text(AppStrings.battleCriteriaSubmit),
+            child: _busy ? const AppLoader.small() : const Text(AppStrings.battleCriteriaSubmit),
           ),
         const SizedBox(height: 8),
         if (_editing)

@@ -784,14 +784,14 @@ void main() {
     expect(find.byType(VsIntro), findsNothing);
   });
 
-  testWidgets('이름이 60자이고 글자 크기가 상한(1.3)이어도 VS 인트로가 넘치지 않고 1.5초 뒤 스스로 닫힌다',
+  testWidgets('이름이 60자이고 글자 크기가 상한(1.5)이어도 VS 인트로가 넘치지 않고 1.5초 뒤 스스로 닫힌다',
       (WidgetTester tester) async {
     final longName = '가' * 60;
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light,
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.3)),
+          data: MediaQuery.of(context).copyWith(textScaler: const TextScaler.linear(1.5)),
           child: child!,
         ),
         home: Builder(

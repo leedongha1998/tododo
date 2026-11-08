@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/widgets/app_loader.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/app_tag.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_loader.dart';
 import '../data/open_recruit.dart';
 import '../domain/ai_consent_providers.dart';
 import '../domain/ai_consent_rules.dart';
@@ -123,24 +123,28 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
 
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        // 시트 가장자리 20(redesign design 4.1). 위쪽은 테마의 손잡이(showDragHandle)가 이미 띄운다.
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
             if (_criteriaChanged) ...[
-              PixelFrame.tone(
-                tone: PixelTone.info,
+              AppPanel.tone(
+                tone: AppTone.info,
                 child: const Text(AppStrings.battleCriteriaChanged),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
             ],
             Text(battle.title, style: textTheme.titleMedium),
             const SizedBox(height: 12),
-            Row(
+            // 큰 배율에서 한 줄을 넘으면 기간 칩이 다음 줄로 내려간다.
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 BattleTypeBadge(type: battle.type),
-                const SizedBox(width: 8),
                 AppTag(
                   label: battleDurationLabel(battle.durationMinutes),
                   style: battleStatusTagStyle('draw'),
@@ -149,22 +153,22 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
             ),
             const SizedBox(height: 8),
             Text(battleTypeTagline(battle.type), style: textTheme.bodyMedium),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
             CriteriaListBlock(
               title: AppStrings.battleCriteriaMinTitle,
               hint: AppStrings.battleCriteriaMinHint,
               items: battle.minCriteria,
             ),
             if (superiority.isNotEmpty) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               CriteriaListBlock(
                 title: AppStrings.battleCriteriaSuperiorityTitle,
                 hint: AppStrings.battleCriteriaSuperiorityHint,
                 items: superiority,
               ),
             ],
-            const SizedBox(height: 16),
-            PixelFrame.raised(
+            const SizedBox(height: 24),
+            AppPanel.raised(
               child: PlayerCardView(
                 card: _recruit.creator,
                 label: AppStrings.battleRecruitCreatorLabel,
@@ -174,7 +178,7 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
             FilledButton(
               onPressed: _busy ? null : _join,
               child: _busy
-                  ? const PixelLoader.small()
+                  ? const AppLoader.small()
                   : const Text(AppStrings.battleRecruitJoinWithCriteria),
             ),
           ],

@@ -57,10 +57,15 @@ class TododuduApp extends StatelessWidget {
       theme: AppTheme.light,
       // 다크 모드 없음. 기기가 다크 모드여도 같은 라이트 테마로 보인다.
       themeMode: ThemeMode.light,
-      builder: (context, child) => MediaQuery.withClampedTextScaling(
-        maxScaleFactor: maxTextScale,
-        child: child!,
-      ),
+      builder: (context, child) {
+        final clamped = MediaQuery.withClampedTextScaling(
+          maxScaleFactor: maxTextScale,
+          child: child!,
+        );
+        // 애니메이션 줄이기: 버튼이 되돌아오는 움직임도 즉시. 테마는 MediaQuery를 못 보므로 여기서 고른다.
+        if (!MediaQuery.disableAnimationsOf(context)) return clamped;
+        return Theme(data: AppTheme.build(reduceMotion: true), child: clamped);
+      },
       home: SupabaseEnv.isConfigured ? const AuthGate() : const _SupabaseNotConfigured(),
     );
   }

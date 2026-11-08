@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
+import '../../../core/widgets/app_tag.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_loader.dart';
-import '../../../core/widgets/pixel_tag.dart';
 import '../data/open_recruit.dart';
 import '../domain/ai_consent_providers.dart';
 import '../domain/ai_consent_rules.dart';
@@ -141,7 +141,7 @@ class _RecruitSheetState extends ConsumerState<_RecruitSheet> {
               children: [
                 BattleTypeBadge(type: battle.type),
                 const SizedBox(width: 8),
-                PixelTag(
+                AppTag(
                   label: battleDurationLabel(battle.durationMinutes),
                   style: battleStatusTagStyle('draw'),
                 ),

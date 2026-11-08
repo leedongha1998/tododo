@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_theme.dart';
-import 'package:todododo/core/widgets/pixel_tag.dart';
+import 'package:todododo/core/widgets/app_tag.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
@@ -238,7 +238,7 @@ void main() {
     // 어떤 칩도 화면 밖으로 나가지 않는다(세 개가 한 줄에 다 못 들어가면 아래 줄로 내려간다).
     final screen = tester.getRect(find.byType(MyBattlesScreen));
     expect(screen.width, 360);
-    final chips = <Finder>[badge, ...List.generate(2, (i) => find.byType(PixelTag).at(i))];
+    final chips = <Finder>[badge, ...List.generate(2, (i) => find.byType(AppTag).at(i))];
     for (final chip in chips) {
       final rect = tester.getRect(chip);
       expect(rect.left, greaterThanOrEqualTo(screen.left - 0.5));

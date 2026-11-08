@@ -9,9 +9,9 @@ import '../../../core/push/push_providers.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/pixel_icons.dart';
 import '../../../core/theme/retro_palette.dart';
+import '../../../core/widgets/app_tag.dart';
 import '../../../core/widgets/pixel_frame.dart';
 import '../../../core/widgets/pixel_icon.dart';
-import '../../../core/widgets/pixel_tag.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../profile/domain/profile_providers.dart';
@@ -504,9 +504,9 @@ class _OpenRecruitCard extends StatelessWidget {
                         // "내가 낼 수 있는 시간인가"가 두 번째 판단 축이라 그 무게를 여기 둔다.
                         // 기간은 상태가 아니므로 중립 태그 모양을 쓴다(무승부 칩 모양을 끌어다
                         // 쓰면 앞으로 무승부 칩을 손댈 때 기간이 따라 변한다).
-                        PixelTag(
+                        AppTag(
                           label: battleDurationLabel(battle.durationMinutes),
-                          style: neutralPixelTagStyle,
+                          style: neutralTagStyle,
                           leading: const PixelIcon(PixelIcons.clock, size: 12),
                         ),
                       ],

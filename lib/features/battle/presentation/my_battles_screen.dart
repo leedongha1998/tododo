@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/strings.dart';
+import '../../../core/widgets/app_tag.dart';
 import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_tag.dart';
 import '../../../core/widgets/status_message.dart';
 import '../data/battle.dart';
 import '../domain/battle_providers.dart';
@@ -226,11 +226,11 @@ class _MyRecruitBody extends StatelessWidget {
           children: [
             BattleTypeBadge(type: battle.type),
             // 점선 = 빈 자리(아직 상대가 없다).
-            PixelTag(
+            AppTag(
               label: battleStatusLabel('pending'),
               style: battleStatusTagStyle('pending'),
             ),
-            PixelTag(
+            AppTag(
               label: battleDurationLabel(battle.durationMinutes),
               style: battleStatusTagStyle('draw'),
             ),

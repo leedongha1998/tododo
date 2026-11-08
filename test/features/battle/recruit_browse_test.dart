@@ -5,10 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/pixel_icons.dart';
-import 'package:todododo/core/theme/retro_palette.dart';
+import 'package:todododo/core/widgets/app_tag.dart';
 import 'package:todododo/core/widgets/pixel_icon.dart';
-import 'package:todododo/core/widgets/pixel_tag.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
@@ -498,8 +498,8 @@ void main() {
     expect(find.byType(BattleTypeBadge), findsNWidgets(2));
 
     for (final (type, color) in [
-      ('speed', RetroPalette.amber),
-      ('quality', RetroPalette.mint),
+      ('speed', AppPalette.amber),
+      ('quality', AppPalette.mint),
     ]) {
       final stripe = find.byWidgetPredicate(
         (widget) =>
@@ -523,11 +523,11 @@ void main() {
     await _pumpFind(tester, _BrowseRepository(all: [_recruit(0, minutes: 30)]));
 
     final chip = find.byWidgetPredicate(
-      (widget) => widget is PixelTag && widget.label == battleDurationLabel(30),
+      (widget) => widget is AppTag && widget.label == battleDurationLabel(30),
     );
     expect(chip, findsOneWidget);
     // 기간은 상태가 아니다. 무승부 칩 모양을 끌어다 쓰지 않는다(모양은 같아도 뜻이 다르다).
-    expect(tester.widget<PixelTag>(chip).style, neutralPixelTagStyle);
+    expect(tester.widget<AppTag>(chip).style, neutralTagStyle);
     expect(
       find.descendant(
         of: chip,

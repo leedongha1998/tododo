@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/widgets/keep_words_text.dart';
 
 import '../../helpers/line_breaks.dart';
+import '../../helpers/text_finders.dart';
 
 void main() {
   group('keepWords', () {
@@ -38,20 +39,46 @@ void main() {
     expect(keepWords('10분'), '10\u2060분');
   });
 
-  testWidgets('KeepWordsText는 Text이고 data는 원문 — 그리는 글자에만 WORD JOINER가 들어간다', (tester) async {
+  testWidgets('KeepWordsText는 Text가 아니다 — 원문은 text에, 그리는 글자에만 WORD JOINER가 들어간다', (tester) async {
     final semantics = tester.ensureSemantics();
     await tester.pumpWidget(
       const Directionality(textDirection: TextDirection.ltr, child: KeepWordsText('상대가 더 잘했어요')),
     );
-    // 원문으로 찾는다(기존 find.text 검사가 그대로 맞는다). 같은 글자의 Text가 둘 생기지 않는다.
-    expect(find.text('상대가 더 잘했어요'), findsOneWidget);
-    expect(find.text(keepWords('상대가 더 잘했어요')), findsNothing);
-    expect(tester.widget<Text>(find.text('상대가 더 잘했어요')).data, '상대가 더 잘했어요');
+    // Text를 상속하지 않고(redesign 후속 2 W1) 안에 Text도 만들지 않는다 — 원문은 공용 finder로 찾는다.
+    expect(find.byType(Text), findsNothing);
+    expect(findText('상대가 더 잘했어요'), findsOneWidget);
+    expect(findText(keepWords('상대가 더 잘했어요')), findsNothing);
+    expect(tester.widget<KeepWordsText>(findText('상대가 더 잘했어요')).text, '상대가 더 잘했어요');
     final rich = tester.widget<RichText>(find.byType(RichText));
     expect(rich.text.toPlainText(), keepWords('상대가 더 잘했어요'));
     // 화면 낭독기에는 원문.
     expect(find.bySemanticsLabel('상대가 더 잘했어요'), findsOneWidget);
     semantics.dispose();
+  });
+
+  testWidgets('Text.build처럼 DefaultTextStyle을 합성하고 글자 배율·굵은 글씨 설정을 따른다', (tester) async {
+    await tester.pumpWidget(
+      const MediaQuery(
+        data: MediaQueryData(textScaler: TextScaler.linear(1.5), boldText: true),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: DefaultTextStyle(
+            style: TextStyle(fontSize: 10, color: Color(0xFF112233)),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            child: KeepWordsText('가나', style: TextStyle(height: 1.5)),
+          ),
+        ),
+      ),
+    );
+    final rich = tester.widget<RichText>(find.byType(RichText));
+    expect(rich.text.style!.fontSize, 10);
+    expect(rich.text.style!.color, const Color(0xFF112233));
+    expect(rich.text.style!.height, 1.5);
+    expect(rich.text.style!.fontWeight, FontWeight.bold);
+    expect(rich.textScaler, const TextScaler.linear(1.5));
+    expect(rich.textAlign, TextAlign.center);
+    expect(rich.maxLines, 2);
   });
 
   testWidgets('글자가 바뀌지 않으면(ASCII뿐) semanticsLabel을 덧씌우지 않고, 호출부가 준 값은 그대로 쓴다', (tester) async {

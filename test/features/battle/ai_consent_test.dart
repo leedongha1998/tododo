@@ -36,6 +36,7 @@ import 'package:todododo/features/profile/presentation/profile_screen.dart';
 
 import '../../core/push/push_fakes.dart';
 import '../../helpers/line_breaks.dart';
+import '../../helpers/text_finders.dart';
 
 class _FakeAiConsentRepository implements AiConsentRepository {
   _FakeAiConsentRepository({
@@ -266,17 +267,17 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.aiConsentRecipient), findsOneWidget);
-    expect(find.text(AppStrings.aiConsentItems), findsOneWidget);
-    expect(find.text(AppStrings.aiConsentPurpose), findsOneWidget);
-    expect(find.text(AppStrings.aiConsentRetention), findsOneWidget);
-    expect(find.text(AppStrings.aiConsentRefusal), findsOneWidget);
-    expect(find.text(AppStrings.aiConsentAgree), findsOneWidget);
-    expect(find.text(AppStrings.aiConsentDisagree), findsOneWidget);
+    expect(findText(AppStrings.aiConsentRecipient), findsOneWidget);
+    expect(findText(AppStrings.aiConsentItems), findsOneWidget);
+    expect(findText(AppStrings.aiConsentPurpose), findsOneWidget);
+    expect(findText(AppStrings.aiConsentRetention), findsOneWidget);
+    expect(findText(AppStrings.aiConsentRefusal), findsOneWidget);
+    expect(findText(AppStrings.aiConsentAgree), findsOneWidget);
+    expect(findText(AppStrings.aiConsentDisagree), findsOneWidget);
     // 촬영 시각은 제공 항목이 아니다(decisions 69).
-    expect(find.textContaining('촬영 시각'), findsNothing);
+    expect(findTextContaining('촬영 시각'), findsNothing);
     // 정책 문서 주소가 아직 없으므로 링크를 보여 주지 않는다.
-    expect(find.text(AppStrings.aiConsentPrivacyPolicy), findsNothing);
+    expect(findText(AppStrings.aiConsentPrivacyPolicy), findsNothing);
   });
 
   // 앱 전체 어절 줄바꿈(redesign 후속 결정 1). 동의 고지는 끝까지 읽혀야 하는 문장이다.
@@ -306,7 +307,7 @@ void main() {
       var wrapped = 0;
       for (final sentence in sentences) {
         final paragraph = tester.renderObject<RenderParagraph>(
-          find.descendant(of: find.text(sentence), matching: find.byType(RichText)),
+          find.descendant(of: findText(sentence), matching: find.byType(RichText)),
         );
         expect(breaksOnlyAtSpaces(paragraph), isTrue, reason: sentence);
         if (lineStarts(paragraph).isNotEmpty) wrapped++;
@@ -325,18 +326,18 @@ void main() {
     );
 
     // 참가는 카드를 눌러 연 모집 상세 시트에서 한다.
-    await tester.tap(find.text('아침 운동하기'));
+    await tester.tap(findText('아침 운동하기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
+    await tester.tap(findText(AppStrings.battleRecruitJoinWithCriteria));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.aiConsentTitle), findsOneWidget);
+    expect(findText(AppStrings.aiConsentTitle), findsOneWidget);
     expect(battleRepository.joinCount, 0);
 
-    await tester.tap(find.text(AppStrings.aiConsentDisagree));
+    await tester.tap(findText(AppStrings.aiConsentDisagree));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.aiConsentRequired), findsOneWidget);
+    expect(findText(AppStrings.aiConsentRequired), findsOneWidget);
     expect(battleRepository.joinCount, 0);
     expect(consentRepository.giveCount, 0);
 
@@ -354,16 +355,16 @@ void main() {
     );
 
     // 참가는 카드를 눌러 연 모집 상세 시트에서 한다.
-    await tester.tap(find.text('아침 운동하기'));
+    await tester.tap(findText('아침 운동하기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
+    await tester.tap(findText(AppStrings.battleRecruitJoinWithCriteria));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.aiConsentAgree));
+    await tester.tap(findText(AppStrings.aiConsentAgree));
     await tester.pumpAndSettle();
 
     expect(consentRepository.giveCount, 1);
     expect(battleRepository.joinCount, 1);
-    expect(find.text(AppStrings.battleJoined), findsOneWidget);
+    expect(findText(AppStrings.battleJoined), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
@@ -381,12 +382,12 @@ void main() {
     );
 
     // 참가는 카드를 눌러 연 모집 상세 시트에서 한다.
-    await tester.tap(find.text('아침 운동하기'));
+    await tester.tap(findText('아침 운동하기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
+    await tester.tap(findText(AppStrings.battleRecruitJoinWithCriteria));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.aiConsentTitle), findsNothing);
+    expect(findText(AppStrings.aiConsentTitle), findsNothing);
     expect(battleRepository.joinCount, 1);
 
     await tester.pump(const Duration(seconds: 5));
@@ -404,8 +405,8 @@ void main() {
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.aiConsentTitle), findsOneWidget);
-    expect(find.text(AppStrings.battleCreate), findsNothing);
+    expect(findText(AppStrings.aiConsentTitle), findsOneWidget);
+    expect(findText(AppStrings.battleCreate), findsNothing);
   });
 
   testWidgets('프로필에서 동의 상태를 보고 철회하면 영향 안내를 거쳐 철회된다', (tester) async {
@@ -415,29 +416,29 @@ void main() {
     );
     await _pumpProfile(tester, consentRepository: consentRepository);
 
-    expect(find.text(AppStrings.aiConsentStatusGiven('2026년 9월 16일')), findsOneWidget);
+    expect(findText(AppStrings.aiConsentStatusGiven('2026년 9월 16일')), findsOneWidget);
     // 철회는 계정 삭제(빨간 채움)보다 한 단계 낮은 위험 윤곽 버튼이다(redesign 후속 결정 5).
-    expect(find.widgetWithText(FilledButton, AppStrings.aiConsentWithdraw), findsNothing);
+    expect(findWidgetWithText(FilledButton, AppStrings.aiConsentWithdraw), findsNothing);
     expect(
-      tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, AppStrings.aiConsentWithdraw)).style,
+      tester.widget<OutlinedButton>(findWidgetWithText(OutlinedButton, AppStrings.aiConsentWithdraw)).style,
       same(AppButtonStyles.dangerOutlined),
     );
 
-    await tester.tap(find.text(AppStrings.aiConsentWithdraw));
+    await tester.tap(findText(AppStrings.aiConsentWithdraw));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.aiConsentWithdrawConfirmTitle), findsOneWidget);
-    expect(find.textContaining('진행 중인 대결 2개'), findsOneWidget);
-    expect(find.textContaining('모집 중인 대결 1개'), findsOneWidget);
+    expect(findText(AppStrings.aiConsentWithdrawConfirmTitle), findsOneWidget);
+    expect(findTextContaining('진행 중인 대결 2개'), findsOneWidget);
+    expect(findTextContaining('모집 중인 대결 1개'), findsOneWidget);
 
-    await tester.tap(find.text(AppStrings.aiConsentWithdrawConfirm));
+    await tester.tap(findText(AppStrings.aiConsentWithdrawConfirm));
     await tester.pumpAndSettle();
 
     expect(consentRepository.withdrawCount, 1);
-    expect(find.text(AppStrings.aiConsentWithdrawDone), findsOneWidget);
+    expect(findText(AppStrings.aiConsentWithdrawDone), findsOneWidget);
     // 철회하면 다시 동의하기 전까지 대결을 만들거나 참가할 수 없다.
-    expect(find.text(AppStrings.aiConsentStatusNotGiven), findsOneWidget);
-    expect(find.text(AppStrings.aiConsentGive), findsOneWidget);
+    expect(findText(AppStrings.aiConsentStatusNotGiven), findsOneWidget);
+    expect(findText(AppStrings.aiConsentGive), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
@@ -452,12 +453,12 @@ void main() {
     await _pumpProfile(tester, consentRepository: consentRepository);
 
     // 조회가 끝나지 않아 대화상자 안 로더가 계속 돈다. pumpAndSettle은 끝나지 않는다.
-    await tester.tap(find.text(AppStrings.aiConsentWithdraw));
+    await tester.tap(findText(AppStrings.aiConsentWithdraw));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
     final disabled = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, AppStrings.aiConsentWithdrawConfirm),
+      findWidgetWithText(FilledButton, AppStrings.aiConsentWithdrawConfirm),
     );
     expect(disabled.onPressed, isNull);
 
@@ -465,13 +466,13 @@ void main() {
     await tester.pumpAndSettle();
 
     // 처리될 대결이 없으면 뒷문장만 보여 준다.
-    expect(find.text(AppStrings.aiConsentWithdrawAfter), findsOneWidget);
+    expect(findText(AppStrings.aiConsentWithdrawAfter), findsOneWidget);
     final enabled = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, AppStrings.aiConsentWithdrawConfirm),
+      findWidgetWithText(FilledButton, AppStrings.aiConsentWithdrawConfirm),
     );
     expect(enabled.onPressed, isNotNull);
 
-    await tester.tap(find.text(AppStrings.cancel));
+    await tester.tap(findText(AppStrings.cancel));
     await tester.pumpAndSettle();
     expect(consentRepository.withdrawCount, 0);
   });

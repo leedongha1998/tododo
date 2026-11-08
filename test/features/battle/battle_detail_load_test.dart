@@ -8,6 +8,7 @@ import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
+import '../../helpers/text_finders.dart';
 
 /// mobile-ux M2: 대결 상세를 읽다 실패하면 그 자리에서 다시 읽을 수 있어야 하고,
 /// 기다리는 동안 빈 화면처럼 보이지 않아야 한다.
@@ -45,14 +46,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(loads, 1);
-    expect(find.text(AppStrings.battleLoadDetailFailed), findsOneWidget);
+    expect(findText(AppStrings.battleLoadDetailFailed), findsOneWidget);
 
     // 복구 수단이 "뒤로 갔다가 다시 들어오기"뿐이 되지 않는다.
-    await tester.tap(find.text(AppStrings.retry));
+    await tester.tap(findText(AppStrings.retry));
     await tester.pumpAndSettle();
 
     expect(loads, 2);
-    expect(find.text(AppStrings.battleLoadDetailFailed), findsOneWidget);
+    expect(findText(AppStrings.battleLoadDetailFailed), findsOneWidget);
   });
 
   testWidgets('상세를 기다리는 동안 무엇을 기다리는지 글자로 말한다', (tester) async {
@@ -60,7 +61,7 @@ void main() {
     await _pumpDetail(tester, (ref) => gate.future);
 
     // 점 세 개만 놓으면 흰 화면으로 읽힌다.
-    expect(find.text(AppStrings.loading), findsOneWidget);
-    expect(find.text(AppStrings.battleLoadDetailFailed), findsNothing);
+    expect(findText(AppStrings.loading), findsOneWidget);
+    expect(findText(AppStrings.battleLoadDetailFailed), findsNothing);
   });
 }

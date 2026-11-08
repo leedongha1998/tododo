@@ -4,6 +4,8 @@ import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/app_text.dart';
 import 'package:todododo/core/theme/depth_border.dart';
 import 'package:todododo/core/widgets/initial_badge.dart';
+import 'package:todododo/core/widgets/keep_words_text.dart';
+import '../../helpers/text_finders.dart';
 
 void main() {
   group('displayInitial', () {
@@ -56,7 +58,7 @@ void main() {
       );
     }
 
-    Text textOf(WidgetTester tester) => tester.widget<Text>(find.text('홍'));
+    KeepWordsText textOf(WidgetTester tester) => tester.widget<KeepWordsText>(findText('홍'));
 
     DepthBorder shapeOf(WidgetTester tester) {
       final box = tester.widget<Container>(

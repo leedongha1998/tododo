@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/features/battle/presentation/vs_intro.dart';
+import '../../../helpers/text_finders.dart';
 
 /// 정지 화면(애니메이션 줄이기)으로 인트로를 그린다. 스스로 닫히는 타이머가 돌기 전에 트리에서 내린다.
 Future<void> _pumpStill(WidgetTester tester, {required String myName, required String opponentName}) async {
@@ -121,16 +122,16 @@ void main() {
   group('VS 인트로 자리 이름 중복', () {
     testWidgets('이름이 있으면 아래 "나"·위 "상대" 자리 이름이 보인다', (tester) async {
       await _pumpStill(tester, myName: '민지', opponentName: '도윤');
-      expect(find.text(AppStrings.battleMe), findsOneWidget);
-      expect(find.text(AppStrings.battleOpponent), findsOneWidget);
+      expect(findText(AppStrings.battleMe), findsOneWidget);
+      expect(findText(AppStrings.battleOpponent), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
 
     testWidgets('내 이름이 "나"(조회 실패 대체)면 아래 "나" 자리 이름을 숨긴다 — 이니셜·이름 두 번만', (tester) async {
       await _pumpStill(tester, myName: AppStrings.battleMe, opponentName: '도윤');
       // 이니셜 칸 "나" + 명판 이름 "나". 자리 이름은 없다.
-      expect(find.text(AppStrings.battleMe), findsNWidgets(2));
-      expect(find.text(AppStrings.battleOpponent), findsOneWidget);
+      expect(findText(AppStrings.battleMe), findsNWidgets(2));
+      expect(findText(AppStrings.battleOpponent), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
   });

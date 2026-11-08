@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 /// WORD JOINER(U+2060). 줄바꿈을 막고 폭은 0이다. 번들한 Pretendard 세 굵기 모두 이 글자를 갖고 있어
@@ -45,64 +46,96 @@ double widestWordWidth(String text, {TextStyle? style, TextScaler textScaler = T
   return widest;
 }
 
-/// 어절 단위로만 줄을 바꾸는 [Text]. 앱의 표시용 글자는 전부 이것을 쓴다(redesign 후속 결정 1).
+/// 어절 단위로만 줄을 바꾸는 글자. 앱의 표시용 글자는 전부 이것을 쓴다(redesign 후속 결정 1).
 ///
-/// - [Text]의 하위 클래스이고 [data]는 **원문 그대로**다 — `find.text(원문)`, `tester.widget<Text>`,
-///   `widget is Text` 같은 기존 검사가 그대로 맞는다. 문자열 상수(`strings.dart`)도 손대지 않는다.
-/// - 그릴 때([build] 동안)만 [data]가 [keepWords]를 거친 글자를 돌려주어, [Text.build]가 만드는 [RichText]에
-///   WORD JOINER가 들어간다. 위젯 트리에 [Text]가 하나 더 생기지 않는다(같은 글자를 두 번 찾지 않는다).
-/// - 글자가 바뀐 경우에만 화면 낭독기에 원문을 읽히도록 `semanticsLabel`을 원문으로 채운다
-///   (호출부가 준 `semanticsLabel`이 있으면 그것을 쓴다).
+/// - [Text]를 상속하지 않는다. 원문은 [text]에 그대로 두고, 그릴 때 [keepWords]를 거친 글자로 [RichText]를 직접 만든다
+///   (redesign 후속 2 W1 — `Text.build` 중 `data`를 바꿔치기하던 옛 방식은 Flutter 내부 구현에 기댔다).
+///   스타일 합성은 [Text.build]와 같은 공개 API로 한다: [DefaultTextStyle] 합성, 굵은 글씨 설정, 글자 배율, 기본 행 높이 동작.
+///   웹 전용 글자 간격 덮어쓰기(`MediaQuery.*Override`)는 Android 앱이라 따르지 않는다.
+/// - 테스트는 원문으로 찾는다 — `test/helpers/text_finders.dart`의 `findText`가 [Text]·[EditableText]·[KeepWordsText]를 함께 본다.
+/// - 낭독기에는 원문(호출부가 준 [semanticsLabel]이 있으면 그것)을 읽힌다. 그리는 글자가 원문과 같고 [semanticsLabel]도 없으면
+///   [RichText]의 낭독을 그대로 쓴다.
 /// - 편집 가능한 글자(TextField 입력값)·복사 대상(SelectableText)에는 쓰지 않는다 — 끼운 글자가 복사·입력값에 섞인다.
-class KeepWordsText extends Text {
+class KeepWordsText extends StatelessWidget {
   const KeepWordsText(
-    super.data, {
+    this.text, {
     super.key,
-    super.style,
-    super.strutStyle,
-    super.textAlign,
-    super.textDirection,
-    super.locale,
-    super.softWrap,
-    super.overflow,
-    super.textScaler,
-    super.maxLines,
-    super.semanticsLabel,
-    super.semanticsIdentifier,
-    super.textWidthBasis,
-    super.textHeightBehavior,
-    super.selectionColor,
+    this.style,
+    this.strutStyle,
+    this.textAlign,
+    this.textDirection,
+    this.locale,
+    this.softWrap,
+    this.overflow,
+    this.textScaler,
+    this.maxLines,
+    this.semanticsLabel,
+    this.semanticsIdentifier,
+    this.textWidthBasis,
+    this.textHeightBehavior,
+    this.selectionColor,
   });
 
-  /// 지금 [build] 중인 위젯과 그 위젯이 그릴 글자. build는 동기라 중첩되지 않지만, 혹시 몰라 이전 값을 되돌린다.
-  static KeepWordsText? _building;
-  static String _rendered = '';
+  /// 원문(낭독·테스트 기준).
+  final String text;
+  final TextStyle? style;
+  final StrutStyle? strutStyle;
+  final TextAlign? textAlign;
+  final TextDirection? textDirection;
+  final Locale? locale;
+  final bool? softWrap;
+  final TextOverflow? overflow;
+  final TextScaler? textScaler;
+  final int? maxLines;
+  final String? semanticsLabel;
+  final String? semanticsIdentifier;
+  final TextWidthBasis? textWidthBasis;
+  final TextHeightBehavior? textHeightBehavior;
 
-  /// 원문(낭독·테스트 기준). [data]와 같다(build 밖에서).
-  String get text => super.data!;
-
-  @override
-  String? get data => identical(_building, this) ? _rendered : super.data;
-
-  @override
-  String? get semanticsLabel {
-    final given = super.semanticsLabel;
-    if (given != null || !identical(_building, this)) return given;
-    final original = super.data!;
-    return _rendered == original ? null : original;
-  }
+  /// 선택 영역(SelectionArea) 안에서만 쓰인다. 앱에 선택 영역이 없어 지금은 받아 두기만 한다.
+  final Color? selectionColor;
 
   @override
   Widget build(BuildContext context) {
-    final previous = _building;
-    final previousRendered = _rendered;
-    _building = this;
-    _rendered = keepWords(super.data!);
-    try {
-      return super.build(context);
-    } finally {
-      _building = previous;
-      _rendered = previousRendered;
+    final defaultTextStyle = DefaultTextStyle.of(context);
+    var effectiveStyle = style;
+    if (style == null || style!.inherit) {
+      effectiveStyle = defaultTextStyle.style.merge(style);
     }
+    if (MediaQuery.boldTextOf(context)) {
+      effectiveStyle = effectiveStyle!.merge(const TextStyle(fontWeight: FontWeight.bold));
+    }
+    final rendered = keepWords(text);
+    Widget result = RichText(
+      textAlign: textAlign ?? defaultTextStyle.textAlign ?? TextAlign.start,
+      textDirection: textDirection,
+      locale: locale,
+      softWrap: softWrap ?? defaultTextStyle.softWrap,
+      overflow: overflow ?? effectiveStyle?.overflow ?? defaultTextStyle.overflow,
+      textScaler: textScaler ?? MediaQuery.textScalerOf(context),
+      maxLines: maxLines ?? defaultTextStyle.maxLines,
+      strutStyle: strutStyle,
+      textWidthBasis: textWidthBasis ?? defaultTextStyle.textWidthBasis,
+      textHeightBehavior:
+          textHeightBehavior ?? defaultTextStyle.textHeightBehavior ?? DefaultTextHeightBehavior.maybeOf(context),
+      text: TextSpan(style: effectiveStyle, text: rendered, locale: locale),
+    );
+    final label = semanticsLabel ?? (rendered == text ? null : text);
+    if (label != null || semanticsIdentifier != null) {
+      result = Semantics(
+        textDirection: textDirection,
+        label: label,
+        identifier: semanticsIdentifier,
+        child: ExcludeSemantics(excluding: label != null, child: result),
+      );
+    }
+    return result;
+  }
+
+  @override
+  void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    super.debugFillProperties(properties);
+    properties.add(StringProperty('text', text, showName: false));
+    style?.debugFillProperties(properties);
   }
 }

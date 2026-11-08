@@ -19,6 +19,7 @@ import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
+import '../../helpers/text_finders.dart';
 
 /// 1x1 PNG. 미리보기 틀이 진짜 사진을 그리게 하려고 쓴다.
 final _photoBytes = base64Decode(
@@ -190,11 +191,11 @@ void main() {
     await tester.pumpWidget(_screen(_detail(), _FakeBattleRepository(), _FakeCamera()));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceTakePhoto), findsOneWidget);
     // 갤러리에서 고르는 길은 어디에도 없다.
-    expect(find.textContaining('갤러리'), findsNothing);
+    expect(findTextContaining('갤러리'), findsNothing);
     // 속도전도 찍기 전에는 10분 제약을 말하지 않는다(아직 뜻이 없다). 미리보기에만 붙는 줄이다.
-    expect(find.text(AppStrings.battleEvidenceCaptureWindow), findsNothing);
+    expect(findText(AppStrings.battleEvidenceCaptureWindow), findsNothing);
   });
 
   testWidgets('사진을 찍으면 미리보기와 제출·다시 찍기가 나온다', (tester) async {
@@ -202,14 +203,14 @@ void main() {
     await tester.pumpWidget(_screen(_detail(), _FakeBattleRepository(), camera));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text(AppStrings.battleEvidenceTakePhoto));
+    await tester.tap(findText(AppStrings.battleEvidenceTakePhoto));
     await tester.pumpAndSettle();
 
     expect(camera.captureCount, 1);
-    expect(find.text(AppStrings.battleEvidenceSubmit), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidenceRetake), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceSubmit), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceRetake), findsOneWidget);
     // mobile-ux M5: 10분 제약을 업로드를 다 마친 뒤가 아니라 여기서 먼저 말한다.
-    expect(find.text(AppStrings.battleEvidenceCaptureWindow), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceCaptureWindow), findsOneWidget);
   });
 
   testWidgets('제출하면 서버를 다시 읽고 업로드·전송 정보가 맞는다', (tester) async {
@@ -217,9 +218,9 @@ void main() {
     await tester.pumpWidget(_screen(_detail(), repository, _FakeCamera()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text(AppStrings.battleEvidenceTakePhoto));
+    await tester.tap(findText(AppStrings.battleEvidenceTakePhoto));
     await tester.pumpAndSettle();
-    final submitButton = find.text(AppStrings.battleEvidenceSubmit);
+    final submitButton = findText(AppStrings.battleEvidenceSubmit);
     // 미리보기가 길어 제출 버튼이 기본 테스트 화면(800x600) 아래로 밀린다.
     await tester.ensureVisible(submitButton);
     await tester.pumpAndSettle();
@@ -236,12 +237,12 @@ void main() {
     await tester.pumpWidget(_screen(detail, _FakeBattleRepository(), _FakeCamera()));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceReplace), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceReplace), findsOneWidget);
     // "상대가 제출하기 전까지 바꿀 수 있어요"는 한 번만 — 교체 시각 갱신을 함께 말하는 힌트로(후속 결정 7).
-    expect(find.text(AppStrings.battleEvidenceReplaceHint), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidenceSubmittedWaitingOpponent), findsNothing);
-    expect(find.textContaining('상대가 제출하기 전까지'), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
+    expect(findText(AppStrings.battleEvidenceReplaceHint), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceSubmittedWaitingOpponent), findsNothing);
+    expect(findTextContaining('상대가 제출하기 전까지'), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceTakePhoto), findsNothing);
   });
 
   // 상대가 내지 않은 채 판정 창이 열린 경우(속도전 한쪽 제출). 제출 자리는 닫히고,
@@ -257,8 +258,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text(AppStrings.battleJudgmentNothingTitle), findsOneWidget, reason: type);
-      expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing, reason: type);
+      expect(findText(AppStrings.battleJudgmentNothingTitle), findsOneWidget, reason: type);
+      expect(findText(AppStrings.battleEvidenceTakePhoto), findsNothing, reason: type);
 
       await tester.pumpWidget(const SizedBox());
     }
@@ -270,14 +271,14 @@ void main() {
     await tester.pumpWidget(_screen(detail, _FakeBattleRepository(), _FakeCamera()));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceOpponentSubmitted), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceOpponentSubmitted), findsOneWidget);
   });
 
   testWidgets('상대가 아직 내지 않았으면 그 사실만 보인다', (tester) async {
     await tester.pumpWidget(_screen(_detail(), _FakeBattleRepository(), _FakeCamera()));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceOpponentWaiting), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceOpponentWaiting), findsOneWidget);
   });
 
   testWidgets('품질전은 확인 다이얼로그를 거쳐야 제출된다', (tester) async {
@@ -285,17 +286,17 @@ void main() {
     await tester.pumpWidget(_screen(_detail(type: 'quality'), repository, _FakeCamera()));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceQualityOnce), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceQualityOnce), findsOneWidget);
     // 찍기 전에는 10분 제약을 말하지 않는다(아직 뜻이 없다).
-    expect(find.text(AppStrings.battleEvidenceCaptureWindow), findsNothing);
+    expect(findText(AppStrings.battleEvidenceCaptureWindow), findsNothing);
 
-    await tester.tap(find.text(AppStrings.battleEvidenceTakePhoto));
+    await tester.tap(findText(AppStrings.battleEvidenceTakePhoto));
     await tester.pumpAndSettle();
 
     // mobile-ux M5: 품질전 미리보기도 같은 줄을 받는다. 한 번만 낼 수 있어 거부당하면 더 아프다.
-    expect(find.text(AppStrings.battleEvidenceCaptureWindow), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceCaptureWindow), findsOneWidget);
 
-    final submitButton = find.text(AppStrings.battleEvidenceQualitySubmit);
+    final submitButton = findText(AppStrings.battleEvidenceQualitySubmit);
     // 미리보기가 길어 제출 버튼이 기본 테스트 화면(800x600) 아래로 밀린다.
     await tester.ensureVisible(submitButton);
     await tester.pumpAndSettle();
@@ -303,10 +304,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // 확인하기 전에는 제출하지 않는다(재제출 수단이 없으므로).
-    expect(find.text(AppStrings.battleEvidenceQualityConfirm), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceQualityConfirm), findsOneWidget);
     expect(repository.submitCount, 0);
 
-    await tester.tap(find.text(AppStrings.battleEvidenceSubmit));
+    await tester.tap(findText(AppStrings.battleEvidenceSubmit));
     await tester.pumpAndSettle();
 
     expect(repository.submitCount, 1);
@@ -322,8 +323,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceQualityWaiting), findsOneWidget);
-    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
+    expect(findText(AppStrings.battleEvidenceQualityWaiting), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceTakePhoto), findsNothing);
   });
 
   // spec 수용 기준: "종결 후에는 양쪽이 서로의 증거와 판정 사유를 볼 수 있다".
@@ -355,8 +356,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('물건이 그대로 남아 있다'), findsOneWidget);
+    expect(findText('물건이 그대로 남아 있다'), findsOneWidget);
     // 끝난 대결에는 제출 자리가 없다.
-    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
+    expect(findText(AppStrings.battleEvidenceTakePhoto), findsNothing);
   });
 }

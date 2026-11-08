@@ -5,6 +5,8 @@ import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/features/battle/data/player_card.dart';
 import 'package:todododo/features/battle/presentation/player_card_view.dart';
+import 'package:todododo/core/widgets/keep_words_text.dart';
+import '../../../helpers/text_finders.dart';
 
 void main() {
   // redesign 후속 결정 6: 이름이 점수·전적 줄보다 가늘고 작아 위계가 뒤집혀 보였다.
@@ -17,10 +19,10 @@ void main() {
       ),
     );
 
-    final name = tester.widget<Text>(find.text('도윤')).style!;
-    final score = tester.widget<Text>(find.text(AppStrings.playerScoreLabel(12))).style!;
-    final record = tester.widget<Text>(find.text(AppStrings.playerRecordLabel(4, 2, 1))).style!;
-    final label = tester.widget<Text>(find.text(AppStrings.battleOpponent)).style!;
+    final name = tester.widget<KeepWordsText>(findText('도윤')).style!;
+    final score = tester.widget<KeepWordsText>(findText(AppStrings.playerScoreLabel(12))).style!;
+    final record = tester.widget<KeepWordsText>(findText(AppStrings.playerRecordLabel(4, 2, 1))).style!;
+    final label = tester.widget<KeepWordsText>(findText(AppStrings.battleOpponent)).style!;
 
     for (final numbers in [score, record]) {
       expect(name.fontSize, greaterThan(numbers.fontSize!));

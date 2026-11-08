@@ -9,6 +9,7 @@ import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/presentation/edit_recruit_criteria_screen.dart';
+import '../../helpers/text_finders.dart';
 
 /// mobile-ux M7: 모집 기준 수정 화면도 재검사로 하루 10회 중 1회를 쓴다.
 /// 그 결과를 들고 있을 때만 뒤로가기를 막고, 고치는 중에는 막지 않는다.
@@ -84,7 +85,7 @@ Future<_FakeCriteriaRepository> _pushEdit(WidgetTester tester) async {
       ),
     ),
   );
-  await tester.tap(find.text(_hostLabel));
+  await tester.tap(findText(_hostLabel));
   await tester.pumpAndSettle();
   return criteria;
 }
@@ -106,40 +107,40 @@ void main() {
     await _pushEdit(tester);
 
     await _editCriterion(tester, '시계가 6시 59분 이전을 가리킨다');
-    expect(find.text(AppStrings.battleCriteriaRecheck), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaRecheck), findsOneWidget);
 
     await _back(tester);
 
     // 아직 횟수를 쓰지 않았으므로 잃는 것이 없다. 묻지 않고 나간다.
-    expect(find.text(AppStrings.battleCriteriaLeaveEditTitle), findsNothing);
-    expect(find.text(_hostLabel), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaLeaveEditTitle), findsNothing);
+    expect(findText(_hostLabel), findsOneWidget);
   });
 
   testWidgets('재검사를 통과한 기준을 들고 있으면 확인창이 뜨고 계속하기로 남는다', (tester) async {
     final criteria = await _pushEdit(tester);
 
     await _editCriterion(tester, '시계가 6시 59분 이전을 가리킨다');
-    await tester.tap(find.text(AppStrings.battleCriteriaRecheck));
+    await tester.tap(findText(AppStrings.battleCriteriaRecheck));
     await tester.pumpAndSettle();
 
     // 횟수를 1회 썼고 그 결과(증서)를 들고 있다.
     expect(criteria.checkCount, 1);
-    expect(find.text(AppStrings.battleCriteriaApply), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaApply), findsOneWidget);
 
     await _back(tester);
 
-    expect(find.text(AppStrings.battleCriteriaLeaveEditTitle), findsOneWidget);
-    expect(find.text(_hostLabel), findsNothing);
+    expect(findText(AppStrings.battleCriteriaLeaveEditTitle), findsOneWidget);
+    expect(findText(_hostLabel), findsNothing);
 
-    await tester.tap(find.text(AppStrings.stay));
+    await tester.tap(findText(AppStrings.stay));
     await tester.pumpAndSettle();
-    expect(find.text(AppStrings.battleCriteriaApply), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaApply), findsOneWidget);
 
     // 나가기를 고르면 그때는 나간다.
     await _back(tester);
-    await tester.tap(find.text(AppStrings.leave));
+    await tester.tap(findText(AppStrings.leave));
     await tester.pumpAndSettle();
-    expect(find.text(_hostLabel), findsOneWidget);
+    expect(findText(_hostLabel), findsOneWidget);
   });
 
   // ── reviewer W1(2026-11-02): 재검사를 쓴 뒤 한 글자 고치면 가드가 풀렸다 ──
@@ -151,24 +152,24 @@ void main() {
     final criteria = await _pushEdit(tester);
 
     await _editCriterion(tester, '시계가 6시 59분 이전을 가리킨다');
-    await tester.tap(find.text(AppStrings.battleCriteriaRecheck));
+    await tester.tap(findText(AppStrings.battleCriteriaRecheck));
     await tester.pumpAndSettle();
     expect(criteria.checkCount, 1);
 
     // 마음이 바뀌어 한 글자 더 고친다 — 증서는 버려지지만 쓴 1회는 돌아오지 않는다.
     await _editCriterion(tester, '시계가 6시 50분 이전을 가리킨다');
-    expect(find.text(AppStrings.battleCriteriaApply), findsNothing);
-    expect(find.text(AppStrings.battleCriteriaRecheck), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaApply), findsNothing);
+    expect(findText(AppStrings.battleCriteriaRecheck), findsOneWidget);
 
     await _back(tester);
 
-    expect(find.text(AppStrings.battleCriteriaLeaveEditTitle), findsOneWidget);
-    expect(find.text(_hostLabel), findsNothing);
+    expect(findText(AppStrings.battleCriteriaLeaveEditTitle), findsOneWidget);
+    expect(findText(_hostLabel), findsNothing);
 
     // 계속하기를 고르면 고친 기준이 그대로 남는다.
-    await tester.tap(find.text(AppStrings.stay));
+    await tester.tap(findText(AppStrings.stay));
     await tester.pumpAndSettle();
-    expect(find.text(_hostLabel), findsNothing);
+    expect(findText(_hostLabel), findsNothing);
   });
 
   // reviewer W2: 공통 위젯(CriteriaLeaveGuard)을 쓰더라도 제목은 화면이 넘긴다.
@@ -176,14 +177,14 @@ void main() {
     await _pushEdit(tester);
 
     await _editCriterion(tester, '시계가 6시 59분 이전을 가리킨다');
-    await tester.tap(find.text(AppStrings.battleCriteriaRecheck));
+    await tester.tap(findText(AppStrings.battleCriteriaRecheck));
     await tester.pumpAndSettle();
 
     await _back(tester);
 
-    expect(find.text(AppStrings.battleCriteriaLeaveEditTitle), findsOneWidget);
-    expect(find.text(AppStrings.battleCriteriaLeaveTitle), findsNothing);
+    expect(findText(AppStrings.battleCriteriaLeaveEditTitle), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaLeaveTitle), findsNothing);
     // 본문은 양쪽이 같다(만든 기준이 사라지고 쓴 횟수는 돌아오지 않는다).
-    expect(find.text(AppStrings.battleCriteriaLeaveBody), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaLeaveBody), findsOneWidget);
   });
 }

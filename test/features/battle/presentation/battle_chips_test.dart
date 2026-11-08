@@ -7,6 +7,7 @@ import 'package:todododo/core/theme/depth_border.dart';
 import 'package:todododo/core/widgets/app_tag.dart';
 import 'package:todododo/features/battle/domain/battle_outcome.dart';
 import 'package:todododo/features/battle/presentation/battle_chips.dart';
+import '../../../helpers/text_finders.dart';
 
 /// 상태 칩·결과 라벨의 모양 매핑(redesign design.md 5.3). 서버 값 → 모양만 고른다(승패 계산 없음).
 /// 의미 구분 규칙(무 ≠ 미결, 무에 위험색 없음, 무효가 가장 약함)은 retro-theme에서 그대로 이어받는다.
@@ -215,7 +216,7 @@ void main() {
       final icon = tester.widget<Icon>(find.byIcon(AppIcons.warning));
       expect(icon.size, 16);
       expect(icon.color, AppPalette.warning);
-      expect(find.text(AppStrings.battleStatusDisputed), findsOneWidget);
+      expect(findText(AppStrings.battleStatusDisputed), findsOneWidget);
     });
 
     testWidgets('무승부 칩에는 아이콘이 없다', (tester) async {
@@ -289,7 +290,7 @@ void main() {
       expect(shape.radius, 8);
 
       // 색을 구분하지 못해도 읽을 수 있어야 하므로 글자와 아이콘은 그대로다.
-      expect(find.text(AppStrings.battleTypeSpeed), findsOneWidget);
+      expect(findText(AppStrings.battleTypeSpeed), findsOneWidget);
       expect(find.byIcon(AppIcons.speed), findsOneWidget);
       expect(tester.widget<Icon>(find.byIcon(AppIcons.speed)).size, 16);
       expect(tester.getSize(find.byIcon(AppIcons.speed)), const Size(16, 16));
@@ -304,7 +305,7 @@ void main() {
         ),
       );
       expect(find.byIcon(AppIcons.quality), findsOneWidget);
-      expect(find.text(AppStrings.battleTypeQuality), findsOneWidget);
+      expect(findText(AppStrings.battleTypeQuality), findsOneWidget);
     });
   });
 }

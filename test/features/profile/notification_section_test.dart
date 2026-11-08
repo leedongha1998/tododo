@@ -8,6 +8,7 @@ import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/profile/presentation/notification_section.dart';
 
 import '../../core/push/push_fakes.dart';
+import '../../helpers/text_finders.dart';
 
 Future<void> _pump(WidgetTester tester, List<Override> overrides) async {
   await tester.pumpWidget(
@@ -26,8 +27,8 @@ void main() {
       pushOverrides(messaging: FakePushMessaging(permission: NotificationPermission.denied)),
     );
 
-    expect(find.text(AppStrings.notificationDisabled), findsOneWidget);
-    expect(find.text(AppStrings.notificationDisabledGuide), findsOneWidget);
+    expect(findText(AppStrings.notificationDisabled), findsOneWidget);
+    expect(findText(AppStrings.notificationDisabledGuide), findsOneWidget);
   });
 
   testWidgets('알림이 켜져 있으면 아무것도 그리지 않는다', (tester) async {
@@ -36,7 +37,7 @@ void main() {
       pushOverrides(messaging: FakePushMessaging(permission: NotificationPermission.granted)),
     );
 
-    expect(find.text(AppStrings.notificationDisabled), findsNothing);
+    expect(findText(AppStrings.notificationDisabled), findsNothing);
   });
 
   testWidgets('아직 묻지 않은 상태에서는 안내하지 않는다 — 기기 설정으로 보낼 일이 아니다', (tester) async {
@@ -47,7 +48,7 @@ void main() {
       ),
     );
 
-    expect(find.text(AppStrings.notificationDisabled), findsNothing);
+    expect(findText(AppStrings.notificationDisabled), findsNothing);
   });
 
   testWidgets('권한 상태를 못 읽으면 틀린 안내를 띄우지 않는다', (tester) async {
@@ -55,6 +56,6 @@ void main() {
       notificationPermissionProvider.overrideWith((ref) async => throw Exception('no firebase')),
     ]);
 
-    expect(find.text(AppStrings.notificationDisabled), findsNothing);
+    expect(findText(AppStrings.notificationDisabled), findsNothing);
   });
 }

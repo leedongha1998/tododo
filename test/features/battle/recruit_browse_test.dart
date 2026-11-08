@@ -21,6 +21,8 @@ import 'package:todododo/features/battle/domain/open_recruit_feed.dart';
 import 'package:todododo/features/battle/domain/recruit_query.dart';
 import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
+import 'package:todododo/core/widgets/keep_words_text.dart';
+import '../../helpers/text_finders.dart';
 
 OpenRecruit _recruit(int index, {String type = 'speed', int minutes = 30}) =>
     OpenRecruit(
@@ -146,7 +148,7 @@ Future<ProviderContainer> _pumpFind(
 
 Finder _segment<T>(String label) => find.descendant(
   of: find.byType(SegmentedButton<T>),
-  matching: find.text(label),
+  matching: findText(label),
 );
 
 void main() {
@@ -169,8 +171,8 @@ void main() {
 
     expect(repository.calls.length, 2);
     expect(repository.calls.last['query'], '집 1');
-    expect(find.text('모집 1'), findsOneWidget);
-    expect(find.text('모집 2'), findsNothing);
+    expect(findText('모집 1'), findsOneWidget);
+    expect(findText('모집 2'), findsNothing);
   });
 
   testWidgets('X 버튼을 누르면 검색어가 지워지고 전체 목록으로 돌아온다', (tester) async {
@@ -190,7 +192,7 @@ void main() {
 
     expect(container.read(recruitFilterProvider).query, '');
     expect(repository.calls.last['query'], isNull);
-    expect(find.text('모집 2'), findsOneWidget);
+    expect(findText('모집 2'), findsOneWidget);
   });
 
   testWidgets('유형·기간대 필터는 서버에 그 키로 요청하고 지금 걸린 조건이 계속 보인다', (tester) async {
@@ -215,8 +217,8 @@ void main() {
     // 조작 영역은 스크롤되지 않으므로 무엇이 걸려 있는지 목록을 보는 동안 계속 보인다.
     expect(_segment<RecruitTypeFilter>(AppStrings.battleTypeQuality), findsOneWidget);
     expect(_segment<RecruitDurationBand>('며칠'), findsOneWidget);
-    expect(find.text('모집 1'), findsOneWidget);
-    expect(find.text('모집 0'), findsNothing);
+    expect(findText('모집 1'), findsOneWidget);
+    expect(findText('모집 0'), findsNothing);
   });
 
   testWidgets('조건 지우기는 검색어와 두 축을 한 번에 되돌린다', (tester) async {
@@ -226,30 +228,30 @@ void main() {
     final container = await _pumpFind(tester, repository);
 
     // 조건이 없으면 이 버튼은 아예 없다.
-    expect(find.text(AppStrings.battleFilterClear), findsNothing);
+    expect(findText(AppStrings.battleFilterClear), findsNothing);
 
     await tester.enterText(find.byType(TextField), '집 1');
     await tester.pump(const Duration(milliseconds: 350));
     await tester.tap(_segment<RecruitTypeFilter>(AppStrings.battleTypeSpeed));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, AppStrings.battleFilterClear));
+    await tester.tap(findWidgetWithText(TextButton, AppStrings.battleFilterClear));
     await tester.pumpAndSettle();
 
     expect(container.read(recruitFilterProvider).hasAnyCondition, isFalse);
-    expect(find.text(AppStrings.battleFilterClear), findsNothing);
+    expect(findText(AppStrings.battleFilterClear), findsNothing);
     expect(repository.calls.last['query'], isNull);
     expect(repository.calls.last['type'], isNull);
-    expect(find.text('모집 2'), findsOneWidget);
+    expect(findText('모집 2'), findsOneWidget);
   });
 
   testWidgets('모집이 하나도 없으면 내가 먼저 걸어 보라고 권한다', (tester) async {
     await _pumpFind(tester, _BrowseRepository());
 
-    expect(find.text(AppStrings.battleRecruitsEmptyNone), findsOneWidget);
-    expect(find.text(AppStrings.battleRecruitsEmptyNoneHint), findsOneWidget);
+    expect(findText(AppStrings.battleRecruitsEmptyNone), findsOneWidget);
+    expect(findText(AppStrings.battleRecruitsEmptyNoneHint), findsOneWidget);
     expect(
-      find.widgetWithText(FilledButton, AppStrings.battleCreate),
+      findWidgetWithText(FilledButton, AppStrings.battleCreate),
       findsOneWidget,
     );
   });
@@ -262,33 +264,33 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleRecruitsEmptyFiltered), findsOneWidget);
-    expect(find.text(AppStrings.battleRecruitsEmptyFilteredHint), findsOneWidget);
+    expect(findText(AppStrings.battleRecruitsEmptyFiltered), findsOneWidget);
+    expect(findText(AppStrings.battleRecruitsEmptyFilteredHint), findsOneWidget);
     expect(
-      find.widgetWithText(FilledButton, AppStrings.battleFilterClear),
+      findWidgetWithText(FilledButton, AppStrings.battleFilterClear),
       findsOneWidget,
     );
     // 사용자의 의도는 찾는 것이었다. 여기서 만들기를 권하지 않는다(FAB는 그대로 있다).
     expect(
-      find.widgetWithText(FilledButton, AppStrings.battleCreate),
+      findWidgetWithText(FilledButton, AppStrings.battleCreate),
       findsNothing,
     );
 
     // 그 버튼으로 조건이 풀리고 목록이 돌아온다.
     await tester.tap(
-      find.widgetWithText(FilledButton, AppStrings.battleFilterClear),
+      findWidgetWithText(FilledButton, AppStrings.battleFilterClear),
     );
     await tester.pumpAndSettle();
-    expect(find.text('모집 0'), findsOneWidget);
+    expect(findText('모집 0'), findsOneWidget);
   });
 
   testWidgets('첫 묶음을 못 불러오면 비었다고 하지 않고 다시 시도를 준다', (tester) async {
     await _pumpFind(tester, _BrowseRepository(failFirstPage: true));
 
     // 본문 안내와 토스트 양쪽에서 말한다.
-    expect(find.text(AppStrings.battleLoadRecruitsFailed), findsWidgets);
-    expect(find.text(AppStrings.battleRecruitsEmptyNone), findsNothing);
-    expect(find.widgetWithText(TextButton, AppStrings.retry), findsOneWidget);
+    expect(findText(AppStrings.battleLoadRecruitsFailed), findsWidgets);
+    expect(findText(AppStrings.battleRecruitsEmptyNone), findsNothing);
+    expect(findWidgetWithText(TextButton, AppStrings.retry), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
@@ -301,24 +303,24 @@ void main() {
       all: [for (var i = 0; i < 3; i++) _recruit(i)],
     );
     await _pumpFind(tester, repository);
-    expect(find.text('모집 0'), findsOneWidget);
+    expect(findText('모집 0'), findsOneWidget);
 
     repository.failNext = Exception('network down');
     await tester.tap(_segment<RecruitTypeFilter>(AppStrings.battleTypeSpeed));
     await tester.pumpAndSettle();
 
     // 옛 목록이 결과인 척 남아 있지 않다.
-    expect(find.text('모집 0'), findsNothing);
-    expect(find.text(AppStrings.battleLoadRecruitsFailed), findsWidgets);
-    expect(find.widgetWithText(TextButton, AppStrings.retry), findsOneWidget);
+    expect(findText('모집 0'), findsNothing);
+    expect(findText(AppStrings.battleLoadRecruitsFailed), findsWidgets);
+    expect(findWidgetWithText(TextButton, AppStrings.retry), findsOneWidget);
     // 빈 상태로 둘러대지도 않는다.
-    expect(find.text(AppStrings.battleRecruitsEmptyFiltered), findsNothing);
+    expect(findText(AppStrings.battleRecruitsEmptyFiltered), findsNothing);
 
     // 다시 시도하면 그 조건으로 목록이 돌아온다.
-    await tester.tap(find.widgetWithText(TextButton, AppStrings.retry));
+    await tester.tap(findWidgetWithText(TextButton, AppStrings.retry));
     await tester.pumpAndSettle();
     expect(repository.calls.last['type'], 'speed');
-    expect(find.text('모집 0'), findsOneWidget);
+    expect(findText('모집 0'), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
@@ -335,7 +337,7 @@ void main() {
     await expectLater(refreshed, throwsA(isA<Exception>()));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleLoadRecruitsFailed), findsWidgets);
+    expect(findText(AppStrings.battleLoadRecruitsFailed), findsWidgets);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
@@ -352,7 +354,7 @@ void main() {
     repository.failNext = Exception('network down');
     await notifier.loadMore();
     await tester.pumpAndSettle();
-    expect(find.text(AppStrings.battleRecruitsLoadMoreFailed), findsWidgets);
+    expect(findText(AppStrings.battleRecruitsLoadMoreFailed), findsWidgets);
 
     // 새로고침으로 실패 횟수가 0으로 돌아간 뒤 같은 실패를 다시 겪는다.
     final refreshed = container.refresh(openRecruitFeedProvider.future);
@@ -363,13 +365,13 @@ void main() {
       tester.element(find.byType(ListView)),
     ).removeCurrentSnackBar();
     await tester.pumpAndSettle();
-    expect(find.text(AppStrings.battleRecruitsLoadMoreFailed), findsNothing);
+    expect(findText(AppStrings.battleRecruitsLoadMoreFailed), findsNothing);
 
     repository.failNext = Exception('network down again');
     await container.read(openRecruitFeedProvider.notifier).loadMore();
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleRecruitsLoadMoreFailed), findsWidgets);
+    expect(findText(AppStrings.battleRecruitsLoadMoreFailed), findsWidgets);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
@@ -405,12 +407,12 @@ void main() {
 
     // 이미 본 목록은 그대로다.
     expect(container.read(openRecruitFeedProvider).value!.items.length, 20);
-    expect(find.text('모집 0'), findsOneWidget);
+    expect(findText('모집 0'), findsOneWidget);
     // 실패를 토스트와 꼬리 양쪽에서 말한다.
-    expect(find.text(AppStrings.battleRecruitsLoadMoreFailed), findsWidgets);
+    expect(findText(AppStrings.battleRecruitsLoadMoreFailed), findsWidgets);
 
     // 꼬리의 다시 시도는 목록 맨 아래에 있어 아직 그려지지도 않았다.
-    final retry = find.widgetWithText(TextButton, AppStrings.retry);
+    final retry = findWidgetWithText(TextButton, AppStrings.retry);
     await tester.scrollUntilVisible(
       retry,
       400,
@@ -514,9 +516,9 @@ void main() {
 
     // 멈추면 FAB가 돌아온다.
     final fab = tester.getRect(find.byTooltip(AppStrings.battleCreate));
-    final lastTitle = tester.getRect(find.text('모집 5'));
+    final lastTitle = tester.getRect(findText('모집 5'));
     final lastCard = tester.getRect(
-      find.ancestor(of: find.text('모집 5'), matching: find.byType(AppPanel)).first,
+      find.ancestor(of: findText('모집 5'), matching: find.byType(AppPanel)).first,
     );
     expect(lastTitle.bottom, lessThanOrEqualTo(fab.top));
     expect(lastCard.bottom, lessThanOrEqualTo(fab.top));
@@ -595,7 +597,7 @@ void main() {
     );
     await _pumpFind(tester, repository);
 
-    final title = tester.widget<Text>(find.text(long));
+    final title = tester.widget<KeepWordsText>(findText(long));
     expect(title.maxLines, 2);
     expect(title.overflow, TextOverflow.ellipsis);
     // Row/Column은 넘치면 예외를 낸다(테스트 글꼴은 글자마다 정사각형이라 실기기보다 넓다).

@@ -43,10 +43,12 @@ import 'package:todododo/features/todo/data/todo_widget_payload.dart';
 import 'package:todododo/features/todo/domain/todo_providers.dart';
 import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import 'package:todododo/main.dart';
+import 'package:todododo/core/widgets/keep_words_text.dart';
 
 import 'core/push/push_fakes.dart';
 import 'helpers/line_breaks.dart';
 import 'features/todo/todo_widget_fakes.dart';
+import 'helpers/text_finders.dart';
 
 /// 프로필이 보여 주는 점수·전적은 서버 `player_stats` 값이다. 화면이 목록을 세지 않는지
 /// 보려고 기록 목록과 일부러 다른 숫자를 쓴다.
@@ -242,7 +244,7 @@ void main() {
   testWidgets('Supabase 미설정 시 설정 안내를 보여준다', (WidgetTester tester) async {
     await tester.pumpWidget(const ProviderScope(child: TododuduApp()));
 
-    expect(find.textContaining('Supabase 설정이 필요합니다'), findsOneWidget);
+    expect(findTextContaining('Supabase 설정이 필요합니다'), findsOneWidget);
   });
 
   testWidgets('로그인 화면에 구글 로그인 버튼이 보인다', (WidgetTester tester) async {
@@ -252,7 +254,7 @@ void main() {
       ),
     );
 
-    expect(find.text(AppStrings.googleSignIn), findsOneWidget);
+    expect(findText(AppStrings.googleSignIn), findsOneWidget);
   });
 
   testWidgets('로그인 화면에는 반복 움직임이 없다(깜빡이는 커서 없음 — 화면이 멈춘다)', (WidgetTester tester) async {
@@ -263,7 +265,7 @@ void main() {
     );
     // 반복 애니메이션이 있으면 pumpAndSettle이 시간 초과로 실패한다.
     await tester.pumpAndSettle();
-    expect(find.text(AppStrings.appName), findsOneWidget);
+    expect(findText(AppStrings.appName), findsOneWidget);
     expect(tester.hasRunningAnimations, isFalse);
   });
 
@@ -279,7 +281,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('아직 할 일이 없어요'), findsOneWidget);
+    expect(findTextContaining('아직 할 일이 없어요'), findsOneWidget);
   });
 
   testWidgets('할 일 목록이 보이고 완료 표시가 취소선으로 나타난다', (WidgetTester tester) async {
@@ -299,10 +301,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('설거지하기'), findsOneWidget);
-    expect(find.text('빨래하기'), findsOneWidget);
+    expect(findText('설거지하기'), findsOneWidget);
+    expect(findText('빨래하기'), findsOneWidget);
 
-    final doneText = tester.widget<Text>(find.text('빨래하기'));
+    final doneText = tester.widget<KeepWordsText>(findText('빨래하기'));
     expect(doneText.style?.decoration, TextDecoration.lineThrough);
   });
 
@@ -330,7 +332,7 @@ void main() {
 
       // 원문으로 찾는다(그리는 글자에만 WORD JOINER가 들어간다).
       final paragraph = tester.renderObject<RenderParagraph>(
-        find.descendant(of: find.text(title), matching: find.byType(RichText)),
+        find.descendant(of: findText(title), matching: find.byType(RichText)),
       );
       expect(lineStarts(paragraph), isNotEmpty);
       expect(breaksOnlyAtSpaces(paragraph), isTrue);
@@ -364,7 +366,7 @@ void main() {
 
     final fab = tester.getRect(find.byType(FloatingActionButton));
     final lastDelete = tester.getRect(find.byTooltip(AppStrings.delete).last);
-    final lastTitle = tester.getRect(find.text(todos.last.title));
+    final lastTitle = tester.getRect(findText(todos.last.title));
     expect(lastDelete.overlaps(fab), isFalse);
     expect(lastTitle.bottom, lessThanOrEqualTo(fab.top));
   });
@@ -397,8 +399,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('아침 운동하기'), findsOneWidget);
-    expect(find.text('설거지하기'), findsNothing);
+    expect(findText('아침 운동하기'), findsOneWidget);
+    expect(findText('설거지하기'), findsNothing);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -409,8 +411,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 두 목록이 한 화면을 나눠 쓰던 구조를 없앴다. 할 일 화면에 대결이 섞이면 안 된다.
-    expect(find.text('설거지하기'), findsOneWidget);
-    expect(find.text('아침 운동하기'), findsNothing);
+    expect(findText('설거지하기'), findsOneWidget);
+    expect(findText('아침 운동하기'), findsNothing);
   });
 
   testWidgets('로그인하면 탭 네 개짜리 탭바가 있는 화면으로 들어간다', (WidgetTester tester) async {
@@ -439,8 +441,8 @@ void main() {
 
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationDestination), findsNWidgets(4));
-    expect(find.text(AppStrings.battleFind), findsWidgets);
-    expect(find.text(AppStrings.todoTitle), findsWidgets);
+    expect(findText(AppStrings.battleFind), findsWidgets);
+    expect(findText(AppStrings.todoTitle), findsWidgets);
   });
 
   testWidgets('할 일 탭의 추가 버튼은 곧장 입력창을 연다', (WidgetTester tester) async {
@@ -456,8 +458,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // 무엇을 추가할지 고르는 단계는 탭이 대신하므로 사라졌다.
-    expect(find.text(AppStrings.addTodo), findsOneWidget);
-    expect(find.text(AppStrings.battleCreate), findsNothing);
+    expect(findText(AppStrings.addTodo), findsOneWidget);
+    expect(findText(AppStrings.battleCreate), findsNothing);
   });
 
   testWidgets('대결 찾기 화면의 만들기 버튼은 아이콘 전용이고 이름은 tooltip이 말한다',
@@ -474,7 +476,7 @@ void main() {
 
     // 글자 라벨까지 둔 버튼이 카드 오른쪽 절반을 덮어 아이콘 전용(56x56)으로 바꿨다.
     expect(find.byType(FloatingActionButton), findsOneWidget);
-    expect(find.widgetWithText(FloatingActionButton, AppStrings.battleCreate), findsNothing);
+    expect(findWidgetWithText(FloatingActionButton, AppStrings.battleCreate), findsNothing);
     expect(
       find.byTooltip(AppStrings.battleCreate),
       findsOneWidget,
@@ -523,16 +525,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('아침 운동하기'), findsOneWidget);
-    expect(find.text(battleDurationLabel(1440)), findsOneWidget);
-    expect(find.text('운동화를 신고 밖에 있다'), findsOneWidget);
+    expect(findText('아침 운동하기'), findsOneWidget);
+    expect(findText(battleDurationLabel(1440)), findsOneWidget);
+    expect(findText('운동화를 신고 밖에 있다'), findsOneWidget);
     // 목록에서 읽어야 하는 것은 무슨 대결인지다. 생성자가 누구이고 전적이 어떤지는
     // 참가를 결정할 때 보면 되므로 상세 시트에서만 보여 준다.
-    expect(find.text('친구'), findsNothing);
-    expect(find.text(AppStrings.playerScoreLabel(6)), findsNothing);
-    expect(find.text(AppStrings.playerRecordLabel(2, 1, 0)), findsNothing);
+    expect(findText('친구'), findsNothing);
+    expect(findText(AppStrings.playerScoreLabel(6)), findsNothing);
+    expect(findText(AppStrings.playerRecordLabel(2, 1, 0)), findsNothing);
     // 참가는 카드를 눌러 연 시트에서 한다(기준을 보고 참가하도록).
-    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
+    expect(findText(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
   });
 
   // spec 수용 기준: "어떤 화면에도 상대 증거를 승인/이의제기하는 수단이 없다",
@@ -548,22 +550,22 @@ void main() {
         // 두 유형 모두 active에서만 낼 수 있다. judging은 상호 판정 창(두 유형 공통)이라
         // 제출 자리가 없고 안내만 보인다.
         expect(
-          find.text(AppStrings.battleEvidenceTakePhoto),
+          findText(AppStrings.battleEvidenceTakePhoto),
           status == 'active' ? findsOneWidget : findsNothing,
           reason: reason,
         );
         if (status == 'judging') {
           // 양쪽 다 제출 전인 채로 열린 창이라 판정할 증거가 없다. 판정 입력도 나오지 않는다.
-          expect(find.text(AppStrings.battleJudgmentNothing), findsOneWidget, reason: reason);
-          expect(find.text(AppStrings.battleJudgmentSend), findsNothing, reason: reason);
+          expect(findText(AppStrings.battleJudgmentNothing), findsOneWidget, reason: reason);
+          expect(findText(AppStrings.battleJudgmentSend), findsNothing, reason: reason);
         }
-        expect(find.text(AppStrings.battleForfeit), findsOneWidget, reason: reason);
+        expect(findText(AppStrings.battleForfeit), findsOneWidget, reason: reason);
         expect(find.byType(TextField), findsNothing, reason: reason);
-        expect(find.text('승인'), findsNothing, reason: reason);
-        expect(find.text('이의제기'), findsNothing, reason: reason);
-        expect(find.textContaining('갤러리'), findsNothing, reason: reason);
+        expect(findText('승인'), findsNothing, reason: reason);
+        expect(findText('이의제기'), findsNothing, reason: reason);
+        expect(findTextContaining('갤러리'), findsNothing, reason: reason);
         // 진행 중에는 결과 배너가 없다.
-        expect(find.text(AppStrings.battleYouWon), findsNothing, reason: reason);
+        expect(findText(AppStrings.battleYouWon), findsNothing, reason: reason);
 
         await tester.pumpWidget(const SizedBox());
       }
@@ -577,12 +579,12 @@ void main() {
     await tester.pumpAndSettle();
 
     // 제목은 앱바로 올라갔고, 상태는 문장이 아니라 칩으로 드러난다.
-    expect(find.text('아침 운동하기'), findsOneWidget);
-    expect(find.text(AppStrings.battleStatusFinished), findsOneWidget);
-    expect(find.text(AppStrings.battleYouWon), findsOneWidget);
+    expect(findText('아침 운동하기'), findsOneWidget);
+    expect(findText(AppStrings.battleStatusFinished), findsOneWidget);
+    expect(findText(AppStrings.battleYouWon), findsOneWidget);
     // 끝난 대결에는 제출 자리도 포기 버튼도 없다.
-    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
-    expect(find.text(AppStrings.battleForfeit), findsNothing);
+    expect(findText(AppStrings.battleEvidenceTakePhoto), findsNothing);
+    expect(findText(AppStrings.battleForfeit), findsNothing);
   });
 
   testWidgets('상대가 포기해 끝난 대결은 승리 배너에 기권 사유를 보여준다', (WidgetTester tester) async {
@@ -593,19 +595,19 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleYouWon), findsOneWidget);
-    expect(find.text(AppStrings.battleWonByForfeit), findsOneWidget);
+    expect(findText(AppStrings.battleYouWon), findsOneWidget);
+    expect(findText(AppStrings.battleWonByForfeit), findsOneWidget);
   });
 
   testWidgets('무효로 끝난 대결은 무효 칩과 무효 배너를 보여준다', (WidgetTester tester) async {
     await tester.pumpWidget(_detailScreen(_detail(id: 'bv', type: 'quality', status: 'voided')));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleStatusVoided), findsOneWidget);
-    expect(find.text(AppStrings.battleVoidedMessage), findsOneWidget);
-    expect(find.text(AppStrings.battleYouWon), findsNothing);
-    expect(find.text(AppStrings.battleYouLost), findsNothing);
-    expect(find.text(AppStrings.battleDrawMessage), findsNothing);
+    expect(findText(AppStrings.battleStatusVoided), findsOneWidget);
+    expect(findText(AppStrings.battleVoidedMessage), findsOneWidget);
+    expect(findText(AppStrings.battleYouWon), findsNothing);
+    expect(findText(AppStrings.battleYouLost), findsNothing);
+    expect(findText(AppStrings.battleDrawMessage), findsNothing);
   });
 
   testWidgets('포기 확인 문구는 속도전·품질전이 같고, 취소하면 포기하지 않는다', (WidgetTester tester) async {
@@ -613,16 +615,16 @@ void main() {
       await tester.pumpWidget(_detailScreen(_detail(id: 'ff-$type', type: type, status: 'active')));
       await tester.pumpAndSettle();
 
-      await tester.ensureVisible(find.text(AppStrings.battleForfeit));
-      await tester.tap(find.text(AppStrings.battleForfeit));
+      await tester.ensureVisible(findText(AppStrings.battleForfeit));
+      await tester.tap(findText(AppStrings.battleForfeit));
       await tester.pumpAndSettle();
 
-      expect(find.text(AppStrings.battleForfeitConfirmTitle), findsOneWidget, reason: type);
-      expect(find.text(AppStrings.battleForfeitConfirm), findsOneWidget, reason: type);
+      expect(findText(AppStrings.battleForfeitConfirmTitle), findsOneWidget, reason: type);
+      expect(findText(AppStrings.battleForfeitConfirm), findsOneWidget, reason: type);
 
-      await tester.tap(find.text(AppStrings.cancel));
+      await tester.tap(findText(AppStrings.cancel));
       await tester.pumpAndSettle();
-      expect(find.text(AppStrings.battleForfeitConfirmTitle), findsNothing, reason: type);
+      expect(findText(AppStrings.battleForfeitConfirmTitle), findsNothing, reason: type);
 
       await tester.pumpWidget(const SizedBox());
     }
@@ -692,24 +694,24 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('나'), findsOneWidget);
-    expect(find.text('아침 운동하기'), findsOneWidget);
-    expect(find.text('방 청소하기'), findsOneWidget);
-    expect(find.text('책상 정리하기'), findsOneWidget);
-    expect(find.text(AppStrings.battleRecordWin), findsOneWidget);
-    expect(find.text(AppStrings.battleRecordLose), findsOneWidget);
-    expect(find.text(AppStrings.battleRecordVoided), findsOneWidget);
+    expect(findText('나'), findsOneWidget);
+    expect(findText('아침 운동하기'), findsOneWidget);
+    expect(findText('방 청소하기'), findsOneWidget);
+    expect(findText('책상 정리하기'), findsOneWidget);
+    expect(findText(AppStrings.battleRecordWin), findsOneWidget);
+    expect(findText(AppStrings.battleRecordLose), findsOneWidget);
+    expect(findText(AppStrings.battleRecordVoided), findsOneWidget);
     // 점수와 승/패/무는 서버 player_stats 값을 그대로 보여 준다(화면이 목록을 세지 않는다).
-    expect(find.text(AppStrings.playerScoreLabel(3)), findsOneWidget);
-    expect(find.text(AppStrings.playerRecordLabel(1, 1, 0)), findsOneWidget);
+    expect(findText(AppStrings.playerScoreLabel(3)), findsOneWidget);
+    expect(findText(AppStrings.playerRecordLabel(1, 1, 0)), findsOneWidget);
     // 무효는 점수·전적에 들어가지 않으므로 목록과 숫자가 어긋나는 이유를 알린다.
-    expect(find.text(AppStrings.profileVoidedExcluded), findsOneWidget);
+    expect(findText(AppStrings.profileVoidedExcluded), findsOneWidget);
     // 앱바 아이콘이 사라진 뒤 계정 관련 동작은 전부 이 화면에 모인다.
     // 기록이 세 장이라 계정 창이 첫 화면 아래로 밀린다. 목록은 보이는 곳만 그리므로 내려서 확인한다.
-    await tester.scrollUntilVisible(find.text(AppStrings.accountDelete), 200);
-    expect(find.text(AppStrings.accountSection), findsOneWidget);
-    expect(find.text(AppStrings.logout), findsOneWidget);
-    expect(find.text(AppStrings.accountDelete), findsOneWidget);
+    await tester.scrollUntilVisible(findText(AppStrings.accountDelete), 200);
+    expect(findText(AppStrings.accountSection), findsOneWidget);
+    expect(findText(AppStrings.logout), findsOneWidget);
+    expect(findText(AppStrings.accountDelete), findsOneWidget);
   });
 
   testWidgets('전적 항목을 탭하면 지난 대결 상세로 들어간다', (WidgetTester tester) async {
@@ -739,11 +741,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('아침 운동하기'));
+    await tester.tap(findText('아침 운동하기'));
     await tester.pumpAndSettle();
 
     // 끝난 대결은 내 대결 목록에서 빠지므로 이 경로가 지난 결과를 보는 유일한 길이다.
-    expect(find.text(AppStrings.battleYouWon), findsOneWidget);
+    expect(findText(AppStrings.battleYouWon), findsOneWidget);
   });
 
   testWidgets('계정 삭제는 확인 다이얼로그를 거쳐야 실행된다', (WidgetTester tester) async {
@@ -768,7 +770,7 @@ void main() {
     // 동의 섹션에 점수 창까지 생겨 계정 창이 첫 화면 아래로 밀린다. 목록은 보이는 곳만 그리므로
     // 내려서 찾고, 화면 가장자리에 걸친 채로 누르면 "off-screen"으로 실패하므로 ensureVisible까지 한다.
     Future<void> tapDeleteAccount() async {
-      final button = find.text(AppStrings.accountDelete);
+      final button = findText(AppStrings.accountDelete);
       await tester.scrollUntilVisible(button, 200);
       await tester.ensureVisible(button);
       await tester.pumpAndSettle();
@@ -778,19 +780,19 @@ void main() {
 
     // 취소하면 삭제되지 않는다.
     await tapDeleteAccount();
-    expect(find.text(AppStrings.accountDeleteConfirmTitle), findsOneWidget);
-    await tester.tap(find.text(AppStrings.cancel));
+    expect(findText(AppStrings.accountDeleteConfirmTitle), findsOneWidget);
+    await tester.tap(findText(AppStrings.cancel));
     await tester.pumpAndSettle();
     expect(authRepository.deleteAccountCount, 0);
 
     // 확인해야 실제로 삭제된다.
     await tapDeleteAccount();
-    await tester.tap(find.text(AppStrings.accountDeleteConfirm));
+    await tester.tap(findText(AppStrings.accountDeleteConfirm));
     // 삭제 중에는 진행 표시가 계속 돌기 때문에 pumpAndSettle을 쓸 수 없다.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500)); // 스낵바 등장
     expect(authRepository.deleteAccountCount, 1);
-    expect(find.text(AppStrings.accountDeleteDone), findsOneWidget);
+    expect(findText(AppStrings.accountDeleteDone), findsOneWidget);
     await tester.pump(const Duration(seconds: 5)); // 스낵바 타이머 소진
   });
   testWidgets('매칭된 대결에 처음 들어가면 VS 인트로가 뜨고, 다시 들어가면 뜨지 않는다', (WidgetTester tester) async {
@@ -811,7 +813,7 @@ void main() {
     expect(find.byType(VsIntro), findsOneWidget);
     // 인트로 route가 뜬 다음 프레임부터 연출 시간이 흐른다.
     await tester.pump(const Duration(milliseconds: 800));
-    expect(find.text(AppStrings.vsIntroVersus), findsOneWidget);
+    expect(findText(AppStrings.vsIntroVersus), findsOneWidget);
     expect(store.seen, contains(VsIntroSeenStore.keyFor('me', 'bv')));
 
     // 누르면 즉시 닫히고 이미 그려진 상세 화면이 보인다.
@@ -819,7 +821,7 @@ void main() {
     await tester.pump();
     expect(find.byType(VsIntro), findsNothing);
     // 인트로가 닫히면 진행 중인 속도전의 제출 자리가 보인다.
-    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsOneWidget);
+    expect(findText(AppStrings.battleEvidenceTakePhoto), findsOneWidget);
 
     // 같은 대결에 다시 들어가면 뜨지 않는다.
     await tester.pumpWidget(const SizedBox());
@@ -847,14 +849,14 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('open'));
+    await tester.tap(findText('open'));
     await tester.pump();
 
-    expect(find.text(AppStrings.vsIntroVersus), findsOneWidget);
-    expect(find.text('홍길동'), findsOneWidget);
-    expect(find.text('탈퇴한 사용자'), findsOneWidget);
-    expect(find.text('홍'), findsOneWidget);
-    expect(find.text('탈'), findsOneWidget);
+    expect(findText(AppStrings.vsIntroVersus), findsOneWidget);
+    expect(findText('홍길동'), findsOneWidget);
+    expect(findText('탈퇴한 사용자'), findsOneWidget);
+    expect(findText('홍'), findsOneWidget);
+    expect(findText('탈'), findsOneWidget);
 
     await tester.tap(find.byType(VsIntro));
     await tester.pump();
@@ -880,11 +882,11 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('open'));
+    await tester.tap(findText('open'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 900));
     expect(tester.takeException(), isNull);
-    expect(find.text(longName), findsOneWidget);
+    expect(findText(longName), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pump();
@@ -946,7 +948,7 @@ void main() {
       AppStrings.profileTitle,
     ]) {
       expect(
-        find.descendant(of: find.byType(NavigationBar), matching: find.text(label)),
+        find.descendant(of: find.byType(NavigationBar), matching: findText(label)),
         findsOneWidget,
         reason: label,
       );

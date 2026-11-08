@@ -29,6 +29,7 @@ import 'package:todododo/features/profile/domain/profile_providers.dart';
 import 'package:todododo/core/push/push_messaging.dart';
 
 import '../../core/push/push_fakes.dart';
+import '../../helpers/text_finders.dart';
 
 /// 참가만 성공하거나 실패하게 두고 나머지는 비워 둔 저장소.
 class _JoinOnlyBattleRepository implements BattleRepository {
@@ -211,9 +212,9 @@ Future<void> _pumpRecruits(
 
 /// 카드를 눌러 모집 상세 시트를 열고 "이 기준으로 참가"를 누른다.
 Future<void> _joinFromSheet(WidgetTester tester) async {
-  await tester.tap(find.text('아침 운동하기'));
+  await tester.tap(findText('아침 운동하기'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
+  await tester.tap(findText(AppStrings.battleRecruitJoinWithCriteria));
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
 }
@@ -230,10 +231,10 @@ void main() {
 
     expect(repository.joinCount, 1);
     expect(find.byType(VsIntro), findsOneWidget);
-    expect(find.text('민지'), findsOneWidget);
-    expect(find.text('도윤'), findsWidgets);
+    expect(findText('민지'), findsOneWidget);
+    expect(findText('도윤'), findsWidgets);
     // 인트로가 떠 있는 동안에는 성공 토스트가 나오지 않는다.
-    expect(find.text(AppStrings.battleJoined), findsNothing);
+    expect(findText(AppStrings.battleJoined), findsNothing);
     // 표시를 시작하는 순간 "봤음"을 기록한다.
     expect(store.seen, contains(VsIntroSeenStore.keyFor('me', 'b1')));
 
@@ -242,7 +243,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.byType(VsIntro), findsNothing);
-    expect(find.text(AppStrings.battleJoined), findsOneWidget);
+    expect(findText(AppStrings.battleJoined), findsOneWidget);
 
     // 토스트 표시 타이머까지 흘려보내 테스트가 대기 중인 타이머 없이 끝나게 한다.
     await tester.pump(const Duration(seconds: 5));
@@ -258,8 +259,8 @@ void main() {
 
     expect(repository.joinCount, 1);
     expect(find.byType(VsIntro), findsNothing);
-    expect(find.text(AppStrings.battleErrorUnknown), findsOneWidget);
-    expect(find.text(AppStrings.battleJoined), findsNothing);
+    expect(findText(AppStrings.battleErrorUnknown), findsOneWidget);
+    expect(findText(AppStrings.battleJoined), findsNothing);
     expect(store.seen, isEmpty);
 
     await tester.pump(const Duration(seconds: 5));
@@ -285,7 +286,7 @@ void main() {
 
     expect(repository.joinCount, 1);
     // 참가 성공 안내가 먼저 뜬 뒤에 권한을 묻는다.
-    expect(find.text(AppStrings.battleJoined), findsOneWidget);
+    expect(findText(AppStrings.battleJoined), findsOneWidget);
     expect(messaging.requestCount, 1);
     expect(pushRepository.registered, ['fcm-token-1']);
 
@@ -320,7 +321,7 @@ void main() {
     await _joinFromSheet(tester);
 
     expect(find.byType(VsIntro), findsNothing);
-    expect(find.text(AppStrings.battleJoined), findsOneWidget);
+    expect(findText(AppStrings.battleJoined), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();

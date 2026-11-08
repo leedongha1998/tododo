@@ -28,6 +28,7 @@ import 'package:todododo/features/battle/presentation/battle_recruits_screen.dar
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 
 import '../../core/push/push_fakes.dart';
+import '../../helpers/text_finders.dart';
 
 class _FakeBattleRepository implements BattleRepository {
   _FakeBattleRepository({this.joinError});
@@ -234,15 +235,15 @@ Future<ProviderContainer> _pumpSheet(
 }
 
 Future<void> _openSheet(WidgetTester tester) async {
-  await tester.tap(find.text('책상 정리하기'));
+  await tester.tap(findText('책상 정리하기'));
   await tester.pumpAndSettle();
 }
 
 Future<void> _tapJoin(WidgetTester tester) async {
   // 시트가 800x600 테스트 화면보다 길 수 있어 참가 버튼까지 먼저 스크롤한다.
-  await tester.ensureVisible(find.text(AppStrings.battleRecruitJoinWithCriteria));
+  await tester.ensureVisible(findText(AppStrings.battleRecruitJoinWithCriteria));
   await tester.pumpAndSettle();
-  await tester.tap(find.text(AppStrings.battleRecruitJoinWithCriteria));
+  await tester.tap(findText(AppStrings.battleRecruitJoinWithCriteria));
   await tester.pumpAndSettle();
 }
 
@@ -251,17 +252,17 @@ void main() {
     await _pumpSheet(tester, repository: _FakeBattleRepository());
     await _openSheet(tester);
 
-    expect(find.text(AppStrings.battleCriteriaMinTitle), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaMinTitle), findsOneWidget);
     // 첫 기준과 생성자 카드는 뒤에 남아 있는 목록 카드에도 있어 두 번 잡힌다.
-    expect(find.text('상판이 보인다'), findsWidgets);
+    expect(findText('상판이 보인다'), findsWidgets);
     // 품질전은 우열 기준도 참가 전에 공개된다(결정 67). 카드에는 없고 시트에만 있다.
-    expect(find.text(AppStrings.battleCriteriaSuperiorityTitle), findsOneWidget);
-    expect(find.text('먼지가 없다'), findsOneWidget);
-    expect(find.text(AppStrings.battleTypeQualityTagline), findsOneWidget);
-    expect(find.text(battleDurationLabel(4320)), findsWidgets);
-    expect(find.text(AppStrings.playerScoreLabel(9)), findsWidgets);
-    expect(find.text(AppStrings.playerRecordLabel(3, 0, 0)), findsWidgets);
-    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaSuperiorityTitle), findsOneWidget);
+    expect(findText('먼지가 없다'), findsOneWidget);
+    expect(findText(AppStrings.battleTypeQualityTagline), findsOneWidget);
+    expect(findText(battleDurationLabel(4320)), findsWidgets);
+    expect(findText(AppStrings.playerScoreLabel(9)), findsWidgets);
+    expect(findText(AppStrings.playerRecordLabel(3, 0, 0)), findsWidgets);
+    expect(findText(AppStrings.battleRecruitJoinWithCriteria), findsOneWidget);
   });
 
   testWidgets('속도전 시트에는 우열 기준 블록이 없다', (tester) async {
@@ -278,8 +279,8 @@ void main() {
     await _pumpSheet(tester, repository: _FakeBattleRepository(), battle: speed);
     await _openSheet(tester);
 
-    expect(find.text(AppStrings.battleCriteriaSuperiorityTitle), findsNothing);
-    expect(find.text(AppStrings.battleTypeSpeedTagline), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaSuperiorityTitle), findsNothing);
+    expect(findText(AppStrings.battleTypeSpeedTagline), findsOneWidget);
   });
 
   testWidgets('참가에 성공하면 시트가 닫히고 토스트 뒤 내 대결 탭으로 간다', (tester) async {
@@ -291,8 +292,8 @@ void main() {
     // 내가 확인한 기준 버전이 그대로 서버로 간다.
     expect(repository.joinCount, 1);
     expect(repository.lastVersion, 1);
-    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
-    expect(find.text(AppStrings.battleJoined), findsOneWidget);
+    expect(findText(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
+    expect(findText(AppStrings.battleJoined), findsOneWidget);
     expect(container.read(selectedTabProvider), AppTab.myBattles);
 
     await tester.pump(const Duration(seconds: 5));
@@ -314,13 +315,13 @@ void main() {
     await _openSheet(tester);
     await _tapJoin(tester);
 
-    expect(find.text(AppStrings.battleCriteriaChanged), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaChanged), findsOneWidget);
     // 목록(묶음)을 다시 읽지 않고 이 대결 한 건만 다시 읽는다. 그래서 새 기준은 시트에 보인다.
     expect(repository.refreshCount, 1);
-    expect(find.text('상판이 완전히 비어 있다'), findsWidgets);
+    expect(findText('상판이 완전히 비어 있다'), findsWidgets);
     // 시트는 열린 채로 남아 바뀐 기준을 확인한 뒤 다시 참가할 수 있다.
-    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsOneWidget);
-    expect(find.text(AppStrings.battleJoined), findsNothing);
+    expect(findText(AppStrings.battleRecruitJoinWithCriteria), findsOneWidget);
+    expect(findText(AppStrings.battleJoined), findsNothing);
 
     // 새 버전으로 다시 참가한다.
     repository.joinError = null;
@@ -341,8 +342,8 @@ void main() {
     await _tapJoin(tester);
 
     expect(repository.refreshCount, 1);
-    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
-    expect(find.text(AppStrings.battleCriteriaChanged), findsNothing);
+    expect(findText(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
+    expect(findText(AppStrings.battleCriteriaChanged), findsNothing);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
@@ -356,8 +357,8 @@ void main() {
     await _openSheet(tester);
     await _tapJoin(tester);
 
-    expect(find.text(AppStrings.battleErrorAlreadyMatched), findsOneWidget);
-    expect(find.text(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
+    expect(findText(AppStrings.battleErrorAlreadyMatched), findsOneWidget);
+    expect(findText(AppStrings.battleRecruitJoinWithCriteria), findsNothing);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();

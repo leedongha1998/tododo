@@ -13,6 +13,8 @@ import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/domain/battle_summary.dart';
 import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/my_battles_screen.dart';
+import 'package:todododo/core/widgets/keep_words_text.dart';
+import '../../helpers/text_finders.dart';
 
 Battle _recruit() => Battle(
   id: 'p1',
@@ -120,24 +122,24 @@ void main() {
     );
 
     // 구역 A: 제목 띠 + 모집 제목 + 모집 중 칩 + 기간 + 기다리는 중 안내 + 두 버튼.
-    expect(find.text(AppStrings.battleMyRecruits), findsOneWidget);
-    expect(find.text('설거지하기'), findsOneWidget);
-    expect(find.text(AppStrings.battleStatusPending), findsOneWidget);
-    expect(find.text(battleDurationLabel(30)), findsOneWidget);
-    expect(find.text(AppStrings.battleMyRecruitWaiting), findsOneWidget);
+    expect(findText(AppStrings.battleMyRecruits), findsOneWidget);
+    expect(findText('설거지하기'), findsOneWidget);
+    expect(findText(AppStrings.battleStatusPending), findsOneWidget);
+    expect(findText(battleDurationLabel(30)), findsOneWidget);
+    expect(findText(AppStrings.battleMyRecruitWaiting), findsOneWidget);
     expect(
-      find.widgetWithText(OutlinedButton, AppStrings.battleCriteriaEditRecruit),
+      findWidgetWithText(OutlinedButton, AppStrings.battleCriteriaEditRecruit),
       findsOneWidget,
     );
     expect(
-      find.widgetWithText(OutlinedButton, AppStrings.battleRecruitCancel),
+      findWidgetWithText(OutlinedButton, AppStrings.battleRecruitCancel),
       findsOneWidget,
     );
 
     // 구역 B: 진행 중 카드는 그대로다(상대·유형·상태 칩).
-    expect(find.text('방 청소하기'), findsOneWidget);
-    expect(find.text('${AppStrings.battleVersus} 도윤'), findsOneWidget);
-    expect(find.text(AppStrings.battleStatusActive), findsOneWidget);
+    expect(findText('방 청소하기'), findsOneWidget);
+    expect(findText('${AppStrings.battleVersus} 도윤'), findsOneWidget);
+    expect(findText(AppStrings.battleStatusActive), findsOneWidget);
   });
 
   testWidgets('모집 1건만 있으면 "비었다"가 아니라 진행 중이 아직 없다고만 말한다', (tester) async {
@@ -146,12 +148,12 @@ void main() {
       repository: _MyBattlesRepository(recruits: [_recruit()]),
     );
 
-    expect(find.text(AppStrings.battleMyRecruits), findsOneWidget);
-    expect(find.text(AppStrings.battleNoActiveBattlesYet), findsOneWidget);
+    expect(findText(AppStrings.battleMyRecruits), findsOneWidget);
+    expect(findText(AppStrings.battleNoActiveBattlesYet), findsOneWidget);
     // 모집 구역이 이미 "기다리는 중"을 말하므로 찾기 탭으로 보내는 버튼을 두 번 권하지 않는다.
-    expect(find.text(AppStrings.battleMyBattlesEmpty), findsNothing);
+    expect(findText(AppStrings.battleMyBattlesEmpty), findsNothing);
     expect(
-      find.widgetWithText(FilledButton, AppStrings.battleFind),
+      findWidgetWithText(FilledButton, AppStrings.battleFind),
       findsNothing,
     );
   });
@@ -159,11 +161,11 @@ void main() {
   testWidgets('모집도 진행 중도 없으면 기존 빈 상태 안내가 그대로 보인다', (tester) async {
     await _pumpMyBattles(tester, repository: _MyBattlesRepository());
 
-    expect(find.text(AppStrings.battleMyRecruits), findsNothing);
-    expect(find.text(AppStrings.battleMyBattlesEmpty), findsOneWidget);
-    expect(find.text(AppStrings.battleFinishedInProfile), findsOneWidget);
+    expect(findText(AppStrings.battleMyRecruits), findsNothing);
+    expect(findText(AppStrings.battleMyBattlesEmpty), findsOneWidget);
+    expect(findText(AppStrings.battleFinishedInProfile), findsOneWidget);
     expect(
-      find.widgetWithText(FilledButton, AppStrings.battleFind),
+      findWidgetWithText(FilledButton, AppStrings.battleFind),
       findsOneWidget,
     );
   });
@@ -173,20 +175,20 @@ void main() {
   testWidgets('모집을 다시 읽다 실패하면 낡은 모집을 그대로 두지 않고 실패를 알린다', (tester) async {
     final repository = _MyBattlesRepository(recruits: [_recruit()]);
     final container = await _pumpMyBattles(tester, repository: repository);
-    expect(find.text('설거지하기'), findsOneWidget);
+    expect(findText('설거지하기'), findsOneWidget);
 
     repository.failNextRecruits = Exception('network down');
     container.invalidate(myRecruitsProvider);
     await tester.pumpAndSettle();
 
-    expect(find.text('설거지하기'), findsNothing);
-    expect(find.text(AppStrings.battleLoadRecruitsFailed), findsOneWidget);
-    expect(find.widgetWithText(TextButton, AppStrings.retry), findsOneWidget);
+    expect(findText('설거지하기'), findsNothing);
+    expect(findText(AppStrings.battleLoadRecruitsFailed), findsOneWidget);
+    expect(findWidgetWithText(TextButton, AppStrings.retry), findsOneWidget);
 
     // 다시 시도하면 구역이 돌아온다.
-    await tester.tap(find.widgetWithText(TextButton, AppStrings.retry));
+    await tester.tap(findWidgetWithText(TextButton, AppStrings.retry));
     await tester.pumpAndSettle();
-    expect(find.text('설거지하기'), findsOneWidget);
+    expect(findText('설거지하기'), findsOneWidget);
   });
 
   testWidgets('모집을 취소하면 그 구역이 사라지고 새로 올릴 수 있는 상태로 돌아온다', (tester) async {
@@ -194,16 +196,16 @@ void main() {
     await _pumpMyBattles(tester, repository: repository);
 
     await tester.tap(
-      find.widgetWithText(OutlinedButton, AppStrings.battleRecruitCancel),
+      findWidgetWithText(OutlinedButton, AppStrings.battleRecruitCancel),
     );
     await tester.pumpAndSettle();
 
     expect(repository.cancelCount, 1);
-    expect(find.text(AppStrings.battleRecruitCancelled), findsOneWidget);
-    expect(find.text(AppStrings.battleMyRecruits), findsNothing);
-    expect(find.text('설거지하기'), findsNothing);
+    expect(findText(AppStrings.battleRecruitCancelled), findsOneWidget);
+    expect(findText(AppStrings.battleMyRecruits), findsNothing);
+    expect(findText('설거지하기'), findsNothing);
     // 모집이 없어졌으므로 빈 상태 안내로 돌아온다.
-    expect(find.text(AppStrings.battleMyBattlesEmpty), findsOneWidget);
+    expect(findText(AppStrings.battleMyBattlesEmpty), findsOneWidget);
 
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
@@ -230,8 +232,8 @@ void main() {
     // 유형 배지 + 모집 중 + 기간. 하나라도 빼면 사용자가 정보를 잃는다.
     final badge = find.byType(BattleTypeBadge);
     expect(badge, findsOneWidget);
-    expect(find.text(AppStrings.battleStatusPending), findsOneWidget);
-    expect(find.text(battleDurationLabel(30)), findsOneWidget);
+    expect(findText(AppStrings.battleStatusPending), findsOneWidget);
+    expect(findText(battleDurationLabel(30)), findsOneWidget);
 
     // Row로 되돌리면(= 줄바꿈이 사라지면) 이 단정이 깨진다.
     final wrap = find.ancestor(of: badge, matching: find.byType(Wrap));
@@ -259,9 +261,9 @@ void main() {
       theme: AppTheme.light,
     );
 
-    expect(find.text(AppStrings.battleListMyJudgeTurn), findsOneWidget);
+    expect(findText(AppStrings.battleListMyJudgeTurn), findsOneWidget);
     expect(
-      find.text(
+      findText(
         '${AppStrings.battleJudgeDeadlineLabel} · '
         '${AppStrings.battleDeadlineLeft('2시간')}',
       ),
@@ -270,8 +272,8 @@ void main() {
 
     // 할 일이 있는 줄만 굵게 띄운다. 모든 줄을 같은 모양으로 그리면 구분이 사라진다.
     // 굵기는 700 — Pretendard는 400/700/800만 번들한다(redesign design 3.1).
-    final line = tester.widget<Text>(
-      find.text(AppStrings.battleListMyJudgeTurn),
+    final line = tester.widget<KeepWordsText>(
+      findText(AppStrings.battleListMyJudgeTurn),
     );
     expect(line.style?.fontWeight, FontWeight.w700);
     // 놓치면 손해 보는 줄은 13dp 메타데이터 슬롯이 아니라 16dp(titleSmall) — redesign 후속 결정 2.
@@ -286,9 +288,9 @@ void main() {
       theme: AppTheme.light,
     );
 
-    expect(find.text(AppStrings.battleListNotSubmitted), findsOneWidget);
+    expect(findText(AppStrings.battleListNotSubmitted), findsOneWidget);
     expect(
-      find.text(
+      findText(
         '${AppStrings.battleSubmitDeadlineLabel} · '
         '${AppStrings.battleDeadlineLeft('5시간')}',
       ),
@@ -296,13 +298,13 @@ void main() {
     );
     expect(
       tester
-          .widget<Text>(find.text(AppStrings.battleListNotSubmitted))
+          .widget<KeepWordsText>(findText(AppStrings.battleListNotSubmitted))
           .style
           ?.fontWeight,
       FontWeight.w700,
     );
     expect(
-      tester.widget<Text>(find.text(AppStrings.battleListNotSubmitted)).style?.fontSize,
+      tester.widget<KeepWordsText>(findText(AppStrings.battleListNotSubmitted)).style?.fontSize,
       16,
     );
   });
@@ -315,9 +317,9 @@ void main() {
       summaries: [_activeSummaryNow(opponentSubmitted: true)],
     );
 
-    expect(find.text(AppStrings.battleListNotSubmitted), findsNothing);
-    final news = tester.widget<Text>(
-      find.text(AppStrings.battleListOpponentSubmitted),
+    expect(findText(AppStrings.battleListNotSubmitted), findsNothing);
+    final news = tester.widget<KeepWordsText>(
+      findText(AppStrings.battleListOpponentSubmitted),
     );
     expect(news.style?.fontWeight, isNot(FontWeight.w700));
   });
@@ -327,21 +329,21 @@ void main() {
   testWidgets('대결도 모집도 없는 첫 화면은 이 앱이 무엇인지 세 줄로 먼저 말한다', (tester) async {
     await _pumpMyBattles(tester, repository: _MyBattlesRepository());
 
-    expect(find.text(AppStrings.battleIntroMatching), findsOneWidget);
-    expect(find.text(AppStrings.battleIntroEvidence), findsOneWidget);
-    expect(find.text(AppStrings.battleIntroJudging), findsOneWidget);
+    expect(findText(AppStrings.battleIntroMatching), findsOneWidget);
+    expect(findText(AppStrings.battleIntroEvidence), findsOneWidget);
+    expect(findText(AppStrings.battleIntroJudging), findsOneWidget);
 
     // 기존 빈 상태와 CTA는 그대로 남는다. 블록이 그것을 대신하지 않는다.
-    expect(find.text(AppStrings.battleMyBattlesEmpty), findsOneWidget);
+    expect(findText(AppStrings.battleMyBattlesEmpty), findsOneWidget);
     expect(
-      find.widgetWithText(FilledButton, AppStrings.battleFind),
+      findWidgetWithText(FilledButton, AppStrings.battleFind),
       findsOneWidget,
     );
 
     // 빈 상태 "위"다 — 설명을 읽고 나서 다음 행동 버튼에 닿는다.
     expect(
-      tester.getTopLeft(find.text(AppStrings.battleIntroMatching)).dy,
-      lessThan(tester.getTopLeft(find.text(AppStrings.battleMyBattlesEmpty)).dy),
+      tester.getTopLeft(findText(AppStrings.battleIntroMatching)).dy,
+      lessThan(tester.getTopLeft(findText(AppStrings.battleMyBattlesEmpty)).dy),
     );
   });
 
@@ -354,10 +356,10 @@ void main() {
       summaries: [_activeSummary()],
     );
 
-    expect(find.text('방 청소하기'), findsOneWidget);
-    expect(find.text(AppStrings.battleIntroMatching), findsNothing);
-    expect(find.text(AppStrings.battleIntroEvidence), findsNothing);
-    expect(find.text(AppStrings.battleIntroJudging), findsNothing);
+    expect(findText('방 청소하기'), findsOneWidget);
+    expect(findText(AppStrings.battleIntroMatching), findsNothing);
+    expect(findText(AppStrings.battleIntroEvidence), findsNothing);
+    expect(findText(AppStrings.battleIntroJudging), findsNothing);
   });
 
   // audit.md가 적지 않은 자리(developer 재량). 모집을 이미 올려 본 사람은 만들기 흐름을 한 번 지났고
@@ -368,10 +370,10 @@ void main() {
       repository: _MyBattlesRepository(recruits: [_recruit()]),
     );
 
-    expect(find.text(AppStrings.battleNoActiveBattlesYet), findsOneWidget);
-    expect(find.text(AppStrings.battleIntroMatching), findsNothing);
-    expect(find.text(AppStrings.battleIntroEvidence), findsNothing);
-    expect(find.text(AppStrings.battleIntroJudging), findsNothing);
+    expect(findText(AppStrings.battleNoActiveBattlesYet), findsOneWidget);
+    expect(findText(AppStrings.battleIntroMatching), findsNothing);
+    expect(findText(AppStrings.battleIntroEvidence), findsNothing);
+    expect(findText(AppStrings.battleIntroJudging), findsNothing);
   });
 }
 

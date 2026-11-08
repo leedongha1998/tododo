@@ -5,6 +5,8 @@ import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/core/theme/depth_border.dart';
 import 'package:todododo/core/widgets/app_panel.dart';
+import 'package:todododo/core/widgets/keep_words_text.dart';
+import '../../helpers/text_finders.dart';
 
 /// AppPanel(design 5.2): 변형별 모양, 제목 띠 없음, 누름, 애니메이션 줄이기.
 void main() {
@@ -110,7 +112,7 @@ void main() {
 
   testWidgets('제목은 ink 띠 없이 묶음 안 첫 줄 titleSmall 글자로만 그린다', (tester) async {
     await pump(tester, const AppPanel.flat(title: '최소 기준', child: Text('본문')));
-    final title = tester.widget<Text>(find.text('최소 기준'));
+    final title = tester.widget<KeepWordsText>(findText('최소 기준'));
     final theme = AppTheme.light.textTheme.titleSmall!;
     expect(title.style!.fontSize, theme.fontSize);
     expect(title.style!.fontWeight, theme.fontWeight);
@@ -118,7 +120,7 @@ void main() {
     final bands = tester
         .widgetList<ColoredBox>(
           find.ancestor(
-            of: find.text('최소 기준'),
+            of: findText('최소 기준'),
             matching: find.byType(ColoredBox),
           ),
         )
@@ -133,10 +135,10 @@ void main() {
       AppPanel.raised(onTap: () => taps++, child: const Text('카드')),
     );
 
-    expect(tester.getSemantics(find.text('카드')), isSemantics(isButton: true));
+    expect(tester.getSemantics(findText('카드')), isSemantics(isButton: true));
 
     final gesture = await tester.startGesture(
-      tester.getCenter(find.text('카드')),
+      tester.getCenter(findText('카드')),
     );
     await tester.pump();
     expect(shapeOf(tester).pressed, isTrue);
@@ -150,7 +152,7 @@ void main() {
     await pump(tester, const AppPanel.raised(child: Text('카드')));
     expect(
       find.ancestor(
-        of: find.text('카드'),
+        of: findText('카드'),
         matching: find.byType(GestureDetector),
       ),
       findsNothing,

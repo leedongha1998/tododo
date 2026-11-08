@@ -22,6 +22,7 @@ import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
 
 import '../../helpers/line_breaks.dart';
+import '../../helpers/text_finders.dart';
 
 /// 상호 판정 화면. 판정 **결론**은 서버가 내므로 여기서 보는 것은
 /// "무엇을 묻는가 / 언제 보낼 수 있는가 / 무엇을 보냈는가"뿐이다.
@@ -243,7 +244,7 @@ Future<void> _tapChoice(WidgetTester tester, String label) async {
 }
 
 Future<void> _tapSend(WidgetTester tester) async {
-  final send = find.widgetWithText(FilledButton, AppStrings.battleJudgmentSend).first;
+  final send = findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend).first;
   await tester.ensureVisible(send);
   await tester.pumpAndSettle();
   await tester.tap(send);
@@ -257,13 +258,13 @@ void main() {
     await tester.pumpWidget(_screen(_judging(), _FakeBattleRepository(), photo: photoOk));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleJudgmentMinQuestion), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentMinQuestion), findsOneWidget);
     expect(_choice(AppStrings.battleJudgmentPassed), findsOneWidget);
     expect(_choice(AppStrings.battleJudgmentFailed), findsOneWidget);
     // 속도전에는 우열 질문이 없다(서버도 우열 값을 받으면 거부한다).
-    expect(find.text(AppStrings.battleJudgmentSuperiorityQuestion), findsNothing);
+    expect(findText(AppStrings.battleJudgmentSuperiorityQuestion), findsNothing);
     // 판정할 기준이 함께 보인다.
-    expect(find.text('상판이 보인다'), findsOneWidget);
+    expect(findText('상판이 보인다'), findsOneWidget);
     // 자유 텍스트 입력은 어디에도 없다.
     expect(find.byType(TextField), findsNothing);
   });
@@ -274,7 +275,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final send = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, AppStrings.battleJudgmentSend).first,
+      findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend).first,
     );
     expect(send.onPressed, isNull);
     expect(repository.judgeCount, 0);
@@ -289,10 +290,10 @@ void main() {
     await _tapSend(tester);
 
     // 되돌릴 수 없으니 확인 전에는 보내지 않는다.
-    expect(find.text(AppStrings.battleJudgmentConfirm), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentConfirm), findsOneWidget);
     expect(repository.judgeCount, 0);
 
-    await tester.tap(find.widgetWithText(FilledButton, AppStrings.battleJudgmentSend).last);
+    await tester.tap(findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend).last);
     await tester.pumpAndSettle();
 
     expect(repository.judgeCount, 1);
@@ -308,15 +309,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleJudgmentMinQuestion), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentSuperiorityQuestion), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentMinQuestion), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentSuperiorityQuestion), findsOneWidget);
     expect(_choice(AppStrings.battleJudgmentSuperiorMe), findsOneWidget);
     expect(_choice(AppStrings.battleJudgmentSuperiorOpponent), findsOneWidget);
     // 우열 기준도 함께 보인다.
-    expect(find.text('먼지가 없다'), findsOneWidget);
+    expect(findText('먼지가 없다'), findsOneWidget);
 
     FilledButton sendButton() => tester.widget<FilledButton>(
-          find.widgetWithText(FilledButton, AppStrings.battleJudgmentSend).first,
+          findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend).first,
         );
 
     // 최소 기준만 골라도 아직 보낼 수 없다(서버도 SUPERIORITY_REQUIRED로 거부한다).
@@ -327,7 +328,7 @@ void main() {
     expect(sendButton().onPressed, isNotNull);
 
     await _tapSend(tester);
-    await tester.tap(find.widgetWithText(FilledButton, AppStrings.battleJudgmentSend).last);
+    await tester.tap(findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend).last);
     await tester.pumpAndSettle();
 
     expect(repository.judgeCount, 1);
@@ -341,11 +342,11 @@ void main() {
     await tester.pumpWidget(_screen(_judging(), repository, photo: photoOk));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleJudgmentRejectHint), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentRejectHint), findsOneWidget);
 
     await _tapChoice(tester, AppStrings.battleJudgmentFailed);
     await _tapSend(tester);
-    await tester.tap(find.widgetWithText(FilledButton, AppStrings.battleJudgmentSend).last);
+    await tester.tap(findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend).last);
     await tester.pumpAndSettle();
 
     expect(repository.sentPassed, isFalse);
@@ -365,10 +366,10 @@ void main() {
     await _tapChoice(tester, AppStrings.battleJudgmentPassed);
 
     final send = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, AppStrings.battleJudgmentSend).first,
+      findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend).first,
     );
     expect(send.onPressed, isNull);
-    expect(find.text(AppStrings.battleJudgmentPhotoUnavailable), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentPhotoUnavailable), findsOneWidget);
   });
 
   testWidgets('판정을 보낸 뒤에는 상대 판정 대기 안내만 보인다', (tester) async {
@@ -377,9 +378,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleJudgmentSentTitle), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentWaitingOpponent), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentSend), findsNothing);
+    expect(findText(AppStrings.battleJudgmentSentTitle), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentWaitingOpponent), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentSend), findsNothing);
   });
 
   // 양쪽 판정이 끝났는데 아직 judging이면 불복 건의 AI 재판정이 남은 것이다.
@@ -393,8 +394,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleJudgmentAiTitle), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentSend), findsNothing);
+    expect(findText(AppStrings.battleJudgmentAiTitle), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentSend), findsNothing);
   });
 
   testWidgets('상대가 사진을 내지 않았으면 판정할 것이 없다고 알린다', (tester) async {
@@ -403,8 +404,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleJudgmentNothingTitle), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentSend), findsNothing);
+    expect(findText(AppStrings.battleJudgmentNothingTitle), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentSend), findsNothing);
   });
 
   testWidgets('판정 기한이 지나면 판정 입력 대신 자동 처리 안내가 보인다', (tester) async {
@@ -417,8 +418,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleJudgmentWindowClosedTitle), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentSend), findsNothing);
+    expect(findText(AppStrings.battleJudgmentWindowClosedTitle), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentSend), findsNothing);
   });
 
   testWidgets('서버가 거부하면 코드별 문구를 띄우고 화면을 유지한다', (tester) async {
@@ -428,11 +429,11 @@ void main() {
 
     await _tapChoice(tester, AppStrings.battleJudgmentPassed);
     await _tapSend(tester);
-    await tester.tap(find.widgetWithText(FilledButton, AppStrings.battleJudgmentSend).last);
+    await tester.tap(findWidgetWithText(FilledButton, AppStrings.battleJudgmentSend).last);
     await tester.pumpAndSettle();
 
     expect(repository.judgeCount, 1);
-    expect(find.text(AppStrings.battleJudgmentSendFailed), findsOneWidget);
+    expect(findText(AppStrings.battleJudgmentSendFailed), findsOneWidget);
   });
 
   // 포기 버튼이 judging에도 있는지는 widget_test가 덮는다. 여기서는 제출 자리가 닫혔는지만 본다.
@@ -440,8 +441,8 @@ void main() {
     await tester.pumpWidget(_screen(_judging(), _FakeBattleRepository(), photo: photoOk));
     await tester.pumpAndSettle();
 
-    expect(find.text(AppStrings.battleEvidenceTakePhoto), findsNothing);
-    expect(find.text(AppStrings.battleEvidenceReplace), findsNothing);
+    expect(findText(AppStrings.battleEvidenceTakePhoto), findsNothing);
+    expect(findText(AppStrings.battleEvidenceReplace), findsNothing);
   });
 
   testWidgets('헤더가 사진 마감과 판정 마감을 다른 줄로 보여 준다', (tester) async {
@@ -449,11 +450,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('${AppStrings.battleSubmitDeadlineLabel} · ${AppStrings.battleDeadlineClosed}'),
+      findText('${AppStrings.battleSubmitDeadlineLabel} · ${AppStrings.battleDeadlineClosed}'),
       findsOneWidget,
     );
     expect(
-      find.textContaining(AppStrings.battleJudgeDeadlineLabel),
+      findTextContaining(AppStrings.battleJudgeDeadlineLabel),
       findsOneWidget,
     );
   });
@@ -521,7 +522,7 @@ void main() {
         var wrapped = 0;
         for (final sentence in sentences) {
           final paragraph = tester.renderObject<RenderParagraph>(
-            find.descendant(of: find.text(sentence), matching: find.byType(RichText)),
+            find.descendant(of: findText(sentence), matching: find.byType(RichText)),
           );
           expect(breaksOnlyAtSpaces(paragraph), isTrue, reason: sentence);
           if (lineStarts(paragraph).isNotEmpty) wrapped++;

@@ -658,6 +658,46 @@ PowerShell이면 `echo` 자리에 `"EXIT=$LASTEXITCODE"`. 실패 메시지가 �
     3. `EvidencePhotoFrame` 실패 아이콘 색은 기존대로 `ink`(plan·design에 색 지정 없음).
     4. `AppPanel.tone` 제목은 `titleSmall` ink(옛 `labelLarge`), 제목 ↔ 본문 간격 4(design 4.1 "제목 ↔ 본문 4").
     5. widget_test 탭바 스모크에 "선택 탭만 채운 아이콘" 단정을 더했다(1.5 배율 변경과 같은 테스트).
+- 3단계(2026-11-08, 클라우드 세션 — Flutter SDK 있음, Android SDK 없음. 커밋마다 `flutter analyze`·`flutter test`를
+  돌려 둘 다 통과한 뒤 커밋. 릴리스 빌드는 못 돌림 — 3단계는 네이티브 변경이 없어 plan상 필수 아님, C20 선택 확인은 오너 로컬 몫):
+  - C11 `9dc2fe1` 할 일 목록. analyze 0 / test 590.
+  - C12 `719a577` 판정 창·기준 묶음·상대 카드. recruit_sheet_test `_tapJoin` 앞에 `ensureVisible` 추가(시트가 길어져 참가 버튼이
+    800x600 화면 밖 y=600으로 밀림 — 단정·기대값 변경 없음). analyze 0 / test 590.
+  - C13 `0be46ba` 대결 상세 머리·증거·결과 배너·포기. analyze 0 / test 590.
+  - C14 `5ed36eb` 내 대결. my_battles_sections_test 배율 1.3 → 1.5, 강조 줄 굵기 기대값 w600 → w700 2곳. analyze 0 / test 590.
+  - C15 `52e00cd` 대결 찾기. recruit_browse_test 띠 폭 8 → 4, 시계 finder `Icon(AppIcons.clock)`. analyze 0 / test 590.
+  - C16 `73eb637` 모집 상세 시트. analyze 0 / test 590.
+  - C17 `f90dcf1` 대결 만들기. analyze 0 / test 590.
+  - C18 `3a98644` 모집 기준 수정. analyze 0 / test 590.
+  - C19 `52d9206` AI 데이터 제공 동의. analyze 0 / test 590.
+  - C20 `083aff5` 프로필(점수·전적·기록·동의·알림·계정). analyze 0 / test 590.
+  - C12 후속 `0693eff` `fix:` 판정 창 info 아이콘을 첫 줄 높이(글자 배율 반영) 가운데로 — 1.5배 스크린샷에서 첫 줄보다 위로 붙어
+    보여서. analyze 0 / test 590.
+  - 커밋마다 `git diff --stat -- lib/core/strings.dart` 비어 있음(문구 변경 0). 새 패키지 0, `pubspec.lock` 변경 없음.
+  - 3단계 끝 잔존 참조 grep(`PixelFrame|PixelTone|PixelIcon\b|PixelIcons|PixelLoader|RetroText|RetroPalette|FontWeight\.w[56]00` in lib):
+    허용 목록과 정확히 같다 — `app_mark.dart`, `pixel_border/pixel_icons/retro_palette/retro_text.dart`, `pixel_frame/pixel_icon/
+    pixel_loader.dart`, `auth_gate.dart`·`login_screen.dart`(C23), `vs_intro.dart`(C21).
+  - 순서 변경 없음(C12 후속 fix 한 개가 더해졌을 뿐 화면 순서는 plan 그대로).
+  - plan과 다르게 한 작은 결정(사소한 UI — 결과만 보고):
+    1. 할 일 수정 열기 탭을 `ListTile.onTap`에서 `AppPanel(onTap:)`으로 옮겼다 — design 5.5 "누르면 두께가 꺼진다"를 내려면 묶음이
+       탭을 받아야 한다. 체크박스·삭제 버튼은 안쪽 위젯이라 그대로 먼저 받는다. 할 일 줄 최소 높이 60은 `ListTile.minTileHeight`.
+    2. 기준 번호·결과 배너 점수 변화는 옆 문장과 글자 기준선을 맞췄다(`CrossAxisAlignment.baseline`).
+    3. 줄이 넘칠 수 있는 칩·숫자 줄은 `Row` → `Wrap`: 대결 상세 머리(배지+상태 칩), 상대 카드 점수·전적, 모집 카드·모집 시트의
+       배지+기간 칩, 프로필 점수+전적(기준선 대신 아래 끝 맞춤). 동의 화면 개인정보처리방침 라벨은 `Flexible`.
+    4. 모집 카드 유형 색 띠(4dp)는 카드 가장자리가 아니라 안쪽 여백(왼쪽 12) 안에 끝이 둥근 띠로 뒀다. 모서리 16 카드가 내용을 깎지
+       않아(clip 없음) 가장자리에 붙이면 띠가 둥근 모서리 밖으로 삐져나온다. 띠는 여전히 카드 내용 높이를 채운다(테스트 유지).
+    5. 대결 만들기 입력 단계의 동의 전·한도 소진 안내를 tone neutral → danger로 바꿨다(design 5.5 "차단·한도 안내 tone danger").
+    6. 포기 확인 대화상자의 [포기]를 `FilledButton.styleFrom(backgroundColor: error)` → `AppButtonStyles.danger`(같은 색, 비활성 규칙 통일).
+    7. 모집 시트 위 여백 16 → 8(테마 손잡이가 이미 띄움), 찾기 조작판 요소 사이는 8 유지(목록 높이를 아끼려고 — design "묶음 안 12"의
+       예외로 둔다).
+    8. "판정은 한 번만" info 아이콘은 첫 줄 높이 상자 가운데(위 fix).
+  - **전/후 스크린샷**(design 9.1, 저장소 밖): 위젯 테스트 환경에서 360x800 논리 크기 · devicePixelRatio 2, 실제 Pretendard·
+    Material Icons·Galmuri(전) 글꼴을 로드해 PNG로 떴다. "전"은 C1 직전 `cb7f1bc`의 git worktree. 기기 기본 글꼴 자리는 Noto Sans KR
+    (npm `@expo-google-fonts/noto-sans-kr` 0.4.4)로 대신했다 — 실기기의 Noto Sans CJK KR과 같은 계열이지만 같은 파일은 아니다.
+    배율은 전 1.0·1.3(당시 상한), 후 1.0·1.5. 사진은 가짜 HTTP로 넣은 그림. 골든 테스트로 저장소에 넣지 않았다.
+  - 육안으로 확인할 것(스크린샷에서 본 것): 판정 세그먼트는 배율 1.0에서 "상대가 더 잘했어요"(체크 아이콘 포함)가 두 줄, 1.5에서 네 칸 모두
+    두 줄이고 "통과했어\n요"처럼 음절 단위로 끊긴다 — design 5.5가 허용한 "라벨 두 줄"이지만 끊김이 어색하면 "두 칸 위아래로 쌓기"를 오너가
+    판단(9.2-2). 할 일 1.5배에서 마지막 완료 줄이 FAB에 일부 가리지만 아래 여백 96으로 스크롤하면 드러난다.
 
 ## 오너 결정 (2026-11-08)
 - 검증 방식: **구현은 클라우드 세션, 검증은 오너가 Windows 로컬에서.** 단계 단위로 끊는다 — 1단계(C1–C5)를 푸시하고 멈춘 뒤,

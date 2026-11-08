@@ -1,10 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_theme.dart';
+import 'package:todododo/core/widgets/keep_words_text.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
@@ -17,6 +20,8 @@ import 'package:todododo/features/battle/data/vs_intro_seen_store.dart';
 import 'package:todododo/features/battle/domain/battle_detail.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/presentation/battle_detail_screen.dart';
+
+import '../../helpers/line_breaks.dart';
 
 /// 상호 판정 화면. 판정 **결론**은 서버가 내므로 여기서 보는 것은
 /// "무엇을 묻는가 / 언제 보낼 수 있는가 / 무엇을 보냈는가"뿐이다.
@@ -194,6 +199,8 @@ Widget _screen(
   BattleDetail detail,
   _FakeBattleRepository repository, {
   AsyncValue<String>? photo,
+  ThemeData? theme,
+  double textScale = 1.0,
 }) {
   return ProviderScope(
     overrides: [
@@ -210,13 +217,25 @@ Widget _screen(
           ),
         ),
     ],
-    child: MaterialApp(home: BattleDetailScreen(battleId: detail.battle.id)),
+    child: MaterialApp(
+      theme: theme,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
+      home: BattleDetailScreen(battleId: detail.battle.id),
+    ),
   );
 }
 
 /// 선택지는 사진·기준 아래라 기본 테스트 화면(800x600) 밖으로 밀린다.
+/// 판정 선택지 라벨. 화면은 어절 단위 줄바꿈을 위해 글자 사이에 WORD JOINER를 끼워 그리므로
+/// 원문으로 찾는다([KeepWordsText.text]).
+Finder _choice(String label) =>
+    find.byWidgetPredicate((widget) => widget is KeepWordsText && widget.text == label);
+
 Future<void> _tapChoice(WidgetTester tester, String label) async {
-  final choice = find.text(label);
+  final choice = _choice(label);
   await tester.ensureVisible(choice);
   await tester.pumpAndSettle();
   await tester.tap(choice);
@@ -239,8 +258,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text(AppStrings.battleJudgmentMinQuestion), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentPassed), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentFailed), findsOneWidget);
+    expect(_choice(AppStrings.battleJudgmentPassed), findsOneWidget);
+    expect(_choice(AppStrings.battleJudgmentFailed), findsOneWidget);
     // 속도전에는 우열 질문이 없다(서버도 우열 값을 받으면 거부한다).
     expect(find.text(AppStrings.battleJudgmentSuperiorityQuestion), findsNothing);
     // 판정할 기준이 함께 보인다.
@@ -291,8 +310,8 @@ void main() {
 
     expect(find.text(AppStrings.battleJudgmentMinQuestion), findsOneWidget);
     expect(find.text(AppStrings.battleJudgmentSuperiorityQuestion), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentSuperiorMe), findsOneWidget);
-    expect(find.text(AppStrings.battleJudgmentSuperiorOpponent), findsOneWidget);
+    expect(_choice(AppStrings.battleJudgmentSuperiorMe), findsOneWidget);
+    expect(_choice(AppStrings.battleJudgmentSuperiorOpponent), findsOneWidget);
     // 우열 기준도 함께 보인다.
     expect(find.text('먼지가 없다'), findsOneWidget);
 
@@ -437,5 +456,66 @@ void main() {
       find.textContaining(AppStrings.battleJudgeDeadlineLabel),
       findsOneWidget,
     );
+  });
+
+  group('선택지 라벨은 단어 중간에서 줄을 바꾸지 않는다(360dp 폭, 앱 테마)', () {
+    const labels = [
+      AppStrings.battleJudgmentPassed,
+      AppStrings.battleJudgmentFailed,
+      AppStrings.battleJudgmentSuperiorMe,
+      AppStrings.battleJudgmentSuperiorOpponent,
+    ];
+
+    Future<void> pumpPicked(WidgetTester tester, double scale) async {
+      tester.view.physicalSize = const Size(720, 1600);
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_screen(
+        _judging(type: 'quality'),
+        _FakeBattleRepository(),
+        photo: photoOk,
+        theme: AppTheme.light,
+        textScale: scale,
+      ));
+      await tester.pumpAndSettle();
+      // 체크 아이콘이 붙으면 칸이 가장 좁아진다 — 두 질문 모두 고른 상태로 본다.
+      await _tapChoice(tester, AppStrings.battleJudgmentPassed);
+      await _tapChoice(tester, AppStrings.battleJudgmentSuperiorOpponent);
+    }
+
+    RenderParagraph paragraphOf(WidgetTester tester, String label) =>
+        tester.renderObject<RenderParagraph>(
+          find.descendant(of: _choice(label), matching: find.byType(RichText)),
+        );
+
+    Axis directionOf(WidgetTester tester, String label) => tester
+        .widget<SegmentedButton>(
+          find.ancestor(
+            of: _choice(label),
+            matching: find.byWidgetPredicate((widget) => widget is SegmentedButton),
+          ),
+        )
+        .direction;
+
+    testWidgets('배율 1.0: 두 줄이 되는 라벨도 어절 경계에서만 끊긴다', (tester) async {
+      await pumpPicked(tester, 1.0);
+      for (final label in labels) {
+        expect(breaksOnlyAtSpaces(paragraphOf(tester, label)), isTrue, reason: label);
+      }
+      // 실제로 줄바꿈이 일어나는 라벨이 있어야 이 검사가 의미 있다(테스트 글꼴은 정사각형이라 실기기보다 넓다).
+      expect(labels.any((label) => lineStarts(paragraphOf(tester, label)).isNotEmpty), isTrue);
+      expect(directionOf(tester, AppStrings.battleJudgmentPassed), Axis.horizontal);
+      expect(directionOf(tester, AppStrings.battleJudgmentSuperiorOpponent), Axis.horizontal);
+    });
+
+    testWidgets('배율 1.5: 한 어절이 칸보다 넓으면 위아래로 쌓아 어절 안에서 끊기지 않는다', (tester) async {
+      await pumpPicked(tester, 1.5);
+      for (final label in labels) {
+        expect(breaksOnlyAtSpaces(paragraphOf(tester, label)), isTrue, reason: label);
+      }
+      // "통과했어요"는 체크 아이콘과 함께 반 칸에 들어가지 않는다 → 위아래로 쌓는다.
+      expect(directionOf(tester, AppStrings.battleJudgmentPassed), Axis.vertical);
+      expect(lineStarts(paragraphOf(tester, AppStrings.battleJudgmentPassed)), isEmpty);
+    });
   });
 }

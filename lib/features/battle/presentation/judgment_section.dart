@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +9,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/evidence_photo_frame.dart';
+import '../../../core/widgets/keep_words_text.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_providers.dart';
 import '../domain/judgment_rules.dart';
@@ -177,22 +180,13 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
               // 질문이 문장 속에 묻히지 않게 묶음 제목과 같은 titleSmall(design 5.5 기준 화면 2).
               Text(AppStrings.battleJudgmentMinQuestion, style: textTheme.titleSmall),
               const SizedBox(height: 8),
-              SegmentedButton<bool>(
-                // 선택을 색에만 기대지 않게 체크 아이콘을 켠다(redesign design 5.1·5.5 기준 화면 2).
-                showSelectedIcon: true,
-                // 아무것도 고르지 않은 상태로 시작한다(기본값을 두면 실수로 보낼 수 있다).
-                emptySelectionAllowed: true,
-                segments: const [
-                  ButtonSegment(value: true, label: Text(AppStrings.battleJudgmentPassed)),
-                  ButtonSegment(value: false, label: Text(AppStrings.battleJudgmentFailed)),
+              _ChoicePair<bool>(
+                choices: const [
+                  (true, AppStrings.battleJudgmentPassed),
+                  (false, AppStrings.battleJudgmentFailed),
                 ],
-                selected: _passed == null ? const <bool>{} : {_passed!},
-                onSelectionChanged: _sending
-                    ? null
-                    : (selection) {
-                        if (selection.isEmpty) return;
-                        setState(() => _passed = selection.first);
-                      },
+                selected: _passed,
+                onSelected: _sending ? null : (value) => setState(() => _passed = value),
               ),
               const SizedBox(height: 8),
               Text(AppStrings.battleJudgmentRejectHint, style: textTheme.bodyMedium),
@@ -200,27 +194,14 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
                 const SizedBox(height: 16),
                 Text(AppStrings.battleJudgmentSuperiorityQuestion, style: textTheme.titleSmall),
                 const SizedBox(height: 8),
-                SegmentedButton<String>(
-                  showSelectedIcon: true,
-                  emptySelectionAllowed: true,
+                _ChoicePair<String>(
                   // 서버에는 상대적 값이 아니라 고른 사람의 user id가 그대로 간다(뒤집기 실수 방지).
-                  segments: [
-                    ButtonSegment(
-                      value: detail.me.userId,
-                      label: const Text(AppStrings.battleJudgmentSuperiorMe),
-                    ),
-                    ButtonSegment(
-                      value: detail.opponent.userId,
-                      label: const Text(AppStrings.battleJudgmentSuperiorOpponent),
-                    ),
+                  choices: [
+                    (detail.me.userId, AppStrings.battleJudgmentSuperiorMe),
+                    (detail.opponent.userId, AppStrings.battleJudgmentSuperiorOpponent),
                   ],
-                  selected: _superiorId == null ? const <String>{} : {_superiorId!},
-                  onSelectionChanged: _sending
-                      ? null
-                      : (selection) {
-                          if (selection.isEmpty) return;
-                          setState(() => _superiorId = selection.first);
-                        },
+                  selected: _superiorId,
+                  onSelected: _sending ? null : (value) => setState(() => _superiorId = value),
                 ),
               ],
               const SizedBox(height: 16),
@@ -276,6 +257,63 @@ class _JudgmentSectionState extends ConsumerState<JudgmentSection> {
         return EvidencePhotoFrame.large(
           failed: true,
           onRetry: () => ref.invalidate(evidencePhotoUrlProvider(path)),
+        );
+      },
+    );
+  }
+}
+
+/// 판정 선택지 칸에서 라벨 말고 차지하는 폭(좌우 여백 + 체크 아이콘 18 + 간격 + 테두리). Material
+/// `SegmentedButton`이 체크 아이콘이 붙은 칸에 쓰는 값(글자 배율에 따라 약 37–45)보다 넉넉히 잡는다.
+const double _choiceChrome = 48;
+
+/// 상호 판정의 정해진 선택지 두 칸(세그먼트). 두 판정 질문이 같이 쓴다.
+///
+/// - 선택을 색에만 기대지 않게 체크 아이콘을 켠다(redesign design 5.1·5.5 기준 화면 2).
+/// - 아무것도 고르지 않은 상태로 시작한다(기본값을 두면 실수로 보낼 수 있다).
+/// - 라벨은 어절 단위로만 줄을 바꾼다([KeepWordsText]) — "상대가 더 잘 / 했어요"처럼 끊기지 않게.
+///   그래도 칸 하나에 가장 긴 어절이 안 들어가면(360dp·1.5배에서 체크가 붙은 "통과했어요") 두 칸을
+///   위아래로 쌓는다. 그러면 칸이 줄 폭을 다 쓰므로 어절 안에서 잘리지 않는다.
+class _ChoicePair<T extends Object> extends StatelessWidget {
+  const _ChoicePair({required this.choices, required this.selected, required this.onSelected});
+
+  /// (서버로 보낼 값, 원문 라벨).
+  final List<(T, String)> choices;
+  final T? selected;
+
+  /// null이면 고를 수 없다(보내는 중).
+  final ValueChanged<T>? onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final labelStyle =
+        theme.segmentedButtonTheme.style?.textStyle?.resolve(const {WidgetState.selected}) ??
+            theme.textTheme.labelLarge;
+    final scaler = MediaQuery.textScalerOf(context);
+    final widestWord = [
+      for (final (_, label) in choices) widestWordWidth(label, style: labelStyle, textScaler: scaler),
+    ].reduce(math.max);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cellRoom = constraints.maxWidth / choices.length - _choiceChrome;
+        final onSelected = this.onSelected;
+        final selected = this.selected;
+        return SegmentedButton<T>(
+          direction: widestWord <= cellRoom ? Axis.horizontal : Axis.vertical,
+          showSelectedIcon: true,
+          emptySelectionAllowed: true,
+          segments: [
+            for (final (value, label) in choices)
+              ButtonSegment(value: value, label: KeepWordsText(label)),
+          ],
+          selected: selected == null ? <T>{} : {selected},
+          onSelectionChanged: onSelected == null
+              ? null
+              : (selection) {
+                  if (selection.isEmpty) return;
+                  onSelected(selection.first);
+                },
         );
       },
     );

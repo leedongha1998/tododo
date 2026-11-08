@@ -93,6 +93,13 @@ class TodoListScreen extends ConsumerWidget {
               final todo = todos[index];
               final tile = ListTile(
                 minTileHeight: 60,
+                // 1.5배에서 글자 칸을 넓히려고 좌우 여백·간격을 줄였다(redesign 후속 2 W3, 글자 칸 150 → 198dp).
+                // 체크박스·삭제 버튼은 48dp 터치 상자를 그대로 갖고, 그 상자 안 여백(12)이 카드 가장자리와의 시각 간격 16을 만든다.
+                // 체크박스는 24/18배로 그려 터치 상자도 64dp로 커지므로 간격 8이면 글자가 그 상자에 맞닿고 겹치지 않는다
+                // (글자 앞을 눌러도 체크되지 않는다 — 테스트 고정).
+                contentPadding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
+                horizontalTitleGap: 8,
+                minLeadingWidth: 0,
                 // Flutter Checkbox는 18dp 고정이라 이 자리에서만 24dp로 키운다(redesign plan "설계와 다른 점" 3).
                 // 터치 영역 48은 materialTapTargetSize.padded가 유지한다.
                 leading: Transform.scale(

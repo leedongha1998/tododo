@@ -340,6 +340,49 @@ void main() {
     });
   }
 
+  // redesign 후속 2 W3: 1.5배에서 체크박스·삭제 버튼 주변 여백 때문에 할 일 글자 칸이 152dp뿐이라 한 줄에 몇 글자 안 들어갔다.
+  // 버튼 터치 영역(48)은 지키고 여백만 줄여 칸을 넓힌다.
+  testWidgets('할 일 행은 360dp·1.5배에서 글자 칸이 넓고(줄 수 감소), 체크박스·삭제 버튼 터치 영역은 48dp 이상이다', (
+    WidgetTester tester,
+  ) async {
+    const title = '퇴근길에 장 보기 — 우유, 달걀, 두부, 대파, 사과 한 봉지와 내일 아침에 먹을 식빵까지 잊지 말기';
+    tester.view.physicalSize = const Size(720, 1600);
+    tester.view.devicePixelRatio = 2;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          todosProvider.overrideWith(
+            (ref) async => [Todo(id: '1', title: title, isDone: false, createdAt: DateTime(2026, 11, 8))],
+          ),
+          myBattlesProvider.overrideWith((ref) async => const []),
+        ],
+        child: MaterialApp(theme: AppTheme.light, home: const TodoListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final titleRect = tester.getRect(findText(title));
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.descendant(of: findText(title), matching: find.byType(RichText)),
+    );
+    final checkbox = tester.getRect(find.byType(Checkbox));
+    final delete = tester.getRect(find.byTooltip(AppStrings.delete));
+    expect(checkbox.width, greaterThanOrEqualTo(48));
+    expect(checkbox.height, greaterThanOrEqualTo(48));
+    expect(delete.width, greaterThanOrEqualTo(48));
+    expect(delete.height, greaterThanOrEqualTo(48));
+    // 글자 칸은 버튼(키워 그린 체크박스의 터치 상자 포함)과 겹치지 않는다.
+    expect(titleRect.left, greaterThanOrEqualTo(checkbox.right));
+    expect(titleRect.right, lessThanOrEqualTo(delete.left));
+    // 여백을 줄이기 전(W2 시점)에는 글자 칸 150dp, 이 글이 11줄이었다(테스트 글꼴 — 글자마다 정사각형).
+    expect(titleRect.width, greaterThanOrEqualTo(196));
+    expect(lineStarts(paragraph).length + 1, lessThanOrEqualTo(8));
+    expect(tester.takeException(), isNull);
+  });
+
   // redesign 후속 결정 4: 1.5배에서 FAB가 마지막 할 일의 삭제 버튼을 가렸다. 끝까지 내리면 완전히 드러나야 한다.
   testWidgets('할 일 목록을 끝까지 내리면 마지막 줄(삭제 버튼 포함)이 FAB에 가리지 않는다(360dp·1.5배)', (WidgetTester tester) async {
     tester.view.physicalSize = const Size(720, 1600);

@@ -118,6 +118,8 @@ flutter build appbundle --release --dart-define-from-file=env.json
 - [ ] **그래픽 이미지(feature graphic)** 1024×500 PNG
 - [x] ~~**스크린샷**~~ — `store/screenshots/` 4장 (1080×1920). 실제 앱을 profile 빌드로 에뮬레이터에
       올려 찍었고, 샘플 데이터는 찍은 뒤 원격 DB에서 전부 정리했다. 재촬영 절차는 `store/listing-ko.md`
+      **주의: 이 4장은 redesign(2026-11-08, Pretendard·파랑 팔레트) 이전의 옛 화면이다 — 프로덕션 전에 다시
+      찍는다**(`TODO_BACKLOG.md`)
 - [x] ~~**짧은 설명** 80자 이내~~ / ~~**자세한 설명** 4000자 이내~~ / ~~앱 이름, 카테고리, 콘텐츠 등급 답안~~
       — `store/listing-ko.md`에 붙여넣기용으로 정리
 - [ ] 위 문구를 Play Console에 입력 (사용자 직접)
@@ -179,6 +181,7 @@ supabase migration list          # local/remote 마이그레이션이 전부 일
       (에뮬레이터 기본 카메라는 셔터가 동작하지 않아 촬영 경로 검증이 안 된다)
 - [ ] 런처에 아이콘이 제대로 보이는지 (홈 화면·앱 서랍·최근 앱). 기기 모양 설정을 원형으로 바꿔도
       체크 표시가 잘리지 않는지 — 적응형 아이콘은 가장자리가 기기마다 다르게 깎인다
+- [ ] 프로필 → 오픈소스 라이선스 화면에 **Pretendard**(OFL 1.1) 항목이 보이는지(글꼴 고지)
 - [ ] 실기기에서 **탈퇴 한 번** — 증거 사진이 있는 계정으로 프로필 → 계정 삭제까지 해보고,
       Storage 대시보드의 `battle_evidence` 버킷에서 그 계정 폴더가 비었는지 확인
       (RPC 자체는 스모크 테스트로 검증됐지만, 사진 삭제는 앱이 Storage API로 하는 부분이라

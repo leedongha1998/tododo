@@ -33,4 +33,19 @@ void main() {
       expect(File(path).existsSync(), isTrue, reason: path);
     }
   });
+
+  // 옛 픽셀 글꼴은 C26에서 지웠다. 이름을 직접 적지 않고 "Pretendard 말고는 없다"로 고정한다
+  // (redesign plan의 최종 잔존 참조 grep이 test/까지 본다).
+  // 주석(`#   - family: ...`, Flutter 템플릿 예시)은 세지 않는다.
+  test('번들 글꼴 패밀리는 Pretendard 하나뿐이다', () {
+    final families = RegExp(r'^\s*- family: (\S+)', multiLine: true).allMatches(pubspec).map((m) => m.group(1)).toList();
+    expect(families, ['Pretendard']);
+    final fontAssets = RegExp(r'^\s*- (?:asset: )?(assets/fonts/\S+)', multiLine: true).allMatches(pubspec).map((m) => m.group(1)!);
+    expect(fontAssets.where((path) => !path.startsWith('assets/fonts/pretendard/')), isEmpty);
+  });
+
+  test('assets/fonts 아래에는 pretendard 폴더 하나뿐이다(옛 글꼴 파일이 남지 않는다)', () {
+    final entries = Directory('assets/fonts').listSync().map((e) => e.uri.pathSegments.where((s) => s.isNotEmpty).last);
+    expect(entries.toList(), ['pretendard']);
+  });
 }

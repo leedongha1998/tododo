@@ -54,7 +54,7 @@ class BattleSummaryCard extends StatelessWidget {
               children: [
                 Text(
                   battle.title,
-                  // 대결 제목은 목록 본문이라 픽셀 글꼴이 아니라 본문 글꼴이다.
+                  // 대결 제목은 목록 본문이라 목록 주 텍스트 슬롯(bodyLarge)을 굵게 쓴다.
                   style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),

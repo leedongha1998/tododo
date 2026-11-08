@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/strings.dart';
 import '../../../core/theme/app_icons.dart';
-import '../../../core/theme/pixel_icons.dart';
-import '../../../core/theme/retro_palette.dart';
-import '../../../core/widgets/pixel_frame.dart';
-import '../../../core/widgets/pixel_icon.dart';
+import '../../../core/theme/app_palette.dart';
+import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../data/todo.dart';
@@ -86,37 +84,47 @@ class TodoListScreen extends ConsumerWidget {
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            // 좌우 20·위 16, 아래 96은 FAB가 마지막 줄을 가리지 않게(redesign design 5.5 기준 화면 1).
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 96),
             itemCount: todos.length,
             itemBuilder: (context, index) {
               final todo = todos[index];
               final tile = ListTile(
-                leading: Checkbox(
-                  value: todo.isDone,
-                  onChanged: (_) => _toggleDone(context, ref, todo),
+                minTileHeight: 60,
+                // Flutter Checkbox는 18dp 고정이라 이 자리에서만 24dp로 키운다(redesign plan "설계와 다른 점" 3).
+                // 터치 영역 48은 materialTapTargetSize.padded가 유지한다.
+                leading: Transform.scale(
+                  scale: 24 / 18,
+                  child: Checkbox(
+                    value: todo.isDone,
+                    onChanged: (_) => _toggleDone(context, ref, todo),
+                  ),
                 ),
                 title: Text(
                   todo.title,
                   style: todo.isDone
                       ? const TextStyle(
                           decoration: TextDecoration.lineThrough,
-                          color: RetroPalette.inkMuted,
+                          color: AppPalette.inkMuted,
+                          decorationColor: AppPalette.inkMuted,
                         )
                       : null,
                 ),
-                onTap: () => _openEditDialog(context, ref, todo),
                 trailing: IconButton(
-                  icon: const PixelIcon(PixelIcons.delete),
+                  icon: const Icon(AppIcons.delete, color: AppPalette.inkMuted),
                   tooltip: AppStrings.delete,
                   onPressed: () => _deleteTodo(context, ref, todo),
                 ),
               );
+              void openEdit() => _openEditDialog(context, ref, todo);
               // 안 한 일은 떠 있고, 끝낸 일은 가라앉는다. 면색·높낮이·체크·취소선으로 한눈에 갈린다.
+              // 누르기(수정)는 묶음이 받아 떠 있는 카드는 누르는 동안 두께가 꺼진다. 체크박스·삭제 버튼은 안쪽이라
+              // 제스처 경쟁에서 먼저 이긴다.
               return Padding(
-                padding: EdgeInsets.only(bottom: index == todos.length - 1 ? 0 : 8),
+                padding: EdgeInsets.only(bottom: index == todos.length - 1 ? 0 : 12),
                 child: todo.isDone
-                    ? PixelFrame.inset(padding: EdgeInsets.zero, child: tile)
-                    : PixelFrame.raised(padding: EdgeInsets.zero, child: tile),
+                    ? AppPanel.inset(padding: EdgeInsets.zero, onTap: openEdit, child: tile)
+                    : AppPanel.raised(padding: EdgeInsets.zero, onTap: openEdit, child: tile),
               );
             },
           );
@@ -131,7 +139,7 @@ class TodoListScreen extends ConsumerWidget {
         // 찾기 탭 FAB와 같은 이유로 고유 태그를 준다(기본값이면 Hero 태그가 겹친다).
         heroTag: 'addTodoFab',
         onPressed: () => _openAddDialog(context, ref),
-        child: const PixelIcon(PixelIcons.add),
+        child: const Icon(AppIcons.add),
       ),
     );
   }

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/app_tab.dart';
 import '../../../core/strings.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../core/widgets/app_button_styles.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/app_tag.dart';
 import '../../../core/widgets/keep_words_text.dart';
@@ -243,24 +245,33 @@ class _MyRecruitBody extends StatelessWidget {
         const SizedBox(height: 8),
         // "아직 아무도 안 들어왔다"는 사실 자체가 이 구역의 의미다.
         KeepWordsText(AppStrings.battleMyRecruitWaiting, style: textTheme.bodySmall),
-        const SizedBox(height: 12),
-        // 매칭 전까지는 기준을 고칠 수 있다. 매칭된 뒤에는 서버가 거부한다.
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
+        // 버튼 줄을 정보 줄과 떼어 놓는다(design-judging-buttons 2.7).
+        const SizedBox(height: 16),
+        // 두께 있는 버튼은 두지 않는다 — 이 카드의 두 동작은 화면의 주 행동이 아니다.
+        // 고치기(토널)와 없애기(위험 텍스트)는 무게가 다르다. 넘치면 세로로 쌓이고 기준 수정이 위(대화상자 버튼 줄과 같은 규칙).
+        OverflowBar(
+          spacing: 8,
+          overflowSpacing: 8,
+          alignment: MainAxisAlignment.end,
+          overflowAlignment: OverflowBarAlignment.end,
+          overflowDirection: VerticalDirection.up,
           children: [
-            OutlinedButton(
+            TextButton.icon(
+              style: AppButtonStyles.dangerText.merge(AppButtonStyles.compact),
+              onPressed: onCancel,
+              icon: const Icon(AppIcons.close),
+              label: const KeepWordsText(AppStrings.battleRecruitCancel),
+            ),
+            // 매칭 전까지는 기준을 고칠 수 있다. 매칭된 뒤에는 서버가 거부한다.
+            OutlinedButton.icon(
+              style: AppButtonStyles.compact,
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => EditRecruitCriteriaScreen(battle: battle),
                 ),
               ),
-              child: const KeepWordsText(AppStrings.battleCriteriaEditRecruit),
-            ),
-            const SizedBox(width: 8),
-            // 두 동작은 무게가 같다(둘 다 이 모집을 손보는 보조 동작) — 같은 보조 버튼으로 나란히 둔다.
-            OutlinedButton(
-              onPressed: onCancel,
-              child: const KeepWordsText(AppStrings.battleRecruitCancel),
+              icon: const Icon(AppIcons.edit),
+              label: const KeepWordsText(AppStrings.battleCriteriaEditRecruit),
             ),
           ],
         ),

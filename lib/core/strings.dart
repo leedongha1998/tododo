@@ -39,7 +39,7 @@ class AppStrings {
   static const battleMyRecruits = '내가 등록한 모집';
   static const battleJoined = '매칭되어 대결이 시작됐습니다.';
   static const battleLoadRecruitsFailed = '모집 목록을 불러오지 못했습니다.';
-  static const battleRecruitCancel = '취소';
+  static const battleRecruitCancel = '모집 취소';
   static const battleRecruitCancelled = '모집을 취소했습니다.';
   static const battleRecruitCancelFailed = '취소에 실패했습니다. 다시 시도해주세요.';
 

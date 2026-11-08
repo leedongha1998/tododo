@@ -95,6 +95,9 @@ class AppIcons {
   /// 동의 문구, 오픈소스 라이선스.
   static const document = Icons.description_outlined;
 
-  /// 시트 닫기, 검색어 지우기.
+  /// 시트 닫기, 검색어 지우기, 모집 취소.
   static const close = Icons.close_rounded;
+
+  /// 모집 기준 수정(design-judging-buttons 2.7).
+  static const edit = Icons.edit_rounded;
 }

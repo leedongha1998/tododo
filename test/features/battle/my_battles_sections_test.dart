@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/app_theme.dart';
+import 'package:todododo/core/widgets/app_panel.dart';
 import 'package:todododo/core/widgets/app_tag.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
@@ -117,6 +119,12 @@ Future<ProviderContainer> _pumpMyBattles(
   return container;
 }
 
+/// 라벨 원문으로 버튼을 찾는다. `TextButton.icon`·`OutlinedButton.icon`은 하위 클래스라 byType으로 잡히지 않는다.
+Finder _button<T extends ButtonStyleButton>(String label) => find.ancestor(
+      of: findText(label),
+      matching: find.byWidgetPredicate((widget) => widget is T),
+    );
+
 void main() {
   testWidgets('내가 등록한 모집이 진행 중 목록과 구분된 구역으로 보인다', (tester) async {
     await _pumpMyBattles(
@@ -131,13 +139,14 @@ void main() {
     expect(findText(AppStrings.battleStatusPending), findsOneWidget);
     expect(findText(battleDurationLabel(30)), findsOneWidget);
     expect(findText(AppStrings.battleMyRecruitWaiting), findsOneWidget);
+    // 기준 수정 = 보조(토널, OutlinedButton), 모집 취소 = 위험 텍스트(TextButton) — design-judging-buttons 2.7.
+    expect(_button<OutlinedButton>(AppStrings.battleCriteriaEditRecruit), findsOneWidget);
+    expect(_button<TextButton>(AppStrings.battleRecruitCancel), findsOneWidget);
     expect(
-      findWidgetWithText(OutlinedButton, AppStrings.battleCriteriaEditRecruit),
-      findsOneWidget,
-    );
-    expect(
-      findWidgetWithText(OutlinedButton, AppStrings.battleRecruitCancel),
-      findsOneWidget,
+      tester.widget<TextButton>(_button<TextButton>(AppStrings.battleRecruitCancel)).style!
+          .foregroundColor!
+          .resolve(const {}),
+      AppPalette.danger,
     );
 
     // 구역 B: 진행 중 카드는 그대로다(상대·유형·상태 칩).
@@ -199,9 +208,7 @@ void main() {
     final repository = _MyBattlesRepository(recruits: [_recruit()]);
     await _pumpMyBattles(tester, repository: repository);
 
-    await tester.tap(
-      findWidgetWithText(OutlinedButton, AppStrings.battleRecruitCancel),
-    );
+    await tester.tap(_button<TextButton>(AppStrings.battleRecruitCancel));
     await tester.pumpAndSettle();
 
     expect(repository.cancelCount, 1);
@@ -253,6 +260,47 @@ void main() {
       expect(rect.right, lessThanOrEqualTo(screen.right + 0.5));
     }
   });
+
+  // design-judging-buttons 2.7: 모집 카드 두 버튼(작은 크기). 넘치면 세로로 쌓이고 기준 수정이 위, 둘 다 오른쪽 정렬.
+  for (final scale in [1.0, 1.5]) {
+    testWidgets('360dp·$scale배에서 모집 카드 두 버튼이 카드를 넘지 않고 터치 영역이 48 이상이다', (tester) async {
+      tester.view.physicalSize = const Size(360, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await _pumpMyBattles(
+        tester,
+        repository: _MyBattlesRepository(recruits: [_recruit()]),
+        theme: AppTheme.light,
+        textScale: scale,
+      );
+      expect(tester.takeException(), isNull);
+
+      final card = tester.getRect(
+        find.ancestor(of: findText('설거지하기'), matching: find.byType(AppPanel)).first,
+      );
+      final edit = _button<OutlinedButton>(AppStrings.battleCriteriaEditRecruit);
+      final cancel = _button<TextButton>(AppStrings.battleRecruitCancel);
+      for (final button in [edit, cancel]) {
+        final rect = tester.getRect(button);
+        expect(rect.left, greaterThanOrEqualTo(card.left), reason: '$button');
+        expect(rect.right, lessThanOrEqualTo(card.right), reason: '$button');
+        expect(rect.height, greaterThanOrEqualTo(48), reason: '$button');
+        expect(rect.width, greaterThanOrEqualTo(48), reason: '$button');
+      }
+      final editRect = tester.getRect(edit);
+      final cancelRect = tester.getRect(cancel);
+      if (scale == 1.5) {
+        // "모집 취소"가 되면서 1.5배에서는 한 줄에 못 들어간다 → 기준 수정이 위, 둘 다 오른쪽 끝.
+        expect(editRect.bottom, lessThanOrEqualTo(cancelRect.top));
+        expect(editRect.right, moreOrLessEquals(cancelRect.right, epsilon: 0.5));
+      } else {
+        // 한 줄이면 모집 취소가 왼쪽, 기준 수정이 오른쪽 끝.
+        expect(editRect.top, moreOrLessEquals(cancelRect.top, epsilon: 0.5));
+        expect(cancelRect.right, lessThanOrEqualTo(editRect.left));
+      }
+    });
+  }
 
   // redesign 후속 2 W2: 대결 제목은 본문 글꼴(bodyLarge)이지만 카드 제목 역할이라 균형 줄바꿈을 쓴다.
   // "냉장고 안 유통기한 지난 음식 전부 / 버리기"처럼 한 어절만 넘어가지 않는다.

@@ -158,25 +158,14 @@ class AppTheme {
           animationDuration: buttonDuration,
         ),
       ),
+      // 이 앱에서 OutlinedButton = 보조(토널) 역할 위젯이다. 이름과 달리 **테두리도 두께도 없다** — 두께는 주 행동만
+      // 갖는다(design-judging-buttons 2A). 화면은 모양을 지정하지 않고 OutlinedButton을 쓰면 토널이 된다.
       outlinedButtonTheme: OutlinedButtonThemeData(
-        style: _depthButton(
-          text,
-          background: AppPalette.surface,
-          foreground: AppPalette.ink,
-          side: _controlSide,
-          focusRing: AppPalette.primary,
-          animationDuration: buttonDuration,
-        ),
+        style: _tonalButton(text, animationDuration: buttonDuration),
       ),
+      // 쓰는 곳은 없다. 기본값(그림자 있는 Material 버튼)이 끼어들지 않게 보조와 같은 모양으로 둔다.
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: _depthButton(
-          text,
-          background: AppPalette.surface,
-          foreground: AppPalette.ink,
-          side: _controlSide,
-          focusRing: AppPalette.primary,
-          animationDuration: buttonDuration,
-        ),
+        style: _tonalButton(text, animationDuration: buttonDuration),
       ),
       textButtonTheme: TextButtonThemeData(
         style: ButtonStyle(
@@ -419,7 +408,44 @@ class AppTheme {
     );
   }
 
-  /// 주·보조·위험 버튼 공통 모양(design 4.2). 둥근 사각 12 + 아래 3dp ink 두께, 높이 52(면 49).
+  /// 보조(토널) 버튼(design-judging-buttons 2A). primaryTonal 면 + primaryDeep 라벨, 테두리·두께 없음, 높이 48.
+  /// 누름 = 면이 primaryTonalPressed로(두께가 없으니 내려올 것도 없다). 비활성 = sunken 면 + inkDisabled.
+  /// 포커스 = 2dp primary 링(primaryTonal 위 4.16).
+  static ButtonStyle _tonalButton(TextTheme text, {required Duration animationDuration}) {
+    return ButtonStyle(
+      backgroundColor: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.disabled)) return AppPalette.sunken;
+        if (states.contains(WidgetState.pressed)) return AppPalette.primaryTonalPressed;
+        return AppPalette.primaryTonal;
+      }),
+      foregroundColor: WidgetStateProperty.resolveWith(
+        (states) =>
+            states.contains(WidgetState.disabled) ? AppPalette.inkDisabled : AppPalette.primaryDeep,
+      ),
+      iconColor: WidgetStateProperty.resolveWith(
+        (states) =>
+            states.contains(WidgetState.disabled) ? AppPalette.inkDisabled : AppPalette.primaryDeep,
+      ),
+      overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+      side: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.focused) && !states.contains(WidgetState.disabled)
+            ? const BorderSide(color: AppPalette.primary, width: 2)
+            : BorderSide.none,
+      ),
+      shape: const WidgetStatePropertyAll(_flatButton),
+      padding: const WidgetStatePropertyAll(_flatPadding),
+      elevation: const WidgetStatePropertyAll(0),
+      shadowColor: const WidgetStatePropertyAll(Colors.transparent),
+      minimumSize: const WidgetStatePropertyAll(Size(64, 48)),
+      textStyle: WidgetStatePropertyAll(text.labelLarge),
+      iconSize: const WidgetStatePropertyAll(24),
+      animationDuration: animationDuration,
+      splashFactory: NoSplash.splashFactory,
+      enableFeedback: false,
+    );
+  }
+
+  /// 주·위험 버튼 공통 모양(design 4.2). 둥근 사각 12 + 아래 3dp ink 두께, 높이 52(면 49).
   /// 눌림 = 면이 두께만큼 내려와 두께를 덮는다(라벨도 함께 내려간다). 비활성 = sunken 면 + inkDisabled, 납작.
   static ButtonStyle _depthButton(
     TextTheme text, {
@@ -427,7 +453,6 @@ class AppTheme {
     required Color foreground,
     required Color focusRing,
     required Duration animationDuration,
-    BorderSide side = BorderSide.none,
   }) {
     return ButtonStyle(
       backgroundColor: WidgetStateProperty.resolveWith(
@@ -443,7 +468,7 @@ class AppTheme {
       side: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.disabled)) return BorderSide.none;
         if (states.contains(WidgetState.focused)) return BorderSide(color: focusRing, width: 2);
-        return side;
+        return BorderSide.none;
       }),
       shape: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.disabled)) return _flatButton;

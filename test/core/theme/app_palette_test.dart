@@ -73,6 +73,20 @@ final _brandPairs = <_Pair>[
   ('체크박스 선택 면 primary / sunken', AppPalette.primary, AppPalette.sunken, 4.35, _nonText),
 ];
 
+/// design-judging-buttons 2.5 — 토널·위험 토널·위험 텍스트 버튼(2A).
+final _buttonPairs = <_Pair>[
+  ('primaryDeep / primaryTonal (토널 라벨)', AppPalette.primaryDeep, AppPalette.primaryTonal, 6.55, _body),
+  ('primaryDeep / primaryTonalPressed (토널 누름)', AppPalette.primaryDeep, AppPalette.primaryTonalPressed, 5.50, _body),
+  ('ink / primaryTonal', AppPalette.ink, AppPalette.primaryTonal, 12.42, _body),
+  ('primary 포커스 링 / primaryTonal', AppPalette.primary, AppPalette.primaryTonal, 4.16, _nonText),
+  ('dangerDeep / dangerPale (위험 토널 라벨, 위험 텍스트 누름)', AppPalette.dangerDeep, AppPalette.dangerPale, 6.17, _body),
+  ('dangerDeep / dangerTonalPressed (위험 토널 누름)', AppPalette.dangerDeep, AppPalette.dangerTonalPressed, 5.23, _body),
+  ('dangerDeep / surface', AppPalette.dangerDeep, AppPalette.surface, 7.49, _body),
+  ('danger / surface (위험 텍스트)', AppPalette.danger, AppPalette.surface, 5.19, _body),
+  ('danger / background (위험 텍스트)', AppPalette.danger, AppPalette.background, 4.58, _body),
+  ('inkDisabled / sunken (모든 비활성)', AppPalette.inkDisabled, AppPalette.sunken, 3.30, _disabledTarget),
+];
+
 /// 기준에 기대지 않는 쌍 — 설계값만 고정한다.
 final _decorativePairs = <(String, Color, Color, double)>[
   // 글자에 쓰지 않는다: 차단·오류 블록 글자는 ink로만(블록 아이콘은 위 비텍스트 표에서 3:1 통과).
@@ -86,6 +100,11 @@ final _decorativePairs = <(String, Color, Color, double)>[
   // 장식: 카드 선·카드 두께. 층 구분은 면 대비 + 두께가 함께 낸다.
   ('line / background', AppPalette.line, AppPalette.background, 1.25),
   ('edge / background', AppPalette.edge, AppPalette.background, 1.62),
+  // 장식: 토널 버튼 경계. 토널·텍스트 버튼은 라벨(6.55)이 버튼을 식별한다(SC 1.4.11 대상 아님).
+  ('primaryTonal / surface', AppPalette.primaryTonal, AppPalette.surface, 1.30),
+  ('primaryTonal / background', AppPalette.primaryTonal, AppPalette.background, 1.15),
+  // 쓰지 않는 조합: primaryPale 면 위에는 토널을 두지 않는다(면이 사라진다).
+  ('primaryTonal / primaryPale', AppPalette.primaryTonal, AppPalette.primaryPale, 1.07),
   // 장식: 런처 마크의 체크/배경. 체크에 ink 두께를 둘러 윤곽을 세운다.
   ('amber / primary', AppPalette.amber, AppPalette.primary, 2.96),
 ];
@@ -102,6 +121,7 @@ void main() {
     ('글자', _textPairs),
     ('비텍스트', _nonTextPairs),
     ('시안 A', _brandPairs),
+    ('버튼 2A', _buttonPairs),
   ]) {
     for (final (name, foreground, background, designed, minimum) in table) {
       test('[$category] $name 대비비가 설계값($designed)과 같고 기준 $minimum 이상이다', () {

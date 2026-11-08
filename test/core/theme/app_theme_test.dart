@@ -71,14 +71,48 @@ void main() {
     });
   });
 
-  test('보조 버튼(Outlined·Elevated)은 surface 면 + 1.5dp outline 테두리 + 같은 두께', () {
-    for (final style in [theme.outlinedButtonTheme.style!, theme.elevatedButtonTheme.style!]) {
-      expect(style.backgroundColor!.resolve(rest), AppPalette.surface);
-      expect(style.side!.resolve(rest), const BorderSide(color: AppPalette.outline, width: 1.5));
-      expect((style.shape!.resolve(rest)! as DepthBorder).depth, 3);
-      expect((style.shape!.resolve(pressed)! as DepthBorder).pressed, isTrue);
-      expect(style.backgroundColor!.resolve(disabled), AppPalette.sunken);
+  // design-judging-buttons 2A: 두께는 주 행동만. 보조는 토널 면 + 테두리·두께 없음, 누름 = 면색.
+  group('보조 버튼(Outlined·Elevated)은 토널이다', () {
+    for (final (name, style) in [
+      ('OutlinedButton', theme.outlinedButtonTheme.style!),
+      ('ElevatedButton', theme.elevatedButtonTheme.style!),
+    ]) {
+      test('$name: primaryTonal 면 + primaryDeep 라벨, 누름은 primaryTonalPressed, 비활성은 sunken', () {
+        expect(style.backgroundColor!.resolve(rest), AppPalette.primaryTonal);
+        expect(style.foregroundColor!.resolve(rest), AppPalette.primaryDeep);
+        expect(style.iconColor!.resolve(rest), AppPalette.primaryDeep);
+        expect(style.backgroundColor!.resolve(pressed), AppPalette.primaryTonalPressed);
+        expect(style.foregroundColor!.resolve(pressed), AppPalette.primaryDeep);
+        expect(style.backgroundColor!.resolve(disabled), AppPalette.sunken);
+        expect(style.foregroundColor!.resolve(disabled), AppPalette.inkDisabled);
+      });
+
+      test('$name: 테두리 없음, 두께 없음(안 눌림·눌림 모두), 포커스는 2dp primary 링', () {
+        expect(style.side!.resolve(rest), BorderSide.none);
+        expect(style.side!.resolve(pressed), BorderSide.none);
+        expect(
+          style.side!.resolve({WidgetState.focused}),
+          const BorderSide(color: AppPalette.primary, width: 2),
+        );
+        for (final states in [rest, pressed, disabled]) {
+          final shape = style.shape!.resolve(states)! as DepthBorder;
+          expect(shape.depth, 0, reason: '$states');
+          expect(shape.radius, 12);
+        }
+        // 두께가 없으니 라벨도 내려가지 않는다.
+        expect(style.padding!.resolve(rest), style.padding!.resolve(pressed));
+      });
+
+      test('$name: 최소 높이 48(주 버튼 52보다 낮다)', () {
+        expect(style.minimumSize!.resolve(rest)!.height, 48);
+      });
     }
+  });
+
+  test('화면에서 두께를 갖는 버튼 등급은 주(FilledButton)뿐이다', () {
+    expect((theme.filledButtonTheme.style!.shape!.resolve(rest)! as DepthBorder).depth, 3);
+    expect((theme.outlinedButtonTheme.style!.shape!.resolve(rest)! as DepthBorder).depth, 0);
+    expect((theme.textButtonTheme.style!.shape!.resolve(rest)! as DepthBorder).depth, 0);
   });
 
   test('되돌아옴은 120ms, 애니메이션 줄이기면 0ms', () {

@@ -417,11 +417,11 @@ void main() {
     await _pumpProfile(tester, consentRepository: consentRepository);
 
     expect(findText(AppStrings.aiConsentStatusGiven('2026년 9월 16일')), findsOneWidget);
-    // 철회는 계정 삭제(빨간 채움)보다 한 단계 낮은 위험 윤곽 버튼이다(redesign 후속 결정 5).
+    // 철회는 계정 삭제(빨간 채움)보다 한 단계 낮은 위험 토널 버튼이다(redesign 후속 결정 5, design-judging-buttons 2A).
     expect(findWidgetWithText(FilledButton, AppStrings.aiConsentWithdraw), findsNothing);
     expect(
       tester.widget<OutlinedButton>(findWidgetWithText(OutlinedButton, AppStrings.aiConsentWithdraw)).style,
-      same(AppButtonStyles.dangerOutlined),
+      same(AppButtonStyles.dangerTonal),
     );
 
     await tester.tap(findText(AppStrings.aiConsentWithdraw));

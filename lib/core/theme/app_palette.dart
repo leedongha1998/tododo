@@ -46,8 +46,14 @@ class AppPalette {
   /// 위험 버튼 면, 위험 텍스트 버튼 글자, 오류 테두리·글자.
   static const danger = Color(0xFFCC2F3F);
 
-  /// 차단·오류 블록 면. 이 면 위 글자는 ink로만(danger 글자는 4.27로 미달).
+  /// 차단·오류 블록 면, 위험 토널 버튼 면. 이 면 위 글자는 ink·[dangerDeep]으로만(danger 글자는 4.27로 미달).
   static const dangerPale = Color(0xFFFDE3E4);
+
+  /// 글자로 쓰는 위험색: 위험 토널 버튼 라벨, 위험 텍스트 버튼을 누르는 순간의 라벨(dangerPale 위 6.17).
+  static const dangerDeep = Color(0xFFA3202E);
+
+  /// 위험 토널 버튼을 누르는 동안의 면.
+  static const dangerTonalPressed = Color(0xFFF9CDD0);
 
   /// 미결 칩 테두리·아이콘(경고).
   static const warning = Color(0xFFA65A00);
@@ -71,6 +77,12 @@ class AppPalette {
 
   /// 안내 블록 면, 선택 탭 표시기. 이 면 위 primary 글자는 4.47로 미달 — 글자는 ink·primaryDeep.
   static const primaryPale = Color(0xFFE3E9FF);
+
+  /// 보조(토널) 버튼 면. 라벨은 [primaryDeep](6.55). [primaryPale] 면 위에는 두지 않는다(1.07로 면이 사라진다).
+  static const primaryTonal = Color(0xFFD9E1FF);
+
+  /// 보조(토널) 버튼을 누르는 동안의 면.
+  static const primaryTonalPressed = Color(0xFFC2CEFF);
 
   /// 보조 강조("상대"). 시안 A에서는 [amber]와 같은 값이다.
   static const secondary = amber;

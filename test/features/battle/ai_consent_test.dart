@@ -9,6 +9,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_theme.dart';
+import 'package:todododo/core/widgets/app_button_styles.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/battle/data/ai_consent.dart';
@@ -415,6 +416,12 @@ void main() {
     await _pumpProfile(tester, consentRepository: consentRepository);
 
     expect(find.text(AppStrings.aiConsentStatusGiven('2026년 9월 16일')), findsOneWidget);
+    // 철회는 계정 삭제(빨간 채움)보다 한 단계 낮은 위험 윤곽 버튼이다(redesign 후속 결정 5).
+    expect(find.widgetWithText(FilledButton, AppStrings.aiConsentWithdraw), findsNothing);
+    expect(
+      tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, AppStrings.aiConsentWithdraw)).style,
+      same(AppButtonStyles.dangerOutlined),
+    );
 
     await tester.tap(find.text(AppStrings.aiConsentWithdraw));
     await tester.pumpAndSettle();

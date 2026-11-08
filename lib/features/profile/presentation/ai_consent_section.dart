@@ -84,8 +84,9 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
             if (consent == null)
               FilledButton(onPressed: _give, child: const KeepWordsText(AppStrings.aiConsentGive))
             else
-              FilledButton(
-                style: AppButtonStyles.danger,
+              // 철회는 다시 동의하면 되돌릴 수 있다 — 계정 삭제(빨간 채움)보다 한 단계 낮은 위험 윤곽.
+              OutlinedButton(
+                style: AppButtonStyles.dangerOutlined,
                 onPressed: _withdrawing ? null : _withdraw,
                 child: _withdrawing
                     ? const AppLoader.small()

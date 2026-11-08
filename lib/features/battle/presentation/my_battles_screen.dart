@@ -255,7 +255,8 @@ class _MyRecruitBody extends StatelessWidget {
               child: const KeepWordsText(AppStrings.battleCriteriaEditRecruit),
             ),
             const SizedBox(width: 8),
-            TextButton(
+            // 두 동작은 무게가 같다(둘 다 이 모집을 손보는 보조 동작) — 같은 보조 버튼으로 나란히 둔다.
+            OutlinedButton(
               onPressed: onCancel,
               child: const KeepWordsText(AppStrings.battleRecruitCancel),
             ),

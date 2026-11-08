@@ -130,7 +130,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.widgetWithText(TextButton, AppStrings.battleRecruitCancel),
+      find.widgetWithText(OutlinedButton, AppStrings.battleRecruitCancel),
       findsOneWidget,
     );
 
@@ -194,7 +194,7 @@ void main() {
     await _pumpMyBattles(tester, repository: repository);
 
     await tester.tap(
-      find.widgetWithText(TextButton, AppStrings.battleRecruitCancel),
+      find.widgetWithText(OutlinedButton, AppStrings.battleRecruitCancel),
     );
     await tester.pumpAndSettle();
 

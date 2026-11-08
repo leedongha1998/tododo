@@ -334,6 +334,7 @@
 | 낮음(`TextButton`, `IconButton`) | 투명(누르면 `sunken`) | `primaryDeep`(텍스트) / ink(아이콘) | 없음 | 없음 | `inkDisabled` |
 | 위험(`AppButtonStyles.danger`) | `danger` | 흰색 | 없음 | 3dp ink | 같음 |
 | 위험 낮음(포기) | 투명 | `danger` | 없음 | 없음 | `inkDisabled` |
+| 위험 윤곽(`AppButtonStyles.dangerOutlined`, 동의 철회 — 2026-11-08 후속) | `surface` | `danger` | 1.5dp `danger` | 3dp ink | 같음(테두리 없음) |
 
 - 위험 버튼은 주 버튼과 **색(빨강 vs 브랜드) + 아이콘**(깃발·사람 빼기·문서 등 이미 붙은 아이콘)으로 구분된다. 포기는 지금처럼 낮은 위험 버튼(글자 + 깃발).
 - 진행 중: `onPressed: null` + 라벨 자리에 `AppLoader.small`(버튼 크기 유지) — 현행 규칙 그대로.
@@ -526,7 +527,7 @@
 | 대결 만들기 / 모집 기준 수정 | 입력 필드·세그먼트 5.1, 기준 생성 중 `StatusMessage.loading` + 문장, 차단·한도 안내 `AppPanel.tone(danger)`, 기준 항목 추가·삭제 아이콘 5.4 |
 | 대결 상세(그 밖) | 내 증거 제출·교체: 촬영 버튼 주 버튼 + `photo_camera_rounded`, 다시 찍기 보조 버튼 + `refresh_rounded`, 잠금 안내 tone(neutral) + `schedule_rounded`. 제출 시각 `numberSmall`. 결과 배너: 승 = `AppPanel.raised` + 왼쪽 48dp amber 둥근 칸 안 `emoji_events_rounded` ink, 패·무·무효 = `AppPanel.tone(neutral)`, 헤드라인 `titleMedium`, 점수 변화 `numberMedium`. 포기 = 위험 낮은 버튼(왼쪽 정렬 유지) |
 | AI 데이터 제공 동의 | 동의 문구 묶음 `AppPanel.flat`, 문구 `bodyMedium` 15/1.6, 동의 버튼 주 버튼 |
-| 프로필 | 점수 `numberLarge` 32/800 + 전적 `numberSmall`, 기록 목록 줄 오른쪽 `ResultLabel.small`, 동의·알림·계정 섹션 `AppPanel.flat`, 동의 철회·계정 삭제 = 위험 버튼, 로그아웃·라이선스 = 보조/낮은 버튼 + 아이콘 5.4 |
+| 프로필 | 점수 `numberLarge` 32/800 + 전적 `numberSmall`, 기록 목록 줄 오른쪽 `ResultLabel.small`, 동의·알림·계정 섹션 `AppPanel.flat`, 계정 삭제 = 위험 버튼, 동의 철회 = 위험 윤곽(다시 동의하면 돌아오므로 한 단계 낮춤 — 2026-11-08 후속), 로그아웃·라이선스 = 보조/낮은 버튼 + 아이콘 5.4 |
 | 오픈소스 라이선스 | Flutter `showLicensePage` — 테마가 자동 적용. Pretendard·Material Icons(CC BY 4.0) 고지 확인 |
 | 대화상자·시트·토스트 전부 | 5.1 자동 적용 |
 

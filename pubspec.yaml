@@ -52,6 +52,15 @@ dependencies:
   # 홈 화면 위젯. 위젯 데이터 전달·갱신 브로드캐스트·위젯 탭의 백그라운드 Dart 콜백·런치 Uri
   # 전달을 대신한다. shared_preferences로는 값 전달만 되고 나머지 셋은 Kotlin 배관을 직접 써야 한다.
   home_widget: ^0.10.0
+  # 개인 투두의 기한 알림(기기 로컬, todo-due-date P1). 미래 시각 예약·채널 분리·예약 목록
+  # 조회·부팅 후 복구를 대신한다. 이미 있는 firebase_messaging은 **서버가 보내는** 메시지를
+  # 받는 쪽이라 로컬 예약 API가 없고, 직접 만들면 AlarmManager·BroadcastReceiver·부팅 리시버·
+  # 채널을 Kotlin으로 써야 한다(이 앱 도메인과 무관한 배관). 알림 권한 요청은 새로 넣지 않고
+  # firebase_messaging 쪽 하나로 모은다(design 8.1·8.9).
+  flutter_local_notifications: ^23.0.0
+  # 위 패키지의 zonedSchedule이 TZDateTime을 요구해서만 쓴다. 예약은 절대 시각이고 알림 본문에
+  # 시각을 적지 않으므로 기기 시간대 이름을 알 필요가 없어 flutter_timezone은 넣지 않는다.
+  timezone: ^0.11.2
 
 dev_dependencies:
   flutter_test:

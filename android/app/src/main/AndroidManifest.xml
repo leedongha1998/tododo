@@ -2,6 +2,13 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- 알림 권한(안드로이드 13+). 거부돼도 앱의 모든 기능은 그대로 동작한다 — 알림은 관문이 아니다. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- 기한 알림(기기 로컬)이 재부팅 뒤에도 살아 있게 한다. flutter_local_notifications 16부터는
+         패키지가 이 권한과 아래 두 리시버를 자기 매니페스트에 넣어 주지 않아 앱이 직접 적는다
+         (패키지 README "AndroidManifest.xml setup", todo-due-date plan "설계와 다른 점" 14).
+         정확 알람 권한(SCHEDULE_EXACT_ALARM/USE_EXACT_ALARM)은 **일부러 쓰지 않는다** —
+         Play 심사에서 알람시계·캘린더 성격의 앱만 정당화되고, 기한 알림은 몇 분 늦어도 뜻이
+         상하지 않는다(오너 확정, design 결정 기록 2번). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <application
         android:label="투두두두"
         android:name="${applicationName}"
@@ -47,6 +54,23 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/todo_widget_info"/>
+        </receiver>
+        <!-- 예약된 기한 알림을 실제로 띄우는 리시버와, 재부팅·앱 업데이트 뒤 예약을 다시 거는
+             리시버. 둘 다 flutter_local_notifications의 클래스이고 exported="false"다
+             (시스템과 패키지가 건 알람만 깨우면 된다). 이것이 없으면 예약은 되는데 알림이
+             뜨지 않는다. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false"/>
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON"/>
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
         </receiver>
         <!-- 알림 작은 아이콘. 지정하지 않으면 API 21+에서 런처 아이콘이 흰 사각형으로 뭉개진다.
              알파만 쓰이므로 흰 실루엣이고, tool/generate_launcher_icons.dart가 생성한다. -->

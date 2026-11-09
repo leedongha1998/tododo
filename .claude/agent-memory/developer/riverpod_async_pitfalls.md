@@ -17,9 +17,24 @@ metadata:
    새 세대를 잡아 가드를 통과하고, 옛 커서로 받은 묶음이 새 첫 묶음 뒤에 붙어 **목록 중간이 통째로
    사라진다**(recruit-browse에서 실제로 리뷰에 걸렸다). 상태 객체에 **그 상태를 만든 조건**을 담아
    "적용된 조건 == 상태의 조건"을 비교하고, 다시 받는 중이면(`state.isLoading`) 끼어들지 않게 한다.
-3. **실패한 provider는 스스로 다시 부른다**(기본 재시도, 지수 백오프). 테스트에서는 그 타이머가 남아
+3. **`AsyncValue`에 `valueOrNull`이 없다.** riverpod 3.4의 getter는 `value`(nullable)와
+   `requireValue` 둘뿐이다 — 다른 프로젝트 습관으로 `valueOrNull`을 쓰면 `undefined_getter`가 난다.
+   1번 때문에 `value`는 실패 뒤에도 옛 값일 수 있으니, "지금 성공한 값"이 필요하면 `when`을 쓴다.
+4. **실패한 provider는 스스로 다시 부른다**(기본 재시도, 지수 백오프). 테스트에서는 그 타이머가 남아
    `A Timer is still pending`으로 터지므로 `ProviderContainer(retry: (count, error) => null)`로 끈다.
    실패 로그가 두 번 찍히면 이 재시도를 의심한다.
+5. **`Provider`로 만든 서비스의 메서드가 "앱이 뜨는 순간" 두 경로에서 거의 동시에 불린다.**
+   `initState`의 `start()`와 `ref.listen` 첫 발화가 그렇다 — `bool _initialized` 가드만 두면
+   둘 다 false를 보고 초기화가 두 번 돈다. `Future<void>? _initializing`을 `??=`로 공유해
+   두 번째 호출이 같은 Future를 기다리게 하고, `finally`에서 비워 실패 시 재시도를 남긴다.
+   (단 `finally`로 비우면 **첫 await 전에 던진 경우** 비우기가 대입보다 먼저 일어나 실패한
+   Future가 영구히 남는다 — 대입 뒤 `whenComplete`에서 비울 것.)
+6. **`ref.listen`에서 `unawaited`로 쏘는 일이 read-modify-write면 직렬화가 필요하다.** 위젯 캐시
+   발행처럼 "키 하나를 덮어쓰는 멱등한 쓰기"는 마지막 writer가 이기면 끝이지만, 조회해서 고쳐
+   쓰는 집합(기한 알림 예약 등)은 두 발화가 겹치면 뒤에 온 쪽이 앞의 중간 상태를 읽는다.
+   거기에 "직전 상태와 같으면 건너뛴다" 캐시까지 있으면 **일시적 경합이 영구 오상태로 굳는다**
+   (다음 발화가 조회조차 안 한다). `Future<void> _queue`에 `then`으로 이어 붙여 한 줄로 세우고,
+   캐시 비교도 그 사슬 **안**에서 한다. `TodoWidgetService._lastJson`을 그대로 베끼지 말 것.
 
 **Why:** 1·2번은 recruit-browse 리뷰에서 "반드시 고칠 것"으로 지적된 결함 두 건의 원인이고, 둘 다
 기능이 조용히 틀린 결과를 보여 주는 쪽(스펙의 "조용히 빠지지 않는다" 위반)이었다.

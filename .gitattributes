@@ -1,0 +1,5 @@
+# 앱에 그대로 실어 보내는 라이선스 원문은 배포본과 바이트까지 같아야 한다.
+# core.autocrlf=true인 체크아웃에서 LF가 CRLF로 바뀌면 파일이 커지면서
+# test/core/font_licenses_test.dart의 Flutter SDK 원문 대조가 깨진다.
+assets/licenses/** -text
+assets/fonts/**/LICENSE.txt -text

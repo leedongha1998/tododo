@@ -23,6 +23,8 @@ import 'package:todododo/features/profile/data/player_stats.dart';
 import 'package:todododo/features/profile/domain/profile_providers.dart';
 import 'package:todododo/features/todo/domain/todo_providers.dart';
 
+import '../../features/todo/due_alarm_fakes.dart';
+import '../../features/todo/todo_widget_fakes.dart';
 import 'push_fakes.dart';
 
 const _battleId = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
@@ -98,6 +100,8 @@ Future<void> _pumpShell(
     ProviderScope(
       overrides: [
         ...pushOverrides(messaging: messaging),
+        ...dueAlarmOverrides(),
+        ...todoWidgetOverrides(),
         battleRepositoryProvider.overrideWithValue(repository),
         battleDetailProvider(_battleId).overrideWith((ref) async => _detail),
         vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),

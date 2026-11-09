@@ -49,6 +49,7 @@ import 'package:todododo/core/widgets/keep_words_text.dart';
 
 import 'core/push/push_fakes.dart';
 import 'helpers/line_breaks.dart';
+import 'features/todo/due_alarm_fakes.dart';
 import 'features/todo/todo_widget_fakes.dart';
 import 'helpers/text_finders.dart';
 
@@ -559,6 +560,7 @@ void main() {
         // 본 화면이 뜨면 홈 화면 위젯 캐시를 발행한다. 가짜로 바꾸지 않으면 플러그인이 없어
         // 조용히 실패하고(서비스가 로그로 삼킨다) 출력만 더러워진다.
         ...todoWidgetOverrides(),
+        ...dueAlarmOverrides(),
         ],
         child: const MaterialApp(home: MainShell()),
       ),
@@ -1061,6 +1063,7 @@ void main() {
           battleRecordsProvider.overrideWith((ref) async => []),
         ...pushOverrides(),
         ...todoWidgetOverrides(),
+        ...dueAlarmOverrides(),
         ],
         child: MaterialApp(
           theme: AppTheme.light,
@@ -1193,14 +1196,112 @@ void main() {
     expect(host.saved.last.items.single.title, '설거지하기');
     expect(host.saved.last.note, '지금은 못 불러왔어요 · 오전 9:14 기준');
   });
+
+  testWidgets('본 화면이 뜨면 미래 기한의 알림이 이 기기에 예약된다', (
+    WidgetTester tester,
+  ) async {
+    final alarms = FakeDueAlarmHost();
+    final dueAt = DateTime.now().add(const Duration(days: 2));
+
+    await _pumpMainShellForWidgetCache(
+      tester,
+      host: FakeTodoWidgetHost(),
+      dueAlarmHost: alarms,
+      todos: [
+        Todo(
+          id: 'a',
+          title: '설거지하기',
+          isDone: false,
+          createdAt: DateTime(2026, 11, 4, 8),
+          dueAt: dueAt,
+        ),
+        // 기한이 없는 할 일과 완료한 할 일에는 알림이 가지 않는다.
+        Todo(
+          id: 'b',
+          title: '빨래하기',
+          isDone: false,
+          createdAt: DateTime(2026, 11, 4, 9),
+        ),
+        Todo(
+          id: 'c',
+          title: '장보기',
+          isDone: true,
+          createdAt: DateTime(2026, 11, 4, 10),
+          dueAt: dueAt,
+        ),
+      ],
+    );
+
+    // 목록이 바뀌는 모든 경로가 셸의 ref.listen을 지나므로 보정도 여기서 일어난다(design 8.6).
+    expect(alarms.initializeCount, 1);
+    expect(alarms.scheduled.map((alarm) => alarm.body), [
+      '설거지하기',
+      '설거지하기',
+    ]);
+    expect(alarms.scheduled.map((alarm) => alarm.title), [
+      AppStrings.todoDueAlarmBeforeTitle,
+      AppStrings.todoDueAlarmAtTitle,
+    ]);
+  });
+
+  testWidgets('할 일을 불러오지 못하면 걸려 있는 예약을 건드리지 않는다', (
+    WidgetTester tester,
+  ) async {
+    final alarms = FakeDueAlarmHost();
+
+    await _pumpMainShellForWidgetCache(
+      tester,
+      host: FakeTodoWidgetHost(),
+      dueAlarmHost: alarms,
+      todosError: Exception('network down'),
+    );
+
+    // 네트워크가 없을 때 예약을 지우면 "서버가 안 되면 알림이 사라진다"가 된다.
+    expect(alarms.pendingCount, 0);
+    expect(alarms.cancelled, isEmpty);
+    expect(alarms.cancelAllCount, 0);
+  });
+
+  testWidgets('이미 받아 둔 목록이 있어도(재로그인) 예약이 맞춰진다', (
+    WidgetTester tester,
+  ) async {
+    final alarms = FakeDueAlarmHost();
+    final dueAt = DateTime.now().add(const Duration(days: 2));
+
+    await _pumpMainShellForWidgetCache(
+      tester,
+      host: FakeTodoWidgetHost(),
+      dueAlarmHost: alarms,
+      // 로그아웃 뒤에도 todosProvider는 살아 있다(autoDispose가 아니다). 그 상태에서 셸이 다시
+      // 뜨면 ref.listen이 한 번도 울리지 않아, 보정이 셸 시작에 한 번 더 없으면 재로그인한
+      // 사용자는 할 일을 건드릴 때까지 알림이 하나도 없다.
+      preloadTodos: true,
+      todos: [
+        Todo(
+          id: 'a',
+          title: '설거지하기',
+          isDone: false,
+          createdAt: DateTime(2026, 11, 4, 8),
+          dueAt: dueAt,
+        ),
+      ],
+    );
+
+    expect(alarms.scheduled.map((alarm) => alarm.body), [
+      '설거지하기',
+      '설거지하기',
+    ]);
+  });
 }
 
 /// 홈 화면 위젯 캐시 발행을 보려고 본 화면을 띄운다. 네 탭이 모두 서버를 보지 않게 고정한다.
 Future<void> _pumpMainShellForWidgetCache(
   WidgetTester tester, {
   required FakeTodoWidgetHost host,
+  FakeDueAlarmHost? dueAlarmHost,
   List<Todo> todos = const [],
   Object? todosError,
+  bool preloadTodos = false,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -1220,11 +1321,16 @@ Future<void> _pumpMainShellForWidgetCache(
       battleRecordsProvider.overrideWith((ref) async => []),
       ...pushOverrides(),
       ...todoWidgetOverrides(host: host),
+      ...dueAlarmOverrides(host: dueAlarmHost),
     ],
     // Riverpod의 자동 재시도 타이머가 테스트 종료 뒤까지 남지 않게 끈다.
     retry: (retryCount, error) => null,
   );
   addTearDown(container.dispose);
+  // 셸이 뜨기 **전에** 목록을 이미 받아 둔 상태(= 같은 프로세스에서 재로그인). 그러면 아래
+  // ref.listen은 한 번도 울리지 않는다 — 이미 data인 FutureProvider에 listen을 새로 붙이면
+  // 콜백이 불리지 않기 때문이다.
+  if (preloadTodos) await container.read(todosProvider.future);
 
   await tester.pumpWidget(
     UncontrolledProviderScope(

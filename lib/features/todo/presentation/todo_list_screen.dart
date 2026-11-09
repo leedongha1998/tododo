@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/push/push_messaging.dart';
+import '../../../core/push/push_providers.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_palette.dart';
@@ -230,7 +232,10 @@ Future<TodoDraft?> _showTodoInputDialog(
 /// **기한을 쓰지 않는 사용자의 타수가 늘지 않는다**(design 원칙 5): 입력 칸이 여전히
 /// `autofocus`이고 `onSubmitted`가 그대로 저장으로 간다 — 제목 적고 엔터면 끝이다. 기한 줄은
 /// 입력 칸 아래에 있고 날짜를 고르라고 막는 단계가 없다.
-class _TodoInputDialog extends StatefulWidget {
+///
+/// `ConsumerStatefulWidget`인 이유는 하나다 — 기한을 처음 정할 때 알림 권한을 묻고(P1),
+/// 거부 상태면 한 줄로 알리려고 `ref`가 필요하다.
+class _TodoInputDialog extends ConsumerStatefulWidget {
   const _TodoInputDialog({
     required this.dialogTitle,
     required this.initialTitle,
@@ -242,10 +247,10 @@ class _TodoInputDialog extends StatefulWidget {
   final DateTime? initialDueAt;
 
   @override
-  State<_TodoInputDialog> createState() => _TodoInputDialogState();
+  ConsumerState<_TodoInputDialog> createState() => _TodoInputDialogState();
 }
 
-class _TodoInputDialogState extends State<_TodoInputDialog> {
+class _TodoInputDialogState extends ConsumerState<_TodoInputDialog> {
   late final TextEditingController _controller =
       TextEditingController(text: widget.initialTitle);
   DateTime? _dueAt;
@@ -302,11 +307,23 @@ class _TodoInputDialogState extends State<_TodoInputDialog> {
     setState(() {
       _dueAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
     });
+
+    // 기한을 **정한 그 자리**에서 알림 권한을 묻는다(앱 첫 실행·화면 진입이 아니다 — spec).
+    // 아직 묻지 않았을 때만 OS 다이얼로그가 뜨고, 거부한 사용자에게 다시 묻지 않는다.
+    // 저장 전에 묻는 이유: 권한을 쓸 이유가 생긴 순간이 여기이고, 저장 성공을 기다리면
+    // 왜 묻는지가 흐려진다. 실패는 서비스가 로그만 남긴다(알림은 관문이 아니다).
+    await ref.read(dueAlarmServiceProvider).ensurePermissionWhenSettingDue();
   }
 
   @override
   Widget build(BuildContext context) {
     final dueAt = _dueAt;
+    // 권한 상태는 프로필의 "알림이 꺼져 있어요" 칸과 **같은 provider**를 읽는다 — 한 값을 두
+    // 곳에서 각자 판정하면 두 자리가 어긋난다. 아직 못 읽었거나 읽기에 실패했으면 아무 줄도
+    // 그리지 않는다(없는 안내보다 틀린 안내가 나쁘다).
+    final notificationsOff =
+        ref.watch(notificationPermissionProvider).value ==
+        NotificationPermission.denied;
     return AlertDialog(
       title: KeepWordsText(widget.dialogTitle),
       // 1.5배 글자 + 키보드에서 내용이 잘리지 않게 감싼다(기한 줄만큼 높이가 늘었다).
@@ -353,6 +370,19 @@ class _TodoInputDialogState extends State<_TodoInputDialog> {
                     onPressed: () => setState(() => _dueAt = null),
                   ),
                 ],
+              ),
+            // 알림이 꺼져 있다는 사실은 **기한을 정한 사람에게만** 뜻이 있다. 기한을 정하는
+            // 길은 막지 않고(입력·표시·정렬은 그대로 동작한다) 한 줄로만 알린다.
+            // `알림 설정 열기` 버튼은 두지 않는다 — 프로필 안내가 이미 길을 알려 준다(spec·설계).
+            if (dueAt != null && notificationsOff)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: KeepWordsText(
+                  AppStrings.todoDueNotificationsOff,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppPalette.inkMuted,
+                  ),
+                ),
               ),
           ],
         ),

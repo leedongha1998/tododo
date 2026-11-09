@@ -9,7 +9,9 @@ import '../../features/battle/presentation/battle_recruits_screen.dart';
 import '../../features/battle/presentation/my_battles_screen.dart';
 import '../../features/profile/domain/profile_providers.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/todo/data/todo.dart';
 import '../../features/todo/data/todo_widget_payload.dart';
+import '../../features/todo/domain/due_alarm_service.dart';
 import '../../features/todo/domain/todo_providers.dart';
 import '../../features/todo/presentation/todo_list_screen.dart';
 import '../push/push_providers.dart';
@@ -44,6 +46,46 @@ class _MainShellState extends ConsumerState<MainShell> {
           .read(todoWidgetServiceProvider)
           .primeFromCache(now: DateTime.now()),
     );
+    unawaited(_startDueAlarms());
+  }
+
+  /// 기한 알림(기기 로컬)의 초기화·채널 생성, 종료 상태에서 알림을 탭해 시작된 경우의 처리,
+  /// 그리고 **이미 받아 둔 목록이 있으면 그것으로 한 번 맞추기**.
+  ///
+  /// `main.dart`가 아니라 여기인 이유는 위젯 캐시와 같다 — 알림이 뜻을 갖는 것은 로그인 뒤이고,
+  /// 셸은 세션이 있을 때만 떠 있다.
+  ///
+  /// 마지막 한 번이 필요한 이유: 아래 `ref.listen`은 `fireImmediately`가 아니고, `todosProvider`는
+  /// autoDispose가 아니라 **로그아웃 뒤에도 값이 살아 있다.** 이미 data인 provider에 listen을
+  /// 새로 붙이면 콜백이 한 번도 불리지 않으므로, 같은 프로세스에서 재로그인하면 할 일을 건드릴
+  /// 때까지 예약이 비어 있게 된다(투두 화면에는 당겨서 새로고침도 없다).
+  /// `fireImmediately: true`를 쓰지 않는 이유는 그러면 위젯 발행까지 함께 다시 돌기 때문이다.
+  ///
+  /// 받아들이는 한계: 그 캐시가 **이전 사용자의 목록**일 수 있다(로그인·로그아웃에
+  /// `invalidate(todosProvider)`하는 자리가 없는 기존 버그 — `TODO_BACKLOG.md`). 그 경우 화면에도
+  /// 이미 이전 사용자의 할 일이 보이고 있으므로 이 보정이 새로운 유출을 만들지는 않으며, 그
+  /// 무효화가 들어오면 둘이 함께 해결된다.
+  ///
+  /// `start()`·`sync()`의 실패는 **서비스가 직접** `debugPrint`만 남긴다 — 여기서 같은 실패를
+  /// 다시 감싸 같은 문구를 두 번 찍지 않는다. 아래 `try`가 잡는 것은 **그 앞단**뿐이다
+  /// (provider를 만들거나 읽는 것 자체가 실패하는 경우 — `_startPush`가 같은 이유로 감싼다).
+  /// 알림은 관문이 아니므로 어느 쪽이 실패해도 화면은 그대로 떠야 한다(design 원칙 4).
+  Future<void> _startDueAlarms() async {
+    final DueAlarmService service;
+    final List<Todo>? cached;
+    try {
+      service = ref.read(dueAlarmServiceProvider);
+      // 조회 실패에서는 예약을 건드리지 않는다(아래 리스너와 같은 태도). `AsyncError`가 직전 값을
+      // 들고 있어서 `value != null`만 보면 실패한 상태의 옛 목록으로 맞추게 된다.
+      final todos = ref.read(todosProvider);
+      cached = todos.hasError ? null : todos.value;
+    } catch (error) {
+      debugPrint('dueAlarm wiring failed: $error');
+      return;
+    }
+
+    await service.start();
+    if (cached != null) await service.sync(cached, now: DateTime.now());
   }
 
   /// 권한이 이미 있으면 토큰을 등록하고 갱신을 따라간다. 권한은 여기서 묻지 않는다.
@@ -150,6 +192,12 @@ class _MainShellState extends ConsumerState<MainShell> {
       unawaited(
         service.publish(TodoWidgetPayload.fromTodos(todos, now: now)),
       );
+      // 기한 알림 예약도 같은 자리에서 맞춘다. 목록이 바뀌는 모든 경로(추가·수정·완료·삭제·
+      // 새로고침·탭 복귀)가 여기를 지나므로 spec의 취소·갱신 여섯 가지와 기기 성질 보정이
+      // 한 자리에서 해결된다(design 8.6). 조회 실패·로딩에서는 위에서 먼저 돌아나가므로
+      // 예약을 건드리지 않는다 — 네트워크가 없을 때 예약을 지우면 "서버가 안 되면 알림이
+      // 사라진다"가 된다. 위젯 발행이 먼저인 이유: 눈에 보이는 캐시가 예약을 기다리지 않게 한다.
+      unawaited(ref.read(dueAlarmServiceProvider).sync(todos, now: now));
     });
 
     return Scaffold(

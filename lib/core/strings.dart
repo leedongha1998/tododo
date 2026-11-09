@@ -49,6 +49,20 @@ class AppStrings {
       '$year년 $month월 $day일 ${isAm ? '오전' : '오후'} '
       '$hour12:${minute.toString().padLeft(2, '0')}';
 
+  // 기한 알림(todo-due-date P1). **대결 알림과 다른 채널 이름**이어야 한다 — 앱 안에 알림 끄기
+  // 설정을 두지 않는 대신 OS 알림 설정에서 기한 알림만 끌 수 있어야 하기 때문이다(오너 확정).
+  // 채널 설명 문구는 만들지 않는다(선택 항목이고, spec에 없는 문구를 지어내지 않는다).
+  static const todoDueAlarmChannel = '기한 알림';
+  // 같은 할 일에 두 번 오므로 **제목으로 어느 시점인지 갈린다**. 본문은 할 일 제목이고 앱이
+  // 자르지 않는다(spec). 알림 본문에 남은 시간·날짜를 적지 않는다.
+  static const todoDueAlarmBeforeTitle = '1시간 뒤 기한이에요';
+  static const todoDueAlarmAtTitle = '지금이 기한이에요';
+  // 권한을 거부한 상태에서 기한을 정할 때 대화상자에 보이는 한 줄. 기한을 정하는 길은 막지
+  // 않는다(입력·표시·정렬은 그대로 동작한다). **사전 안내 문구는 만들지 않는다**(오너 확정) —
+  // OS 다이얼로그에 우리 문장을 끼울 자리가 없고, 앞에 하나 더 띄우면 두 번 묻는 모양이 된다.
+  // `알림 설정 열기` 버튼도 두지 않는다(프로필의 notificationDisabledGuide가 길을 알려 준다).
+  static const todoDueNotificationsOff = '알림이 꺼져 있어 기한 알림을 보낼 수 없어요.';
+
   static const battleCreate = '대결 만들기';
   static const battleTypeSpeed = '속도전';
   static const battleTypeQuality = '품질전';

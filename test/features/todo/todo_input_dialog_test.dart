@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 
+import 'package:todododo/core/push/push_messaging.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_icons.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
@@ -13,7 +14,9 @@ import 'package:todododo/features/todo/data/todo_repository.dart';
 import 'package:todododo/features/todo/domain/todo_providers.dart';
 import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 
+import '../../core/push/push_fakes.dart';
 import '../../helpers/text_finders.dart';
+import 'due_alarm_fakes.dart';
 
 /// 추가·수정 대화상자가 **기한을 쓰지 않는 사용자의 타수를 늘리지 않는지**와
 /// **기한만 바꿔도 저장되는지**를 고정한다(todo-due-date spec 수용 기준).
@@ -144,15 +147,94 @@ void main() {
     expect(repository.updated, hasLength(1));
     expect(repository.updated.single.dueAt, isNull);
   });
+
+  testWidgets('기한을 처음 정하면 알림 권한을 한 번만 묻는다', (tester) async {
+    final messaging = FakePushMessaging(
+      permission: NotificationPermission.notDetermined,
+    );
+
+    await tester.pumpWidget(
+      _app(_FakeTodoRepository(), const <Todo>[], messaging: messaging),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(AppIcons.add));
+    await tester.pumpAndSettle();
+    // 대화상자를 여는 것만으로는 묻지 않는다(앱 첫 실행·화면 진입에서 묻지 않는다 — spec).
+    expect(messaging.requestCount, 0);
+
+    await _pickDue(tester);
+
+    // 기한을 정한 그 자리에서 한 번 묻는다.
+    expect(messaging.requestCount, 1);
+
+    // 다음에 또 기한을 정해도 묻지 않는다(허용·거부 모두 OS 상태가 그 기록이다 — spec).
+    await tester.tap(findWidgetWithText(FilledButton, AppStrings.save));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(AppIcons.add));
+    await tester.pumpAndSettle();
+    await _pickDue(tester);
+    expect(messaging.requestCount, 1);
+  });
+
+  testWidgets('알림을 거부한 상태에서 기한을 정하면 꺼져 있다는 한 줄이 보인다', (tester) async {
+    final messaging = FakePushMessaging(permission: NotificationPermission.denied);
+
+    await tester.pumpWidget(
+      _app(_FakeTodoRepository(), const <Todo>[], messaging: messaging),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(AppIcons.add));
+    await tester.pumpAndSettle();
+    // 기한을 정하지 않은 사람에게는 알림 이야기를 꺼내지 않는다.
+    expect(findText(AppStrings.todoDueNotificationsOff), findsNothing);
+
+    await _pickDue(tester);
+
+    expect(findText(AppStrings.todoDueNotificationsOff), findsOneWidget);
+    // 거부 상태에서도 다시 묻지 않고, 기한을 정하는 길을 막지도 않는다.
+    expect(messaging.requestCount, 0);
+    expect(find.byTooltip(AppStrings.todoDueClear), findsOneWidget);
+  });
+
+  testWidgets('알림이 켜져 있으면 꺼짐 안내가 보이지 않는다', (tester) async {
+    await tester.pumpWidget(_app(_FakeTodoRepository(), const <Todo>[]));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(AppIcons.add));
+    await tester.pumpAndSettle();
+    await _pickDue(tester);
+
+    expect(findText(AppStrings.todoDueNotificationsOff), findsNothing);
+  });
 }
 
-Widget _app(TodoRepository repository, List<Todo> todos) {
+/// 기한 추가 → 달력 확인 → 시간 확인. 둘 다 초기값을 그대로 받는다.
+Future<void> _pickDue(WidgetTester tester) async {
+  await tester.tap(findText(AppStrings.todoDueAdd));
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(TextButton, 'OK'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.widgetWithText(TextButton, 'OK'));
+  await tester.pumpAndSettle();
+}
+
+Widget _app(
+  TodoRepository repository,
+  List<Todo> todos, {
+  FakePushMessaging? messaging,
+}) {
   return ProviderScope(
     overrides: [
       todoRepositoryProvider.overrideWithValue(repository),
       authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
       todosProvider.overrideWith((ref) async => todos),
       myBattlesProvider.overrideWith((ref) async => const []),
+      // 기한을 정하면 알림 권한을 묻고 꺼짐 안내를 그리므로 알림 쪽도 가짜로 바꾼다.
+      // 기본값은 "권한 있음"이라 아무 안내도 그려지지 않는다.
+      ...pushOverrides(messaging: messaging),
+      ...dueAlarmOverrides(),
     ],
     child: const MaterialApp(home: TodoListScreen()),
   );

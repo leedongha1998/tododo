@@ -90,7 +90,7 @@
 
 ### 검증
 - `flutter analyze` 이슈 0, `flutter test` 전부 통과(기준선 + 신규 유닛).
-- 유닛이 덮는 것: 미완료만 담기, 생성순 유지, 8개 상한, 제목 80자 자르기, `totalCount`, 상태 8종의
+- 유닛이 덮는 것: 미완료만 담기, 받은 순서 보존(2026-11-09 `todo-due-date` 전에는 "생성순 유지" — 순서는 이제 `todosProvider`의 `sortedForList`가 만든다), 8개 상한, 제목 80자 자르기, `totalCount`, 상태 8종의
   문구·tone 선택, 기준 시각 문장(오전/오후 경계 0시·12시 포함), `visibleRows`의 "그 외 N개" 계산,
   JSON 왕복, Uri 해석(정상·uuid 아님·키 없음·엉뚱한 스킴·null).
 

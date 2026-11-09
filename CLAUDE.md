@@ -170,6 +170,12 @@ test/
 ## 하지 말 것
 - iOS 대응 코드
 - 다국어(i18n) 세팅
+  - 예외 하나: `flutter_localizations`(SDK 패키지) + `MaterialApp`의 `locale`을 **`ko`로 고정**하는 것은
+    허용한다(2026-11-09 오너 승인, 근거는 `docs/specs/todo-due-date/design.md` 5.2). 달력·시간 선택
+    (`showDatePicker`/`showTimePicker`)의 Material 내장 문구가 영어로 뜨는 것을 막으려는 것이고,
+    **언어를 하나로 못 박는 것이라 다국어의 반대다** — `.arb`·`gen-l10n`·`AppLocalizations` 생성·언어
+    분기·언어 선택 설정이 생기지 않으며 앱 문구의 출처는 여전히 `lib/core/strings.dart` 하나다.
+    이 예외를 다국어 구조를 들이는 근거로 쓰지 말 것
 - 범위 밖 기능을 위한 "미래 대비" 추상화
 - 클라이언트에서 승패 계산
 - 테스트 없이 판정 로직 수정

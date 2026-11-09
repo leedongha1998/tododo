@@ -1,6 +1,6 @@
 ---
 name: flutter-widget-test-gotchas
-description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump, PopScope는 maybePop으로만 검증된다
+description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump, PopScope는 maybePop으로만, 남은 시간 내림 픽스처, Cupertino delegate 누락
 metadata:
   type: feedback
 ---
@@ -64,6 +64,18 @@ metadata:
     `tester.state<NavigatorState>(find.byType(Navigator)).maybePop()`이다. 그리고 **되돌아갈 화면이
     있어야** 하므로 검증 대상 화면은 `pumpWidget`으로 직접 세우지 말고 host 화면에서 `push`해 띄운다
     (아니면 "나갔다"를 볼 수 없다).
+
+11. **"남은 시간" 문구를 화면에서 단정할 때는 픽스처에 수십 초의 여유를 넣는다.** 문구 규칙은
+    각 단위를 **내림**하므로, `DateTime.now().add(Duration(hours: 1, minutes: 42))`를 기한으로 주면
+    화면이 그려지는 순간의 `now`가 몇 밀리초 뒤라서 `1시간 41분 남음`이 나와 테스트가 깨진다
+    (2026-11-09 todo-due-date 6단계에서 실제로 겪음). `+ seconds: 30`처럼 여유를 더해 둔다.
+    **"지남" 쪽은 반대로 안전하다**(지난 시간이 커지는 방향이라 분이 깎이지 않는다).
+
+12. **`MaterialApp`에 `locale`을 고정하면 `GlobalCupertinoLocalizations.delegate`를 빼면 안 된다.**
+    Cupertino 위젯을 하나도 쓰지 않아도 `WidgetsApp`의 디버그 검사가 Cupertino까지 포함한 고정
+    목록으로 `supportedLocales`를 확인해서, 없으면 **모든 위젯 테스트가**
+    `Warning: This application's locale, ko, is not supported by all of its localization delegates`
+    예외로 깨진다(2026-11-09 todo-due-date 4단계).
 
 **Why:** 1~3번은 mutual-judge 판정 화면(4단계), 4~5번은 recruit-browse의 찾기 탭(검색·필터·무한 스크롤),
 6~7번은 retro-theme 가독성 개정(2026-10-29, 글꼴 표를 바꾸고 배율 1.3 넘침 테스트를 쓸 때),

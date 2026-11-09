@@ -1,8 +1,8 @@
+import '../../../core/remaining_time.dart';
 import '../../../core/strings.dart';
 import '../data/battle.dart';
 import '../data/battle_participant.dart';
 import 'judgment_rules.dart';
-import 'remaining_time.dart';
 
 /// 목록 카드가 말하는 소식 한 줄.
 ///

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/remaining_time.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_palette.dart';
@@ -14,7 +15,6 @@ import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_outcome.dart';
 import '../domain/battle_providers.dart';
-import '../domain/remaining_time.dart';
 import 'battle_chips.dart';
 import 'evidence_section.dart';
 import 'judgment_section.dart';

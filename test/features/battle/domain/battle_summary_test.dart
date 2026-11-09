@@ -231,7 +231,7 @@ void main() {
       expect(
         summary.deadlineLineAt(_now),
         '${AppStrings.battleJudgeDeadlineLabel} · '
-        '${AppStrings.battleDeadlineLeft('1시간')}',
+        '${AppStrings.battleDeadlineLeft('1시간 30분')}',
       );
     });
 

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/todo/data/todo.dart';
 import 'package:todododo/features/todo/data/todo_widget_payload.dart';
+import 'package:todododo/features/todo/domain/due_date_rules.dart';
 
 /// 홈 화면 위젯 캐시의 판단 전부를 여기서 고정한다. 위젯은 네이티브가 그리지만 "무엇을 그릴지"는
 /// 이 순수 함수들이 정하므로(design 원칙 2), 위젯 동작의 유일한 자동 검증 지점이다.
@@ -9,7 +10,7 @@ void main() {
   final now = DateTime(2026, 11, 4, 9, 14);
 
   group('fromTodos', () {
-    test('미완료만 담고 앱과 같은 순서를 지킨다', () {
+    test('미완료만 담고 받은 순서(= 앱 목록 순서)를 그대로 지킨다', () {
       final payload = TodoWidgetPayload.fromTodos(
         [
           _todo('1', '장보기'),
@@ -23,6 +24,25 @@ void main() {
       expect(payload.totalCount, 2);
       expect(payload.centerText, isNull);
       expect(payload.noteTone, TodoWidgetNoteTone.muted);
+    });
+
+    // "앱과 같은 순서"는 기한 우선 정렬(sortedForList)이고, 그 정렬은 레포지토리가 한다.
+    // fromTodos는 순서를 **만들지 않고 보존**한다 — 두 곳에서 정렬하면 한쪽만 고쳐도
+    // "위젯 첫 줄 ≠ 앱 첫 줄"이 되고 아무도 모른다(todo-due-date design 2·9장).
+    test('기한이 섞여 있어도 순서를 다시 만들지 않고 들어온 대로 싣는다', () {
+      final sorted = sortedForList([
+        _todo('1', '기한 없는 일'),
+        _todo('2', '모레까지', dueAt: DateTime(2026, 11, 6, 18)),
+        _todo('3', '어제까지', dueAt: DateTime(2026, 11, 3, 18)),
+      ]);
+
+      final payload = TodoWidgetPayload.fromTodos(sorted, now: now);
+
+      expect(payload.items.map((item) => item.title), [
+        '어제까지',
+        '모레까지',
+        '기한 없는 일',
+      ]);
     });
 
     test('미완료가 많으면 8개까지만 담되 전체 개수는 그대로 센다', () {
@@ -388,11 +408,17 @@ void main() {
   });
 }
 
-Todo _todo(String id, String title, {bool isDone = false}) {
+Todo _todo(
+  String id,
+  String title, {
+  bool isDone = false,
+  DateTime? dueAt,
+}) {
   return Todo(
     id: id,
     title: title,
     isDone: isDone,
     createdAt: DateTime(2026, 11, 4, 8),
+    dueAt: dueAt,
   );
 }

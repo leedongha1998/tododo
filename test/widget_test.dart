@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_icons.dart';
+import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
@@ -307,6 +308,87 @@ void main() {
 
     final doneText = tester.widget<KeepWordsText>(findText('빨래하기'));
     expect(doneText.style?.decoration, TextDecoration.lineThrough);
+  });
+
+  // todo-due-date 원칙 5의 회귀 방지: 기한을 쓰지 않는 사용자의 줄에는 글자가 한 자도 늘지 않고,
+  // 완료한 할 일에는 기한이 있어도 빨간 "지남"이 붙지 않는다(spec).
+  testWidgets('기한이 있는 미완료 할 일만 남은 시간을 보여 준다', (WidgetTester tester) async {
+    final now = DateTime.now();
+    final todos = [
+      Todo(
+        id: '1',
+        title: '보고서 쓰기',
+        isDone: false,
+        createdAt: DateTime(2026, 11, 8),
+        // 30초를 더해 두는 이유: 화면이 그려지는 순간의 DateTime.now()는 이 now보다 조금
+        // 뒤이고, 각 단위는 내림이라 그 차이가 분을 깎을 수 있다(`1시간 41분`이 된다).
+        dueAt: now.add(const Duration(hours: 1, minutes: 42, seconds: 30)).toUtc(),
+      ),
+      Todo(
+        id: '2',
+        title: '빨래하기',
+        isDone: true,
+        createdAt: DateTime(2026, 11, 8),
+        dueAt: now.subtract(const Duration(days: 3)).toUtc(),
+      ),
+      Todo(
+        id: '3',
+        title: '설거지하기',
+        isDone: false,
+        createdAt: DateTime(2026, 11, 8),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          todosProvider.overrideWith((ref) async => todos),
+          myBattlesProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(home: TodoListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 기한이 남은 줄: 두 단위 병기 + 보조 색.
+    final remaining = tester.widget<KeepWordsText>(findText('1시간 42분 남음'));
+    expect(remaining.style?.color, AppPalette.inkMuted);
+
+    // 완료한 할 일은 기한을 넘겼어도 아무 문구가 없다(빨간 경고가 붙지 않는다).
+    expect(findText('3일 지남'), findsNothing);
+    expect(findTextContaining('지남'), findsNothing);
+
+    // 기한이 없는 줄에는 둘째 줄 자체가 없다 — 지금과 같은 한 줄 타일이다.
+    final plainTile = tester.widget<ListTile>(
+      find.ancestor(of: findText('설거지하기'), matching: find.byType(ListTile)),
+    );
+    expect(plainTile.subtitle, isNull);
+  });
+
+  testWidgets('기한을 넘긴 미완료 할 일은 경고색으로 지난 시간을 말한다', (WidgetTester tester) async {
+    final todos = [
+      Todo(
+        id: '1',
+        title: '보고서 쓰기',
+        isDone: false,
+        createdAt: DateTime(2026, 11, 8),
+        dueAt: DateTime.now().subtract(const Duration(hours: 12, minutes: 34)).toUtc(),
+      ),
+    ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          todosProvider.overrideWith((ref) async => todos),
+          myBattlesProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(home: TodoListScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final overdue = tester.widget<KeepWordsText>(findText('12시간 34분 지남'));
+    expect(overdue.style?.color, AppPalette.danger);
   });
 
   // 앱 전체 어절 줄바꿈(redesign 후속 결정 1). 사용자가 쓴 긴 할 일도 "우/유", "버리/기"처럼 끊기지 않는다.

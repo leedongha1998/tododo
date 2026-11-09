@@ -24,6 +24,31 @@ class AppStrings {
   static const saveTodoFailed = '저장에 실패했습니다. 다시 시도해주세요.';
   static const deleteTodoFailed = '삭제에 실패했습니다. 다시 시도해주세요.';
 
+  // 개인 투두의 기한(todo-due-date). 대결의 "마감"(deadline)과 구분해 사용자에게는 "기한"으로만
+  // 말한다. 기한은 선택 입력이고, 쓰지 않는 사용자의 화면에는 이 문구가 한 자도 나오지 않는다.
+  static const todoDueLabel = '기한';
+  static const todoDueAdd = '기한 추가';
+  static const todoDueClear = '기한 지우기';
+  // 목록 줄의 한 마디. 수량은 formatRemaining이 만든다. 값이 battleDeadlineLeft와 같지만
+  // **따로 둔다** — 대결 문구를 고칠 때 투두 문구가 조용히 함께 바뀌지 않게 하려는 것이다.
+  static String todoDueRemaining(String remaining) => '$remaining 남음';
+  static String todoDuePassed(String passed) => '$passed 지남';
+  // 지난 지 1분 미만. 지난 뒤의 초는 아무 행동도 바꾸지 않고, 기한과 지금이 같은 순간에
+  // `0초 지남`이 나오는 것도 막는다.
+  static const todoDueJustPassed = '방금 지남';
+  // 대화상자에서 보여 주는 기한 값: `2026년 11월 12일 오후 6:00`.
+  // 날짜를 확인하러 여는 자리이므로 줄여 쓰지 않고, 올해인지 아닌지로 서식을 나누지 않는다.
+  static String todoDueValue({
+    required int year,
+    required int month,
+    required int day,
+    required bool isAm,
+    required int hour12,
+    required int minute,
+  }) =>
+      '$year년 $month월 $day일 ${isAm ? '오전' : '오후'} '
+      '$hour12:${minute.toString().padLeft(2, '0')}';
+
   static const battleCreate = '대결 만들기';
   static const battleTypeSpeed = '속도전';
   static const battleTypeQuality = '품질전';

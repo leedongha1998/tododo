@@ -89,6 +89,16 @@ supabase secrets set KEY=VALUE     # Edge Function 시크릿 (계정 소유자�
   `flutter build apk --release --dart-define-from-file=env.json`까지 돌려 볼 것 — 릴리스가 깨지면
   Play에 올릴 AAB를 만들 수 없다. 로그를 `tail`로 파이프하면 종료 코드가 가려져 실패를 성공으로
   읽게 되니(`EXIT=$?`를 따로 찍을 것) 주의한다.
+- **`compileSdk`는 37 고정이고 AGP는 9.1.1이다**(2026-11-10, `flutter_local_notifications` 23 때문).
+  **그 패키지의 README가 AGP 9.1.1을 최소로 권하고**(자기 모듈의 buildscript도 9.1.1을 쓴다),
+  안드로이드 모듈이 `compileSdk = 37`로 컴파일되므로 앱도 37 이상으로 컴파일해야 한다
+  (AGP가 "이 라이브러리에 의존하는 앱은 37 이상" 오류를 낸다). 덧붙여 AGP 9.1.0은 그 요구를
+  `platforms;android-37`이라는 **없어진 이름**으로 찾아 `Failed to find target with hash string
+  'android-37'`로 죽었다(지금 SDK 패키지는 `android-37.0`/`37.1`/`37.2`뿐이고, 9.1.1은 `android-37.0`을
+  base SDK로 알아본다) — 이 증상은 SDK 설치 상태에 따라 안 나타날 수 있으니 판 번호의 근거는
+  위의 README 요구 쪽으로 읽을 것. `targetSdk`(36)·`minSdk`(24)는
+  건드리지 않았으므로 런타임 동작과 설치 가능 기기는 그대로다. Flutter SDK 기본값이 37 이상으로
+  올라가면 `android/app/build.gradle.kts`의 `compileSdk = 37`을 `flutter.compileSdkVersion`으로 되돌린다.
 
 ## 디렉토리 구조
 ```
@@ -136,6 +146,7 @@ test/
 - 하드코딩된 문자열은 `lib/core/strings.dart`에 모은다
 - 에러는 삼키지 않는다. 최소한 로그를 남기고 사용자에게 토스트로 알린다
   - 예외: 장식 연출(VS 인트로)의 표시 실패, 인트로에 쓸 내 이름 조회 실패(이때는 "나"로 대신 표시), 그 "봤음" 기록 읽기·쓰기 실패는 `debugPrint` 로그만 남기고 토스트를 띄우지 않는다. 연출은 관문이 아니므로 대결 진입은 어느 경우에도 막지 않는다
+  - 예외: 홈 화면 위젯 캐시 발행 실패와 **개인 투두 기한 알림의 초기화·예약·취소·권한 요청·탭 처리 실패**도 `debugPrint` 로그만 남긴다(2026-11-10, 근거는 `docs/specs/todo-due-date/design.md` 원칙 4·8.6). 둘 다 관문이 아니어서 실패가 할 일 저장·수정·완료·삭제를 막지 않고, 일어나는 자리(`MainShell`의 `ref.listen`, 대화상자)에 토스트를 띄울 맥락도 없으며 사용자가 할 수 있는 일도 없다 — 다음 보정에서 저절로 맞춰진다. **반대로 할 일 저장·수정·삭제 실패는 그대로 토스트를 띄운다**
 - 새 화면 하나 = 새 커밋 하나. 큰 덩어리로 커밋하지 않는다
 - 새 패키지 추가 전에 이미 있는 패키지로 가능한지 먼저 확인하고, 추가하면 이유를 커밋 메시지에 적는다
 - 스키마 변경은 마이그레이션 파일로만. Supabase 대시보드에서 직접 수정 금지

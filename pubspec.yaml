@@ -30,6 +30,11 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # 달력·시간 선택(showDatePicker/showTimePicker)의 Material 기본 문구를 한국어로 쓰기 위한
+  # SDK 패키지. locale을 ko 하나로 고정하므로 다국어 구조(.arb·gen-l10n·언어 분기)가 생기지 않고,
+  # 앱 문구의 출처는 여전히 lib/core/strings.dart 하나다(todo-due-date design 5.2, 오너 확정).
+  flutter_localizations:
+    sdk: flutter
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

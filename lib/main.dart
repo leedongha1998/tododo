@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart'
     show LicenseEntryWithLineBreaks, LicenseRegistry, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/strings.dart';
@@ -63,6 +64,20 @@ class TododuduApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: AppStrings.appName,
+      // 기기 언어와 무관하게 한국어 하나로 **고정**한다(다국어 구조를 만드는 것이 아니다 —
+      // todo-due-date design 5.2, 오너 확정). 달력·시간 선택과 Material 기본 대화상자 문구가
+      // 영어로 뜨는 것을 막는 데만 쓴다.
+      locale: const Locale('ko'),
+      supportedLocales: const [Locale('ko')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate, // 달력·시간 선택·대화상자 기본 문구
+        GlobalWidgetsLocalizations.delegate, // 글 방향(LTR)
+        // Cupertino 위젯을 쓰지 않지만 이 delegate는 **빼면 안 된다.** WidgetsApp의 디버그 검사가
+        // supportedLocales를 Cupertino까지 포함한 고정 목록으로 확인해서, 없으면 디버그 빌드와
+        // 위젯 테스트에서 "locale ko is not supported by all of its localization delegates"로
+        // 예외가 난다(2026-11-09 실제로 겪음 — design 5.2의 "넣지 않는다"를 고친 자리다).
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: AppTheme.light,
       // 다크 모드 없음. 기기가 다크 모드여도 같은 라이트 테마로 보인다.
       themeMode: ThemeMode.light,

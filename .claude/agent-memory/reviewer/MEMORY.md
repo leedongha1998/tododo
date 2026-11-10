@@ -4,3 +4,4 @@
 - [적용을 미룬 마이그레이션의 쓰기 경로](feedback_deferred_migration_write_path.md) — null도 키로 보내는 insert/update는 컬럼 추가 전까지 쓰기 전체를 죽인다(읽기는 멀쩡해 증상이 가려진다)
 - [두 언어·spec 표에 옮겨 적힌 규칙 리뷰법](feedback_cross_language_rule_review.md) — 양쪽 공식을 스크래치 스크립트로 전수 대조, 안드로이드 `optString`은 명시적 null에 `"null"`을 준다
 - [뒤로가기 가드(PopScope) 리뷰 절차](feedback_popscope_guard_review.md) — blocked 식 상태 열거 + maybePop probe로 탈출 가능성 확인, 로더 중엔 pumpAndSettle 금지
+- [값 공간을 나눠 쓰는 두 경로 검산](feedback_shared_value_space_review.md) — 컬럼 기본값(시퀀스)과 RPC가 만드는 값은 숫자로 교차 검산

@@ -6,4 +6,6 @@
 - [CLAUDE.md 판정 규칙은 낡았다](project_judging_rule_claudemd_stale.md) — 판정 주체는 AI가 아니라 참가자 상호 판정(mutual-judge, 2026-09-18 확정·구현됨).
 - [떠나기 확인창 가드 기준](feedback_leave_guard_criteria.md) — "결과 보유"가 아니라 "자원을 썼는가"로 막고, 오류 화면은 막지 않는다. 제목은 화면이 넘긴다.
 - [안드로이드 org.json의 optString 함정](android_json_optstring_null.md) — 값이 명시적 null이면 fallback이 아니라 "null" 네 글자가 온다. Dart에서 null 키를 빼고 Kotlin에서 isNull을 먼저 본다.
+- [끌어 옮기기(ReorderableListView) 함정](flutter_reorderable_list_gotchas.md) — onReorder 폐기(3.47), stretch Row의 무한 높이, 빈 칸은 안 잡힘, maxScrollExtent는 추정값, 테스트 끌기 레시피.
 - [백그라운드 isolate의 Supabase 세션](supabase_background_isolate_session.md) — 백그라운드에서 initialize하면 토큰이 회전해 앱이 다음 resume에 조용히 로그아웃된다. IsolateNameServer로 앱에 쓰기를 맡겨라.
+- [한 컬럼을 두 경로가 채울 때](sql_shared_value_space.md) — 컬럼 기본값(시퀀스)과 RPC가 같은 값 공간을 쓰면 숫자로 교차 검산. 증상은 다른 경로의 insert 실패로 나온다.

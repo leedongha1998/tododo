@@ -198,6 +198,14 @@ Future<void> deleteTodo(String id)            // 그대로
 
 ## 2. 정렬 — 서버가 아니라 Dart에서, 자리는 레포지토리 하나
 
+> **이 장의 정렬 조항은 2026-11-10 `todo-reorder`로 폐기됐다.** 목록 순서는 기한이 아니라
+> **사용자가 끌어 정하고**, 그 순서를 만드는 자리는 Dart가 아니라 **서버의 `order by position`**이다
+> (`sortedForList`·`compareForList`는 지워졌다). 아래 본문과, 이 문서에서 "순서는 Dart가 만든다"로
+> 읽히는 서술(1.5·4·5장·데이터 흐름·테스트 표의 정렬 관련 줄)은 **그 결정의 이력으로만** 읽을 것 —
+> 지금 참인 것은 `docs/specs/todo-reorder/design.md` 2장이다. 이 장에서 **살아 있는 것은 "정렬 규칙을
+> 두 곳에 두지 않는다"는 원칙 하나**이고, 그 원칙이 이번에는 "서버 쿼리 한 줄"로 지켜진다.
+> 기한의 **표시**(남은 시간 문구·색·8구간 표)와 기한 알림은 이 문서 그대로 유효하다.
+
 ### 2.1 서버 `order`로 표현할 수 있는가: 할 수 있다. 그래도 Dart로 한다
 
 `.order('due_at', ascending: true, nullsFirst: false).order('created_at')` 로 "기한 있는 것이 이른 순으로 위, 없는 것은 아래 생성순"을 **정확히** 표현할 수 있다(PostgREST의 `nullslast`, supabase_flutter의 `nullsFirst` 인자).

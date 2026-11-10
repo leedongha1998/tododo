@@ -121,7 +121,7 @@
 | 키 | 뜻 | 비고 |
 |---|---|---|
 | `v` | 스키마 판 번호 | 네이티브가 모르는 판이면 "앱을 열어 주세요" 대체 화면으로 떨어진다(앱만 업데이트되고 위젯 코드가 옛 것일 수는 없지만, 반대로 캐시가 새 앱 → 구 위젯인 순간은 업데이트 직후 존재할 수 있다) |
-| `items` | 그릴 줄. **미완료만**, 앱과 같은 순서(2026-11-09 `todo-due-date`로 `created_at` 오름차순 → `sortedForList`: 기한 이른 순, 기한 없는 것은 그 뒤 생성순. `docs/specs/todo-due-date/design.md` 2장) | 최대 **8개**만 담는다(6줄 + 여유). 제목은 80자에서 자른다 |
+| `items` | 그릴 줄. **미완료만**, 앱과 같은 순서(2026-11-09 `todo-due-date` → 2026-11-10 `todo-reorder`: 앱과 같은 순서 = **사용자가 끌어 정한 순서**. 서버의 `order by position`이 그 순서를 만들고 페이로드는 보존만 한다. `docs/specs/todo-reorder/design.md` 2장) | 최대 **8개**만 담는다(6줄 + 여유). 제목은 80자에서 자른다 |
 | `totalCount` | 미완료 **전체** 개수 | "그 외 N개" 계산용(`totalCount - 그린 줄 수`) |
 | `centerText` | 목록 대신 가운데에 띄울 안내 문구 | `items`가 빈 상태에서만 채운다 |
 | `note` | 아래 한 줄. 상태 문구·기준 시각·실패 안내가 모두 여기로 모인다 | Dart가 완성된 문장을 넣는다 |
@@ -455,7 +455,7 @@ provider는 `lib/features/todo/domain/todo_providers.dart`에 함께 둔다(`tod
 
 | 부르는 곳 | 호출 | 비고 |
 |---|---|---|
-| 앱(main isolate), 백그라운드 isolate | `TodoRepository.fetchTodos(userId)` = `todos.select().eq('user_id', …).order('created_at')` | 그대로 쓴다. 위젯용 변형을 만들지 않는다. (2026-11-09 `todo-due-date`: 쿼리와 레포지토리는 그대로이고, `todosProvider`가 그 결과를 `sortedForList`로 기한 우선으로 다시 정렬한다 — 위젯도 그 순서를 그대로 받는다) |
+| 앱(main isolate), 백그라운드 isolate | `TodoRepository.fetchTodos(userId)` = `todos.select().eq('user_id', …).order('position', ascending: true).order('id', ascending: true)` | 그대로 쓴다. 위젯용 변형을 만들지 않는다. (2026-11-10 `todo-reorder`: 쿼리의 `order`만 `position`으로 바뀌었다. 레포지토리를 그대로 쓰므로 **이 백그라운드 경로도 앱과 같은 순서를 본다** — Dart 정렬이 없어져 정렬 함수를 따로 부를 일이 없다) |
 | 같음 | `TodoRepository.setDone(id, true)` = `todos.update({'is_done': true}).eq('id', id)` | **`true`만 넘긴다**(완료 해제 없음). RLS가 남의 행을 막는다 |
 
 - 백그라운드 isolate에서 `userId`는 복구된 세션의 `supabase.auth.currentUser!.id`다. 세션이 없으면 쓰기를 하지 않는다.
@@ -467,7 +467,7 @@ provider는 `lib/features/todo/domain/todo_providers.dart`에 함께 둔다(`tod
 
 | 무엇 | 어디서 | 수단 |
 |---|---|---|
-| 캐시 페이로드: 미완료만 담기·**받은 순서 보존**(2026-11-09 `todo-due-date` 전에는 "생성순 유지"였다 — 지금은 순서를 `todosProvider`가 만들고 페이로드는 보존만 한다)·8개 상한·제목 자르기·`totalCount`, 상태 8가지의 문구 선택(빈 목록/전부 완료/조회 실패 두 종/체크 실패/로그아웃/조회 중), 기준 시각 문장(`오전/오후 h:mm`), `pending` 설정·만료, JSON 직렬화 왕복 | Dart 순수 함수 | `flutter test` 유닛 — `test/features/todo/todo_widget_payload_test.dart` |
+| 캐시 페이로드: 미완료만 담기·**받은 순서 보존**(2026-11-10 `todo-reorder` 기준: 순서는 서버의 `order by position`이 만들고 페이로드는 보존만 한다. 그 전에는 `todo-due-date`의 `sortedForList`, 더 전에는 "생성순 유지"였다)·8개 상한·제목 자르기·`totalCount`, 상태 8가지의 문구 선택(빈 목록/전부 완료/조회 실패 두 종/체크 실패/로그아웃/조회 중), 기준 시각 문장(`오전/오후 h:mm`), `pending` 설정·만료, JSON 직렬화 왕복 | Dart 순수 함수 | `flutter test` 유닛 — `test/features/todo/todo_widget_payload_test.dart` |
 | 위젯 Uri 해석(`todoWidgetActionOf`, `widgetTargetOf`): 정상·uuid 아님·키 없음·엉뚱한 스킴 | Dart 순수 함수 | 같은 곳 |
 | "줄 수 → 몇 개 그리고 '그 외 N개'는 몇인가" | Dart 순수 함수로 **떼어 둔다**(`visibleRows(items, totalCount, rowCount)`) 네이티브는 이 규칙을 그대로 옮긴 20줄이다 | 유닛. 규칙을 Dart에 두는 것이 원칙 2다 |
 | 할 일을 바꾸면 발행이 일어나는가 / 조회 실패 때 이전 목록을 유지하는가 / 로그아웃·탈퇴 때 비우는가 | Dart 위젯 테스트 | 가짜 `todoWidgetHostProvider`로 `save`·`update` 호출을 기록해 확인(선례: 가짜 `pushMessagingProvider`) |

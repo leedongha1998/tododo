@@ -35,9 +35,9 @@
 | 참가자 검사에 `not in` 금지 | 해당 없음(대결이 아니다). 소유 검사는 `where id = ? and user_id = auth.uid()` + `not found`로 한다 |
 | 사용자 FK는 `public.profiles`를 가리킬 것 | 새 테이블이 없어 해당 없음. `todos.user_id`가 `auth.users`를 가리키는 기존 상태는 **건드리지 않는다**(이 기능의 범위가 아니다) |
 | 사용자에게 보이는 문자열은 한국어, `lib/core/strings.dart`에 모은다 | 7장에 새 문구 2개 전부 |
-| 하드코딩 색은 테마에서 | `AppPalette.inkMuted`(손잡이 아이콘), `AppPalette.edge`(들린 줄의 그림자). **새 색 토큰을 만들지 않는다** |
+| 하드코딩 색은 테마에서 | `AppPalette.edge`(들린 줄의 그림자). ~~`AppPalette.inkMuted`(손잡이 아이콘)~~은 2026-11-10에 손잡이가 없어져 이 기능이 쓰지 않는다(삭제 아이콘이 여전히 그 색이다). **새 색 토큰을 만들지 않는다** |
 | 에러는 삼키지 않는다 | 원칙 4. 순서 저장 실패는 토스트를 띄운다. 위젯 발행·기한 알림의 기존 로그-전용 예외는 그대로 |
-| 새 패키지는 기존 것으로 되는지 먼저 확인 | **새 패키지가 없다.** 끌기는 Flutter SDK의 `ReorderableListView.builder` + `ReorderableDragStartListener`로 끝난다(4.1) → 릴리스 빌드 위험(네이티브)이 이 기능에는 없다 |
+| 새 패키지는 기존 것으로 되는지 먼저 확인 | **새 패키지가 없다.** 끌기는 Flutter SDK의 `ReorderableListView.builder` + `ReorderableDelayedDragStartListener`(2026-11-10 전에는 `ReorderableDragStartListener`)로 끝난다(4.1) → 릴리스 빌드 위험(네이티브)이 이 기능에는 없다 |
 | 새 화면 하나 = 새 커밋 하나 | 10장의 단계가 커밋 단위다(확정은 plan.md) |
 | 테스트 없이 판정 로직 수정 금지 | 판정 로직을 수정하지 않는다. 끌기 좌표 변환은 순수 함수로 떼어 유닛 테스트한다(3장) |
 | iOS·i18n·미래 대비 추상화 금지 | Android 전용. 섹션·계층·다중 선택·순서 기준 설정을 가정한 자리를 만들지 않는다(spec "범위 밖") |
@@ -56,7 +56,8 @@ Dart
   ├ fetchTodos: order('position', ascending: true).order('id')   ← 순서를 만드는 유일한 자리
   ├ moveTodo(todoId, afterId: ...)                               ← 레포지토리 한 메서드
   ├ planTodoMove(todos, oldIndex, newIndex) (순수 함수)          ← 좌표 → 결과 목록 + 기준 id
-  └ TodoListScreen: ReorderableListView.builder + 전용 손잡이
+  └ TodoListScreen: ReorderableListView.builder + 줄 전체를 꾹 눌러 집기
+                     (2026-11-10 오너 확정. 그 전에는 전용 손잡이였다)
        └ 낙관적 적용 → 실패 시 끌기 전 순서로 되돌리고 토스트
 
 지우는 것
@@ -419,7 +420,31 @@ comment on function public.move_todo is
 
 **새 화면이 없다.** 바뀌는 자리는 `lib/features/todo/presentation/todo_list_screen.dart` 하나이고, 빈 상태·로딩·에러 화면과 추가·수정 대화상자는 **그대로**다(`StatusMessage.empty/loading/error`, 문구 변화 없음).
 
-### 4.1 무엇으로 구현하나 — `ReorderableListView.builder` + 전용 손잡이
+### 4.1 무엇으로 구현하나 — `ReorderableListView.builder` + ~~전용 손잡이~~ **꾹 눌러 집기**
+
+> **2026-11-10 오너가 손잡이를 없앴다**(spec "P0. 끌기 제스처" 절 머리글 참고). 4.1~4.2의
+> 아래 서술은 **결정의 이력으로 남긴다.** 지금 참인 것은 이렇다:
+> - 끌기 시작: 줄 전체를 `ReorderableDelayedDragStartListener`로 감싼다(= 꾹 누르면 집힌다).
+>   `buildDefaultDragHandles`는 **여전히 false**다 — SDK 기본값은 `Theme.of(context).platform`을
+>   보고 갈라져 데스크톱에서 **줄 오른쪽에 손잡이 아이콘을 다시 그리기** 때문에, 방금 없앤
+>   손잡이가 플랫폼에 따라 되살아나는 구조를 남기지 않는다.
+> - 짧게 누르기(수정)와의 공존: 분기를 쓰지 않고 **제스처 경기장**이 시간으로 가른다.
+>   `DelayedMultiDragGestureRecognizer`(500ms) vs `AppPanel`의 `TapGestureRecognizer` —
+>   빨리 떼면 탭이 이기고(수정), 500ms를 넘겨 쥐면 끌기가 이겨 **탭이 취소**되며(수정이 열리지
+>   않는다), 500ms 전에 움직이면 둘 다 지고 `Scrollable`이 이긴다(스크롤).
+> - 줄의 칸은 **넷 → 셋**(체크박스 48 / 제목 / 삭제 48), 목록 좌우 여백은 **8 → 20dp**,
+>   제목 칸은 **198 → 222dp**(실측). `todoDragHandleKey`·`AppIcons.dragHandle`·
+>   `AppStrings.todoReorderHandle`은 **삭제**했다.
+> - `IntrinsicHeight`는 남겼다 — 손잡이가 아니라 **체크박스 칸**이 줄 높이 전체를 히트 영역으로
+>   갖게 하려는 것이다(`crossAxisAlignment: stretch`는 목록 줄의 무한 높이 제약 때문에
+>   `IntrinsicHeight` 없이는 죽는다).
+> - **집히는 순간 햅틱 하나**(`onReorderStart` → `HapticFeedback.selectionClick()`, 새 패키지
+>   없음). 입구가 보이지 않으므로 "집혔다"는 신호를 시각적 들림 하나에만 맡기지 않는다.
+>   **관문이 아니다** — 실패는 `debugPrint`만 남기고 끌기를 막지 않는다(장식 연출의 실패와 같은
+>   성격이고, 방금 집은 줄 위로 스낵바를 띄우면 끌기를 방해한다).
+> - 체크박스 위에서 **꾹 눌렀다 움직이지 않고 떼면 아무 일도 일어나지 않는다**(끌기 인식기가
+>   탭을 가져간다). 끌기 입구를 제목 칸으로 좁히면 줄을 옮기려고 왼쪽을 잡았을 때 **할 일이
+>   완료 처리되는** 더 비싼 사고가 생기므로 **이 동작을 택했고**, 그 갈래도 테스트로 고정했다.
 
 | 안 | 판단 |
 |---|---|
@@ -448,7 +473,13 @@ ReorderableListView.builder(
 - 카드 간격 12는 그대로지만 **모든 줄이 같은 값**(`EdgeInsets.only(bottom: 12)`)을 쓴다. 지금은 마지막 줄만 0인데, 끌고 있는 동안 "마지막 줄"이 바뀌어 12dp가 튀기 때문이다. 늘어난 12dp는 `fabClearance` 아래에 묻힌다(목록 끝 여백이 12dp 넉넉해지는 것뿐이고 FAB 가림 테스트는 그대로 통과한다).
 - 빈 목록은 지금처럼 리스트를 만들기 전에 `StatusMessage.empty`로 끝난다(`ReorderableListView`에 0개를 주지 않는다).
 
-### 4.2 줄의 구조와 **폭 산수** — 제목 칸을 1dp도 깎지 않는 48dp를 만들어 온다
+### 4.2 줄의 구조와 **폭 산수** — ~~제목 칸을 1dp도 깎지 않는 48dp를 만들어 온다~~
+
+> **2026-11-10: 손잡이 칸과 여백 줄이기가 모두 폐기됐다**(4.1 머리글). 지금의 폭 산수는 이렇다 —
+> 360dp 화면·1.5배 글자에서 **카드 320**(= 360 − 20 − 20) **− 체크 48 − 삭제 48 −
+> `AppPanel` 테두리 2 = 제목 칸 222dp**(실측. `test/widget_test.dart`의 하한이 222다).
+> 아래 표의 "이 설계" 칸(여백 8dp·손잡이 48dp·제목 198dp)은 **더 이상 참이 아니고 이력으로만**
+> 남는다. `ListTile`을 쓰지 않는 이유(칸 폭을 산수로 보일 수 없다)는 그대로 유효하다.
 
 `ListTile`을 **쓰지 않고** 네 칸의 `Row`로 바꾼다. 이유는 하나다: `ListTile`은 칸 폭을 자기 규칙으로 정하므로(leading 칸 + `horizontalTitleGap` + trailing 칸 + 내부 여백) 손잡이 48dp를 넣고도 제목 칸이 198dp 이상임을 **산수로 보일 수 없다.** 칸을 직접 쓰면 폭이 더하기 한 줄이 된다.
 
@@ -644,7 +675,7 @@ Future<void> _onReorder(..., List<Todo> current, int oldIndex, int newIndex) asy
 
 ```
 [줄을 끌어 놓음]
-  손잡이 드래그 → ReorderableListView.onReorder(oldIndex, newIndex)
+  줄을 꾹 눌러 끌기 → ReorderableListView.onReorderItem(oldIndex, newIndex)
     → planTodoMove(...)                        // 순수 함수: 결과 목록 + 기준 id
     → setState(_dragged = 결과)                 // 화면이 먼저 바뀐다(낙관적)
     → TodoRepository.moveTodo(id, afterId)     // rpc('move_todo') — 보통 1행, 한 트랜잭션
@@ -704,6 +735,12 @@ Future<void> _onReorder(..., List<Todo> current, int oldIndex, int newIndex) asy
 
 ## 7. 새 문구와 아이콘
 
+> **2026-11-10 손잡이가 없어지면서 이 장의 둘이 사라졌다**(4.1 머리글):
+> `AppStrings.todoReorderHandle`(= 손잡이의 `Semantics` 라벨)과 `AppIcons.dragHandle`을 **지웠다**
+> (`app_icons_test`의 개수도 35 → 34로 되돌렸다). 남는 새 문구는 **`todoReorderFailed` 하나**다.
+> 라벨을 지워도 스크린리더 사용자의 수단은 남는다 — `ReorderableListView`가 줄마다 붙여 주는
+> "위로/아래로 이동" 시맨틱 액션이고, 그 문구는 Flutter의 ko 번역에서 온다(9장).
+
 ### 7.1 `lib/core/strings.dart`에 더하는 것 (전부)
 
 `todoDueNotificationsOff`(64행) 바로 뒤, `battleCreate`(66행) 앞의 새 구역에 넣는다.
@@ -716,7 +753,7 @@ Future<void> _onReorder(..., List<Todo> current, int oldIndex, int newIndex) asy
   static const todoReorderFailed = '순서를 바꾸지 못했습니다. 다시 시도해주세요.';
 ```
 
-- `todoReorderHandle`은 **화면에 글자로 보이지 않는다** — 손잡이의 `Semantics(label:)`이다. `Tooltip`을 쓰지 않는 이유: 툴팁은 길게 눌러 뜨는데 그 제스처가 끌기와 겹친다.
+- ~~`todoReorderHandle`은 **화면에 글자로 보이지 않는다** — 손잡이의 `Semantics(label:)`이다. `Tooltip`을 쓰지 않는 이유: 툴팁은 길게 눌러 뜨는데 그 제스처가 끌기와 겹친다.~~ (2026-11-10 삭제 — 라벨을 붙일 요소가 없어졌다. 참고로 **삭제 버튼의 `Tooltip`은 그대로 두었고**, 그 툴팁이 긴 누르기를 가져가 "삭제 버튼 위에서 꾹 눌러도 아무 일도 없다"가 됐다)
 - `todoReorderFailed`는 `saveTodoFailed`(`저장에 실패했습니다. 다시 시도해주세요.`)와 **따로 둔다**. 실패한 것이 "저장"이 아니라 "순서 바꾸기"이고, 한 화면에서 둘이 같은 말을 하면 무엇이 안 됐는지 알 수 없다.
 
 ### 7.2 아이콘
@@ -724,6 +761,7 @@ Future<void> _onReorder(..., List<Todo> current, int oldIndex, int newIndex) asy
 `lib/core/theme/app_icons.dart`에 한 줄. `Icons.*` 상수를 그대로 대입하는 규칙을 따른다.
 
 ```dart
+  // 2026-11-10 삭제됨(손잡이가 없어졌다). 아래는 이력이다.
   /// 할 일 순서 바꾸기 손잡이(todo-reorder).
   static const dragHandle = Icons.drag_indicator_rounded;
 ```
@@ -735,6 +773,13 @@ Future<void> _onReorder(..., List<Todo> current, int oldIndex, int newIndex) asy
 ---
 
 ## 8. 폐기 목록 — 파일·줄 단위로 확정
+
+> **2026-11-10 손잡이 폐기로 이 장의 세 줄이 반대로 돌아갔다**(4.1 머리글):
+> ① `lib/core/theme/app_icons.dart`의 `dragHandle` **추가 → 삭제**,
+> ② `lib/core/strings.dart`의 문구 **2개 → 1개**(`todoReorderHandle` 삭제),
+> ③ `test/core/theme/app_icons_test.dart`의 개수 **34 → 35 → 다시 34**.
+> `test/widget_test.dart`의 겹침 판정은 **칸 기준 그대로**이고 손잡이 칸 단언만 빠졌으며,
+> 제목 칸 하한은 **198 → 222**로 올라갔다(여백이 20dp로 돌아와 칸이 넓어졌다).
 
 다음 단계가 **이 표만 보고** 지울 수 있게 적는다. 줄 번호는 2026-11-10 기준이다(앞 단계에서 줄이 밀리면 인용한 문장으로 찾는다).
 
@@ -799,6 +844,14 @@ Future<void> _onReorder(..., List<Todo> current, int oldIndex, int newIndex) asy
 
 유닛이 닿도록 설계가 떼어 낸 순수 함수: **`planTodoMove`** 하나다(자리 값 계산은 SQL에 있다 — 2장에서 그 대가와 보완을 적었다).
 
+> **2026-11-10 손잡이 폐기로 아래 표의 끌기 테스트가 제스처 기준으로 바뀌었다.** 끌기는
+> `kLongPressTimeout`을 넘겨 쥔 뒤 20dp씩 나눠 움직여 재현하고(쥐기 전에 움직이면 스크롤이 된다),
+> 새로 고정한 것은 넷이다: ① **꾹 눌러 끌어 놓아도 수정 대화상자가 열리지 않는다**,
+> ② **꾹 눌러 집었다가 제자리에 놓아도** 열리지 않는다(서버도 부르지 않는다),
+> ③ **짧게 누르면 열린다**, ④ **체크박스·삭제는 짧은 탭에서 그대로 동작하고**, 그 위에서 꾹
+> 누르면 체크박스에서는 줄이 집히고 삭제 버튼에서는 아무 일도 없다(실측을 고정했다).
+> "손잡이 개수 == 줄 개수"는 **"줄마다 꾹 누르기 묶음이 하나"**로 바뀌었다.
+
 | 파일 | 고정하는 것 |
 |---|---|
 | `test/features/todo/domain/todo_order_test.dart` (신규) | **아래로 내릴 때 newIndex가 1 큰 좌표라는 것**(3줄 목록에서 0→3이 맨 아래, 0→1은 제자리), 위로 올릴 때, 맨 위로(afterId == null), 맨 아래로(afterId == 마지막 바로 앞), 가운데로(afterId == 바로 위 줄), **제자리면 changed == false**(0→0, 0→1), 1개짜리 목록, 좌표가 범위를 벗어나면 changed == false, **다른 줄의 상대 순서가 유지된다**(5개 목록에서 하나만 옮기고 나머지 순서 비교), 받은 리스트를 제자리에서 바꾸지 않는다, 완료한 줄·기한 있는 줄도 똑같이 옮겨진다 |
@@ -820,7 +873,7 @@ Future<void> _onReorder(..., List<Todo> current, int oldIndex, int newIndex) asy
 | 1 | 끌기 좌표 순수 함수 | `lib/features/todo/domain/todo_order.dart` + `test/.../todo_order_test.dart` | 호출자 없이 테스트만 통과(선례: 기한 알림 8단계) |
 | 2 | 마이그레이션 파일 | `supabase/migrations/20261110130000_todos_position.sql`(컬럼·백필·시퀀스·제약·`move_todo`) | 파일만. **원격 적용은 하지 않는다**(11장 1번) |
 | 3 | 기한 정렬 폐기 + 서버 정렬 | `due_date_rules.dart`(두 함수 삭제), `todo_providers.dart`, `todo_repository.dart`(`order('position', ascending: true)`), `todo_widget_payload.dart` 주석, 테스트 삭제·갱신(8.1·8.2의 코드·테스트 칸) | `flutter test` 통과. **이 커밋 뒤에는 원격에 컬럼이 없으면 목록 조회가 실패한다** → 2·3단계 사이에 적용 시점을 잡는 것이 11장 1번의 판단 |
-| 4 | 손잡이와 줄 구조 | `todo_list_screen.dart`의 줄을 네 칸 `Row`로, `ReorderableListView.builder`, `AppIcons.dragHandle`, `AppStrings` 두 줄, `app_icons_test`·`widget_test` 갱신 | 끌어 옮기면 화면 순서가 바뀐다(아직 서버에 쓰지 않는다면 다음 단계와 합쳐도 된다). 1.5배·360dp에서 제목 칸 ≥196 유지 |
+| 4 | 손잡이와 줄 구조(**2026-11-10에 손잡이가 빠지고 꾹 누르기로 바뀌었다** — 4.1 머리글) | `todo_list_screen.dart`의 줄을 네 칸 `Row`로, `ReorderableListView.builder`, `AppIcons.dragHandle`, `AppStrings` 두 줄, `app_icons_test`·`widget_test` 갱신 | 끌어 옮기면 화면 순서가 바뀐다(아직 서버에 쓰지 않는다면 다음 단계와 합쳐도 된다). 1.5배·360dp에서 제목 칸 ≥196 유지 |
 | 5 | 저장·되돌리기 | `TodoRepository.moveTodo`, `_dragged` 상태와 네 규칙(4.4), 토스트, `test/.../todo_reorder_test.dart` | spec "저장 실패" 수용 기준 전부 |
 | 6 | 새 할 일 자리 안내 | `ScrollController` + 추가 직후 맨 아래로(4.5) | 목록이 길어도 방금 적은 할 일이 보인다 |
 | 7 | 문서 정합 | 8.3의 문서 11곳 | "앱과 같은 순서"를 약속한 문서·주석·테스트가 모두 **사용자 순서**로 읽힌다 |
@@ -832,7 +885,7 @@ Future<void> _onReorder(..., List<Todo> current, int oldIndex, int newIndex) asy
 ## 11. 오너가 손수 해야 할 일
 
 1. **마이그레이션 원격 적용**(2단계 파일, 시점은 오너 확정대로 **구현 완료 후 기기 설치 직전**). 적용 전에 새 앱을 깔면 목록 조회·끌기가 전부 실패한다. 적용 직후 확인할 것: ① `select id, title, position from todos order by position` 결과가 **적용 전에 보던 순서(생성순)**와 같고 `position`이 1024·2048…로 채워졌는지, ② 앱에서 할 일을 하나 추가하면 `position`이 그 다음 번호로 **맨 아래**에 붙는지.
-2. **육안 확인 6건**(실기기/에뮬레이터): ① 손잡이에서 끌면 재배치, 제목 칸에서 끌면 스크롤, ② 맨 위·맨 아래로 옮기기, ③ **완료한 줄**(가라앉은 면)이 들렸을 때의 모습이 어색하지 않은지(4.3), ④ 1.5배 글자에서 손잡이·체크박스·삭제가 겹치거나 잘리지 않는지, ⑤ 순서를 바꾼 뒤 **홈 위젯**의 첫 줄이 앱의 첫 줄과 같은지, ⑥ 비행기 모드에서 끌었을 때 목록이 끌기 전으로 돌아가며 토스트가 뜨는지.
+2. **육안 확인 6건**(실기기/에뮬레이터. **2026-11-10 제스처가 바뀌어 ①·④를 고쳤다**): ① **꾹 누르면 집히고**(짧게 누르면 수정, 바로 밀면 스크롤), ② 맨 위·맨 아래로 옮기기, ③ **완료한 줄**(가라앉은 면)이 들렸을 때의 모습이 어색하지 않은지(4.3), ④ 1.5배 글자에서 체크박스·삭제가 겹치거나 잘리지 않는지(손잡이는 없다), ⑤ 순서를 바꾼 뒤 **홈 위젯**의 첫 줄이 앱의 첫 줄과 같은지, ⑥ 비행기 모드에서 끌었을 때 목록이 끌기 전으로 돌아가며 토스트가 뜨는지.
 3. **재번호 갈래를 한 번 강제해 보기**(자동 테스트가 닿지 않는 유일한 분기). 대시보드에서 인접한 두 할 일의 `position`을 `k`·`k+1`로 바꿔 둔 뒤 그 사이로 다른 줄을 끌어 놓고, ① 끌기가 성공하는지 ② 그 사용자의 `position`이 1024 간격으로 다시 매겨졌는지 ③ **상대 순서가 그대로인지**를 본다. 여기서 `set constraints` 한 줄이 환경에서 거부되면 1.4 주석의 두 문장 대안으로 바꾼다.
 4. **개인정보처리방침·Play 데이터 보안**: 변화 없음으로 본다(순서는 사용자가 자기 할 일을 배치한 결과이고 기기 밖으로 새로 나가는 데이터가 없다). **확인만** 한다.
 5. **백로그 반영**(spec "백로그로 넘길 것" 6줄)은 메인 세션의 몫이다 — 이 설계가 `TODO_BACKLOG.md`를 쓰지 않는다.
@@ -843,7 +896,8 @@ Future<void> _onReorder(..., List<Todo> current, int oldIndex, int newIndex) asy
 
 미결 없음. 두 건 모두 **설계 권고대로 확정**됐다.
 
-1. **할 일 목록의 좌우 여백을 20 → 8dp로 줄인다**(아래 1번의 (a)). 손잡이가 48dp 터치 영역을 갖고 제목 칸은 **198dp 그대로**다(구현·리뷰 실측. 이 문서가 처음에 적은 "200dp로 는다"는 `AppPanel` 테두리 2dp를 빼지 않은 계산이었다 — 4.2 참고). 할 일 탭의 카드만 다른 탭보다 화면 가장자리에 가까워지는 것을 대가로 받는다.
+0. **(2026-11-10, 구현이 끝난 뒤) 전용 손잡이를 없애고 줄을 꾹 눌러 집는다.** 아래 1번(여백 8dp)은 그 결정에 딸린 것이어서 **함께 폐기되고 여백이 20dp로 돌아갔다.** 제목 칸은 222dp다. 근거·대가는 `spec.md`의 "P0. 끌기 제스처" 절 머리글, 구현 판단은 `plan.md`의 "2026-11-10 변경 2"에 있다.
+1. ~~**할 일 목록의 좌우 여백을 20 → 8dp로 줄인다**~~ (2026-11-10 폐기 — 위 0번) (아래 1번의 (a)). 손잡이가 48dp 터치 영역을 갖고 제목 칸은 **198dp 그대로**다(구현·리뷰 실측. 이 문서가 처음에 적은 "200dp로 는다"는 `AppPanel` 테두리 2dp를 빼지 않은 계산이었다 — 4.2 참고). 할 일 탭의 카드만 다른 탭보다 화면 가장자리에 가까워지는 것을 대가로 받는다.
 2. **재번호(틈 고갈) 갈래는 자동 테스트가 닿지 않는 채로 둔다**(아래 2번의 (a)). 자리 값 계산을 SQL에 두어 **낡은 좌표가 동순위를 만들 수 없게** 하는 쪽을 택했고, 대신 그 갈래를 **강제로 재현해 한 번 수동 확인**한다. 자리 값을 Dart로 옮기는 대안은 기각한다.
 
 <details>

@@ -87,9 +87,8 @@ class TodoWidgetPayload {
 
   /// 그릴 줄. **미완료만**, 앱과 같은 순서로 최대 [todoWidgetMaxItems]개.
   ///
-  /// "앱과 같은 순서"는 `sortedForList`가 만든다 — 기한이 이른 순으로 위, 기한 없는 것은 그 아래
-  /// 생성순(todo-due-date design 2장). 그 순서를 **만드는 자리는 레포지토리 하나**이고
-  /// [fromTodos]는 받은 순서를 보존하기만 한다.
+  /// "앱과 같은 순서"는 **사용자가 끌어 정한 순서**다(todos.position, todo-reorder design 2장).
+  /// 그 순서를 만드는 자리는 서버 쿼리 하나이고 [fromTodos]는 받은 순서를 보존하기만 한다.
   final List<TodoWidgetItem> items;
 
   /// 미완료 **전체** 개수. "그 외 N개"를 여기서 계산한다([visibleRows]).
@@ -125,7 +124,7 @@ class TodoWidgetPayload {
   /// 필터하지 않으므로 둘 다 이미 손에 있다.
   ///
   /// **줄 순서를 여기서 정하지 않는다.** 받은 리스트의 순서를 그대로 보존해(`where`→`take`)
-  /// 앱 목록과 같은 순서가 캐시에 실린다 — 정렬은 `todosProvider`가 이미 했다.
+  /// 앱 목록과 같은 순서가 캐시에 실린다 — 순서는 서버가 `order by position`으로 이미 정했다.
   factory TodoWidgetPayload.fromTodos(
     List<Todo> todos, {
     required DateTime now,

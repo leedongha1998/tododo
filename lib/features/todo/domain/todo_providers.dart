@@ -7,21 +7,21 @@ import '../data/todo.dart';
 import '../data/todo_repository.dart';
 import '../data/todo_widget_host.dart';
 import 'due_alarm_service.dart';
-import 'due_date_rules.dart';
 import 'todo_widget_service.dart';
 
 final todoRepositoryProvider = Provider<TodoRepository>((ref) {
   return TodoRepository(supabase);
 });
 
-/// 할 일 목록. **화면에 보이는 순서를 만드는 자리가 여기 하나다**(design 원칙 3).
+/// 할 일 목록. **순서는 서버가 만든다**(order by position — todo-reorder design 2장).
 ///
-/// `fetchTodos`를 부르는 곳은 이 provider뿐이고, 홈 위젯 캐시도 `MainShell`의
+/// 이 provider는 그 결과를 그대로 들고, 홈 위젯 캐시도 `MainShell`의
 /// `ref.listen(todosProvider)`를 지나므로 앱 목록과 위젯이 **같은 리스트 객체**를 본다.
+/// 위젯 체크의 백그라운드 경로는 이 provider를 지나지 않고 레포지토리를 직접 부르는데,
+/// 정렬이 서버에 있어 그쪽도 같은 순서를 본다.
 final todosProvider = FutureProvider<List<Todo>>((ref) async {
   final userId = supabase.auth.currentUser!.id;
-  final todos = await ref.watch(todoRepositoryProvider).fetchTodos(userId);
-  return sortedForList(todos);
+  return ref.watch(todoRepositoryProvider).fetchTodos(userId);
 });
 
 /// 홈 화면 위젯의 네이티브 접점. 위젯 테스트에서 가짜로 바꾸는 지점이다.

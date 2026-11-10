@@ -1,13 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/strings.dart';
-import 'package:todododo/features/todo/data/todo.dart';
 import 'package:todododo/features/todo/domain/due_date_rules.dart';
 
-/// 목록 순서를 만드는 자리는 `sortedForList` 하나이고(design 원칙 3), 앱 목록과 홈 위젯 캐시가
-/// 그 결과를 함께 쓴다. 그래서 순서 규칙의 유일한 자동 검증 지점이 이 파일이다.
+/// 기한 문구 규칙(8구간 표)의 **유일한 자동 검증 지점**이다. 목록 순서는 이 기능이 만들지
+/// 않는다 — 2026-11-10 todo-reorder가 그 일을 todos.position(서버)으로 가져갔다.
 void main() {
-  final created = DateTime(2026, 11, 9, 8);
-
   // spec "P0. 남은 시간 문구 — 전체 규칙"의 8구간 표를 그대로 칸으로 옮긴다.
   // 투두 목록이 쓰는 유일한 문구 규칙이고, 수량 부분은 대결과 공유한다(core/remaining_time).
   group('formatDueLabel', () {
@@ -137,104 +134,4 @@ void main() {
       );
     });
   });
-
-  group('sortedForList', () {
-    test('기한이 있는 것이 이른 순으로 위, 기한 없는 것은 그 아래 생성순', () {
-      final sorted = sortedForList([
-        _todo('n1', createdAt: created),
-        _todo('d2', dueAt: DateTime(2026, 11, 12, 18)),
-        _todo('n2', createdAt: created.add(const Duration(hours: 1))),
-        _todo('d1', dueAt: DateTime(2026, 11, 10, 9)),
-      ]);
-
-      expect(sorted.map((todo) => todo.id), ['d1', 'd2', 'n1', 'n2']);
-    });
-
-    test('기한을 넘긴 할 일이 맨 위에 온다', () {
-      final sorted = sortedForList([
-        _todo('future', dueAt: DateTime(2026, 11, 20)),
-        _todo('none'),
-        _todo('overdue', dueAt: DateTime(2026, 11, 1)),
-      ]);
-
-      expect(sorted.first.id, 'overdue');
-      expect(sorted.last.id, 'none');
-    });
-
-    test('기한이 같으면 생성순으로 가른다', () {
-      final due = DateTime(2026, 11, 12, 18);
-      final sorted = sortedForList([
-        _todo(
-          'late',
-          dueAt: due,
-          createdAt: created.add(const Duration(days: 1)),
-        ),
-        _todo('early', dueAt: due, createdAt: created),
-      ]);
-
-      expect(sorted.map((todo) => todo.id), ['early', 'late']);
-    });
-
-    test('기한과 생성 시각까지 같으면 id로 가른다(동순위를 남기지 않는다)', () {
-      final due = DateTime(2026, 11, 12, 18);
-      final sorted = sortedForList([
-        _todo('b', dueAt: due, createdAt: created),
-        _todo('a', dueAt: due, createdAt: created),
-      ]);
-
-      expect(sorted.map((todo) => todo.id), ['a', 'b']);
-    });
-
-    // List.sort는 안정 정렬이 아니다. 같은 입력이 매번 같은 순서로 나와야 "위젯과 앱이 같은
-    // 목록을 보여 준다"고 말할 수 있다(spec "기한이 같은 두 할 일의 순서가 매번 같다").
-    test('같은 입력을 여러 번 정렬해도 결과가 같다', () {
-      final due = DateTime(2026, 11, 12, 18);
-      final todos = [
-        for (var i = 0; i < 20; i++)
-          _todo('id$i', dueAt: due, createdAt: created),
-      ];
-
-      final first = sortedForList(todos).map((todo) => todo.id).toList();
-      for (var i = 0; i < 5; i++) {
-        expect(sortedForList(todos).map((todo) => todo.id).toList(), first);
-      }
-    });
-
-    test('완료 여부는 자리를 바꾸지 않는다', () {
-      final sorted = sortedForList([
-        _todo('none-done', createdAt: created, isDone: true),
-        _todo('due', dueAt: DateTime(2026, 11, 12, 18), isDone: true),
-        _todo('none', createdAt: created.add(const Duration(hours: 1))),
-      ]);
-
-      // 완료한 할 일이 아래로 내려가거나 위로 올라가지 않는다 — 기한과 생성순만 본다.
-      expect(sorted.map((todo) => todo.id), ['due', 'none-done', 'none']);
-    });
-
-    test('받은 리스트를 제자리에서 바꾸지 않는다', () {
-      final todos = [
-        _todo('n', createdAt: created),
-        _todo('d', dueAt: DateTime(2026, 11, 10)),
-      ];
-
-      sortedForList(todos);
-
-      expect(todos.map((todo) => todo.id), ['n', 'd']);
-    });
-  });
-}
-
-Todo _todo(
-  String id, {
-  DateTime? dueAt,
-  DateTime? createdAt,
-  bool isDone = false,
-}) {
-  return Todo(
-    id: id,
-    title: id,
-    isDone: isDone,
-    createdAt: createdAt ?? DateTime(2026, 11, 9, 8),
-    dueAt: dueAt,
-  );
 }

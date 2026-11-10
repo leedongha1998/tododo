@@ -1,36 +1,12 @@
 // 개인 투두의 기한 규칙(todo-due-date). Flutter에 의존하지 않는 순수 함수만 둔다 —
-// 정렬과 문구를 유닛 테스트로 고정하기 위해서다(design 원칙 2, 선례: todo_widget_payload.dart).
+// 문구를 유닛 테스트로 고정하기 위해서다(design 원칙 2, 선례: todo_widget_payload.dart).
+//
+// **목록 순서는 이 파일이 만들지 않는다.** 기한 우선 정렬(sortedForList·compareForList)은
+// 2026-11-10 todo-reorder로 폐기됐다 — 순서는 사용자가 끌어 정하고 서버의 order by position이
+// 만든다. 여기 남은 것은 남은 시간 문구와 기한 값 서식, 즉 **표시**뿐이다.
 
 import '../../../core/remaining_time.dart';
 import '../../../core/strings.dart';
-import '../data/todo.dart';
-
-/// 앱 목록·홈 위젯 캐시가 모두 이 순서를 쓴다. **순서를 만드는 자리는 여기 하나다**
-/// (design 원칙 3). 적용 자리는 `todosProvider`이고(레포지토리는 서버가 준 `created_at` 순서를
-/// 그대로 돌려준다), 위젯 캐시(`TodoWidgetPayload.fromTodos`)는 받은 순서를 그대로 보존한다.
-///
-/// 1) 기한이 있는 것이 기한이 이른 순으로 위
-/// 2) 기한이 없는 것은 그 아래, 생성순
-/// 3) 기한이 같으면 생성순, 생성 시각까지 같으면 id — 동순위를 남기지 않는다
-///    (`List.sort`는 안정 정렬이 아니라서 매번 같은 순서를 보장하려면 끝까지 갈라야 한다)
-/// 4) **완료 여부는 보지 않는다.** 완료한 할 일은 자기 자리에 그대로 남는다(spec).
-/// 5) 정렬은 "기한 시각" 자체로 한다 — "남은 시간"으로 하지 않으므로 시간이 흘러도 순서가
-///    스스로 바뀌지 않는다. 기한을 넘긴 할 일이 맨 위에 오는 것은 이 규칙의 자연스러운 결과다.
-List<Todo> sortedForList(List<Todo> todos) => [...todos]..sort(compareForList);
-
-int compareForList(Todo a, Todo b) {
-  final aDue = a.dueAt;
-  final bDue = b.dueAt;
-  if (aDue != null && bDue == null) return -1;
-  if (aDue == null && bDue != null) return 1;
-  if (aDue != null && bDue != null) {
-    final byDue = aDue.compareTo(bDue);
-    if (byDue != 0) return byDue;
-  }
-  final byCreated = a.createdAt.compareTo(b.createdAt);
-  if (byCreated != 0) return byCreated;
-  return a.id.compareTo(b.id);
-}
 
 /// 목록 줄에 쓰는 한 마디와 **그 줄이 기한을 넘겼는지**. 투두만 쓴다 — "지남"(spec 표 5~8)은
 /// 투두 전용이고 대결은 마감이 지나면 기존 문구(`마감됨` 등)를 쓴다.

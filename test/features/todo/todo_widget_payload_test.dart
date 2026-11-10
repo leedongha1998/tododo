@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/todo/data/todo.dart';
 import 'package:todododo/features/todo/data/todo_widget_payload.dart';
-import 'package:todododo/features/todo/domain/due_date_rules.dart';
 
 /// 홈 화면 위젯 캐시의 판단 전부를 여기서 고정한다. 위젯은 네이티브가 그리지만 "무엇을 그릴지"는
 /// 이 순수 함수들이 정하므로(design 원칙 2), 위젯 동작의 유일한 자동 검증 지점이다.
@@ -26,22 +25,25 @@ void main() {
       expect(payload.noteTone, TodoWidgetNoteTone.muted);
     });
 
-    // "앱과 같은 순서"는 기한 우선 정렬(sortedForList)이고, 그 정렬은 레포지토리가 한다.
-    // fromTodos는 순서를 **만들지 않고 보존**한다 — 두 곳에서 정렬하면 한쪽만 고쳐도
-    // "위젯 첫 줄 ≠ 앱 첫 줄"이 되고 아무도 모른다(todo-due-date design 2·9장).
-    test('기한이 섞여 있어도 순서를 다시 만들지 않고 들어온 대로 싣는다', () {
-      final sorted = sortedForList([
-        _todo('1', '기한 없는 일'),
-        _todo('2', '모레까지', dueAt: DateTime(2026, 11, 6, 18)),
-        _todo('3', '어제까지', dueAt: DateTime(2026, 11, 3, 18)),
-      ]);
+    // "앱과 같은 순서"는 **사용자가 끌어 정한 순서**이고, 그 순서는 서버의 `order by position`이
+    // 만든다(todo-reorder design 2장). fromTodos는 순서를 **만들지 않고 보존**한다 — 두 곳에서
+    // 정렬하면 한쪽만 고쳐도 "위젯 첫 줄 ≠ 앱 첫 줄"이 되고 아무도 모른다.
+    // 그래서 기한이 섞인 목록을 **손으로 적은 순서** 그대로 넘긴다(정렬 함수를 부르지 않는다).
+    test('들어온 순서를 그대로 싣는다(순서는 서버가 정한다)', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [
+          _todo('1', '전화하기'),
+          _todo('2', '장보기', dueAt: DateTime(2026, 11, 6, 18)),
+          _todo('3', '책 반납', dueAt: DateTime(2026, 11, 3, 18)),
+        ],
+        now: now,
+      );
 
-      final payload = TodoWidgetPayload.fromTodos(sorted, now: now);
-
+      // 기한이 이른 '책 반납'이 위로 올라오지 않는다 — 기한은 순서에 개입하지 않는다.
       expect(payload.items.map((item) => item.title), [
-        '어제까지',
-        '모레까지',
-        '기한 없는 일',
+        '전화하기',
+        '장보기',
+        '책 반납',
       ]);
     });
 

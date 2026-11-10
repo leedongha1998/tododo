@@ -459,28 +459,22 @@ void main() {
     );
     // **칸으로 잰다.** find.byType(Checkbox)의 사각형은 Transform.scale 때문에 "그려지는
     // 상자"(약 64dp)라 칸보다 넓다 — 히트 영역을 정하는 것은 칸이다(todo-reorder design 4.2,
-    // 참고 5번). 손잡이도 같은 기준으로 함께 본다.
-    final handle = tester.getRect(find.byKey(todoDragHandleKey));
+    // 참고 5번).
     final checkCell = tester.getRect(find.byKey(todoCheckCellKey));
     final delete = tester.getRect(find.byTooltip(AppStrings.delete));
-    expect(handle.width, greaterThanOrEqualTo(48));
-    expect(handle.height, greaterThanOrEqualTo(48));
     expect(checkCell.width, greaterThanOrEqualTo(48));
     expect(checkCell.height, greaterThanOrEqualTo(48));
     expect(delete.width, greaterThanOrEqualTo(48));
     expect(delete.height, greaterThanOrEqualTo(48));
-    // 손잡이는 체크박스 칸의 왼쪽에 있고 둘이 겹치지 않는다(손잡이를 겨냥해 미끄러져도
-    // 닿는 것은 체크박스이고, 삭제가 아니다).
-    expect(handle.overlaps(checkCell), isFalse);
-    expect(handle.right, lessThanOrEqualTo(checkCell.left));
     // 글자 칸은 칸들과 겹치지 않는다 — **글자 앞을 눌러도 체크되지 않는다**가 여기서 보장된다.
     expect(titleRect.left, greaterThanOrEqualTo(checkCell.right));
     expect(titleRect.right, lessThanOrEqualTo(delete.left));
     // 여백을 줄이기 전(W2 시점)에는 글자 칸 150dp, 이 글이 11줄이었다(테스트 글꼴 — 글자마다 정사각형).
-    // **실측 198dp**다(카드 폭 344 − 칸 48*3 − AppPanel 테두리 1*2). todo-reorder가 손잡이 48dp를
-    // 넣으면서도 이 값을 지켰다는 것이 "제목을 잘라 자리를 만들지 않았다"의 자동 검증이다 —
-    // 하한을 198로 적어 1dp라도 깎이면 울게 한다.
-    expect(titleRect.width, greaterThanOrEqualTo(198));
+    // **실측 222dp**다(카드 폭 320 = 360 − 20 − 20, 거기서 칸 48*2와 AppPanel 테두리 1*2를 뺀 값).
+    // 2026-11-10에 전용 손잡이(48dp 칸)가 없어지고 그 자리를 만들려고 8dp까지 줄였던 좌우 여백이
+    // 20dp로 돌아오면서 198 → 222dp가 됐다. spec의 요구는 "198dp를 깎지 않는다"이고 지금은 24dp
+    // 여유가 있지만, **하한은 실측에 붙여** 1dp라도 깎이면 울게 한다.
+    expect(titleRect.width, greaterThanOrEqualTo(222));
     expect(lineStarts(paragraph).length + 1, lessThanOrEqualTo(8));
     expect(tester.takeException(), isNull);
   });
@@ -506,8 +500,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    // 목록 위젯의 **가운데**(= 제목 칸)에서 시작하는 세로 이동이므로 손잡이(왼쪽 끝 48dp)가
-    // 아니고, 그래서 재배치가 아니라 스크롤이다(todo-reorder design 8.2).
+    // 꾹 누르지 않고 바로 미는 세로 이동이므로 재배치가 아니라 스크롤이다 — 끌기는 500ms를
+    // 넘겨 쥐어야 시작한다(2026-11-10 오너 확정. 그 전에는 "손잡이 밖에서 시작했으니"가 이유였다).
     await tester.drag(
       find.byType(ReorderableListView),
       const Offset(0, -5000),

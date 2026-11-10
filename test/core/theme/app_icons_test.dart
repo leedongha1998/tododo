@@ -39,11 +39,10 @@ void main() {
     'aiReview': AppIcons.aiReview,
     'lock': AppIcons.lock,
     'dash': AppIcons.dash,
-    'dragHandle': AppIcons.dragHandle,
   };
 
-  test('35개 상수가 모두 서로 다른 글리프다', () {
-    expect(icons.length, 35);
+  test('34개 상수가 모두 서로 다른 글리프다', () {
+    expect(icons.length, 34);
     final codePoints = icons.values.map((icon) => icon.codePoint).toSet();
     expect(codePoints.length, icons.length);
   });

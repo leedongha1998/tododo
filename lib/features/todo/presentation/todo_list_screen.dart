@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/push/push_messaging.dart';
@@ -19,13 +20,13 @@ import '../domain/due_date_rules.dart';
 import '../domain/todo_order.dart';
 import '../domain/todo_providers.dart';
 
-/// 손잡이 칸·체크박스 칸. 터치 영역과 겹침을 재는 기준은 **그려지는 상자가 아니라 이 칸**이다
+/// 체크박스 칸. 터치 영역과 겹침을 재는 기준은 **그려지는 상자가 아니라 이 칸**이다
 /// (`Transform.scale`은 그림만 키운다 — 히트 테스트는 칸이 결정한다).
-const todoDragHandleKey = Key('todoDragHandle');
 const todoCheckCellKey = Key('todoCheckCell');
 
-/// 줄의 고정 칸 폭. 손잡이·체크박스·삭제가 같은 48dp를 쓰고 남은 폭 전부가 제목 칸이다
-/// (360dp 화면·1.5배 글자에서 제목 칸 200dp — todo-reorder design 4.2의 폭 산수).
+/// 줄의 고정 칸 폭. 체크박스·삭제가 같은 48dp를 쓰고 남은 폭 전부가 제목 칸이다
+/// (360dp 화면·1.5배 글자에서 제목 칸 222dp — todo-reorder design 4.2의 폭 산수를
+/// 손잡이가 없어진 뒤로 다시 센 값이다).
 const _cellWidth = 48.0;
 
 class TodoListScreen extends ConsumerStatefulWidget {
@@ -157,6 +158,21 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
     }
   }
 
+  /// 줄이 집히는 순간의 짧은 햅틱. 끌기의 입구가 **보이지 않는 제스처**가 됐으므로(2026-11-10
+  /// 오너 확정) "집혔다"는 신호가 시각적 들림 하나뿐인데, 오너 지시가 "모바일 사용자 친화적으로"
+  /// 였다. 500ms를 쥐고 있던 손에 손끝으로 한 번 알려 준다.
+  ///
+  /// **관문이 아니다** — 실패해도 끌기를 막지 않고 `debugPrint`만 남긴다(기기에 햅틱이 없거나
+  /// 시스템이 거부할 수 있다). VS 인트로 같은 **장식 연출**의 실패와 같은 성격이고, 여기서
+  /// 토스트를 띄우면 방금 집은 줄 위로 스낵바가 올라와 끌기를 방해한다.
+  void _onPickUp(int index) {
+    unawaited(
+      HapticFeedback.selectionClick().catchError(
+        (Object error) => debugPrint('selectionClick failed: $error'),
+      ),
+    );
+  }
+
   /// 끌어 놓은 한 번. 좌표 변환은 순수 함수가 하고(`planTodoMove`), 자리 값은 서버가 만든다
   /// (design 원칙 2) — 화면이 보내는 것은 "이 할 일을 저 할 일 바로 아래에 둔다"는 기준 하나다.
   ///
@@ -240,12 +256,14 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
     );
   }
 
-  /// 줄 하나. `ListTile`을 쓰지 않고 네 칸을 직접 쓰는 이유는 하나다: `ListTile`은 칸 폭을 자기
-  /// 규칙으로 정하므로 손잡이 48dp를 넣고도 제목 칸이 198dp 이상임을 **산수로 보일 수 없다**
-  /// (design 4.2). 칸을 직접 쓰면 폭이 더하기 한 줄이다.
+  /// 줄 하나. `ListTile`을 쓰지 않고 세 칸(체크박스 48 / 제목 / 삭제 48)을 직접 쓰는 이유는
+  /// 하나다: `ListTile`은 칸 폭을 자기 규칙으로 정하므로 제목 칸이 198dp 이상임을 **산수로 보일
+  /// 수 없다**(design 4.2). 칸을 직접 쓰면 폭이 더하기 한 줄이다 — 360dp·1.5배에서
+  /// 카드 320(= 360 − 20 − 20) − 체크 48 − 삭제 48 − `AppPanel` 테두리 2 = **제목 칸 222dp**.
   ///
-  /// 손잡이를 **왼쪽 끝**에 두고 삭제를 오른쪽 끝에 둔다 — 손잡이를 겨냥해 미끄러져도 닿는
-  /// 것은 체크박스이고, 잘못 눌렀을 때 가장 비싼 삭제 옆에 손잡이를 두는 배치를 피한다.
+  /// **2026-11-10 오너가 전용 손잡이를 없앴다**(plan.md "2026-11-10 변경 2"). 왼쪽 48dp 칸이
+  /// 빠지고 그 자리를 만들려고 줄였던 좌우 여백(8dp)이 20dp로 돌아와 제목 칸은 198 → 222dp로
+  /// 넓어졌다. 끌기는 줄 전체를 **꾹 눌러** 시작한다(`_todoRow`가 돌려주는 묶음).
   Widget _todoRow(Todo todo, int index, DateTime now) {
     // 완료한 할 일에는 남은 시간을 표시하지 않는다(기한이 있어도, 넘겼어도) —
     // 끝낸 일에 붙는 빨간 "지남"은 아무 행동도 유도하지 않는다(spec).
@@ -262,34 +280,10 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ① 손잡이 48dp. 줄 높이 전체를 차지해 터치 영역은 48 x (60 이상)이다.
-            // ColoredBox(투명)로 칸 전체를 히트 테스트 대상으로 만든다 — 아이콘만 두면
-            // 칸의 빈 자리를 잡아도 끌리지 않는다(plan.md "설계와 다른 점" 3번).
-            ReorderableDragStartListener(
-              index: index,
-              child: Semantics(
-                // container: true가 없으면 라벨이 바깥 노드(줄 전체 탭)에 **병합돼** 손잡이가
-                // 자기 노드를 갖지 못한다(기본값이 false다). 접근성 끌기 액션은 범위 밖이다.
-                container: true,
-                label: AppStrings.todoReorderHandle,
-                child: const SizedBox(
-                  key: todoDragHandleKey,
-                  width: _cellWidth,
-                  child: ColoredBox(
-                    color: Colors.transparent,
-                    child: Center(
-                      child: Icon(
-                        AppIcons.dragHandle,
-                        size: 24,
-                        color: AppPalette.inkMuted,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // ② 체크박스 48dp. 그림은 지금처럼 24dp(Flutter Checkbox가 18dp 고정이라 키운다)이고
-            //    **히트 영역은 이 칸 48dp**다(부모가 자기 크기 밖의 좌표를 먼저 거른다).
+            // ① 체크박스 48dp. 그림은 지금처럼 24dp(Flutter Checkbox가 18dp 고정이라 키운다)이고
+            //    **히트 영역은 이 칸 48dp x 줄 높이**다(부모가 자기 크기 밖의 좌표를 먼저 거른다).
+            //    stretch로 줄 높이를 다 쓰는 칸이라 1.5배 글자에서 두 줄이 되는 줄에서도 가장
+            //    자주 쓰는 표적이 작아지지 않는다 — `IntrinsicHeight`가 남아 있는 이유다.
             SizedBox(
               key: todoCheckCellKey,
               width: _cellWidth,
@@ -303,7 +297,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
                 ),
               ),
             ),
-            // ③ 제목(+남은 시간). 남은 폭 전부.
+            // ② 제목(+남은 시간). 남은 폭 전부.
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -340,7 +334,7 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
                 ),
               ),
             ),
-            // ④ 삭제 48dp. 상자를 48x48로 두어 지금과 같은 크기를 유지한다(줄 높이로 늘리지
+            // ③ 삭제 48dp. 상자를 48x48로 두어 지금과 같은 크기를 유지한다(줄 높이로 늘리지
             //    않는다 — 잘못 눌렸을 때 가장 비싼 동작이라 영역을 키우지 않는다).
             SizedBox(
               width: _cellWidth,
@@ -358,16 +352,27 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
     );
     void openEdit() => _openEditDialog(todo);
     // 안 한 일은 떠 있고, 끝낸 일은 가라앉는다. 면색·높낮이·체크·취소선으로 한눈에 갈린다.
-    // 누르기(수정)는 묶음이 받아 떠 있는 카드는 누르는 동안 두께가 꺼진다. 손잡이·체크박스·삭제
-    // 버튼은 안쪽이라 제스처 경쟁에서 먼저 이긴다.
+    // 누르기(수정)는 묶음이 받아 떠 있는 카드는 누르는 동안 두께가 꺼진다. 체크박스·삭제 버튼은
+    // 안쪽이라 제스처 경쟁에서 먼저 이긴다.
     // 간격 12를 **모든 줄**이 쓴다(지금은 마지막 줄만 0이었다) — 끌고 있는 동안 "마지막 줄"이
     // 바뀌어 12dp가 튀기 때문이다. 늘어난 12dp는 fabClearance 아래에 묻힌다.
+    final panel = todo.isDone
+        ? AppPanel.inset(padding: EdgeInsets.zero, onTap: openEdit, child: row)
+        : AppPanel.raised(padding: EdgeInsets.zero, onTap: openEdit, child: row);
     return Padding(
       key: ValueKey(todo.id),
       padding: const EdgeInsets.only(bottom: 12),
-      child: todo.isDone
-          ? AppPanel.inset(padding: EdgeInsets.zero, onTap: openEdit, child: row)
-          : AppPanel.raised(padding: EdgeInsets.zero, onTap: openEdit, child: row),
+      // **줄 전체를 꾹 누르면 집힌다**(2026-11-10 오너 확정. 그 전에는 왼쪽 48dp 전용 손잡이였다).
+      // 짧게 누르기(수정)와 어떻게 갈리는가 — 분기를 우리가 쓰지 않고 **제스처 경기장**이 가른다:
+      // 이 묶음의 `DelayedMultiDragGestureRecognizer`(500ms)와 `AppPanel`의 `TapGestureRecognizer`가
+      // 같은 경기장에 들어가, ① 빨리 떼면 탭이 이겨 수정이 열리고 ② 500ms를 넘겨 쥐면 끌기가 이겨
+      // 탭이 **취소**되므로(눌린 면이 돌아온다) 놓아도 수정이 열리지 않으며 ③ 500ms 전에 움직이면
+      // 둘 다 지고 `Scrollable`이 이긴다(= 스크롤이다. 목록을 훑는 일이 어려워지지 않는다).
+      // 체크박스·삭제는 줄보다 안쪽이라 **짧은 탭에서 먼저 이긴다**(완료 토글·삭제는 그대로다).
+      // 그 위에서 꾹 누르면 체크박스에서는 줄이 집히고(토글은 일어나지 않는다), 삭제 버튼에서는
+      // 아무 일도 없다 — 툴팁이 긴 누르기를 가져간다. **가장 비싼 동작이 저절로 일어나지 않는
+      // 쪽**이라 그대로 둔다. 위 갈래 전부 `test/features/todo/todo_reorder_test.dart`가 고정한다.
+      child: ReorderableDelayedDragStartListener(index: index, child: panel),
     );
   }
 
@@ -403,14 +408,19 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
           // 화면을 켜 둔 채 두면 낡지만, 다시 들어오면 맞는다(spec "표시 갱신").
           final now = DateTime.now();
           return ReorderableListView.builder(
-            // 좌우는 8로 줄여 손잡이 48dp의 자리를 만든다(제목 칸은 198 → 200dp로 오히려 는다 —
-            // design 4.2, 오너 확정). 위 16·아래 fabClearance는 그대로다.
-            padding: const EdgeInsets.fromLTRB(8, 16, 8, AppTheme.fabClearance),
+            // 좌우 여백은 **20dp**다(redesign의 기본값). 전용 손잡이 48dp의 자리를 만들려고
+            // 8dp까지 줄였던 것을 2026-11-10에 되돌렸다 — 손잡이가 없어져 그 이유가 사라졌고,
+            // 제목 칸은 그만큼 넓어진다(198 → 222dp). 위 16·아래 fabClearance는 그대로다.
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, AppTheme.fabClearance),
             scrollController: _scrollController,
             itemCount: todos.length,
-            // **길게 누르기를 쓰지 않는다**(오너 확정). 기본값(true)이면 모바일에서 줄 전체가
-            // 길게 눌러 집히는 손잡이가 되어 "줄 전체 누르기 = 수정"과 싸운다.
+            // 기본값(true)을 쓰지 않는 이유는 **길게 누르기가 싫어서가 아니다**(끌기는 이제 꾹
+            // 누르기로 시작한다 — `_todoRow`). 기본값은 `Theme.of(context).platform`을 보고
+            // 갈라져 모바일에서만 길게 누르기이고 **데스크톱에서는 줄 오른쪽에 손잡이 아이콘을
+            // 다시 그린다**. 방금 없앤 손잡이가 플랫폼에 따라 되살아나는 구조를 남기지 않고,
+            // 끌기 입구를 줄을 만드는 자리 한 곳에서만 읽게 한다.
             buildDefaultDragHandles: false,
+            onReorderStart: _onPickUp,
             proxyDecorator: _liftedCard,
             // onReorder가 아니라 onReorderItem이다 — 전자는 Flutter 3.47에서 폐기됐고(analyze
             // 이슈가 된다), 후자는 "옮길 줄을 뺀 뒤의 자리"를 준다(plan.md "설계와 다른 점" 1번).

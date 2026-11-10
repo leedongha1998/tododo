@@ -64,11 +64,12 @@ class AppStrings {
   static const todoDueNotificationsOff = '알림이 꺼져 있어 기한 알림을 보낼 수 없어요.';
 
   // 개인 투두의 순서(todo-reorder). 사용자에게는 **"순서"**로만 말한다 — 대결의 "마감"·"판정"과
-  // 섞이는 말이 아니다. 순서를 설명하는 안내 문구·빈 상태 문구를 새로 만들지 않는다(손잡이가
-  // 보이면 설명이 필요 없고, 설명을 더하면 줄에 글자가 늘어난다).
-  // todoReorderHandle은 화면에 글자로 보이지 않는다 — 손잡이의 Semantics 라벨이다
-  // (Tooltip을 쓰지 않는 이유: 툴팁은 길게 눌러 뜨는데 그 제스처가 끌기와 겹친다).
-  static const todoReorderHandle = '순서 바꾸기';
+  // 섞이는 말이 아니다. 순서를 설명하는 안내 문구·빈 상태 문구를 새로 만들지 않는다(꾹 누르기는
+  // 모바일 관례이고, 설명을 더하면 줄에 글자가 늘어난다).
+  // 2026-11-10에 전용 손잡이가 없어지면서 그 Semantics 라벨(`todoReorderHandle = '순서 바꾸기'`)도
+  // 지웠다 — 끌기를 시작하는 자리가 줄 전체이고 라벨을 붙일 요소가 없다. 스크린리더 사용자가
+  // 순서를 바꾸는 수단은 `SliverReorderableList`가 줄마다 붙여 주는 "위로/아래로 이동" 시맨틱
+  // 액션이고, 그 문구는 Flutter(`WidgetsLocalizations`)의 ko 번역에서 온다.
   // saveTodoFailed와 따로 둔다 — 실패한 것이 "저장"이 아니라 "순서 바꾸기"이고, 한 화면에서
   // 둘이 같은 말을 하면 무엇이 안 됐는지 알 수 없다.
   static const todoReorderFailed = '순서를 바꾸지 못했습니다. 다시 시도해주세요.';

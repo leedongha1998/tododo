@@ -5,3 +5,4 @@
 - [두 언어·spec 표에 옮겨 적힌 규칙 리뷰법](feedback_cross_language_rule_review.md) — 양쪽 공식을 스크래치 스크립트로 전수 대조, 안드로이드 `optString`은 명시적 null에 `"null"`을 준다
 - [뒤로가기 가드(PopScope) 리뷰 절차](feedback_popscope_guard_review.md) — blocked 식 상태 열거 + maybePop probe로 탈출 가능성 확인, 로더 중엔 pumpAndSettle 금지
 - [값 공간을 나눠 쓰는 두 경로 검산](feedback_shared_value_space_review.md) — 컬럼 기본값(시퀀스)과 RPC가 만드는 값은 숫자로 교차 검산
+- [제스처 경기장(꾹 누르기 vs 탭) 리뷰 절차](feedback_gesture_arena_review.md) — 경계값 타이밍 probe, 옛 구조 재현으로 느린 탭 회귀, 시맨틱 커스텀 액션은 performAction으로 저장까지 확인

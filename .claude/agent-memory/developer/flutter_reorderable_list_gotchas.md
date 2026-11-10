@@ -1,6 +1,6 @@
 ---
 name: flutter-reorderable-list-gotchas
-description: ReorderableListView로 끌어 옮기기를 만들 때 걸린 네 가지 — onReorder 폐기(3.47), stretch Row의 무한 높이, 빈 칸은 끌리지 않음, maxScrollExtent는 추정값
+description: ReorderableListView로 끌어 옮기기를 만들 때 걸린 것들 — onReorder 폐기(3.47), stretch Row의 무한 높이, 빈 칸은 끌리지 않음, maxScrollExtent는 추정값, 꾹 누르기와 탭의 공존·툴팁이 긴 누르기를 가져감, 기본 접근성 액션
 metadata:
   type: feedback
 ---
@@ -34,3 +34,19 @@ minHeight + 줄 간격)가 옮겨지는 줄 수다. 관련: [[flutter-widget-tes
 **How to apply:** 끌기 UI·목록 줄 레이아웃을 새로 짤 때 설계 문서가 옛 API를 전제하고 있는지부터
 보고, 손잡이는 "칸 전체가 잡히는가"를 위젯 테스트로 재며(칸의 `Key`로 `getRect`), 스크롤 끝으로
 보내는 코드는 추정값 때문에 반복이 필요하다는 것을 염두에 둔다.
+
+5. **꾹 눌러 집기(`ReorderableDelayedDragStartListener`)와 "줄 전체 탭"은 분기 없이 공존한다** —
+   제스처 경기장이 시간으로 가른다(2026-11-10 오너가 손잡이를 없애고 꾹 누르기로 바꿀 때 확인).
+   빨리 떼면 탭이 이기고(수정 열림), 500ms를 넘겨 쥐면 끌기가 이겨 **탭이 취소**되며(놓아도 수정이
+   열리지 않는다), 500ms 전에 움직이면 둘 다 지고 `Scrollable`이 이긴다. 안쪽 위젯(체크박스)은
+   **짧은 탭에서 먼저 이기고** 그 위에서 꾹 누르면 줄이 집힌다. 다만 **`Tooltip`이 붙은
+   `IconButton`(삭제) 위에서 꾹 누르면 툴팁이 긴 누르기를 가져가 끌기도 삭제도 일어나지 않는다**
+   (실측). `buildDefaultDragHandles: true`는 쓰지 말 것 — `Theme.of(context).platform`을 보고
+   갈라져 **데스크톱에서는 줄 오른쪽에 손잡이 아이콘을 다시 그린다.**
+   **테스트 레시피**: `startGesture` → `pump(kLongPressTimeout + 60ms)`(쥐기) → 그다음에야 4번의
+   20dp 걸음. 쥐기 전에 움직이면 호출이 아예 안 온다.
+6. **`SliverReorderableList`는 줄마다 접근성 액션("맨 앞/위/아래/맨 뒤로 이동")을 기본으로 붙이고,
+   그것이 `onReorderItem`으로 들어온다**(`reorderable_list.dart` `_wrapWithSemantics` →
+   `_handleReorderItem`). 손잡이 유무와 무관하다 — 손잡이의 `Semantics` 라벨을 지워도 스크린리더
+   사용자가 순서를 바꿀 수단은 남고, 그 길도 제품 코드의 저장 경로를 그대로 지난다. 끌기 UI에서
+   "접근성 수단이 없어진다"는 걱정을 받으면 이것을 먼저 확인할 것(전용 UI를 만들 이유가 없다).

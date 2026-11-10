@@ -63,6 +63,16 @@ class AppStrings {
   // `알림 설정 열기` 버튼도 두지 않는다(프로필의 notificationDisabledGuide가 길을 알려 준다).
   static const todoDueNotificationsOff = '알림이 꺼져 있어 기한 알림을 보낼 수 없어요.';
 
+  // 개인 투두의 순서(todo-reorder). 사용자에게는 **"순서"**로만 말한다 — 대결의 "마감"·"판정"과
+  // 섞이는 말이 아니다. 순서를 설명하는 안내 문구·빈 상태 문구를 새로 만들지 않는다(손잡이가
+  // 보이면 설명이 필요 없고, 설명을 더하면 줄에 글자가 늘어난다).
+  // todoReorderHandle은 화면에 글자로 보이지 않는다 — 손잡이의 Semantics 라벨이다
+  // (Tooltip을 쓰지 않는 이유: 툴팁은 길게 눌러 뜨는데 그 제스처가 끌기와 겹친다).
+  static const todoReorderHandle = '순서 바꾸기';
+  // saveTodoFailed와 따로 둔다 — 실패한 것이 "저장"이 아니라 "순서 바꾸기"이고, 한 화면에서
+  // 둘이 같은 말을 하면 무엇이 안 됐는지 알 수 없다.
+  static const todoReorderFailed = '순서를 바꾸지 못했습니다. 다시 시도해주세요.';
+
   static const battleCreate = '대결 만들기';
   static const battleTypeSpeed = '속도전';
   static const battleTypeQuality = '품질전';

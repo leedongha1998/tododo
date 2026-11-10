@@ -359,11 +359,16 @@ void main() {
     expect(findText('3일 지남'), findsNothing);
     expect(findTextContaining('지남'), findsNothing);
 
-    // 기한이 없는 줄에는 둘째 줄 자체가 없다 — 지금과 같은 한 줄 타일이다.
-    final plainTile = tester.widget<ListTile>(
-      find.ancestor(of: findText('설거지하기'), matching: find.byType(ListTile)),
+    // 기한이 없는 줄에는 둘째 줄 자체가 없다 — 그 줄의 글자는 제목 하나뿐이다
+    // (줄이 ListTile이 아니라 네 칸 Row가 되어(todo-reorder design 4.2) subtitle이라는
+    //  자리가 없어졌으므로, "글자 줄이 하나다"로 같은 것을 본다).
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('3')),
+        matching: find.byType(KeepWordsText),
+      ),
+      findsOneWidget,
     );
-    expect(plainTile.subtitle, isNull);
   });
 
   testWidgets('기한을 넘긴 미완료 할 일은 경고색으로 지난 시간을 말한다', (WidgetTester tester) async {
@@ -452,17 +457,30 @@ void main() {
     final paragraph = tester.renderObject<RenderParagraph>(
       find.descendant(of: findText(title), matching: find.byType(RichText)),
     );
-    final checkbox = tester.getRect(find.byType(Checkbox));
+    // **칸으로 잰다.** find.byType(Checkbox)의 사각형은 Transform.scale 때문에 "그려지는
+    // 상자"(약 64dp)라 칸보다 넓다 — 히트 영역을 정하는 것은 칸이다(todo-reorder design 4.2,
+    // 참고 5번). 손잡이도 같은 기준으로 함께 본다.
+    final handle = tester.getRect(find.byKey(todoDragHandleKey));
+    final checkCell = tester.getRect(find.byKey(todoCheckCellKey));
     final delete = tester.getRect(find.byTooltip(AppStrings.delete));
-    expect(checkbox.width, greaterThanOrEqualTo(48));
-    expect(checkbox.height, greaterThanOrEqualTo(48));
+    expect(handle.width, greaterThanOrEqualTo(48));
+    expect(handle.height, greaterThanOrEqualTo(48));
+    expect(checkCell.width, greaterThanOrEqualTo(48));
+    expect(checkCell.height, greaterThanOrEqualTo(48));
     expect(delete.width, greaterThanOrEqualTo(48));
     expect(delete.height, greaterThanOrEqualTo(48));
-    // 글자 칸은 버튼(키워 그린 체크박스의 터치 상자 포함)과 겹치지 않는다.
-    expect(titleRect.left, greaterThanOrEqualTo(checkbox.right));
+    // 손잡이는 체크박스 칸의 왼쪽에 있고 둘이 겹치지 않는다(손잡이를 겨냥해 미끄러져도
+    // 닿는 것은 체크박스이고, 삭제가 아니다).
+    expect(handle.overlaps(checkCell), isFalse);
+    expect(handle.right, lessThanOrEqualTo(checkCell.left));
+    // 글자 칸은 칸들과 겹치지 않는다 — **글자 앞을 눌러도 체크되지 않는다**가 여기서 보장된다.
+    expect(titleRect.left, greaterThanOrEqualTo(checkCell.right));
     expect(titleRect.right, lessThanOrEqualTo(delete.left));
     // 여백을 줄이기 전(W2 시점)에는 글자 칸 150dp, 이 글이 11줄이었다(테스트 글꼴 — 글자마다 정사각형).
-    expect(titleRect.width, greaterThanOrEqualTo(196));
+    // **실측 198dp**다(카드 폭 344 − 칸 48*3 − AppPanel 테두리 1*2). todo-reorder가 손잡이 48dp를
+    // 넣으면서도 이 값을 지켰다는 것이 "제목을 잘라 자리를 만들지 않았다"의 자동 검증이다 —
+    // 하한을 198로 적어 1dp라도 깎이면 울게 한다.
+    expect(titleRect.width, greaterThanOrEqualTo(198));
     expect(lineStarts(paragraph).length + 1, lessThanOrEqualTo(8));
     expect(tester.takeException(), isNull);
   });
@@ -488,7 +506,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView), const Offset(0, -5000));
+    // 목록 위젯의 **가운데**(= 제목 칸)에서 시작하는 세로 이동이므로 손잡이(왼쪽 끝 48dp)가
+    // 아니고, 그래서 재배치가 아니라 스크롤이다(todo-reorder design 8.2).
+    await tester.drag(
+      find.byType(ReorderableListView),
+      const Offset(0, -5000),
+    );
     await tester.pumpAndSettle();
 
     final fab = tester.getRect(find.byType(FloatingActionButton));

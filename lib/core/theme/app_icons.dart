@@ -112,4 +112,8 @@ class AppIcons {
 
   /// 모집 기준 수정(design-judging-buttons 2.7).
   static const edit = Icons.edit_rounded;
+
+  /// 할 일 순서 바꾸기 손잡이(todo-reorder). 세로로 늘어선 점이라 "위아래로 움직인다"가
+  /// 그림으로 읽힌다(drag_handle의 가로줄 두 개보다 세로 재배치에 맞다).
+  static const dragHandle = Icons.drag_indicator_rounded;
 }

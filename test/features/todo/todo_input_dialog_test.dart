@@ -268,6 +268,10 @@ class _FakeTodoRepository implements TodoRepository {
 
   @override
   Future<void> deleteTodo(String id) async {}
+
+  // 이 파일은 대화상자만 본다. 끌기는 todo_reorder_test.dart가 따로 본다.
+  @override
+  Future<void> moveTodo(String todoId, {required String? afterId}) async {}
 }
 
 class _Added {

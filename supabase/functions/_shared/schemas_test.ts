@@ -293,3 +293,61 @@ Deno.test('재판정 요청은 잡 id만 받는다', () => {
   assertThrows(() => parseJudgeDisputeRequest({}), ValidationError);
   assertThrows(() => parseJudgeDisputeRequest(null), ValidationError);
 });
+
+Deno.test('skip_cache는 생성에서만 쓰고 기본값은 false다', () => {
+  // 옛 앱은 이 키를 보내지 않는다. 그때는 캐시를 쓰는 쪽(false)이 기본값이다.
+  assertEquals(
+    parseCriteriaRequest({
+      action: 'generate',
+      title: '방 청소하기',
+      type: 'speed',
+      duration_minutes: 1440,
+    }).skipCache,
+    false,
+  );
+  // 불리언이 아닌 값은 false로 본다(문자열 'true'로 캐시를 건너뛸 수 없다).
+  assertEquals(
+    parseCriteriaRequest({
+      action: 'generate',
+      title: '방 청소하기',
+      type: 'speed',
+      duration_minutes: 1440,
+      skip_cache: 'true',
+    }).skipCache,
+    false,
+  );
+  // `기준 다시 만들기`는 true로 온다(캐시를 건너뛰고 한도 1회를 쓴다).
+  assertEquals(
+    parseCriteriaRequest({
+      action: 'generate',
+      title: '방 청소하기',
+      type: 'speed',
+      duration_minutes: 1440,
+      skip_cache: true,
+    }).skipCache,
+    true,
+  );
+  // 재검사에는 캐시가 없다. 조용히 무시하지 않고 막는다.
+  assertThrows(
+    () =>
+      parseCriteriaRequest({
+        action: 'check',
+        title: '방 청소하기',
+        type: 'speed',
+        duration_minutes: 1440,
+        min_criteria: ['바닥이 보인다'],
+        skip_cache: true,
+      }),
+    ValidationError,
+  );
+  assertEquals(
+    parseCriteriaRequest({
+      action: 'check',
+      title: '방 청소하기',
+      type: 'speed',
+      duration_minutes: 1440,
+      min_criteria: ['바닥이 보인다'],
+    }).skipCache,
+    false,
+  );
+});

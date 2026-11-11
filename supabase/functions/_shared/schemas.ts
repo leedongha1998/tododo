@@ -55,6 +55,10 @@ export interface CriteriaRequest {
   minCriteria?: string[];
   superiorityCriteria?: string[] | null;
   battleId?: string | null;
+  /// `기준 다시 만들기`(criteria-cache). true면 캐시를 건너뛰고 AI에게 새로 묻는다(한도 1회).
+  /// 클라이언트가 이 값으로 **얻는 것이 없다** - 손해 보는 요청이라 한도 우회 수단이 되지 않는다.
+  /// 'check'(재검사)에는 캐시가 없으므로 true로 오면 입력 검증에서 막는다.
+  skipCache: boolean;
 }
 
 /// 클라이언트 요청 검증. 여기서 걸리면 Gemini를 부르지 않는다(한도도 쓰지 않는다).
@@ -93,8 +97,16 @@ export function parseCriteriaRequest(body: unknown): CriteriaRequest {
 
   const battleId = typeof raw.battle_id === 'string' ? raw.battle_id : null;
 
+  // 불리언이 아니면 false로 본다(옛 앱이 이 키를 보내지 않는다 - 그때는 캐시를 쓰는 쪽이 기본값).
+  const skipCache = raw.skip_cache === true;
+
   if (action === 'generate') {
-    return { action, title, type, durationMinutes, battleId };
+    return { action, title, type, durationMinutes, battleId, skipCache };
+  }
+
+  // 재검사에는 캐시가 없다. true로 오면 클라이언트 버그이므로 조용히 넘기지 않는다.
+  if (skipCache) {
+    throw new ValidationError('재검사에는 skip_cache를 쓸 수 없습니다.');
   }
 
   // 재검사: 사용자가 고친 목록을 그대로 받아 검사한다.
@@ -106,7 +118,16 @@ export function parseCriteriaRequest(body: unknown): CriteriaRequest {
     throw new ValidationError('속도전에는 우열 기준이 없습니다.');
   }
 
-  return { action, title, type, durationMinutes, minCriteria, superiorityCriteria, battleId };
+  return {
+    action,
+    title,
+    type,
+    durationMinutes,
+    minCriteria,
+    superiorityCriteria,
+    battleId,
+    skipCache: false,
+  };
 }
 
 /// ① 기준 생성 응답 스키마.

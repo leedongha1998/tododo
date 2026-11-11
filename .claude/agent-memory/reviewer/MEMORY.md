@@ -6,3 +6,4 @@
 - [뒤로가기 가드(PopScope) 리뷰 절차](feedback_popscope_guard_review.md) — blocked 식 상태 열거 + maybePop probe로 탈출 가능성 확인, 로더 중엔 pumpAndSettle 금지
 - [값 공간을 나눠 쓰는 두 경로 검산](feedback_shared_value_space_review.md) — 컬럼 기본값(시퀀스)과 RPC가 만드는 값은 숫자로 교차 검산
 - [제스처 경기장(꾹 누르기 vs 탭) 리뷰 절차](feedback_gesture_arena_review.md) — 경계값 타이밍 probe, 옛 구조 재현으로 느린 탭 회귀, 시맨틱 커스텀 액션은 performAction으로 저장까지 확인
+- [Edge의 관문 호출 vs 흡수되는 호출](feedback_edge_gate_vs_absorbed_calls.md) — 새 RPC를 try/catch 안/밖으로 갈라 세어 "배포 순서 바꿔도 괜찮다"·타임아웃 문구 단정을 검산

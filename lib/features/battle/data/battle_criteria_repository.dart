@@ -25,16 +25,22 @@ class BattleCriteriaRepository {
   final SupabaseClient _client;
 
   /// 제목·유형·기간으로 기준을 만든다(하루 10회에 1회 산입, 실패는 미산입).
+  ///
+  /// [skipCache]는 `기준 다시 만들기`다 — 서버가 캐시 조회를 건너뛰고 AI에게 새로 물으며
+  /// **그때는 적중이어도 1회를 쓴다.** 기본값은 false이고, 적중 여부는 서버만 알고 응답에
+  /// 들어오지 않는다(화면이 적중/미적중을 구분해 말하지 않는다).
   Future<CriteriaCheckResult> generate({
     required String title,
     required String type,
     required int durationMinutes,
+    bool skipCache = false,
   }) {
     return _invoke({
       'action': 'generate',
       'title': title,
       'type': type,
       'duration_minutes': durationMinutes,
+      'skip_cache': skipCache,
     });
   }
 

@@ -99,7 +99,9 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
     ref.invalidate(myLimitsProvider);
   }
 
-  Future<void> _generate() async {
+  /// 기준 받기. [skipCache]가 true면 `기준 다시 만들기`다 — 서버가 캐시를 건너뛰고 AI에게 새로
+  /// 묻는다(한도 1회). 첫 생성과 **같은 로딩 화면**을 쓴다(적중 여부로 갈리는 모습이 없다).
+  Future<void> _generate({bool skipCache = false}) async {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
 
@@ -107,18 +109,34 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
       _stage = _Stage.generating;
       _busy = true;
       _error = null;
-      _result = null;
+      // 다시 만들기는 들고 있던 기준을 비우지 않는다 — 실패했을 때 그대로 보여 주기 위해서다.
+      if (!skipCache) _result = null;
     });
     try {
       final result = await ref.read(battleCriteriaRepositoryProvider).generate(
             title: title,
             type: _type,
             durationMinutes: _durationMinutes,
+            skipCache: skipCache,
           );
       if (!mounted) return;
       setState(() => _busy = false);
       _applyResult(result);
     } catch (error, stackTrace) {
+      // 다시 만들기가 실패했는데 들고 있는 기준이 있으면 **그 기준을 잃지 않는다.**
+      // 전체 오류 화면(`_handleFailure`)은 "보여 줄 결과가 없을 때"의 것이라 쓰지 않는다
+      // (한도를 다 쓴 상태에서 눌렀을 때 기존 한도 문구만 스낵바로 뜨고 기준은 그대로 남는다).
+      if (skipCache && _result != null) {
+        debugPrint('battle-criteria regenerate failed: $error');
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _stage = _Stage.result;
+        });
+        ref.invalidate(myLimitsProvider);
+        _showSnackBar(criteriaErrorMessage(error));
+        return;
+      }
       _handleFailure(error, stackTrace);
     }
   }
@@ -325,7 +343,10 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
     final limitsAsync = ref.watch(myLimitsProvider);
     final limits = limitsAsync.value;
     // 사전 차단은 편의일 뿐이다. 같은 검사를 Edge Function과 create_battle이 다시 한다.
+    // **한도 소진은 차단이 아니라 안내다**(criteria-cache) — 캐시 적중은 한도를 쓰지 않으므로
+    // 다 쓴 날에도 기준이 나올 수 있다. 미적중이면 서버가 거절해 같은 문구가 그대로 뜬다.
     final blockMessage = limits == null ? null : createBattleBlockMessage(limits);
+    final exhaustedNotice = limits == null ? null : criteriaCallsExhaustedNotice(limits);
     final canGenerate =
         _titleController.text.trim().isNotEmpty && !_busy && limits != null && blockMessage == null;
 
@@ -373,13 +394,17 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         // "1분 대결"이 1분 만에 끝나는 것이 아니라는 것을 여기서 한 번 말해 둔다.
         KeepWordsText(AppStrings.battleDurationWindowNotice, style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 24),
-        if (blockMessage != null) ...[
-          // 동의 전·한도 소진은 기준 생성 차단이다(redesign design 5.5 "차단·한도 안내 tone danger").
-          AppPanel.tone(tone: AppTone.danger, child: KeepWordsText(blockMessage)),
+        if ((blockMessage ?? exhaustedNotice) != null) ...[
+          // 동의 전 차단과 한도 소진 안내가 같은 자리를 쓴다(redesign design 5.5 "차단·한도 안내
+          // tone danger"). 둘의 차이는 **버튼을 막는지**뿐이다 — 안내는 막지 않는다.
+          AppPanel.tone(
+            tone: AppTone.danger,
+            child: KeepWordsText((blockMessage ?? exhaustedNotice)!),
+          ),
           const SizedBox(height: 16),
         ],
         FilledButton(
-          onPressed: canGenerate ? _generate : null,
+          onPressed: canGenerate ? () => _generate() : null,
           child: _busy
               ? const AppLoader.small()
               : const KeepWordsText(AppStrings.battleCriteriaGenerate),
@@ -402,7 +427,7 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         message: criteriaErrorMessage(error),
         fill: true,
         action: FilledButton(
-          onPressed: _busy ? null : _generate,
+          onPressed: _busy ? null : () => _generate(),
           child: const KeepWordsText(AppStrings.retry),
         ),
       );
@@ -422,8 +447,18 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
             child: KeepWordsText(result.blockReason ?? ''),
           ),
           const SizedBox(height: 16),
+          // 차단의 탈출구. **주 버튼이다** — `제목 고치기`는 "다른 주제를 쓴다"는 포기에 가깝고,
+          // 캐시가 내려 준 차단일 수도 있어 다시 물어볼 길이 없으면 그 제목은 영구히 막힌다.
+          // 캐시 적중 여부와 무관하게 늘 같은 자리에 있다(버튼의 존재로 적중이 누설되지 않는다).
+          FilledButton(
+            onPressed: _busy ? null : () => _generate(skipCache: true),
+            child: _busy
+                ? const AppLoader.small()
+                : const KeepWordsText(AppStrings.battleCriteriaRecheckBlocked),
+          ),
+          const SizedBox(height: 8),
           OutlinedButton(
-            onPressed: () => setState(() => _stage = _Stage.input),
+            onPressed: _busy ? null : () => setState(() => _stage = _Stage.input),
             child: const KeepWordsText(AppStrings.battleCriteriaFixTitle),
           ),
         ],
@@ -510,11 +545,22 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
                     }),
             child: const KeepWordsText(AppStrings.battleCriteriaRevert),
           )
-        else
+        else ...[
           OutlinedButton(
             onPressed: _busy ? null : () => setState(() => _editing = true),
             child: const KeepWordsText(AppStrings.battleCriteriaEdit),
           ),
+          const SizedBox(height: 8),
+          // 기준이 마음에 들지 않으면 AI에게 새로 묻는다(한도 1회 — 문구가 그걸 먼저 말한다).
+          // **적중 여부와 무관하게 늘 있다**: AI가 방금 만든 기준도 마음에 안 들 수 있고,
+          // 버튼의 존재/부재로 적중이 누설되면 안 된다. 편집 중에는 두지 않는다 — 그 자리는
+          // `원래 기준으로 되돌리기`가 쓰고, 편집 중에 누르면 쓰던 내용이 사라져 확인창이
+          // 하나 더 필요해진다(적중 여부와 무관한 조건이다).
+          TextButton(
+            onPressed: _busy ? null : () => _generate(skipCache: true),
+            child: const KeepWordsText(AppStrings.battleCriteriaRegenerate),
+          ),
+        ],
       ],
     );
   }

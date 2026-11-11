@@ -21,6 +21,7 @@ class _FakeCriteriaRepository implements BattleCriteriaRepository {
     required String title,
     required String type,
     required int durationMinutes,
+    bool skipCache = false,
   }) =>
       throw UnimplementedError();
 

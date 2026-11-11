@@ -306,8 +306,12 @@ class AppStrings {
 
   // AI 판정 기준(생성·수정·차단).
   static const battleCriteriaGenerate = 'AI 기준 만들기';
-  static const battleCriteriaGenerating = 'AI가 판정 기준을 만들고 있어요';
-  static const battleCriteriaGeneratingDetail = '최대 30초 정도 걸려요';
+  // 캐시 적중(criteria-cache)에서는 "지금 만들고 있다"는 시제가 어긋난다. 두 경우에 모두 참인 문구다
+  // (만든 주체가 AI라는 사실은 적중에서도 어긋나지 않으므로 'AI 판정 기준'은 남긴다).
+  static const battleCriteriaGenerating = 'AI 판정 기준을 준비하고 있어요';
+  // 40초는 **미적중 최악**을 덮는 숫자다(캐시 조회 임베딩 5초 + AI 생성 30초가 앞뒤로 쌓인다).
+  // 적중은 거의 즉시 끝나지만 "최대"라서 그때도 거짓이 아니다(criteria-cache).
+  static const battleCriteriaGeneratingDetail = '최대 40초 정도 걸려요';
   static const battleCriteriaMinTitle = '최소 기준';
   static const battleCriteriaMinHint = '이걸 모두 만족하면 통과예요';
   static const battleCriteriaSuperiorityTitle = '우열 기준';
@@ -315,12 +319,20 @@ class AppStrings {
   static const battleCriteriaEdit = '수정';
   static const battleCriteriaSubmit = '이 기준으로 올리기';
   static const battleCriteriaRecheck = '다시 검사하기(1회 차감)';
+  // 기준이 마음에 들지 않을 때 AI에게 새로 묻는 길. **적중 여부와 무관하게 늘 있다**(버튼의
+  // 존재로 적중이 누설되지 않고, AI가 방금 만든 기준도 마음에 안 들 수 있다).
+  static const battleCriteriaRegenerate = '기준 다시 만들기(1회 차감)';
+  // 차단 화면의 탈출구. 캐시된 차단이 사용자를 영구히 막는 경로가 없어야 한다(spec P0).
+  static const battleCriteriaRecheckBlocked = 'AI에게 다시 확인받기(1회 차감)';
   static const battleCriteriaRevert = '원래 기준으로 되돌리기';
   static const battleCriteriaBlocked = '사진으로 증명할 수 없는 미션이라 대결로 만들 수 없어요';
   static const battleCriteriaFixTitle = '제목 고치기';
   static const battleCriteriaAdd = '기준 추가';
   static const battleCriteriaRemove = '기준 삭제';
   static String battleCriteriaCallsLeft(int left) => '오늘 남은 기준 생성 $left/10회';
+  // 한도 소진 **안내**(차단이 아니다). 버튼을 막지 않으므로 "내일 다시"라고 조언하지 않고,
+  // "그래도 받을 수 있어요" 같은 설명도 붙이지 않는다(캐시의 존재를 알리는 것이 된다).
+  static const battleCriteriaCallsExhausted = '오늘 기준 만들기 횟수를 다 썼어요.';
   static const battleCriteriaTooFew = '기준은 최소 1개가 필요해요.';
   static const battleCriteriaTooMany = '기준은 최대 5개까지예요.';
   static const battleCriteriaItemEmpty = '비어 있는 기준이 있어요.';
@@ -330,7 +342,9 @@ class AppStrings {
   static const battleCriteriaLeaveTitle = '기준 만들기를 그만둘까요?';
   // 제목은 화면이 넘긴다 — 수정 화면에서는 만들던 중이 아니라 고치던 중이다. 본문은 양쪽 모두 맞다.
   static const battleCriteriaLeaveEditTitle = '기준 수정을 그만둘까요?';
-  static const battleCriteriaLeaveBody = '지금 나가면 만든 기준이 사라져요. 사용한 횟수는 돌아오지 않아요.';
+  // 캐시 적중에서는 "사용한 횟수"가 없다(거짓이 된다). 두 경우에 모두 참인 문구로 바꿨다 -
+  // 나가면 손해가 있다는 무게는 남기면서 한도를 쓴다고 주장하지 않는다(criteria-cache design 5.4).
+  static const battleCriteriaLeaveBody = '지금 나가면 받은 기준이 사라져요. 다시 받으려면 처음부터 다시 해야 해요.';
   static const battleCriteriaEditRecruit = '기준 수정';
   static const battleCriteriaApply = '기준 바꾸기';
   static const battleCriteriaApplied = '기준을 바꿨습니다.';

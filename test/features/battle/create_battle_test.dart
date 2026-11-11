@@ -38,6 +38,8 @@ class _FakeCriteriaRepository implements BattleCriteriaRepository {
   Object? checkError;
   int generateCount = 0;
   int checkCount = 0;
+  /// 마지막 generate 호출의 skip_cache(= `기준 다시 만들기`인가). criteria-cache.
+  bool? lastSkipCache;
   List<String>? lastCheckedMin;
   List<String>? lastCheckedSuperiority;
 
@@ -46,8 +48,10 @@ class _FakeCriteriaRepository implements BattleCriteriaRepository {
     required String title,
     required String type,
     required int durationMinutes,
+    bool skipCache = false,
   }) async {
     generateCount++;
+    lastSkipCache = skipCache;
     final error = generateError;
     if (error != null) throw error;
     return generateResult!;
@@ -370,8 +374,11 @@ void main() {
     expect(battles.createdCheckId, 'check-4');
   });
 
-  testWidgets('오늘 기준 만들기 횟수를 다 쓰면 안내가 뜨고 생성 버튼이 비활성이다', (tester) async {
-    final criteria = _FakeCriteriaRepository();
+  // criteria-cache: 한도 소진이 더 이상 **차단**이 아니다. 캐시 적중은 하루 10회를 쓰지 않으므로
+  // 다 쓴 날에도 기준이 나올 수 있고, 미적중이면 서버가 거절해 기존 한도 문구가 뜬다.
+  // 이 테스트가 깨지면 "한도를 다 쓴 사용자도 적중이면 기준을 받을 수 있다"가 불가능해진다.
+  testWidgets('오늘 기준 만들기 횟수를 다 써도 안내만 뜨고 생성 버튼은 눌린다', (tester) async {
+    final criteria = _FakeCriteriaRepository(generateResult: _speedResult);
     await _pumpCreate(
       tester,
       criteria: criteria,
@@ -384,12 +391,19 @@ void main() {
     await tester.enterText(find.byType(TextField).first, '아침 운동하기');
     await tester.pumpAndSettle();
 
-    expect(findText(AppStrings.battleErrorCriteriaCallLimit), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaCallsExhausted), findsOneWidget);
+    // "내일 다시 시도해주세요"는 버튼을 누를 수 있게 된 지금 어긋나는 조언이다.
+    expect(findText(AppStrings.battleErrorCriteriaCallLimit), findsNothing);
     final button = tester.widget<FilledButton>(
       findWidgetWithText(FilledButton, AppStrings.battleCriteriaGenerate),
     );
-    expect(button.onPressed, isNull);
-    expect(criteria.generateCount, 0);
+    expect(button.onPressed, isNotNull);
+
+    await _enterTitleAndGenerate(tester, '아침 운동하기');
+    expect(criteria.generateCount, 1);
+    // 첫 생성은 캐시를 쓴다(= skip_cache false).
+    expect(criteria.lastSkipCache, isFalse);
+    expect(findText('운동화를 신고 밖에 있다'), findsOneWidget);
   });
 
   testWidgets('AI 호출이 실패하면 횟수가 차감되지 않았다고 알리고 다시 시도할 수 있다', (tester) async {
@@ -621,5 +635,85 @@ void main() {
       tester.getTopLeft(findText(AppStrings.battleTitleProvableHint)).dy,
       greaterThan(tester.getTopLeft(find.byType(TextField).first).dy),
     );
+  });
+
+  // ── criteria-cache(2026-11-11): 캐시가 기존 탈출구를 무효화하므로 `기준 다시 만들기`를 둔다 ──
+  //
+  // 캐시가 있으면 "나가서 다시 만들기"로는 같은 캐시가 또 적중해 같은 기준이 나온다.
+  // 아래 네 건은 **적중이 사용자를 가두지 않는다**는 보장이고, 그중 차단 쪽이 가장 중요하다
+  // (차단은 사람이 고칠 여지 없이 그냥 막히는 결과다).
+
+  testWidgets('기준을 받으면 `기준 다시 만들기`가 있고 그것이 캐시를 건너뛴다', (tester) async {
+    final criteria = _FakeCriteriaRepository(generateResult: _speedResult);
+    await _pumpCreate(tester, criteria: criteria);
+
+    await _enterTitleAndGenerate(tester, '아침 운동하기');
+    expect(criteria.lastSkipCache, isFalse);
+
+    expect(findText(AppStrings.battleCriteriaRegenerate), findsOneWidget);
+    await tester.ensureVisible(findText(AppStrings.battleCriteriaRegenerate));
+    await tester.pumpAndSettle();
+    await tester.tap(findText(AppStrings.battleCriteriaRegenerate));
+    await tester.pumpAndSettle();
+
+    expect(criteria.generateCount, 2);
+    // 다시 만들기는 캐시를 건너뛴다(= 다시 눌러도 같은 캐시가 또 나오지 않는다).
+    expect(criteria.lastSkipCache, isTrue);
+    // 적중/미적중으로 갈리는 화면이 없으므로 결과 화면은 그대로다.
+    expect(findText('운동화를 신고 밖에 있다'), findsOneWidget);
+  });
+
+  testWidgets('편집 중에는 `기준 다시 만들기`가 보이지 않는다', (tester) async {
+    final criteria = _FakeCriteriaRepository(generateResult: _speedResult);
+    await _pumpCreate(tester, criteria: criteria);
+
+    await _enterTitleAndGenerate(tester, '아침 운동하기');
+    await tester.tap(findText(AppStrings.battleCriteriaEdit));
+    await tester.pumpAndSettle();
+
+    // 그 자리는 `원래 기준으로 되돌리기`가 쓴다(적중 여부와 무관한 조건이다).
+    expect(findText(AppStrings.battleCriteriaRegenerate), findsNothing);
+    expect(findText(AppStrings.battleCriteriaRevert), findsOneWidget);
+  });
+
+  testWidgets('차단 화면에서 AI에게 다시 확인받아 차단을 뚫을 수 있다', (tester) async {
+    final criteria = _FakeCriteriaRepository(generateResult: _blockedResult);
+    await _pumpCreate(tester, criteria: criteria);
+
+    await _enterTitleAndGenerate(tester, '책 읽기');
+    expect(findText(AppStrings.battleCriteriaBlocked), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaRecheckBlocked), findsOneWidget);
+
+    // 다시 확인받으면 캐시를 건너뛰고 AI가 다시 판단한다. 통과면 기준 화면으로 간다.
+    criteria.generateResult = _speedResult;
+    await tester.tap(findText(AppStrings.battleCriteriaRecheckBlocked));
+    await tester.pumpAndSettle();
+
+    expect(criteria.generateCount, 2);
+    expect(criteria.lastSkipCache, isTrue);
+    expect(findText(AppStrings.battleCriteriaBlocked), findsNothing);
+    expect(findText('운동화를 신고 밖에 있다'), findsOneWidget);
+  });
+
+  testWidgets('다시 만들기가 한도에 막히면 들고 있던 기준이 그대로 남고 스낵바만 뜬다', (tester) async {
+    final criteria = _FakeCriteriaRepository(generateResult: _speedResult);
+    await _pumpCreate(tester, criteria: criteria);
+
+    await _enterTitleAndGenerate(tester, '아침 운동하기');
+    expect(findText('운동화를 신고 밖에 있다'), findsOneWidget);
+
+    // 오늘 10회를 다 쓴 상태에서 눌렀다.
+    criteria.generateError = const CriteriaException('CRITERIA_CALL_LIMIT', callsLeft: 0);
+    await tester.ensureVisible(findText(AppStrings.battleCriteriaRegenerate));
+    await tester.pumpAndSettle();
+    await tester.tap(findText(AppStrings.battleCriteriaRegenerate));
+    await tester.pumpAndSettle();
+
+    // 전체 오류 화면으로 가지 않는다 — 기준을 잃으면 안 된다.
+    expect(findText(AppStrings.retry), findsNothing);
+    expect(findText('운동화를 신고 밖에 있다'), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaSubmit), findsOneWidget);
+    // 기존 한도 초과 문구로 안내한다.
+    expect(findText(AppStrings.battleErrorCriteriaCallLimit), findsOneWidget);
   });
 }

@@ -57,8 +57,16 @@ String criteriaErrorMessage(Object error) {
 
 /// 대결을 만들 수 없는 이유(사전 안내). 만들 수 있으면 null.
 /// 같은 검사를 Edge Function과 `create_battle`이 다시 하므로 이 값은 편의일 뿐이다.
+///
+/// **이제 동의 하나뿐이다**(criteria-cache). 한도 소진은 더 이상 차단 사유가 아니다 — 캐시 적중은
+/// 하루 10회를 쓰지 않으므로 소진 상태에서도 기준이 나올 수 있고, 미적중이면 서버가
+/// `CRITERIA_CALL_LIMIT`로 거절해 같은 문구가 그대로 뜬다. 여기서 버튼을 막으면
+/// "한도를 다 쓴 사용자도 적중이면 기준을 받을 수 있다"가 클라이언트 한 줄 때문에 불가능해진다.
 String? createBattleBlockMessage(MyLimits limits) {
   if (!limits.consented) return AppStrings.aiConsentRequired;
-  if (limits.criteriaCallsLeft <= 0) return AppStrings.battleErrorCriteriaCallLimit;
   return null;
 }
+
+/// 한도 소진 **안내**(차단이 아니다). 버튼을 막지 않고, 서버가 같은 판단을 다시 한다.
+String? criteriaCallsExhaustedNotice(MyLimits limits) =>
+    limits.criteriaCallsLeft <= 0 ? AppStrings.battleCriteriaCallsExhausted : null;

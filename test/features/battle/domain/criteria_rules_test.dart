@@ -98,12 +98,30 @@ void main() {
       expect(createBattleBlockMessage(_limits()), isNull);
     });
 
-    // 대결 개수 한도가 사라져(daily-limit-removal) 남은 사전 조건은 동의와 기준 생성 횟수뿐이다.
-    test('동의·기준 횟수 순서로 이유를 알려 준다', () {
+    // criteria-cache: 남은 사전 차단 사유는 **동의 하나뿐이다.** 한도 소진으로 막으면
+    // "한도를 다 쓴 사용자도 캐시 적중이면 기준을 받을 수 있다"가 깨진다(적중은 한도를 쓰지 않는다).
+    test('동의 전에만 막고 한도 소진으로는 막지 않는다', () {
       expect(createBattleBlockMessage(_limits(consented: false)), AppStrings.aiConsentRequired);
+      expect(createBattleBlockMessage(_limits(criteriaCallsLeft: 0)), isNull);
+      // 동의도 없고 한도도 없으면 동의를 먼저 말한다.
       expect(
-        createBattleBlockMessage(_limits(criteriaCallsLeft: 0)),
-        AppStrings.battleErrorCriteriaCallLimit,
+        createBattleBlockMessage(_limits(consented: false, criteriaCallsLeft: 0)),
+        AppStrings.aiConsentRequired,
+      );
+    });
+  });
+
+  group('criteriaCallsExhaustedNotice', () {
+    test('0회에서만 안내 문구를 주고, 그 문구가 차단 문구와 다르다', () {
+      expect(criteriaCallsExhaustedNotice(_limits(criteriaCallsLeft: 1)), isNull);
+      expect(
+        criteriaCallsExhaustedNotice(_limits(criteriaCallsLeft: 0)),
+        AppStrings.battleCriteriaCallsExhausted,
+      );
+      // 버튼을 누를 수 있게 됐으므로 "내일 다시 시도해주세요"라고 조언하지 않는다.
+      expect(
+        AppStrings.battleCriteriaCallsExhausted == AppStrings.battleErrorCriteriaCallLimit,
+        isFalse,
       );
     });
   });

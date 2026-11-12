@@ -80,7 +80,7 @@ void main() {
       expect(rgba >> 8 & 0xFFFFFF, AppPalette.surface.toARGB32() & 0xFFFFFF);
     });
 
-    testWidgets('색 마크에는 칸(surface)·체크(amber)·두께(ink)가 모두 있다', (tester) async {
+    testWidgets('색 마크에는 뒤 체크(surface)·앞 체크(amber)·두께(ink)가 모두 있다', (tester) async {
       final (:bytes, :side) = await renderAdaptive(tester);
       final colors = <int>{};
       for (var i = 0; i < side * side; i++) {
@@ -92,7 +92,7 @@ void main() {
       }
     });
 
-    testWidgets('체크가 칸 오른쪽 선을 뚫는 자리에 간격이 있고, 칸 선의 나머지는 이어져 있다', (tester) async {
+    testWidgets('두 체크가 한가운데에서 교차하고 끝과 꺾임은 모두 남는다', (tester) async {
       const pxPerDp = 4.0;
       for (final monochrome in [false, true]) {
         final (:bytes, :side) = await renderAdaptive(tester, monochrome: monochrome);
@@ -101,24 +101,34 @@ void main() {
           return alphaAt(bytes, side, p.dx.floor(), p.dy.floor()) > 0;
         }
 
-        // 긴 획(10,18)→(21.5,4)이 칸 오른쪽 선 x = 18과 만나는 높이.
-        final a = AppMark.checkPoints[1];
-        final b = AppMark.checkPoints[2];
-        final crossY = a.dy + (b.dy - a.dy) * (AppMark.boxRect.right - a.dx) / (b.dx - a.dx);
-        // 체크 굵기가 오른쪽 선에서 차지하는 세로 반폭.
-        final length = (b - a).distance;
-        final checkHalf = AppMark.checkStroke / 2 * length / (b.dx - a.dx);
-        final cutHalf = (AppMark.checkStroke / 2 + AppMark.cutGap) * length / (b.dx - a.dx);
-        // 체크 몸통(색 마크는 체크 + 아래 두께) 바깥, 지운 폭 안: 칸 선이 있어야 할 자리가 비어 있다(간격 > 0).
-        final bodyBottom = crossY + checkHalf + (monochrome ? 0 : AppMark.shadowOffset);
-        final cutBottom = crossY + cutHalf + (monochrome ? 0 : AppMark.shadowOffset);
-        expect(cutBottom - bodyBottom, greaterThan(0));
-        final gapY = (bodyBottom + cutBottom) / 2;
-        expect(paintedAt(Offset(AppMark.boxRect.right, gapY)), isFalse, reason: 'gap, mono=$monochrome');
-        // 지운 폭 밖의 오른쪽 선·왼쪽 선·아랫선은 남아 있다.
-        expect(paintedAt(Offset(AppMark.boxRect.right, cutBottom + 1.5)), isTrue);
-        expect(paintedAt(Offset(AppMark.boxRect.left, 14)), isTrue);
-        expect(paintedAt(Offset(10, AppMark.boxRect.bottom)), isTrue, reason: '아랫선은 꺾임에 갉아 먹히지 않는다');
+        // 앞 체크는 교차점에서 끊기지 않는다 — 위로 지나가는 쪽이다.
+        expect(paintedAt(AppMark.crossPoint), isTrue, reason: 'cross, mono=$monochrome');
+        // 두 체크의 네 끝과 두 꺾임이 모두 남아 있다 — 지우는 띠가 교차점 밖을 갉아 먹지 않는다.
+        for (final points in [AppMark.frontPoints, AppMark.backPoints]) {
+          for (final point in points) {
+            expect(paintedAt(point), isTrue, reason: '$point, mono=$monochrome');
+          }
+        }
+      }
+    });
+
+    // 단색(테마 아이콘·알림)은 색이 하나라 두 획이 만나는 자리를 색으로 구분할 수 없다.
+    // 간격을 내지 않으면 교차가 사라지고 그냥 X 한 덩어리가 된다.
+    testWidgets('단색에서만 교차 자리에 간격이 있다(색 마크는 ink 두께가 그 경계를 맡는다)',
+        (tester) async {
+      const pxPerDp = 4.0;
+      // 뒤 체크의 긴 획을 따라 교차점에서 멀어지는 방향(왼쪽 위). 아래쪽으로 재면 앞 체크의
+      // ink 두께가 걸려 "간격"과 "두께"를 구분할 수 없다.
+      final backArm = AppMark.backPoints[2] - AppMark.backPoints[1];
+      final away = backArm / backArm.distance;
+      // 앞 체크 몸통 바깥, 지운 폭 안.
+      final probe = AppMark.crossPoint + away * (AppMark.checkStroke / 2 + AppMark.cutGap / 2);
+
+      for (final monochrome in [false, true]) {
+        final (:bytes, :side) = await renderAdaptive(tester, monochrome: monochrome);
+        final p = gridToPx(probe, pxPerDp);
+        final painted = alphaAt(bytes, side, p.dx.floor(), p.dy.floor()) > 0;
+        expect(painted, !monochrome, reason: 'mono=$monochrome');
       }
     });
   });

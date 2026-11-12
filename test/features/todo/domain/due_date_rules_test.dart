@@ -110,6 +110,109 @@ void main() {
     });
   });
 
+  /// `nextDueLabelChange`는 "다음에 글자가 달라지는 때"를 말한다. 그 약속을 **값으로 적어 두고
+  /// 비교하지 않는다** — `formatDueLabel`을 직접 불러 경계 앞뒤를 본다. 둘 중 하나의 분기가
+  /// 바뀌어 어긋나면(예: 초 구간이 사라지면) 적어 둔 숫자는 그대로 통과하지만 화면에서는
+  /// 문구가 멈춘 것처럼 보이기 때문이다.
+  group('nextDueLabelChange', () {
+    final now = DateTime(2026, 11, 9, 12, 0, 0);
+
+    /// 한 구간에서 약속이 지켜지는지: 돌려준 간격만큼 지나면 문구가 **달라지고**, 1밀리초
+    /// 이르면 아직 **같다**. 이 둘이 곧 "가장 이른 순간"의 정의다.
+    void expectFirstChange(Duration gap) {
+      final dueAt = now.add(gap);
+      final delay = nextDueLabelChange(dueAt, now);
+      final before = formatDueLabel(dueAt, now).label;
+      final justBefore = formatDueLabel(
+        dueAt,
+        now.add(delay - const Duration(milliseconds: 1)),
+      ).label;
+      final after = formatDueLabel(dueAt, now.add(delay)).label;
+
+      expect(delay, greaterThan(Duration.zero), reason: '$gap에서 0 이하');
+      expect(justBefore, before, reason: '$gap에서 $delay보다 이르게 바뀐다');
+      expect(after, isNot(before), reason: '$gap에서 $delay이 지나도 그대로다');
+    }
+
+    test('남은 시간 — 8구간 전부에서 "글자가 달라지는 첫 순간"을 말한다', () {
+      const gaps = [
+        // 1구간(일+시간)
+        Duration(days: 3, hours: 12, minutes: 30),
+        Duration(days: 1),
+        Duration(days: 2, minutes: 40),
+        // 2구간(시간+분)
+        Duration(hours: 5, minutes: 30),
+        Duration(hours: 1),
+        Duration(hours: 5, seconds: 30),
+        // 3구간(분)
+        Duration(minutes: 43, seconds: 12),
+        Duration(minutes: 1),
+        // 4구간(초)
+        Duration(seconds: 12, milliseconds: 700),
+        Duration(seconds: 1),
+        // 5구간(방금 지남) — 기한 직전·기한·기한 직후가 모두 한 구간이다
+        Duration(milliseconds: 500),
+        Duration.zero,
+        Duration(seconds: -30),
+        // 6~8구간(지남)
+        Duration(minutes: -1),
+        Duration(minutes: -5, seconds: -20),
+        Duration(hours: -2, minutes: -20),
+        Duration(days: -1, hours: -5, minutes: -30),
+      ];
+      for (final gap in gaps) {
+        expectFirstChange(gap);
+      }
+    });
+
+    test('깨어나는 잦기가 문구의 끝자리를 따라간다(고정 주기가 아니다)', () {
+      // 끝자리가 시간이면 한 시간에 한 번으로 충분하다 — 사흘 뒤 기한을 1분마다 다시 그릴
+      // 이유가 없다는 것이 이 방식을 고른 이유다.
+      expect(
+        nextDueLabelChange(now.add(const Duration(days: 3, minutes: 20)), now),
+        const Duration(minutes: 20, milliseconds: 1),
+      );
+      // 끝자리가 분이면 분 경계까지.
+      expect(
+        nextDueLabelChange(
+          now.add(const Duration(hours: 5, minutes: 30, seconds: 12)),
+          now,
+        ),
+        const Duration(seconds: 12, milliseconds: 1),
+      );
+      // 1분 미만만 초 단위로 깨어난다.
+      expect(
+        nextDueLabelChange(now.add(const Duration(seconds: 12)), now),
+        const Duration(milliseconds: 1),
+      );
+      // 지남도 같다 — 하루를 넘긴 할 일은 한 시간에 한 번이다.
+      expect(
+        nextDueLabelChange(
+          now.subtract(const Duration(days: 1, hours: 5, minutes: 30)),
+          now,
+        ),
+        const Duration(minutes: 30),
+      );
+    });
+
+    test('기한이 한참 뒤·한참 전이어도 한 시간을 넘겨 기다리지 않는다', () {
+      // 상한이 한 시간인 것은 가장 큰 단위가 시간이기 때문이다(일+시간 표기의 끝자리).
+      for (final gap in const [
+        Duration(days: 400),
+        Duration(days: -400),
+        Duration(days: 365, hours: 7, minutes: 59, seconds: 59),
+      ]) {
+        final delay = nextDueLabelChange(now.add(gap), now);
+        expect(delay, greaterThan(Duration.zero), reason: '$gap');
+        expect(
+          delay,
+          lessThanOrEqualTo(const Duration(hours: 1, milliseconds: 1)),
+          reason: '$gap',
+        );
+      }
+    });
+  });
+
   group('formatDueValue', () {
     test('연·월·일과 오전/오후 시:분을 모두 적는다', () {
       expect(

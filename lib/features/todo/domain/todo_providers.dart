@@ -50,3 +50,10 @@ final dueAlarmServiceProvider = Provider<DueAlarmService>((ref) {
     ref.watch(pushMessagingProvider),
   );
 });
+
+/// 목록이 읽는 "지금". 남은 시간 문구가 **시간이 흐르는 것만으로** 바뀌는 유일한 입력이라
+/// 테스트에서 손으로 돌릴 수 있는 자리가 필요하다(`todo_due_tick_test.dart`).
+///
+/// 앱에서는 늘 `DateTime.now`다. 다른 화면의 "지금"까지 여기로 모으지 않는다 — **스스로 다시
+/// 그려야 하는 목록만** 이 접점을 쓴다.
+final todoNowProvider = Provider<DateTime Function()>((ref) => DateTime.now);

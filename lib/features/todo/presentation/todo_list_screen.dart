@@ -14,6 +14,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
+import '../../../core/widgets/time_ticker.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../data/todo.dart';
 import '../domain/due_date_rules.dart';
@@ -62,6 +63,23 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// 다음에 문구가 바뀌는 때까지의 간격(없으면 null — 그때는 `TimeTicker`가 타이머를 아예 두지
+  /// 않는다. 기한을 안 쓰는 사용자에게는 이 기능의 비용이 0이다).
+  ///
+  /// 조건은 `_todoRow`가 문구를 그리는 조건과 **같아야 한다** — 완료한 줄과 기한 없는 줄은
+  /// 문구가 없으므로 깨울 이유도 없다.
+  Duration? _nextLabelChange(List<Todo> todos, DateTime now) {
+    Duration? soonest;
+    for (final todo in todos) {
+      if (todo.isDone) continue;
+      final dueAt = todo.dueAt;
+      if (dueAt == null) continue;
+      final delay = nextDueLabelChange(dueAt.toLocal(), now);
+      if (soonest == null || delay < soonest) soonest = delay;
+    }
+    return soonest;
   }
 
   Future<void> _openAddDialog() async {
@@ -404,29 +422,32 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
               fill: true,
             );
           }
-          // 모든 줄이 같은 "지금"을 쓰도록 한 번만 읽는다. 분 단위 타이머로 다시 그리지 않으므로
-          // 화면을 켜 둔 채 두면 낡지만, 다시 들어오면 맞는다(spec "표시 갱신").
-          final now = DateTime.now();
-          return ReorderableListView.builder(
-            // 좌우 여백은 **20dp**다(redesign의 기본값). 전용 손잡이 48dp의 자리를 만들려고
-            // 8dp까지 줄였던 것을 2026-11-10에 되돌렸다 — 손잡이가 없어져 그 이유가 사라졌고,
-            // 제목 칸은 그만큼 넓어진다(198 → 222dp). 위 16·아래 fabClearance는 그대로다.
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, AppTheme.fabClearance),
-            scrollController: _scrollController,
-            itemCount: todos.length,
-            // 기본값(true)을 쓰지 않는 이유는 **길게 누르기가 싫어서가 아니다**(끌기는 이제 꾹
-            // 누르기로 시작한다 — `_todoRow`). 기본값은 `Theme.of(context).platform`을 보고
-            // 갈라져 모바일에서만 길게 누르기이고 **데스크톱에서는 줄 오른쪽에 손잡이 아이콘을
-            // 다시 그린다**. 방금 없앤 손잡이가 플랫폼에 따라 되살아나는 구조를 남기지 않고,
-            // 끌기 입구를 줄을 만드는 자리 한 곳에서만 읽게 한다.
-            buildDefaultDragHandles: false,
-            onReorderStart: _onPickUp,
-            proxyDecorator: _liftedCard,
-            // onReorder가 아니라 onReorderItem이다 — 전자는 Flutter 3.47에서 폐기됐고(analyze
-            // 이슈가 된다), 후자는 "옮길 줄을 뺀 뒤의 자리"를 준다(plan.md "설계와 다른 점" 1번).
-            onReorderItem: (oldIndex, newIndex) =>
-                unawaited(_onReorder(todos, oldIndex, newIndex)),
-            itemBuilder: (context, index) => _todoRow(todos[index], index, now),
+          // 남은 시간 문구가 **시간이 흐르는 것만으로** 바뀌므로 목록을 TimeTicker에 담는다.
+          // 그 안에서 받는 now가 모든 줄이 함께 쓰는 "지금"이다(경계에서 두 줄이 어긋나지 않는다).
+          return TimeTicker(
+            now: ref.watch(todoNowProvider),
+            nextChange: (now) => _nextLabelChange(todos, now),
+            builder: (context, now) => ReorderableListView.builder(
+              // 좌우 여백은 **20dp**다(redesign의 기본값). 전용 손잡이 48dp의 자리를 만들려고
+              // 8dp까지 줄였던 것을 2026-11-10에 되돌렸다 — 손잡이가 없어져 그 이유가 사라졌고,
+              // 제목 칸은 그만큼 넓어진다(198 → 222dp). 위 16·아래 fabClearance는 그대로다.
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, AppTheme.fabClearance),
+              scrollController: _scrollController,
+              itemCount: todos.length,
+              // 기본값(true)을 쓰지 않는 이유는 **길게 누르기가 싫어서가 아니다**(끌기는 이제 꾹
+              // 누르기로 시작한다 — `_todoRow`). 기본값은 `Theme.of(context).platform`을 보고
+              // 갈라져 모바일에서만 길게 누르기이고 **데스크톱에서는 줄 오른쪽에 손잡이 아이콘을
+              // 다시 그린다**. 방금 없앤 손잡이가 플랫폼에 따라 되살아나는 구조를 남기지 않고,
+              // 끌기 입구를 줄을 만드는 자리 한 곳에서만 읽게 한다.
+              buildDefaultDragHandles: false,
+              onReorderStart: _onPickUp,
+              proxyDecorator: _liftedCard,
+              // onReorder가 아니라 onReorderItem이다 — 전자는 Flutter 3.47에서 폐기됐고(analyze
+              // 이슈가 된다), 후자는 "옮길 줄을 뺀 뒤의 자리"를 준다(plan.md "설계와 다른 점" 1번).
+              onReorderItem: (oldIndex, newIndex) =>
+                  unawaited(_onReorder(todos, oldIndex, newIndex)),
+              itemBuilder: (context, index) => _todoRow(todos[index], index, now),
+            ),
           );
         },
         loading: () => const StatusMessage.loading(fill: true),

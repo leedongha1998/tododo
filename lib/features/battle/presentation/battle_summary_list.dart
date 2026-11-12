@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/remaining_time.dart';
 import '../../../core/strings.dart';
 import '../../../core/theme/app_palette.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/keep_words_text.dart';
+import '../../../core/widgets/time_ticker.dart';
 import '../data/battle.dart';
 import '../domain/battle_summary.dart';
 import 'battle_chips.dart';
@@ -31,12 +33,31 @@ class BattleSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // **카드마다 자기 시계를 갖는다**(2026-11-12, audit M19를 여기서 닫는다). 목록을 통째로
+    // 한 타이머에 담지 않는 이유는 카드마다 마감이 다르고, 화면 밖으로 나간 카드는
+    // `ListView.builder`가 버리면서 그 타이머까지 함께 거두기 때문이다 — 보이는 카드만 깨어난다.
+    //
+    // 깨어나는 잦기는 그 카드의 남은 시간이 정한다(`nextDeadlineTick`). 하루 넘게 남은 대결은
+    // 한 시간에 한 번이고, 1분 속도전만 1초에 한 번이다.
+    return TimeTicker(nextChange: _nextDeadlineChange, builder: _buildCard);
+  }
+
+  /// 이 카드가 다음에 다시 그려져야 할 때까지의 간격. 흐르는 시계는 하나다 — `deadlineLineAt`과
+  /// 같은 갈래로 고른다(판정 창이면 판정 기한, 그 밖이면 제출 마감).
+  Duration? _nextDeadlineChange(DateTime now) {
+    final battle = summary.battle;
+    final deadline = battle.status == 'judging'
+        ? battle.judgeDeadlineAt
+        : battle.deadlineAt;
+    if (deadline == null) return null;
+    return nextDeadlineTick(deadline, now);
+  }
+
+  Widget _buildCard(BuildContext context, DateTime now) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final Battle battle = summary.battle;
     // 상태 줄과 남은 시간 줄이 같은 시각을 보게 now를 한 번만 구한다(경계에서 두 줄이 어긋나지 않는다).
-    // 이 줄은 카드를 다시 그릴 때마다 갱신된다 — 주기적 갱신은 이번 범위가 아니다(audit M19).
-    final now = DateTime.now();
     final notice = summary.noticeAt(now);
     final statusLine = notice.line;
     final deadlineLine = summary.deadlineLineAt(now);

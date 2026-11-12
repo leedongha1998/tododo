@@ -11,6 +11,7 @@ import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
+import '../../../core/widgets/time_ticker.dart';
 import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_outcome.dart';
@@ -73,48 +74,54 @@ class BattleDetailScreen extends ConsumerWidget {
         title: KeepWordsText(detailAsync.value?.battle.title ?? AppStrings.battleMyBattles),
       ),
       body: detailAsync.when(
-        data: (detail) => RefreshIndicator(
-          onRefresh: () => ref.refresh(battleDetailProvider(battleId).future),
-          child: ListView(
-            // 화면 가장자리 20, 섹션 사이 24(redesign design 4.1).
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-            children: [
-              // 화면에 보이지 않는 판단 전용 조각. 배치는 바뀌지 않는다.
-              _VsIntroOnFirstEntry(detail: detail),
-              _BattleHeader(detail: detail),
-              const SizedBox(height: 24),
-              _ResultBanner(detail: detail),
-              // 상호 판정 창. 내 차례면 판정 섹션이 상대 사진을 크게 보여 주므로 양쪽 증거
-              // 블록을 겹쳐 그리지 않는다. 판정을 보낸 뒤에는 두 사진을 함께 보여 준다.
-              if (detail.isJudging) ...[
-                JudgmentSection(detail: detail),
-                if (!detail.isMyJudgmentTurn && detail.submissions.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  RevealedEvidenceSection(detail: detail),
-                ],
-              ] else if (detail.isOngoing) ...[
-                MyEvidenceSection(detail: detail),
+        // 마감까지 남은 시간은 **시간이 흐르는 것만으로** 바뀐다. 화면을 그릴 때만 계산하면
+        // 들어와서 보는 동안 숫자가 멈춰 있고(1분 속도전에서는 그게 화면의 전부다), 마감이
+        // 지나도 제출 버튼이 열려 있는 것처럼 보인다 — 그래서 TimeTicker에 담는다.
+        data: (detail) => TimeTicker(
+          nextChange: (now) => _nextDeadlineChange(detail, now),
+          builder: (context, now) => RefreshIndicator(
+            onRefresh: () => ref.refresh(battleDetailProvider(battleId).future),
+            child: ListView(
+              // 화면 가장자리 20, 섹션 사이 24(redesign design 4.1).
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              children: [
+                // 화면에 보이지 않는 판단 전용 조각. 배치는 바뀌지 않는다.
+                _VsIntroOnFirstEntry(detail: detail),
+                _BattleHeader(detail: detail, now: now),
                 const SizedBox(height: 24),
-                OpponentEvidenceSummary(detail: detail),
-              ]
-              // 종결 뒤에는 서버가 상대 제출까지 내준다. 그때만 양쪽 이력을 함께 보여 준다.
-              else if (detail.areSubmissionsRevealed && detail.submissions.isNotEmpty)
-                RevealedEvidenceSection(detail: detail),
-              if (detail.canForfeit) ...[
-                const Divider(height: 48),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () => _forfeit(context, ref),
-                    // 위험 낮음: 위험 텍스트(투명 면 + danger, 누르는 동안 dangerPale + dangerDeep —
-                    // design-judging-buttons 2.6 #13). 확인 대화상자가 따로 있다.
-                    style: AppButtonStyles.dangerText,
-                    icon: const Icon(AppIcons.flag),
-                    label: const KeepWordsText(AppStrings.battleForfeit),
+                _ResultBanner(detail: detail),
+                // 상호 판정 창. 내 차례면 판정 섹션이 상대 사진을 크게 보여 주므로 양쪽 증거
+                // 블록을 겹쳐 그리지 않는다. 판정을 보낸 뒤에는 두 사진을 함께 보여 준다.
+                if (detail.isJudging) ...[
+                  JudgmentSection(detail: detail),
+                  if (!detail.isMyJudgmentTurn && detail.submissions.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    RevealedEvidenceSection(detail: detail),
+                  ],
+                ] else if (detail.isOngoing) ...[
+                  MyEvidenceSection(detail: detail),
+                  const SizedBox(height: 24),
+                  OpponentEvidenceSummary(detail: detail),
+                ]
+                // 종결 뒤에는 서버가 상대 제출까지 내준다. 그때만 양쪽 이력을 함께 보여 준다.
+                else if (detail.areSubmissionsRevealed && detail.submissions.isNotEmpty)
+                  RevealedEvidenceSection(detail: detail),
+                if (detail.canForfeit) ...[
+                  const Divider(height: 48),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => _forfeit(context, ref),
+                      // 위험 낮음: 위험 텍스트(투명 면 + danger, 누르는 동안 dangerPale + dangerDeep —
+                      // design-judging-buttons 2.6 #13). 확인 대화상자가 따로 있다.
+                      style: AppButtonStyles.dangerText,
+                      icon: const Icon(AppIcons.flag),
+                      label: const KeepWordsText(AppStrings.battleForfeit),
+                    ),
                   ),
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         // 점 세 개만 놓으면 빈 화면으로 읽힌다. 처음 기다리는 자리라 무엇을 기다리는지 적는다.
@@ -142,16 +149,20 @@ class BattleDetailScreen extends ConsumerWidget {
 
 /// 유형, 현재 상태, 진행 중이면 마감까지 남은 시간.
 class _BattleHeader extends StatelessWidget {
-  const _BattleHeader({required this.detail});
+  const _BattleHeader({required this.detail, required this.now});
 
   final BattleDetail detail;
+
+  /// 두 줄이 **같은 시각**을 보도록 화면이 한 번 읽어 넘겨 준다(`TimeTicker`). 각자
+  /// `DateTime.now()`를 읽으면 마감 경계에서 한 줄은 `마감됨`, 다른 줄은 `0초 남음`이 된다.
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     // 제출 창과 판정 창은 다른 시계다. 한 줄로 합치면 "1분 대결이 하루 걸린다"로 읽힌다.
-    final submitDeadline = _submitDeadlineText(detail);
-    final judgeDeadline = _judgeDeadlineText(detail);
+    final submitDeadline = _submitDeadlineText(detail, now);
+    final judgeDeadline = _judgeDeadlineText(detail, now);
     // 바뀌는 숫자의 폭이 흔들리지 않게 고정폭 숫자(design 3.2).
     final deadlineStyle = textTheme.bodyMedium!.merge(AppText.tabular);
 
@@ -381,6 +392,30 @@ class _VsIntroOnFirstEntryState extends ConsumerState<_VsIntroOnFirstEntry> {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
+/// 이 화면이 **다음에 다시 그려져야 할 때**까지의 간격(없으면 null — 타이머를 두지 않는다).
+///
+/// 흐르는 시계가 둘이라 둘 중 이른 쪽을 따른다 — 제출 창(`deadlineAt`)과 판정 창
+/// (`judgeDeadlineAt`)이다. 끝난 대결에는 흐르는 시계가 없다(결과가 이미 답이다).
+///
+/// **글자만의 문제가 아니다.** 마감이 지나면 제출 버튼이 닫히고(`canSubmitEvidence`) 판정 안내가
+/// 달라지는데(`judgmentStage`), 다시 그리지 않으면 화면이 이미 지난 상태를 그대로 보여 준다.
+/// 그 두 값은 각자 `DateTime.now()`를 읽으므로 **다시 그려지는 것만으로** 맞아진다.
+///
+/// 서버 상태(`status`)까지 따라오지는 않는다 — 그건 5분마다 도는 `settle_expired_battles`의
+/// 몫이고, 그때까지는 당겨서 새로고침과 마찬가지로 "마감됐지만 아직 정산 전"으로 보인다.
+Duration? _nextDeadlineChange(BattleDetail detail, DateTime now) {
+  if (!detail.isOngoing) return null;
+
+  Duration? soonest;
+  for (final deadline in [detail.battle.deadlineAt, detail.judgeDeadlineAt]) {
+    if (deadline == null) continue;
+    final delay = nextDeadlineTick(deadline, now);
+    if (delay == null) continue;
+    if (soonest == null || delay < soonest) soonest = delay;
+  }
+  return soonest;
+}
+
 // 서버가 준 UTC 시각을 기기 시간대로 바꿔 보여준다. 연도는 대결 주기상 군더더기라 뺀다.
 String _formatDateTime(DateTime time) {
   final local = time.toLocal();
@@ -391,11 +426,11 @@ String _formatDateTime(DateTime time) {
 
 // 사진을 낼 수 있는 시간(제출 창). 진행 중인 대결에만 말한다 — 끝난 대결에서는 결과가 이미 답이다.
 // 판정 창에서도 보여 준다: 제출은 끝났고 지금은 판정 중이라는 것이 두 줄로 읽혀야 한다.
-String? _submitDeadlineText(BattleDetail detail) {
+String? _submitDeadlineText(BattleDetail detail, DateTime now) {
   final deadline = detail.battle.deadlineAt;
   if (deadline == null || !detail.isOngoing) return null;
 
-  final left = deadline.difference(DateTime.now());
+  final left = deadline.difference(now);
   if (left.isNegative) {
     return '${AppStrings.battleSubmitDeadlineLabel} · ${AppStrings.battleDeadlineClosed}';
   }
@@ -405,11 +440,11 @@ String? _submitDeadlineText(BattleDetail detail) {
 }
 
 // 서로 판정할 수 있는 시간(판정 창). 서버가 창을 열 때 기록한 judge_deadline_at을 그대로 보여 준다.
-String? _judgeDeadlineText(BattleDetail detail) {
+String? _judgeDeadlineText(BattleDetail detail, DateTime now) {
   final deadline = detail.judgeDeadlineAt;
   if (deadline == null || !detail.isOngoing) return null;
 
-  final left = deadline.difference(DateTime.now());
+  final left = deadline.difference(now);
   if (left.isNegative) {
     return '${AppStrings.battleJudgeDeadlineLabel} · ${AppStrings.battleJudgeDeadlineClosed}';
   }

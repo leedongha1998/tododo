@@ -252,6 +252,11 @@ Future<void> _pumpProfile(
     ),
   );
   await tester.pumpAndSettle();
+
+  // 동의는 2026-11-12부터 프로필의 한 칸이 아니라 **메뉴 뒤 화면**이다(오너 안 B).
+  // 여기를 거치는 것이 사용자가 실제로 밟는 경로다.
+  await tester.tap(findText(AppStrings.aiConsentSection));
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -409,7 +414,7 @@ void main() {
     expect(findText(AppStrings.battleCreate), findsNothing);
   });
 
-  testWidgets('프로필에서 동의 상태를 보고 철회하면 영향 안내를 거쳐 철회된다', (tester) async {
+  testWidgets('프로필 메뉴에서 들어가 동의 상태를 보고 철회하면 영향 안내를 거쳐 철회된다', (tester) async {
     final consentRepository = _FakeAiConsentRepository(
       consent: AiConsent(version: '2026-09-14', consentedAt: DateTime(2026, 9, 16)),
       impact: const ConsentWithdrawalImpact(activeCount: 2, pendingCount: 1),

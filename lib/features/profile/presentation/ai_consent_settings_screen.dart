@@ -14,15 +14,23 @@ import '../../battle/domain/open_recruit_feed.dart';
 import '../../battle/presentation/ai_consent_screen.dart';
 import '../domain/profile_providers.dart';
 
-/// 프로필의 AI 데이터 제공 동의 섹션(design.md 화면 2). 상태 확인, 동의하기, 동의 철회.
-class AiConsentSection extends ConsumerStatefulWidget {
-  const AiConsentSection({super.key});
+/// AI 데이터 제공 동의 상태 화면(프로필 메뉴 → 들어옴). 상태 확인, 동의하기, 동의 철회.
+///
+/// 2026-11-12에 프로필 탭의 한 칸(`AiConsentSection`)에서 **화면으로 분리했다**(오너 안 B).
+/// 프로필을 열 때마다 서버 조회 결과와 위험 버튼이 보일 이유가 없고, 철회는 진행 중 대결을
+/// 포기로 끝내는 동작이라 한 단계 들어와서 하는 편이 맞다.
+///
+/// 동의 **내용**(받는 자·항목·목적·보유 기간·거부 권리)은 여기 없다 — 처음 동의받는
+/// `AiConsentScreen`이 그 화면이고, 이 화면은 그 화면을 띄우는 자리다. 두 곳에 같은 문구를
+/// 두면 한쪽만 고쳐질 수 있다.
+class AiConsentSettingsScreen extends ConsumerStatefulWidget {
+  const AiConsentSettingsScreen({super.key});
 
   @override
-  ConsumerState<AiConsentSection> createState() => _AiConsentSectionState();
+  ConsumerState<AiConsentSettingsScreen> createState() => _AiConsentSettingsScreenState();
 }
 
-class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
+class _AiConsentSettingsScreenState extends ConsumerState<AiConsentSettingsScreen> {
   bool _withdrawing = false;
 
   Future<void> _give() async {
@@ -55,10 +63,14 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
       ref.invalidate(battleRecordsProvider);
       // 철회는 진행 중 대결을 포기(-3)로 끝내므로 점수도 함께 바뀐다.
       ref.invalidate(myPlayerStatsProvider);
-      messenger.showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.aiConsentWithdrawDone)));
+      messenger.showSnackBar(
+        const SnackBar(content: KeepWordsText(AppStrings.aiConsentWithdrawDone)),
+      );
     } catch (e) {
       debugPrint('withdrawConsent failed: $e');
-      messenger.showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.aiConsentWithdrawFailed)));
+      messenger.showSnackBar(
+        const SnackBar(content: KeepWordsText(AppStrings.aiConsentWithdrawFailed)),
+      );
     } finally {
       if (mounted) setState(() => _withdrawing = false);
     }
@@ -67,38 +79,56 @@ class _AiConsentSectionState extends ConsumerState<AiConsentSection> {
   @override
   Widget build(BuildContext context) {
     final consentAsync = ref.watch(myAiConsentProvider);
+    final textTheme = Theme.of(context).textTheme;
 
-    return AppPanel.flat(
-      title: AppStrings.aiConsentSection,
-      child: consentAsync.when(
-        data: (consent) => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            KeepWordsText(
-              consent == null
-                  ? AppStrings.aiConsentStatusNotGiven
-                  : AppStrings.aiConsentStatusGiven(_formatDate(consent)),
-              style: Theme.of(context).textTheme.bodyMedium,
+    return Scaffold(
+      appBar: AppBar(title: const KeepWordsText(AppStrings.aiConsentSection)),
+      body: ListView(
+        // 화면 가장자리 20(redesign design 4.1).
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        children: [
+          consentAsync.when(
+            data: (consent) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // 지금 상태가 이 화면의 첫 줄이다. 동의한 날짜까지 적어 "언제 동의했더라"에 답한다.
+                AppPanel.tone(
+                  tone: consent == null ? AppTone.neutral : AppTone.success,
+                  child: KeepWordsText(
+                    consent == null
+                        ? AppStrings.aiConsentStatusNotGiven
+                        : AppStrings.aiConsentStatusGiven(_formatDate(consent)),
+                    style: textTheme.bodyMedium,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // 동의하지 않았을 때 무엇이 막히는지는 두 상태 모두에서 참이다
+                // (동의 전에는 "그래서 막혀 있다", 동의 후에는 "철회하면 막힌다").
+                KeepWordsText(AppStrings.aiConsentRefusal, style: textTheme.bodyMedium),
+                const SizedBox(height: 24),
+                if (consent == null)
+                  FilledButton(
+                    onPressed: _give,
+                    child: const KeepWordsText(AppStrings.aiConsentGive),
+                  )
+                else
+                  // 철회는 다시 동의하면 되돌릴 수 있다 — 계정 삭제(빨간 채움)보다 한 단계 낮은 위험 토널.
+                  OutlinedButton(
+                    style: AppButtonStyles.dangerTonal,
+                    onPressed: _withdrawing ? null : _withdraw,
+                    child: _withdrawing
+                        ? const AppLoader.small()
+                        : const KeepWordsText(AppStrings.aiConsentWithdraw),
+                  ),
+              ],
             ),
-            const SizedBox(height: 12),
-            if (consent == null)
-              FilledButton(onPressed: _give, child: const KeepWordsText(AppStrings.aiConsentGive))
-            else
-              // 철회는 다시 동의하면 되돌릴 수 있다 — 계정 삭제(빨간 채움)보다 한 단계 낮은 위험 토널.
-              OutlinedButton(
-                style: AppButtonStyles.dangerTonal,
-                onPressed: _withdrawing ? null : _withdraw,
-                child: _withdrawing
-                    ? const AppLoader.small()
-                    : const KeepWordsText(AppStrings.aiConsentWithdraw),
-              ),
-          ],
-        ),
-        loading: () => const Center(child: AppLoader.medium()),
-        error: (error, stackTrace) {
-          debugPrint('myAiConsentProvider error: $error');
-          return const KeepWordsText(AppStrings.aiConsentLoadFailed);
-        },
+            loading: () => const Center(child: AppLoader.medium()),
+            error: (error, stackTrace) {
+              debugPrint('myAiConsentProvider error: $error');
+              return const KeepWordsText(AppStrings.aiConsentLoadFailed);
+            },
+          ),
+        ],
       ),
     );
   }

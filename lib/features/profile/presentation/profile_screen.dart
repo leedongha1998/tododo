@@ -10,14 +10,20 @@ import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../battle/domain/battle_outcome.dart';
-import '../../battle/presentation/battle_chips.dart';
-import '../../battle/presentation/battle_detail_screen.dart';
 import '../data/player_stats.dart';
-import '../domain/battle_record.dart';
 import '../domain/profile_providers.dart';
-import 'ai_consent_section.dart';
+import 'ai_consent_settings_screen.dart';
+import 'battle_records_screen.dart';
 import 'notification_section.dart';
 
+/// 프로필 탭. **점수가 맨 위, 나머지는 메뉴**다(2026-11-12 오너 안 B).
+///
+/// 전에는 지난 대결 목록이 점수 바로 아래에 통째로 펼쳐져, 기록이 쌓일수록 동의·계정이
+/// 화면 밖으로 밀렸다(테스트가 `scrollUntilVisible`로 계정 창을 찾아야 했던 이유다).
+/// 지난 대결과 AI 동의는 각자 화면을 갖고, 이 탭은 "지금 내 점수"와 "어디로 갈 수 있는가"만 말한다.
+///
+/// 메뉴 행에 상태 값을 적지 않는다(안 A와 갈린 지점) — 한 줄을 더 적으려면 프로필을 열 때마다
+/// 동의 상태를 서버에서 읽어야 하고, 그 값이 쓰이는 자리는 들어가면 바로 나오는 첫 줄이다.
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
@@ -25,10 +31,13 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(myProfileProvider);
     final statsAsync = ref.watch(myPlayerStatsProvider);
-    final recordsAsync = ref.watch(battleRecordsProvider);
     // 무효는 점수에도 승/패/무에도 들어가지 않는다. 목록에 무효가 있을 때만 그 이유를 적는다.
+    // 목록 자체는 지난 대결 화면으로 갔지만, 숫자가 어긋나 보이는 자리는 여전히 이 화면이다.
     final hasVoidedRecord =
-        recordsAsync.value?.any((record) => record.result == BattleResult.voided) ?? false;
+        ref.watch(battleRecordsProvider).value?.any(
+          (record) => record.result == BattleResult.voided,
+        ) ??
+        false;
 
     return Scaffold(
       appBar: AppBar(title: const KeepWordsText(AppStrings.profileTitle)),
@@ -37,12 +46,14 @@ class ProfileScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
           profileAsync.when(
-            data: (profile) =>
-                KeepWordsText(profile.displayName, style: Theme.of(context).textTheme.titleLarge),
+            data: (profile) => KeepWordsText(
+              profile.displayName,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             loading: () => const Center(child: AppLoader.medium()),
             error: (error, stackTrace) {
               debugPrint('myProfileProvider error: $error');
-              return KeepWordsText(AppStrings.profileLoadFailed);
+              return const KeepWordsText(AppStrings.profileLoadFailed);
             },
           ),
           const SizedBox(height: 24),
@@ -50,37 +61,34 @@ class ProfileScreen extends ConsumerWidget {
           // (무효·취소는 서버가 애초에 세지 않고, 완료한 패배도 전적에서는 그냥 패다).
           _StatsFrame(statsAsync: statsAsync, hasVoidedRecord: hasVoidedRecord),
           const SizedBox(height: 24),
-          KeepWordsText(
-            AppStrings.profileHistorySection,
-            style: Theme.of(context).textTheme.titleMedium,
+          // 알림이 꺼져 있을 때만 보인다. 메뉴 행으로 만들지 않은 이유는 켜고 끄는 주인이 OS여서
+          // 들어가도 할 수 있는 일이 없기 때문이다 — 꺼져 있다는 사실만 알리면 된다(오너 안 B).
+          const NotificationSection(),
+          _MenuRow(
+            icon: AppIcons.history,
+            label: AppStrings.profileHistorySection,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BattleRecordsScreen()),
+            ),
           ),
           const SizedBox(height: 12),
-          recordsAsync.when(
-            data: (records) {
-              if (records.isEmpty) return const KeepWordsText(AppStrings.profileRecordEmpty);
-              // 지난 대결은 한 장씩 떠 있는 카드로 나눈다.
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final record in records) ...[
-                    _BattleRecordTile(record: record),
-                    // 목록 항목 사이 12(redesign design 4.1).
-                    const SizedBox(height: 12),
-                  ],
-                ],
-              );
-            },
-            loading: () => const Center(child: AppLoader.medium()),
-            error: (error, stackTrace) {
-              debugPrint('battleRecordsProvider error: $error');
-              return KeepWordsText(AppStrings.profileLoadRecordFailed);
-            },
+          _MenuRow(
+            icon: AppIcons.consent,
+            label: AppStrings.aiConsentSection,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AiConsentSettingsScreen()),
+            ),
           ),
-          const SizedBox(height: 24),
-          // 알림이 꺼져 있을 때만 보인다. 켜져 있으면 자리를 차지하지 않는다.
-          const NotificationSection(),
-          // 대결 참여의 전제 조건이라 계정 섹션 위에 둔다.
-          const AiConsentSection(),
+          const SizedBox(height: 12),
+          // 번들한 글꼴(OFL)의 고지를 사용자가 찾을 수 있는 자리.
+          _MenuRow(
+            icon: AppIcons.document,
+            label: AppStrings.openSourceLicenses,
+            onTap: () => showLicensePage(
+              context: context,
+              applicationName: AppStrings.appName,
+            ),
+          ),
           const SizedBox(height: 24),
           // 탭바가 생기면서 앱바 아이콘이 사라졌다. 계정 관련 동작은 전부 이 창 하나에 모은다.
           AppPanel.flat(
@@ -94,23 +102,47 @@ class ProfileScreen extends ConsumerWidget {
                   label: const KeepWordsText(AppStrings.logout),
                 ),
                 const SizedBox(height: 8),
-                // 번들한 글꼴(OFL)의 고지를 사용자가 찾을 수 있는 자리.
-                TextButton.icon(
-                  style: TextButton.styleFrom(alignment: Alignment.centerLeft),
-                  onPressed: () => showLicensePage(
-                    context: context,
-                    applicationName: AppStrings.appName,
-                  ),
-                  icon: const Icon(AppIcons.document),
-                  label: const KeepWordsText(AppStrings.openSourceLicenses),
-                ),
-                const SizedBox(height: 8),
                 const Divider(),
                 const SizedBox(height: 8),
                 // 위험 동작은 구분선 뒤 맨 아래에 따로 둔다.
                 const _DeleteAccountButton(),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 프로필 메뉴 한 줄. 눌러서 다른 화면으로 들어간다.
+///
+/// 떠 있는 카드(`AppPanel.raised`)인 이유는 **누르는 느낌** 때문이다 — 이 앱은 물결 대신
+/// 눌리는 동안 면이 두께만큼 내려오는 것으로 누름을 보여 주는데, 두께가 없는 flat은 눌러도
+/// 아무 일도 일어나지 않는 것처럼 보인다.
+class _MenuRow extends StatelessWidget {
+  const _MenuRow({required this.icon, required this.label, required this.onTap});
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return AppPanel.raised(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+          const SizedBox(width: 12),
+          Expanded(child: KeepWordsText(label, style: theme.textTheme.bodyLarge)),
+          const SizedBox(width: 8),
+          Icon(
+            AppIcons.chevronRight,
+            size: 20,
+            color: theme.colorScheme.onSurfaceVariant,
           ),
         ],
       ),
@@ -223,60 +255,6 @@ class _StatsFrame extends StatelessWidget {
           debugPrint('myPlayerStatsProvider error: $error');
           return const KeepWordsText(AppStrings.profileLoadStatsFailed);
         },
-      ),
-    );
-  }
-}
-
-/// 끝난 대결은 내 대결 탭에서 빠지므로, 지난 증거와 결과를 다시 볼 경로는 여기뿐이다.
-/// 한 대결을 떠 있는 카드 한 장으로 그려 항목끼리의 경계가 보이게 한다.
-class _BattleRecordTile extends StatelessWidget {
-  const _BattleRecordTile({required this.record});
-
-  final BattleRecord record;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final mutedColor = Theme.of(context).colorScheme.onSurfaceVariant;
-
-    return AppPanel.raised(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => BattleDetailScreen(battleId: record.battle.id)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 대결 제목은 사용자가 입력한 문장이라 본문 글꼴로 둔다.
-                KeepWordsText(
-                  record.battle.title,
-                  style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
-                  // 글꼴은 본문이지만 역할은 카드 제목이라 줄 길이를 고르게 한다(redesign 후속 2 W2).
-                  wrap: KeepWordsWrap.balanced,
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    BattleTypeBadge(type: record.battle.type),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: KeepWordsText(
-                        '${AppStrings.battleVersus} ${record.otherPartyName}',
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodyMedium?.copyWith(color: mutedColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          ResultLabel.small(result: record.result),
-        ],
       ),
     );
   }

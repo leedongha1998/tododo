@@ -852,23 +852,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(findText('나'), findsOneWidget);
+    // 점수와 승/패/무는 서버 player_stats 값을 그대로 보여 준다(화면이 목록을 세지 않는다).
+    expect(findText(AppStrings.playerScoreLabel(3)), findsOneWidget);
+    expect(findText(AppStrings.playerRecordLabel(1, 1, 0)), findsOneWidget);
+    // 무효는 점수·전적에 들어가지 않으므로 목록과 숫자가 어긋나는 이유를 알린다.
+    expect(findText(AppStrings.profileVoidedExcluded), findsOneWidget);
+
+    // 2026-11-12(오너 안 B): 지난 대결은 이 탭에 펼쳐지지 않는다. 메뉴를 눌러 들어가야 보인다 —
+    // 기록이 쌓일수록 점수 아래 모든 것이 화면 밖으로 밀리던 것을 멈추려는 것이다.
+    expect(findText('아침 운동하기'), findsNothing);
+    // 계정 창이 더는 목록 아래로 밀리지 않아 스크롤 없이 한 화면에 있다.
+    expect(findText(AppStrings.accountSection), findsOneWidget);
+    expect(findText(AppStrings.logout), findsOneWidget);
+    expect(findText(AppStrings.accountDelete), findsOneWidget);
+
+    await tester.tap(findText(AppStrings.profileHistorySection));
+    await tester.pumpAndSettle();
+
     expect(findText('아침 운동하기'), findsOneWidget);
     expect(findText('방 청소하기'), findsOneWidget);
     expect(findText('책상 정리하기'), findsOneWidget);
     expect(findText(AppStrings.battleRecordWin), findsOneWidget);
     expect(findText(AppStrings.battleRecordLose), findsOneWidget);
     expect(findText(AppStrings.battleRecordVoided), findsOneWidget);
-    // 점수와 승/패/무는 서버 player_stats 값을 그대로 보여 준다(화면이 목록을 세지 않는다).
-    expect(findText(AppStrings.playerScoreLabel(3)), findsOneWidget);
-    expect(findText(AppStrings.playerRecordLabel(1, 1, 0)), findsOneWidget);
-    // 무효는 점수·전적에 들어가지 않으므로 목록과 숫자가 어긋나는 이유를 알린다.
-    expect(findText(AppStrings.profileVoidedExcluded), findsOneWidget);
-    // 앱바 아이콘이 사라진 뒤 계정 관련 동작은 전부 이 화면에 모인다.
-    // 기록이 세 장이라 계정 창이 첫 화면 아래로 밀린다. 목록은 보이는 곳만 그리므로 내려서 확인한다.
-    await tester.scrollUntilVisible(findText(AppStrings.accountDelete), 200);
-    expect(findText(AppStrings.accountSection), findsOneWidget);
-    expect(findText(AppStrings.logout), findsOneWidget);
-    expect(findText(AppStrings.accountDelete), findsOneWidget);
   });
 
   testWidgets('전적 항목을 탭하면 지난 대결 상세로 들어간다', (WidgetTester tester) async {
@@ -896,6 +902,10 @@ void main() {
         child: const MaterialApp(home: ProfileScreen()),
       ),
     );
+    await tester.pumpAndSettle();
+
+    // 프로필 → 지난 대결 → 그 대결. 메뉴 한 단계가 2026-11-12에 생겼다(오너 안 B).
+    await tester.tap(findText(AppStrings.profileHistorySection));
     await tester.pumpAndSettle();
 
     await tester.tap(findText('아침 운동하기'));

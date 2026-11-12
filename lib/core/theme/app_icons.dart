@@ -112,4 +112,13 @@ class AppIcons {
 
   /// 모집 기준 수정(design-judging-buttons 2.7).
   static const edit = Icons.edit_rounded;
+
+  /// 프로필 메뉴 행 끝 — "눌러서 들어간다".
+  static const chevronRight = Icons.chevron_right_rounded;
+
+  /// 지난 대결 메뉴.
+  static const history = Icons.history_rounded;
+
+  /// AI 데이터 제공 동의 메뉴. 방패(개인정보)이지 로봇·얼굴이 아니다.
+  static const consent = Icons.verified_user_rounded;
 }

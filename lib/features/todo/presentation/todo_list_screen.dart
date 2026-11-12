@@ -563,6 +563,11 @@ class _TodoInputDialogState extends ConsumerState<_TodoInputDialog> {
 
     final time = await showTimePicker(
       context: context,
+      // 시계판이 아니라 **숫자 입력**으로 연다(2026-11-12 오너). 기한은 "9시 반쯤"이 아니라
+      // 정확한 시각이라 원판을 돌려 맞추는 것보다 두 자리를 치는 쪽이 빠르고, 분을 1분 단위로
+      // 집는 일이 원판에서는 특히 어렵다. 시계판으로 바꾸는 단추는 그대로 남는다(없애면
+      // 원판이 편한 사용자의 길이 막힌다).
+      initialEntryMode: TimePickerEntryMode.input,
       // 날짜만 생각하고 들어온 사용자를 위해 23:59. 확인만 눌러도 "그 날 안에"가 된다(spec).
       initialTime: _dueAt == null
           ? const TimeOfDay(hour: 23, minute: 59)

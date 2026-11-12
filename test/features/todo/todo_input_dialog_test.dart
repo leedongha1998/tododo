@@ -61,6 +61,26 @@ void main() {
     expect(repository.added.single.dueAt, isNull);
   });
 
+  // 2026-11-12 오너: 시각은 "9시 반쯤"이 아니라 정확한 값이라 원판을 돌리는 것보다 두 자리를
+  // 치는 쪽이 빠르다. 시계판으로 바꾸는 단추는 남겨 둔다(원판이 편한 사용자의 길을 막지 않는다).
+  testWidgets('시간 선택은 시계판이 아니라 숫자 입력으로 열린다', (tester) async {
+    await tester.pumpWidget(_app(_FakeTodoRepository(), const []));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await tester.tap(findText(AppStrings.todoDueAdd));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+
+    // 입력 모드의 머리말과 두 칸(시·분)의 이름. 시계판이면 'Select time'이 뜬다.
+    expect(find.text('Enter time'), findsOneWidget);
+    expect(find.text('Select time'), findsNothing);
+    expect(find.text('Hour'), findsOneWidget);
+    expect(find.text('Minute'), findsOneWidget);
+  });
+
   testWidgets('제목을 그대로 두고 기한만 넣어도 저장된다', (tester) async {
     final repository = _FakeTodoRepository();
     final todos = [

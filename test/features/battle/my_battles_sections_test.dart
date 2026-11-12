@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/core/theme/app_icons.dart';
 import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/core/widgets/app_panel.dart';
@@ -17,6 +18,7 @@ import 'package:todododo/features/battle/data/criteria_check_result.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
 import 'package:todododo/features/battle/domain/battle_summary.dart';
 import 'package:todododo/features/battle/presentation/battle_chips.dart';
+import 'package:todododo/features/battle/presentation/battle_summary_list.dart';
 import 'package:todododo/features/battle/presentation/my_battles_screen.dart';
 import 'package:todododo/core/widgets/keep_words_text.dart';
 import '../../helpers/line_breaks.dart';
@@ -119,11 +121,18 @@ Future<ProviderContainer> _pumpMyBattles(
   return container;
 }
 
-/// 라벨 원문으로 버튼을 찾는다. `TextButton.icon`·`OutlinedButton.icon`은 하위 클래스라 byType으로 잡히지 않는다.
-Finder _button<T extends ButtonStyleButton>(String label) => find.ancestor(
-      of: findText(label),
-      matching: find.byWidgetPredicate((widget) => widget is T),
-    );
+/// 카드 우측 상단의 아이콘 동작. **글자가 없으므로 툴팁으로 찾는다** — 그 툴팁이 길게 누르면
+/// 뜨는 이름이고 스크린 리더가 읽는 이름이다(2026-11-12부터 아이콘만 남았다).
+Finder _iconAction(String label) => find.ancestor(
+  of: find.byTooltip(label),
+  matching: find.byType(IconButton),
+);
+
+/// 대화상자의 버튼. 글자가 있으므로 라벨로 찾는다.
+Finder _dialogButton<T extends ButtonStyleButton>(String label) => find.ancestor(
+  of: findText(label),
+  matching: find.byWidgetPredicate((widget) => widget is T),
+);
 
 void main() {
   testWidgets('내가 등록한 모집이 진행 중 목록과 구분된 구역으로 보인다', (tester) async {
@@ -133,26 +142,66 @@ void main() {
       summaries: [_activeSummary()],
     );
 
-    // 구역 A: 제목 띠 + 모집 제목 + 모집 중 칩 + 기간 + 기다리는 중 안내 + 두 버튼.
+    // 구역 A: 머리글 + 모집 제목 + 모집 중 칩 + 기간 + 기다리는 중 안내 + 두 아이콘 동작.
     expect(findText(AppStrings.battleMyRecruits), findsOneWidget);
     expect(findText('설거지하기'), findsOneWidget);
     expect(findText(AppStrings.battleStatusPending), findsOneWidget);
     expect(findText(battleDurationLabel(30)), findsOneWidget);
     expect(findText(AppStrings.battleMyRecruitWaiting), findsOneWidget);
-    // 기준 수정 = 보조(토널, OutlinedButton), 모집 취소 = 위험 텍스트(TextButton) — design-judging-buttons 2.7.
-    expect(_button<OutlinedButton>(AppStrings.battleCriteriaEditRecruit), findsOneWidget);
-    expect(_button<TextButton>(AppStrings.battleRecruitCancel), findsOneWidget);
+
+    // 머리글은 **카드 밖**이다 — 안에 두면 모집이 여러 건일 때 카드마다 반복된다.
+    final recruitCard = find
+        .ancestor(of: findText('설거지하기'), matching: find.byType(AppPanel))
+        .first;
     expect(
-      tester.widget<TextButton>(_button<TextButton>(AppStrings.battleRecruitCancel)).style!
-          .foregroundColor!
-          .resolve(const {}),
+      find.descendant(of: recruitCard, matching: findText(AppStrings.battleMyRecruits)),
+      findsNothing,
+    );
+
+    // 두 동작은 아이콘만이고 글자는 툴팁으로만 남는다.
+    expect(_iconAction(AppStrings.battleCriteriaEditRecruit), findsOneWidget);
+    expect(_iconAction(AppStrings.battleRecruitCancel), findsOneWidget);
+    expect(findText(AppStrings.battleCriteriaEditRecruit), findsNothing);
+    expect(findText(AppStrings.battleRecruitCancel), findsNothing);
+    expect(find.byIcon(AppIcons.edit), findsOneWidget);
+    // X가 아니라 휴지통이다 — 일어나는 일은 "카드를 닫는다"가 아니라 "모집이 없어진다"다.
+    expect(find.byIcon(AppIcons.delete), findsOneWidget);
+    expect(
+      tester.widget<IconButton>(_iconAction(AppStrings.battleRecruitCancel)).color,
       AppPalette.danger,
     );
 
-    // 구역 B: 진행 중 카드는 그대로다(상대·유형·상태 칩).
+    // 구역 B: 머리글이 생겼고, 카드는 그대로다(상대·유형·상태 칩).
+    expect(findText(AppStrings.battleMyActiveBattles), findsOneWidget);
     expect(findText('방 청소하기'), findsOneWidget);
     expect(findText('${AppStrings.battleVersus} 도윤'), findsOneWidget);
     expect(findText(AppStrings.battleStatusActive), findsOneWidget);
+  });
+
+  // 머리글을 박스 밖으로 뺀 이유가 이것이다. 모집 수 제한은 2026-11-06에 없어졌으므로 모집이
+  // 여러 건일 수 있고, 안에 두면 카드마다 같은 제목이 반복됐다.
+  testWidgets('모집이 여러 건이어도 머리글은 하나이고 카드마다 두 동작이 붙는다', (tester) async {
+    final second = Battle(
+      id: 'p2',
+      type: 'quality',
+      status: 'pending',
+      title: '빨래 개기',
+      creatorId: 'me',
+      createdAt: DateTime(2026, 10, 29),
+      durationMinutes: 60,
+      minCriteria: const ['갠 빨래가 보인다'],
+      superiorityCriteria: const ['주름이 없다'],
+    );
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(recruits: [_recruit(), second]),
+    );
+
+    expect(findText(AppStrings.battleMyRecruits), findsOneWidget);
+    expect(findText('설거지하기'), findsOneWidget);
+    expect(findText('빨래 개기'), findsOneWidget);
+    expect(_iconAction(AppStrings.battleCriteriaEditRecruit), findsNWidgets(2));
+    expect(_iconAction(AppStrings.battleRecruitCancel), findsNWidgets(2));
   });
 
   testWidgets('모집 1건만 있으면 "비었다"가 아니라 진행 중이 아직 없다고만 말한다', (tester) async {
@@ -162,6 +211,8 @@ void main() {
     );
 
     expect(findText(AppStrings.battleMyRecruits), findsOneWidget);
+    // 한 줄짜리 안내에도 머리글은 둔다 — 무엇에 대한 말인지를 머리글이 말한다.
+    expect(findText(AppStrings.battleMyActiveBattles), findsOneWidget);
     expect(findText(AppStrings.battleNoActiveBattlesYet), findsOneWidget);
     // 모집 구역이 이미 "기다리는 중"을 말하므로 찾기 탭으로 보내는 버튼을 두 번 권하지 않는다.
     expect(findText(AppStrings.battleMyBattlesEmpty), findsNothing);
@@ -175,6 +226,8 @@ void main() {
     await _pumpMyBattles(tester, repository: _MyBattlesRepository());
 
     expect(findText(AppStrings.battleMyRecruits), findsNothing);
+    // 빈 목록에 이름을 붙이면 없는 것을 가리키는 머리글이 된다. 그 자리는 소개 블록이 말한다.
+    expect(findText(AppStrings.battleMyActiveBattles), findsNothing);
     expect(findText(AppStrings.battleMyBattlesEmpty), findsOneWidget);
     expect(findText(AppStrings.battleFinishedInProfile), findsOneWidget);
     expect(
@@ -204,11 +257,35 @@ void main() {
     expect(findText('설거지하기'), findsOneWidget);
   });
 
+  // 아이콘만 남으면서 "모집 취소"라는 글자가 사라졌다. 오탭 한 번에 모집이 없어지고 그 모집의
+  // AI 기준도 함께 사라지므로 한 번 확인받는다(2026-11-12 오너 확정, 포기와 같은 급).
+  testWidgets('취소 아이콘을 눌러도 확인하기 전에는 모집이 그대로다', (tester) async {
+    final repository = _MyBattlesRepository(recruits: [_recruit()]);
+    await _pumpMyBattles(tester, repository: repository);
+
+    await tester.tap(_iconAction(AppStrings.battleRecruitCancel));
+    await tester.pumpAndSettle();
+
+    // 무엇이 사라지는지 대화상자가 먼저 말한다.
+    expect(findText(AppStrings.battleRecruitCancelConfirmTitle), findsOneWidget);
+    expect(findText(AppStrings.battleRecruitCancelConfirm), findsOneWidget);
+    expect(repository.cancelCount, 0);
+
+    // 물러나면 아무 일도 없다.
+    await tester.tap(_dialogButton<TextButton>(AppStrings.cancel));
+    await tester.pumpAndSettle();
+
+    expect(repository.cancelCount, 0);
+    expect(findText('설거지하기'), findsOneWidget);
+  });
+
   testWidgets('모집을 취소하면 그 구역이 사라지고 새로 올릴 수 있는 상태로 돌아온다', (tester) async {
     final repository = _MyBattlesRepository(recruits: [_recruit()]);
     await _pumpMyBattles(tester, repository: repository);
 
-    await tester.tap(_button<TextButton>(AppStrings.battleRecruitCancel));
+    await tester.tap(_iconAction(AppStrings.battleRecruitCancel));
+    await tester.pumpAndSettle();
+    await tester.tap(_dialogButton<FilledButton>(AppStrings.battleRecruitCancel));
     await tester.pumpAndSettle();
 
     expect(repository.cancelCount, 1);
@@ -261,9 +338,13 @@ void main() {
     }
   });
 
-  // design-judging-buttons 2.7: 모집 카드 두 버튼(작은 크기). 넘치면 세로로 쌓이고 기준 수정이 위, 둘 다 오른쪽 정렬.
+  // 두 동작은 **칩 줄의 오른쪽 끝**(= 카드 우측 상단)에 있고 제목은 그 아래 가운데다
+  // (2026-11-12 오너 확정). 표적 크기는 `myBattleCardBlockHeight` 하나로 묶인다 — 이 버튼이
+  // 카드 윗줄의 높이를 정하므로 그 값이 흔들리면 제목의 가운데까지 함께 흔들린다.
   for (final scale in [1.0, 1.5]) {
-    testWidgets('360dp·$scale배에서 모집 카드 두 버튼이 카드를 넘지 않고 터치 영역이 48 이상이다', (tester) async {
+    testWidgets('360dp·$scale배에서 두 아이콘이 윗줄 높이를 지키고 칩 줄 오른쪽 끝에 있다', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(360, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -279,30 +360,180 @@ void main() {
       final card = tester.getRect(
         find.ancestor(of: findText('설거지하기'), matching: find.byType(AppPanel)).first,
       );
-      final edit = _button<OutlinedButton>(AppStrings.battleCriteriaEditRecruit);
-      final cancel = _button<TextButton>(AppStrings.battleRecruitCancel);
+      final edit = _iconAction(AppStrings.battleCriteriaEditRecruit);
+      final cancel = _iconAction(AppStrings.battleRecruitCancel);
       for (final button in [edit, cancel]) {
         final rect = tester.getRect(button);
         expect(rect.left, greaterThanOrEqualTo(card.left), reason: '$button');
         expect(rect.right, lessThanOrEqualTo(card.right), reason: '$button');
-        expect(rect.height, greaterThanOrEqualTo(48), reason: '$button');
-        expect(rect.width, greaterThanOrEqualTo(48), reason: '$button');
+        expect(
+          rect.height,
+          greaterThanOrEqualTo(myBattleCardBlockHeight),
+          reason: '$button',
+        );
+        expect(
+          rect.width,
+          greaterThanOrEqualTo(myBattleCardBlockHeight),
+          reason: '$button',
+        );
       }
+
       final editRect = tester.getRect(edit);
       final cancelRect = tester.getRect(cancel);
-      if (scale == 1.5) {
-        // "모집 취소"가 되면서 1.5배에서는 한 줄에 못 들어간다 → 기준 수정이 위, 둘 다 오른쪽 끝.
-        expect(editRect.bottom, lessThanOrEqualTo(cancelRect.top));
-        expect(editRect.right, moreOrLessEquals(cancelRect.right, epsilon: 0.5));
-      } else {
-        // 한 줄이면 모집 취소가 왼쪽, 기준 수정이 오른쪽 끝.
-        expect(editRect.top, moreOrLessEquals(cancelRect.top, epsilon: 0.5));
-        expect(cancelRect.right, lessThanOrEqualTo(editRect.left));
-      }
+      final title = tester.getRect(findText('설거지하기'));
+      final badge = tester.getRect(find.byType(BattleTypeBadge));
+      // 한 줄이다 — 기준 수정이 왼쪽, 모집 취소가 오른쪽 끝.
+      expect(editRect.top, moreOrLessEquals(cancelRect.top, epsilon: 0.5));
+      expect(editRect.right, lessThanOrEqualTo(cancelRect.left));
+      // 칩과 겹치지 않는다(칩 칸이 두 버튼만큼 좁아진 것이 이 배치의 대가다).
+      expect(badge.right, lessThanOrEqualTo(editRect.left + 0.5));
+      // 읽는 순서: 칩 줄 → 제목. 두 동작은 그 칩 줄에 있다(= 카드 우측 상단).
+      expect(badge.bottom, lessThanOrEqualTo(title.top));
+      expect(cancelRect.bottom, lessThanOrEqualTo(title.top + 0.5));
     });
   }
 
-  // redesign 후속 2 W2: 대결 제목은 본문 글꼴(bodyLarge)이지만 카드 제목 역할이라 균형 줄바꿈을 쓴다.
+  // 칩은 제목보다 먼저 읽히는 **곁들이는 정보**다. 제목과 같은 무게로 서 있으면 무엇이 이
+  // 카드의 이름인지 흐려진다 — 그래서 두 카드 모두 한 단계 줄였다(14 → 12, 2026-11-12 오너 확정).
+  testWidgets('모집 카드와 진행 중 카드의 칩이 모두 한 단계 작다', (tester) async {
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(recruits: [_recruit()]),
+      summaries: [_activeSummary()],
+      theme: AppTheme.light,
+    );
+
+    for (final label in [
+      AppStrings.battleStatusPending,
+      AppStrings.battleStatusActive,
+    ]) {
+      expect(
+        tester.widget<KeepWordsText>(findText(label)).style?.fontSize,
+        12,
+        reason: label,
+      );
+    }
+    // 유형 배지도 같이 줄어야 한 줄이 들쭉날쭉해지지 않는다.
+    final badges = find.byType(BattleTypeBadge);
+    expect(badges, findsNWidgets(2));
+    for (var i = 0; i < 2; i++) {
+      expect(tester.widget<BattleTypeBadge>(badges.at(i)).compact, isTrue);
+    }
+  });
+
+  // 제목은 **카드의 정확한 가운데**다(2026-11-12 오너 확정). 윗줄(48dp 버튼이 높이를 정한다)과
+  // 아랫줄을 같은 높이로 두어 맞췄으므로 글자 배율이 커져도 대칭이 깨지지 않는다.
+  for (final scale in [1.0, 1.5]) {
+    testWidgets('360dp·$scale배에서 모집 카드 제목이 카드 한가운데에 선다', (tester) async {
+      tester.view.physicalSize = const Size(360, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await _pumpMyBattles(
+        tester,
+        repository: _MyBattlesRepository(recruits: [_recruit()]),
+        theme: AppTheme.light,
+        textScale: scale,
+      );
+      expect(tester.takeException(), isNull);
+
+      final card = tester.getRect(
+        find.ancestor(of: findText('설거지하기'), matching: find.byType(AppPanel)).first,
+      );
+      final title = tester.getRect(findText('설거지하기'));
+      // 허용 오차 4의 이유: **대칭은 윗줄 높이를 아이콘 버튼이 정할 때 정확하다.** 칩이 두 줄로
+      // 넘어가면 윗줄만 그만큼 자라고 아랫줄은 그대로라 가운데가 그 절반만큼 내려간다.
+      // 테스트 글꼴은 글자마다 정사각형이라 실제보다 훨씬 넓어 여기서는 칩이 두 줄이 된다
+      // (실기기 360dp·1배에서는 세 칩이 한 줄이고 정확히 가운데다 — 2026-11-12 확인).
+      expect(title.center.dy, moreOrLessEquals(card.center.dy, epsilon: 4));
+
+      // 목록 본문(16)보다 한 단계 위다 — 이 카드에서 제목은 유일한 주인공이다.
+      expect(
+        tester.widget<KeepWordsText>(findText('설거지하기')).style?.fontSize,
+        18,
+      );
+    });
+  }
+
+  // 두 카드는 **같은 포맷**이다(2026-11-12 오너 — "둘이 같은 포맷을 써야지 디자인이 왜 달라?").
+  // 모집 카드만 고치는 동안 진행 중 카드가 옛 짜임새(제목이 맨 위, 상태 칩이 오른쪽 끝)로
+  // 남아 한 화면에 두 디자인이 섞였다. 짜임새가 다시 갈라지면 이 테스트가 깨진다.
+  testWidgets('모집 카드와 진행 중 카드가 같은 짜임새를 쓴다 — 칩 줄 → 제목 → 안내', (tester) async {
+    tester.view.physicalSize = const Size(360, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(recruits: [_recruit()]),
+      summaries: [_activeSummary()],
+      theme: AppTheme.light,
+    );
+    expect(tester.takeException(), isNull);
+
+    final insets = <double>[];
+    for (final title in ['설거지하기', '방 청소하기']) {
+      final card = tester.getRect(
+        find.ancestor(of: findText(title), matching: find.byType(AppPanel)).first,
+      );
+      final titleRect = tester.getRect(findText(title));
+      final badge = tester.getRect(
+        find.descendant(
+          of: find.ancestor(of: findText(title), matching: find.byType(AppPanel)).first,
+          matching: find.byType(BattleTypeBadge),
+        ),
+      );
+      // 유형 배지(= 칩 줄)가 제목보다 위다.
+      expect(badge.bottom, lessThanOrEqualTo(titleRect.top), reason: title);
+      // 제목 크기가 같다.
+      expect(
+        tester.widget<KeepWordsText>(findText(title)).style?.fontSize,
+        18,
+        reason: title,
+      );
+      // 제목이 카드 가운데다(오차는 위 중앙 테스트와 같은 이유).
+      expect(
+        titleRect.center.dy,
+        moreOrLessEquals(card.center.dy, epsilon: 4),
+        reason: title,
+      );
+      insets.add(titleRect.left - card.left);
+    }
+    // 카드 안쪽 여백도 같다(두 카드가 같은 `myBattleCardPadding`을 쓴다).
+    expect(insets.first, moreOrLessEquals(insets.last, epsilon: 0.5));
+  });
+
+  // 상태 칩은 **칩 줄의 오른쪽 끝**이다(2026-11-12 오너 — "판정중 표시는 우측 상단에 둬").
+  // 모집 카드가 그 자리에 두 동작을 두는 것과 같은 자리이고, 유형 배지·상대 이름은 왼쪽에 남는다.
+  testWidgets('진행 중 카드의 상태 칩은 칩 줄 오른쪽 끝에 있다', (tester) async {
+    tester.view.physicalSize = const Size(360, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await _pumpMyBattles(
+      tester,
+      repository: _MyBattlesRepository(),
+      summaries: [_activeSummary()],
+      theme: AppTheme.light,
+    );
+    expect(tester.takeException(), isNull);
+
+    final card = tester.getRect(
+      find.ancestor(of: findText('방 청소하기'), matching: find.byType(AppPanel)).first,
+    );
+    expect(findText(AppStrings.battleStatusActive), findsOneWidget);
+    final chip = tester.getRect(find.byType(BattleStatusChip));
+    final badge = tester.getRect(find.byType(BattleTypeBadge));
+    final title = tester.getRect(findText('방 청소하기'));
+    // 오른쪽 끝 — 카드 오른쪽 여백(16 + 테두리) 안쪽에 붙는다.
+    expect(chip.right, greaterThan(card.right - 24));
+    expect(chip.right, lessThanOrEqualTo(card.right));
+    // 유형 배지와 같은 줄이고, 둘 다 제목보다 위다.
+    expect(badge.right, lessThanOrEqualTo(chip.left));
+    expect(chip.bottom, lessThanOrEqualTo(title.top));
+  });
+
+  // redesign 후속 2 W2: 대결 제목은 카드 제목(titleMedium)이라 균형 줄바꿈을 쓴다.
   // "냉장고 안 유통기한 지난 음식 전부 / 버리기"처럼 한 어절만 넘어가지 않는다.
   testWidgets('진행 중 카드의 긴 대결 제목은 360dp·1.5배에서 줄 길이가 고르다', (tester) async {
     tester.view.physicalSize = const Size(360, 900);

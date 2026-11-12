@@ -92,6 +92,11 @@ class AppStrings {
   static const battleRecruitCancel = '모집 취소';
   static const battleRecruitCancelled = '모집을 취소했습니다.';
   static const battleRecruitCancelFailed = '취소에 실패했습니다. 다시 시도해주세요.';
+  // 카드의 두 동작이 아이콘만 남으면서(2026-11-12 오너 확정) 글자로 하던 경고가 사라졌다.
+  // 오탭 한 번에 모집이 없어지므로 포기와 같은 급으로 한 번 확인받는다.
+  static const battleRecruitCancelConfirmTitle = '모집을 취소할까요?';
+  static const battleRecruitCancelConfirm =
+      '올려 둔 모집이 없어지고 AI가 만든 판정 기준도 함께 사라져요. 다시 올리려면 기준을 새로 만들어야 해요.';
 
   // 모집 찾기: 검색·필터·무한 스크롤·빈 상태 3종.
   static const battleSearchHint = '제목으로 찾기';
@@ -108,6 +113,9 @@ class AppStrings {
   static const battleMyRecruitWaiting = '아직 아무도 참가하지 않았어요.';
 
   static const battleMyBattles = '내 대결';
+  // 구역 머리글. 모집 구역의 제목이 박스 안에서 밖으로 나오면서(2026-11-12 오너 확정) 이쪽도
+  // 머리글을 갖는다 — 한쪽만 이름이 있으면 나머지가 "그 밖의 것"으로 읽힌다.
+  static const battleMyActiveBattles = '내가 참가하고 있는 대결';
   static const battleMyBattlesEmpty = '진행 중인 대결이 없어요.';
   // 로그인 직후 첫 탭이 `내 대결`이고, 아무것도 없는 새 계정이 이 앱이 무엇인지 알 수 있는 유일한 자리다.
   // 온보딩 화면을 따로 만들지 않고 빈 상태 위 블록 한 장으로만 말한다(audit.md M6, 오너 승인 문구).

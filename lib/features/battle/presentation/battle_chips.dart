@@ -139,16 +139,22 @@ Color battleTypeAccent(String type) {
 /// 테두리를 벗어도 색 칸·아이콘·글자로 식별된다. **전 화면 공용**이다 — 화면별 변형(flat 플래그 등)은
 /// 만들지 않는다(이 파일 머리말의 존재 이유).
 class BattleTypeBadge extends StatelessWidget {
-  const BattleTypeBadge({super.key, required this.type});
+  const BattleTypeBadge({super.key, required this.type, this.compact = false});
 
   final String type;
+
+  /// 칩이 제목보다 먼저 오는 자리에서 쓰는 작은 크기(`AppTagSize.compact`와 짝).
+  /// 같은 줄에 서는 칩들끼리 글자 크기가 다르면 한 줄이 들쭉날쭉해진다.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final isSpeed = type == 'speed';
+    final textTheme = Theme.of(context).textTheme;
+    final square = compact ? 20.0 : 24.0;
 
     return Container(
-      constraints: const BoxConstraints(minHeight: 24),
+      constraints: BoxConstraints(minHeight: square),
       // 면색은 남긴다(surface가 아닌 면 위에 놓여도 칩 모양을 잃지 않는다).
       decoration: const ShapeDecoration(
         color: AppPalette.surface,
@@ -158,8 +164,8 @@ class BattleTypeBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 24,
-            height: 24,
+            width: square,
+            height: square,
             decoration: ShapeDecoration(
               color: battleTypeAccent(type),
               shape: const DepthBorder(radius: 6),
@@ -167,16 +173,17 @@ class BattleTypeBadge extends StatelessWidget {
             alignment: Alignment.center,
             child: Icon(
               isSpeed ? AppIcons.speed : AppIcons.quality,
-              size: 16,
+              size: compact ? 14 : 16,
               color: AppPalette.ink,
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: compact ? 4 : 6),
           KeepWordsText(
             battleTypeLabel(type),
-            style: Theme.of(context).textTheme.labelMedium!.copyWith(color: AppPalette.ink),
+            style: (compact ? textTheme.labelSmall : textTheme.labelMedium)!
+                .copyWith(color: AppPalette.ink),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: compact ? 6 : 8),
         ],
       ),
     );
@@ -185,13 +192,20 @@ class BattleTypeBadge extends StatelessWidget {
 
 /// 진행중/판정중/종료/미결/무승부를 면·테두리·글자색으로도 구분한다.
 class BattleStatusChip extends StatelessWidget {
-  const BattleStatusChip({super.key, required this.status});
+  const BattleStatusChip({super.key, required this.status, this.compact = false});
 
   final String status;
 
+  /// 카드 안에서 제목보다 작게 두는 크기(`BattleTypeBadge.compact`와 짝).
+  final bool compact;
+
   @override
   Widget build(BuildContext context) {
-    return AppTag(label: battleStatusLabel(status), style: battleStatusTagStyle(status));
+    return AppTag(
+      label: battleStatusLabel(status),
+      style: battleStatusTagStyle(status),
+      size: compact ? AppTagSize.compact : AppTagSize.small,
+    );
   }
 }
 

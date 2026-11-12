@@ -46,11 +46,17 @@ class AppTagStyle {
       Object.hash(fill, textColor, borderColor, dashed, raised, icon);
 }
 
-enum AppTagSize { small, large }
+enum AppTagSize { compact, small, large }
 
 /// 짧은 글자 한 덩어리의 기본 조각(design 5.2). 모서리 8, 테두리 1.5dp.
-/// small: 최소 높이 28·좌우 10·`labelMedium` / large: 최소 높이 40·좌우 14·`titleMedium`.
+/// compact: 최소 높이 24·좌우 8·`labelSmall` / small: 최소 높이 28·좌우 10·`labelMedium` /
+/// large: 최소 높이 40·좌우 14·`titleMedium`.
 /// 높이를 고정하지 않고 최소값만 두어 글자 크기 1.5배에서도 잘리지 않는다.
+///
+/// compact는 **칩이 제목보다 먼저 오는 자리**를 위해 2026-11-12에 생겼다(내 대결 탭의 모집 카드).
+/// 제목 위에 놓이는 칩은 읽는 순서상 곁들이는 정보라 제목과 같은 무게로 보이면 안 된다.
+/// readability.md 방안 2가 칩 라벨을 12 → 14로 키운 것은 **칩이 그 카드의 주 정보**인 자리
+/// (진행 중 카드·찾기 목록)를 두고 한 결정이고, 그쪽은 small 그대로다.
 class AppTag extends StatelessWidget {
   const AppTag({
     super.key,
@@ -67,14 +73,18 @@ class AppTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLarge = size == AppTagSize.large;
     final border = style.borderColor;
     final textTheme = Theme.of(context).textTheme;
     final icon = style.icon;
+    final (minHeight, horizontal, labelStyle) = switch (size) {
+      AppTagSize.compact => (24.0, 8.0, textTheme.labelSmall),
+      AppTagSize.small => (28.0, 10.0, textTheme.labelMedium),
+      AppTagSize.large => (40.0, 14.0, textTheme.titleMedium),
+    };
 
     return Container(
-      constraints: BoxConstraints(minHeight: isLarge ? 40 : 28),
-      padding: EdgeInsets.symmetric(horizontal: isLarge ? 14 : 10),
+      constraints: BoxConstraints(minHeight: minHeight),
+      padding: EdgeInsets.symmetric(horizontal: horizontal),
       decoration: ShapeDecoration(
         color: style.fill,
         shape: DepthBorder(
@@ -97,8 +107,7 @@ class AppTag extends StatelessWidget {
           ],
           KeepWordsText(
             label,
-            style: (isLarge ? textTheme.titleMedium : textTheme.labelMedium)!
-                .copyWith(color: style.textColor),
+            style: labelStyle!.copyWith(color: style.textColor),
           ),
         ],
       ),

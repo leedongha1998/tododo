@@ -669,8 +669,9 @@ begin
     'noauth_has', v_noauth_has,
     'noauth_mark', v_noauth_mark,
     'f_reads', v_f_reads,
-    'f_outbox', v_f_outbox,
-    -- 치우기(7절)
+    'f_outbox', v_f_outbox
+  ) || jsonb_build_object(
+    -- 치우기(7절). jsonb_build_object는 인자 100개가 상한이라 7절을 따로 만들어 합친다.
     'dismiss_other', v_dismiss_other,
     'dismiss_other_rows', v_dismiss_other_rows,
     'dismiss_missing', v_dismiss_missing,
@@ -744,8 +745,9 @@ begin
     'noauth_mark', '로그인이 필요합니다.',
     -- 탈퇴하면 읽음 행과 내 수신 원장이 함께 사라진다.
     'f_reads', 0,
-    'f_outbox', 0,
-    -- 치우기(7절). 남의 알림 id와 없는 id는 예외 없이 조용히 무시되고 행도 생기지 않는다.
+    'f_outbox', 0
+  ) || jsonb_build_object(
+    -- 치우기(7절). 위와 같은 이유로 따로 만들어 합친다. 남의 알림 id와 없는 id는 예외 없이 조용히 무시되고 행도 생기지 않는다.
     'dismiss_other', '조용히 무시',
     'dismiss_other_rows', 0,
     'dismiss_missing', '조용히 무시',

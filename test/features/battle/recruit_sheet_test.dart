@@ -29,6 +29,7 @@ import 'package:todododo/features/profile/domain/profile_providers.dart';
 
 import '../../core/push/push_fakes.dart';
 import '../../helpers/text_finders.dart';
+import '../notification/notification_fakes.dart';
 
 class _FakeBattleRepository implements BattleRepository {
   _FakeBattleRepository({this.joinError});
@@ -211,6 +212,7 @@ Future<ProviderContainer> _pumpSheet(
   repository.refreshedBattle = refreshed;
   final container = ProviderContainer(
     overrides: [
+      ...notificationOverrides,
       battleRepositoryProvider.overrideWithValue(repository),
       authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
       vsIntroSeenStoreProvider.overrideWithValue(const _SeenAllStore()),

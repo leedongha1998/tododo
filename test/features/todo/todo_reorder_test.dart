@@ -20,6 +20,7 @@ import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import '../../core/push/push_fakes.dart';
 import '../../helpers/text_finders.dart';
 import 'due_alarm_fakes.dart';
+import '../notification/notification_fakes.dart';
 
 /// 손으로 끌어 순서를 바꾸는 길 전부(todo-reorder spec "끌어서 옮기기"·"저장 실패").
 ///
@@ -543,6 +544,7 @@ List<Todo> _todos({int? doneIndex}) {
 Widget _app(TodoRepository repository) {
   return ProviderScope(
     overrides: [
+      ...notificationOverrides,
       todoRepositoryProvider.overrideWithValue(repository),
       authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
       // 실제 provider는 `supabase.auth`를 읽으므로 사용자 id만 가짜로 끼운다. 목록은 여전히

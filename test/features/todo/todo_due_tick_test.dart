@@ -14,6 +14,7 @@ import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import '../../core/push/push_fakes.dart';
 import '../../helpers/text_finders.dart';
 import 'due_alarm_fakes.dart';
+import '../notification/notification_fakes.dart';
 
 /// 남은 시간 문구가 **아무것도 저장하지 않아도 스스로 줄어드는지**(2026-11-12 버그).
 ///
@@ -174,6 +175,7 @@ Todo _todo({required DateTime dueAt, bool isDone = false}) => Todo(
 Widget _app(TodoRepository repository, _FakeClock clock) {
   return ProviderScope(
     overrides: [
+      ...notificationOverrides,
       todoRepositoryProvider.overrideWithValue(repository),
       authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
       todoNowProvider.overrideWithValue(clock.now),

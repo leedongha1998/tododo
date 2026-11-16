@@ -7,6 +7,7 @@ import '../../features/battle/domain/battle_providers.dart';
 import '../../features/battle/presentation/battle_detail_screen.dart';
 import '../../features/battle/presentation/battle_recruits_screen.dart';
 import '../../features/battle/presentation/my_battles_screen.dart';
+import '../../features/notification/domain/notification_providers.dart';
 import '../../features/profile/domain/profile_providers.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/todo/data/todo.dart';
@@ -34,9 +35,17 @@ class MainShell extends ConsumerStatefulWidget {
 class _MainShellState extends ConsumerState<MainShell> {
   PushService? _push;
 
+  /// 앱이 백그라운드에서 돌아오는 순간 알림 배지를 다시 읽는다. **탭을 바꾸지 않고 돌아오는
+  /// 경로가 가장 흔한 누락 구멍**이라 탭 전환 리스너만으로는 덮이지 않는다(notification-inbox
+  /// design 흐름 2). 같은 API를 쓰는 선례는 `lib/core/widgets/time_ticker.dart`다.
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
+    _lifecycle = AppLifecycleListener(
+      onResume: () => ref.invalidate(hasNewNotificationsProvider),
+    );
     unawaited(_startPush());
     // 이 화면은 세션이 있을 때만 떠 있으므로 여기가 "로그인 직후"다. 기기 캐시를 먼저 되읽어
     // 지난 목록을 지키고(앱을 다시 켠 뒤 네트워크가 없으면 그 목록이 유일하게 보여 줄 것이다),
@@ -130,6 +139,7 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   void dispose() {
+    _lifecycle.dispose();
     _push?.stop();
     super.dispose();
   }
@@ -160,6 +170,10 @@ class _MainShellState extends ConsumerState<MainShell> {
         // 기기 설정에서 알림을 켜고 돌아왔을 수 있다. "꺼져 있어요" 안내가 남아 있지 않게 다시 읽는다.
         ref.invalidate(notificationPermissionProvider);
       }
+      // 알림 배지는 **탭을 가리지 않는다** — 네 앱바에 같은 종 아이콘이 있고, 배지는 탭에 속한
+      // 값이 아니라 계정의 값이다. 탭 전환은 사용자가 앱 안에서 움직이는 가장 흔한 계기이고
+      // `exists` 한 번이라 가볍다(notification-inbox design 흐름 2).
+      ref.invalidate(hasNewNotificationsProvider);
     });
 
     // 앱이 떠 있는 동안 알림을 탭하면(백그라운드에서 돌아온 경우) 여기서 집어 간다.

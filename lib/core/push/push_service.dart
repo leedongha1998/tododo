@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/battle/domain/battle_providers.dart';
+import '../../features/notification/domain/notification_providers.dart';
 import 'notification_payload.dart';
 import 'push_messaging.dart';
 import 'push_providers.dart';
@@ -122,6 +123,11 @@ class PushService {
   void _handleForegroundMessage(Map<String, dynamic> data) {
     try {
       _ref.invalidate(myBattlesProvider);
+      // 같은 사건이 알림 원장에도 한 행으로 남아 있다. 배지를 그 자리에서 켜고, 알림함이
+      // 열려 있으면 목록도 다시 읽는다 — 그래서 "알림함에 머물러 있는데 갱신되지 않는다"는
+      // 구멍이 막힌다(notification-inbox design 흐름 5).
+      _ref.invalidate(hasNewNotificationsProvider);
+      _ref.invalidate(notificationInboxProvider);
       final battleId = battleIdOf(data);
       if (battleId != null) _ref.invalidate(battleDetailProvider(battleId));
     } catch (error) {

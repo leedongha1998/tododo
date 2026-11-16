@@ -30,6 +30,7 @@ import 'package:todododo/core/push/push_messaging.dart';
 
 import '../../core/push/push_fakes.dart';
 import '../../helpers/text_finders.dart';
+import '../notification/notification_fakes.dart';
 
 /// 참가만 성공하거나 실패하게 두고 나머지는 비워 둔 저장소.
 class _JoinOnlyBattleRepository implements BattleRepository {
@@ -193,6 +194,7 @@ Future<void> _pumpRecruits(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        ...notificationOverrides,
         battleRepositoryProvider.overrideWithValue(repository),
         // 동의 절차는 ai_consent_test.dart에서 따로 본다. 여기서는 이미 동의한 사용자로 둔다.
         myAiConsentProvider.overrideWith(

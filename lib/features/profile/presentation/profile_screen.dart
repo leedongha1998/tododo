@@ -10,6 +10,7 @@ import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../battle/domain/battle_outcome.dart';
+import '../../notification/presentation/notification_bell.dart';
 import '../data/player_stats.dart';
 import '../domain/profile_providers.dart';
 import 'ai_consent_settings_screen.dart';
@@ -40,7 +41,12 @@ class ProfileScreen extends ConsumerWidget {
         false;
 
     return Scaffold(
-      appBar: AppBar(title: const KeepWordsText(AppStrings.profileTitle)),
+      appBar: AppBar(
+        title: const KeepWordsText(AppStrings.profileTitle),
+        // 알림함 입구는 네 탭 앱바 모두에 같은 자리·같은 모양으로 둔다(spec 결정 4).
+        // 프로필 메뉴에는 알림함 입구를 두지 않는다 - 입구는 한 종류다(spec).
+        actions: const [NotificationBell()],
+      ),
       body: ListView(
         // 화면 가장자리 20(redesign design 4.1).
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),

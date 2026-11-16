@@ -52,6 +52,9 @@ import 'helpers/line_breaks.dart';
 import 'features/todo/due_alarm_fakes.dart';
 import 'features/todo/todo_widget_fakes.dart';
 import 'helpers/text_finders.dart';
+import 'package:todododo/features/notification/presentation/notification_bell.dart';
+
+import 'features/notification/notification_fakes.dart';
 
 /// 프로필이 보여 주는 점수·전적은 서버 `player_stats` 값이다. 화면이 목록을 세지 않는지
 /// 보려고 기록 목록과 일부러 다른 숫자를 쓴다.
@@ -234,6 +237,7 @@ BattleDetail _detail({
 Widget _detailScreen(BattleDetail detail) {
   return ProviderScope(
     overrides: [
+      ...notificationOverrides,
       battleDetailProvider(detail.battle.id).overrideWith((ref) async => detail),
       battleRepositoryProvider.overrideWithValue(_FakeBattleRepository()),
       // 인트로가 상세 화면 검증에 끼어들지 않게 이미 봤다고 둔다.
@@ -276,6 +280,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           todosProvider.overrideWith((ref) async => const <Todo>[]),
           myBattlesProvider.overrideWith((ref) async => const []),
         ],
@@ -296,6 +301,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           todosProvider.overrideWith((ref) async => todos),
           myBattlesProvider.overrideWith((ref) async => const []),
         ],
@@ -343,6 +349,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           todosProvider.overrideWith((ref) async => todos),
           myBattlesProvider.overrideWith((ref) async => const []),
         ],
@@ -385,6 +392,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           todosProvider.overrideWith((ref) async => todos),
           myBattlesProvider.overrideWith((ref) async => const []),
         ],
@@ -409,6 +417,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ...notificationOverrides,
             todosProvider.overrideWith(
               (ref) async => [Todo(id: '1', title: title, isDone: false, createdAt: DateTime(2026, 11, 8))],
             ),
@@ -443,6 +452,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           todosProvider.overrideWith(
             (ref) async => [Todo(id: '1', title: title, isDone: false, createdAt: DateTime(2026, 11, 8))],
           ),
@@ -493,6 +503,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           todosProvider.overrideWith((ref) async => todos),
           myBattlesProvider.overrideWith((ref) async => const []),
         ],
@@ -563,6 +574,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           todosProvider.overrideWith((ref) async => []),
           myBattlesProvider.overrideWith((ref) async => []),
           myRecruitsProvider.overrideWith((ref) async => []),
@@ -590,10 +602,52 @@ void main() {
     expect(findText(AppStrings.todoTitle), findsWidgets);
   });
 
+  testWidgets('네 탭 모두 앱바 오른쪽에 알림함 종 아이콘이 있다', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...notificationOverrides,
+          todosProvider.overrideWith((ref) async => []),
+          myBattlesProvider.overrideWith((ref) async => []),
+          myRecruitsProvider.overrideWith((ref) async => []),
+          battleRepositoryProvider.overrideWithValue(_FakeBattleRepository()),
+          myAiConsentProvider.overrideWith((ref) async => null),
+          myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          myPlayerStatsProvider.overrideWith((ref) async => _testStats),
+          battleRecordsProvider.overrideWith((ref) async => []),
+          ...pushOverrides(),
+          ...todoWidgetOverrides(),
+          ...dueAlarmOverrides(),
+        ],
+        child: const MaterialApp(home: MainShell()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // IndexedStack이라 네 화면이 동시에 살아 있다. 보이는 것은 지금 탭의 앱바 하나뿐이므로
+    // 탭을 옮겨 가며 확인한다(입구는 네 탭 전부 — notification-inbox spec 결정 4).
+    for (final label in [
+      AppStrings.battleMyBattles,
+      AppStrings.battleFind,
+      AppStrings.todoTitle,
+      AppStrings.profileTitle,
+    ]) {
+      await tester.tap(
+        find.descendant(of: find.byType(NavigationBar), matching: findText(label)),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byType(NotificationBell, skipOffstage: true),
+        findsOneWidget,
+        reason: label,
+      );
+    }
+  });
+
   testWidgets('할 일 탭의 추가 버튼은 곧장 입력창을 연다', (WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [todosProvider.overrideWith((ref) async => [])],
+        overrides: [...notificationOverrides, todosProvider.overrideWith((ref) async => [])],
         child: const MaterialApp(home: TodoListScreen()),
       ),
     );
@@ -612,6 +666,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           battleRepositoryProvider.overrideWithValue(_FakeBattleRepository()),
         ],
         child: const MaterialApp(home: BattleRecruitsScreen()),
@@ -647,6 +702,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           battleRepositoryProvider.overrideWithValue(
             _FakeBattleRepository(
               recruits: [
@@ -821,6 +877,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
           myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
@@ -883,6 +940,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
           myAiConsentProvider.overrideWith((ref) async => null),
           myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
@@ -921,6 +979,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           authRepositoryProvider.overrideWithValue(authRepository),
           // 프로필 동의 섹션이 서버를 보지 않게 "동의 안 함"으로 고정한다(동의 흐름은 ai_consent_test.dart).
           myAiConsentProvider.overrideWith((ref) async => null),
@@ -967,6 +1026,7 @@ void main() {
     final detail = _detail(id: 'bv', type: 'speed', status: 'active');
     Widget screen() => ProviderScope(
           overrides: [
+            ...notificationOverrides,
             battleDetailProvider('bv').overrideWith((ref) async => detail),
             vsIntroSeenStoreProvider.overrideWithValue(store),
           ],
@@ -1078,6 +1138,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           todosProvider.overrideWith((ref) async => []),
           myBattlesProvider.overrideWith((ref) async => []),
           myRecruitsProvider.overrideWith((ref) async => []),
@@ -1332,6 +1393,7 @@ Future<void> _pumpMainShellForWidgetCache(
 }) async {
   final container = ProviderContainer(
     overrides: [
+      ...notificationOverrides,
       todosProvider.overrideWith((ref) async {
         final error = todosError;
         if (error != null) throw error;

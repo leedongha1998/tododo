@@ -15,6 +15,7 @@ import '../../../core/widgets/app_tag.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../auth/domain/auth_providers.dart';
+import '../../notification/presentation/notification_bell.dart';
 import '../../profile/domain/profile_providers.dart';
 import '../data/open_recruit.dart';
 import '../domain/battle_providers.dart';
@@ -187,7 +188,11 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const KeepWordsText(AppStrings.battleFind)),
+      appBar: AppBar(
+        title: const KeepWordsText(AppStrings.battleFind),
+        // 알림함 입구는 네 탭 앱바 모두에 같은 자리·같은 모양으로 둔다(spec 결정 4).
+        actions: const [NotificationBell()],
+      ),
       // 마음에 드는 모집이 없을 때의 다음 행동이 "내가 만든다"이고, 그 판단은 목록을 보는 자리에서 나온다.
       // 라벨을 뗀 아이콘 전용(56x56)이다 — 글자까지 둔 버튼이 카드 오른쪽 절반을 덮었다.
       // 이름은 tooltip과 빈 상태의 글자 버튼이 말한다.

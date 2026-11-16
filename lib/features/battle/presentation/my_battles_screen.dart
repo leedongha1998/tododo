@@ -10,6 +10,7 @@ import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/app_tag.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
+import '../../notification/presentation/notification_bell.dart';
 import '../data/battle.dart';
 import '../domain/battle_providers.dart';
 import '../domain/battle_summary.dart';
@@ -82,7 +83,11 @@ class MyBattlesScreen extends ConsumerWidget {
     final recruits = recruitsAsync.value ?? const <Battle>[];
 
     return Scaffold(
-      appBar: AppBar(title: const KeepWordsText(AppStrings.battleMyBattles)),
+      appBar: AppBar(
+        title: const KeepWordsText(AppStrings.battleMyBattles),
+        // 알림함 입구는 네 탭 앱바 모두에 같은 자리·같은 모양으로 둔다(spec 결정 4).
+        actions: const [NotificationBell()],
+      ),
       // 빈 상태와 에러까지 감싸야 한다. 목록이 비었을 때야말로 새로고침이 필요하다.
       body: RefreshIndicator(
         onRefresh: () async {

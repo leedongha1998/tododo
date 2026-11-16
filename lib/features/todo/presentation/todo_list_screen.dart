@@ -16,6 +16,7 @@ import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../../core/widgets/time_ticker.dart';
 import '../../auth/domain/auth_providers.dart';
+import '../../notification/presentation/notification_bell.dart';
 import '../data/todo.dart';
 import '../domain/due_date_rules.dart';
 import '../domain/todo_order.dart';
@@ -410,7 +411,11 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
     });
 
     return Scaffold(
-      appBar: AppBar(title: const KeepWordsText(AppStrings.todoTitle)),
+      appBar: AppBar(
+        title: const KeepWordsText(AppStrings.todoTitle),
+        // 알림함 입구는 네 탭 앱바 모두에 같은 자리·같은 모양으로 둔다(spec 결정 4).
+        actions: const [NotificationBell()],
+      ),
       body: todosAsync.when(
         data: (data) {
           // 끌어 놓은 결과가 있으면 그것을 그린다(서버가 답하면 리스너가 지운다).

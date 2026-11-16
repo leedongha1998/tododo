@@ -23,6 +23,7 @@ import 'package:todododo/features/battle/presentation/battle_chips.dart';
 import 'package:todododo/features/battle/presentation/battle_recruits_screen.dart';
 import 'package:todododo/core/widgets/keep_words_text.dart';
 import '../../helpers/text_finders.dart';
+import '../notification/notification_fakes.dart';
 
 OpenRecruit _recruit(int index, {String type = 'speed', int minutes = 30}) =>
     OpenRecruit(
@@ -130,7 +131,7 @@ Future<ProviderContainer> _pumpFind(
   _BrowseRepository repository,
 ) async {
   final container = ProviderContainer(
-    overrides: [battleRepositoryProvider.overrideWithValue(repository)],
+    overrides: [...notificationOverrides, battleRepositoryProvider.overrideWithValue(repository)],
     // Riverpod는 실패한 provider를 스스로 다시 부른다(기본 재시도). 테스트에서는 그 타이머가
     // 남아 "Timer is still pending"으로 터지므로, 실패 화면만 보려고 끈다.
     retry: (retryCount, error) => null,
@@ -186,8 +187,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(recruitFilterProvider).query, '집 1');
 
-    // 입력이 있을 때만 생기는 지우기 버튼.
-    await tester.tap(find.byType(IconButton));
+    // 입력이 있을 때만 생기는 지우기 버튼. 앱바에도 알림함 종 버튼이 있어(notification-inbox)
+    // IconButton만으로는 두 개가 잡힌다 — 검색 필드 안의 것으로 좁힌다.
+    await tester.tap(
+      find.descendant(of: find.byType(TextField), matching: find.byType(IconButton)),
+    );
     await tester.pumpAndSettle();
 
     expect(container.read(recruitFilterProvider).query, '');
@@ -500,7 +504,7 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
     final repository = _BrowseRepository(all: [for (var i = 0; i < 6; i++) _recruit(i)]);
     final container = ProviderContainer(
-      overrides: [battleRepositoryProvider.overrideWithValue(repository)],
+      overrides: [...notificationOverrides, battleRepositoryProvider.overrideWithValue(repository)],
       retry: (retryCount, error) => null,
     );
     addTearDown(container.dispose);

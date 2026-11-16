@@ -17,6 +17,7 @@ import 'package:todododo/features/todo/presentation/todo_list_screen.dart';
 import '../../core/push/push_fakes.dart';
 import '../../helpers/text_finders.dart';
 import 'due_alarm_fakes.dart';
+import '../notification/notification_fakes.dart';
 
 /// 추가·수정 대화상자가 **기한을 쓰지 않는 사용자의 타수를 늘리지 않는지**와
 /// **기한만 바꿔도 저장되는지**를 고정한다(todo-due-date spec 수용 기준).
@@ -247,6 +248,7 @@ Widget _app(
 }) {
   return ProviderScope(
     overrides: [
+      ...notificationOverrides,
       todoRepositoryProvider.overrideWithValue(repository),
       authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
       todosProvider.overrideWith((ref) async => todos),

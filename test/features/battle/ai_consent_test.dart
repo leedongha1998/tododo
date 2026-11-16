@@ -37,6 +37,7 @@ import 'package:todododo/features/profile/presentation/profile_screen.dart';
 import '../../core/push/push_fakes.dart';
 import '../../helpers/line_breaks.dart';
 import '../../helpers/text_finders.dart';
+import '../notification/notification_fakes.dart';
 
 class _FakeAiConsentRepository implements AiConsentRepository {
   _FakeAiConsentRepository({
@@ -221,6 +222,7 @@ Future<void> _pumpRecruits(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        ...notificationOverrides,
         aiConsentRepositoryProvider.overrideWithValue(consentRepository),
         battleRepositoryProvider.overrideWithValue(battleRepository),
         authRepositoryProvider.overrideWithValue(_SignedInAuthRepository()),
@@ -242,6 +244,7 @@ Future<void> _pumpProfile(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        ...notificationOverrides,
         aiConsentRepositoryProvider.overrideWithValue(consentRepository),
         myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
         myPlayerStatsProvider.overrideWith((ref) async => PlayerStats.empty),
@@ -265,6 +268,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ...notificationOverrides,
           aiConsentRepositoryProvider.overrideWithValue(_FakeAiConsentRepository()),
         ],
         child: const MaterialApp(home: AiConsentScreen()),
@@ -296,6 +300,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ...notificationOverrides,
             aiConsentRepositoryProvider.overrideWithValue(_FakeAiConsentRepository()),
           ],
           child: MaterialApp(theme: AppTheme.light, home: const AiConsentScreen()),

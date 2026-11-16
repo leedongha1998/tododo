@@ -23,6 +23,7 @@ import 'package:todododo/features/battle/presentation/my_battles_screen.dart';
 import 'package:todododo/core/widgets/keep_words_text.dart';
 import '../../helpers/line_breaks.dart';
 import '../../helpers/text_finders.dart';
+import '../notification/notification_fakes.dart';
 
 Battle _recruit() => Battle(
   id: 'p1',
@@ -96,6 +97,7 @@ Future<ProviderContainer> _pumpMyBattles(
 }) async {
   final container = ProviderContainer(
     overrides: [
+      ...notificationOverrides,
       battleRepositoryProvider.overrideWithValue(repository),
       // 진행 중 목록은 로그인 세션을 직접 읽으므로 테스트에서는 값으로 고정한다.
       myBattlesProvider.overrideWith((ref) async => summaries),

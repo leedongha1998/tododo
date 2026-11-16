@@ -1,4 +1,5 @@
 -- 앱 안 알림함 읽기 경로 스모크 테스트 (notification-inbox 1단계 기준).
+-- 2026-11-16에 7절(치우기)을 더했다 - 1~6절은 그대로다.
 --
 -- 로컬에 Docker가 없어 원격 DB에 직접 돌린다:
 --   supabase db query --linked -f supabase/tests/notification_inbox_smoke.sql
@@ -21,6 +22,10 @@
 --          A가 읽어도 B의 배지는 그대로다
 --   정합   대결 행을 지우면(cascade) 그 알림도 목록에서 사라진다.
 --          delete_account 뒤 그 사용자의 notification_reads·수신 원장 행이 0이다
+--   치우기 남의 알림 id·없는 id는 예외 없이 조용히 무시되고 행도 생기지 않는다. 치운 줄이 목록과
+--          배지에서 함께 빠진다. 두 번 쳐도 한 행이다. 50건은 치운 것을 뺀 뒤의 수다(밀려나 있던
+--          51번째가 들어온다). 원장 행이 사라지면 치운 기록도 cascade로 사라진다.
+--          탈퇴하면 치운 기록도 지워진다. notification_dismissals도 사용자 롤로 0행·쓰기 불가
 --
 -- ** now()가 트랜잭션 내내 고정이라는 점에 기대고 있다. ** created_at을 모두 명시해 "읽은 시각과
 -- 같은 행 / 그보다 나중 행"의 경계를 손으로 만든다. 같은 이유로 "mark가 기존 행을 갱신한다"는
@@ -91,6 +96,36 @@ declare
 
   v_f_reads integer;
   v_f_outbox integer;
+
+  -- 치우기(2026-11-16 추가분). 아래 7절이 쓴다.
+  v_bt_del2 uuid := gen_random_uuid();   -- 치운 뒤 지워질 대결(cascade 확인용)
+  v_f_notif_id bigint;
+  v_f_dismissals_before integer;
+  v_f_dismissals integer;
+  v_a_after_seen_id bigint;
+  v_a_tie1_id bigint;
+  v_a_cascade_id bigint;
+  v_d_newest_id bigint;
+  v_a_list3 jsonb;
+  v_d_list2 jsonb;
+  v_dismiss_other text;
+  v_dismiss_other_rows integer;
+  v_dismiss_missing text;
+  v_a_items_before_dismiss integer;
+  v_a_new_before_dismiss boolean;
+  v_a_items_dismissed integer;
+  v_a_dismissed_present integer;
+  v_a_new_after_dismiss boolean;
+  v_a_dismiss_rows integer;
+  v_d_items_after_dismiss integer;
+  v_d_n51_rows integer;
+  v_d_dismissed_present integer;
+  v_cascade_dismiss_before integer;
+  v_cascade_dismiss_after integer;
+  v_dismissals_as_user integer;
+  v_dismissals_insert text;
+  v_anon_dismiss text;
+  v_noauth_dismiss text;
 
   v_actual jsonb;
   v_expected jsonb;
@@ -208,6 +243,17 @@ begin
   values (v_f, 'matched', v_bt_f, 'inbox:f:matched',
           jsonb_build_object('title', '탈퇴자 대결', 'battle_type', 'speed'), 'sent', v_now - interval '1 minute');
   insert into public.notification_reads (user_id, seen_at) values (v_f, v_now - interval '1 day');
+
+  -- F가 자기 알림 한 줄을 치운다. 탈퇴 뒤 그 기록이 남지 않는지 보는 자리라 **section 6의
+  -- delete_account보다 먼저** 치워 둬야 한다(그래서 준비 단계에 있다). 치우는 경로는 앱과 같은
+  -- RPC 하나뿐이다.
+  select id into v_f_notif_id
+  from public.notification_outbox
+  where recipient_id = v_f and dedup_key = 'inbox:f:matched';
+
+  perform set_config('request.jwt.claims', json_build_object('sub', v_f, 'role', 'authenticated')::text, true);
+  perform public.dismiss_notification(v_f_notif_id);
+  v_f_dismissals_before := (select count(*) from public.notification_dismissals where user_id = v_f);
 
   -- ---------------------------------------------------------------------
   -- 1. A의 목록: 격리·키 화이트리스트·발송 상태 무관·7종·정렬
@@ -438,6 +484,151 @@ begin
   v_f_outbox := (select count(*) from public.notification_outbox where recipient_id = v_f);
 
   -- ---------------------------------------------------------------------
+  -- 7. 치우기(2026-11-16 오너 추가): 누른 줄은 목록에서 사라진다
+  -- ---------------------------------------------------------------------
+  -- 이 절은 **앞의 1~6절보다 뒤에** 있어야 한다. 앞 절의 기대값(a_items = 11 등)은 치우기 전의
+  -- 수이고, 여기서 줄을 치우거나 행을 더하면 그 값이 흔들린다.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
+
+  -- 7-1. 남의 알림 id는 치워지지 않는다. **예외도 나지 않는다** - 남의 id를 넣어 보는 것으로
+  --      "그 id가 있는가"를 알아낼 수 없어야 한다(없는 id와 반응이 같다).
+  begin
+    perform public.dismiss_notification(v_b_ids[1]);
+    v_dismiss_other := '조용히 무시';
+  exception when others then
+    v_dismiss_other := '예외: ' || sqlerrm;
+  end;
+  v_dismiss_other_rows := (select count(*) from public.notification_dismissals
+                           where notification_id = v_b_ids[1]);
+
+  begin
+    -- 없는 id. FK가 있으니 행을 넣으려 했다면 여기서 터진다.
+    perform public.dismiss_notification(-1);
+    v_dismiss_missing := '조용히 무시';
+  exception when others then
+    v_dismiss_missing := '예외: ' || sqlerrm;
+  end;
+
+  -- 7-2. 내 줄 하나를 치우면 목록과 배지에서 함께 빠진다.
+  --      고른 행은 4절이 넣은 'inbox:a:after-seen'이다 - seen_at보다 나중이라 지금 배지를 켜고
+  --      있는 **유일한** 행이고, 그것을 치우면 점이 꺼져야 한다("치운 줄은 점을 켜지 않는다").
+  select id into v_a_after_seen_id
+  from public.notification_outbox
+  where recipient_id = v_a and dedup_key = 'inbox:a:after-seen';
+
+  -- 7-7이 쓸 "아직 치우지 않은 내 줄" 하나(직접 insert가 RLS에 막히는지 볼 때 멱등 충돌과
+  -- 섞이지 않게 고른다).
+  select id into v_a_tie1_id
+  from public.notification_outbox
+  where recipient_id = v_a and dedup_key = 'inbox:a:tie1';
+
+  v_a_items_before_dismiss := jsonb_array_length(public.list_notifications() -> 'items');
+  v_a_new_before_dismiss := public.has_new_notifications();
+
+  perform public.dismiss_notification(v_a_after_seen_id);
+
+  v_a_list3 := public.list_notifications();
+  v_a_items_dismissed := jsonb_array_length(v_a_list3 -> 'items');
+  select count(*) into v_a_dismissed_present
+  from jsonb_array_elements(v_a_list3 -> 'items') e
+  where (e ->> 'id')::bigint = v_a_after_seen_id;
+  v_a_new_after_dismiss := public.has_new_notifications();
+
+  -- 7-3. 두 번 쳐도 한 행이다(멱등). 되돌리기는 없다.
+  perform public.dismiss_notification(v_a_after_seen_id);
+  v_a_dismiss_rows := (select count(*) from public.notification_dismissals
+                       where user_id = v_a and notification_id = v_a_after_seen_id);
+
+  -- 7-4. **50건은 치운 것을 뺀 뒤의 최근 50건이다.** D의 60건 중 가장 새것(n = 1)을 치우면
+  --      여전히 50건이고, 밀려나 있던 n = 51이 들어온다(치운 줄이 자리를 차지하지 않는다).
+  perform set_config('request.jwt.claims', json_build_object('sub', v_d, 'role', 'authenticated')::text, true);
+  select id into v_d_newest_id
+  from public.notification_outbox
+  where recipient_id = v_d and dedup_key = 'inbox:d:1';
+
+  perform public.dismiss_notification(v_d_newest_id);
+  v_d_list2 := public.list_notifications();
+  v_d_items_after_dismiss := jsonb_array_length(v_d_list2 -> 'items');
+  select count(*) into v_d_n51_rows
+  from jsonb_array_elements(v_d_list2 -> 'items') e
+  where (e -> 'payload' ->> 'n')::integer = 51;
+  select count(*) into v_d_dismissed_present
+  from jsonb_array_elements(v_d_list2 -> 'items') e
+  where (e ->> 'id')::bigint = v_d_newest_id;
+
+  -- 7-5. 원장 행이 사라지면 치운 기록도 cascade로 함께 사라진다(가리킬 것이 없는 기록을 남기지
+  --      않는다). 앞 절의 수를 흔들지 않으려고 여기서 대결·원장 행을 새로 만든다.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_a, 'role', 'authenticated')::text, true);
+  insert into public.battles (id, min_criteria, superiority_criteria, type, status, title,
+                              creator_id, duration_minutes)
+  values (v_bt_del2, '["문이 열렸다"]'::jsonb, null, 'speed', 'pending', '치운 뒤 지워질 대결',
+          v_a, 1440);
+
+  insert into public.notification_outbox (recipient_id, kind, battle_id, dedup_key, payload, status, created_at)
+  values (v_a, 'matched', v_bt_del2, 'inbox:a:dismiss-cascade',
+          jsonb_build_object('title', '치운 뒤 지워질 대결', 'battle_type', 'speed'),
+          'sent', v_now - interval '20 minutes')
+  returning id into v_a_cascade_id;
+
+  perform public.dismiss_notification(v_a_cascade_id);
+  v_cascade_dismiss_before := (select count(*) from public.notification_dismissals
+                               where notification_id = v_a_cascade_id);
+  delete from public.battles where id = v_bt_del2;
+  v_cascade_dismiss_after := (select count(*) from public.notification_dismissals
+                              where notification_id = v_a_cascade_id);
+
+  -- 7-6. 탈퇴하면 치운 기록도 함께 지워진다(준비 단계에서 F가 치운 한 줄 - 6절의
+  --      delete_account가 이미 돌았다).
+  v_f_dismissals := (select count(*) from public.notification_dismissals where user_id = v_f);
+
+  -- 7-7. 롤·권한. 테이블에는 정책이 없어 사용자 롤로는 0행이고 직접 쓸 수 없다.
+  begin
+    execute 'set local role authenticated';
+    v_dismissals_as_user := (select count(*) from public.notification_dismissals);
+    execute 'reset role';
+  exception when others then
+    execute 'reset role';
+    v_dismissals_as_user := -1;
+  end;
+  execute 'reset role';
+
+  begin
+    execute 'set local role authenticated';
+    insert into public.notification_dismissals (user_id, notification_id)
+    values (v_a, v_a_tie1_id);
+    execute 'reset role';
+    v_dismissals_insert := '성공(정책이 남아 있음)';
+  exception when insufficient_privilege then
+    v_dismissals_insert := 'RLS 차단';
+  when others then
+    execute 'reset role';
+    v_dismissals_insert := '다른 오류: ' || sqlerrm;
+  end;
+  execute 'reset role';
+
+  begin
+    execute 'set local role anon';
+    perform public.dismiss_notification(v_a_after_seen_id);
+    execute 'reset role';
+    v_anon_dismiss := '성공(권한이 남아 있음)';
+  exception when insufficient_privilege then
+    v_anon_dismiss := '권한 없음';
+  when others then
+    execute 'reset role';
+    v_anon_dismiss := '다른 오류: ' || sqlerrm;
+  end;
+  execute 'reset role';
+
+  -- 로그인 없이(claims 없음) 부르면 첫 줄 가드가 막는다.
+  perform set_config('request.jwt.claims', '', true);
+  begin
+    perform public.dismiss_notification(v_a_after_seen_id);
+    v_noauth_dismiss := '성공(가드 없음)';
+  exception when others then
+    v_noauth_dismiss := sqlerrm;
+  end;
+
+  -- ---------------------------------------------------------------------
   -- 결과 비교
   -- ---------------------------------------------------------------------
   v_actual := jsonb_build_object(
@@ -478,7 +669,28 @@ begin
     'noauth_has', v_noauth_has,
     'noauth_mark', v_noauth_mark,
     'f_reads', v_f_reads,
-    'f_outbox', v_f_outbox
+    'f_outbox', v_f_outbox,
+    -- 치우기(7절)
+    'dismiss_other', v_dismiss_other,
+    'dismiss_other_rows', v_dismiss_other_rows,
+    'dismiss_missing', v_dismiss_missing,
+    'a_items_before_dismiss', v_a_items_before_dismiss,
+    'a_new_before_dismiss', v_a_new_before_dismiss,
+    'a_items_dismissed', v_a_items_dismissed,
+    'a_dismissed_present', v_a_dismissed_present,
+    'a_new_after_dismiss', v_a_new_after_dismiss,
+    'a_dismiss_rows', v_a_dismiss_rows,
+    'd_items_after_dismiss', v_d_items_after_dismiss,
+    'd_n51_rows', v_d_n51_rows,
+    'd_dismissed_present', v_d_dismissed_present,
+    'cascade_dismiss_before', v_cascade_dismiss_before,
+    'cascade_dismiss_after', v_cascade_dismiss_after,
+    'f_dismissals_before', v_f_dismissals_before,
+    'f_dismissals', v_f_dismissals,
+    'dismissals_as_user', v_dismissals_as_user,
+    'dismissals_insert', v_dismissals_insert,
+    'anon_dismiss', v_anon_dismiss,
+    'noauth_dismiss', v_noauth_dismiss
   );
 
   v_expected := jsonb_build_object(
@@ -532,7 +744,35 @@ begin
     'noauth_mark', '로그인이 필요합니다.',
     -- 탈퇴하면 읽음 행과 내 수신 원장이 함께 사라진다.
     'f_reads', 0,
-    'f_outbox', 0
+    'f_outbox', 0,
+    -- 치우기(7절). 남의 알림 id와 없는 id는 예외 없이 조용히 무시되고 행도 생기지 않는다.
+    'dismiss_other', '조용히 무시',
+    'dismiss_other_rows', 0,
+    'dismiss_missing', '조용히 무시',
+    -- 치우기 전 11건(손으로 넣은 10 + join_battle 1 - cascade로 사라진 1 + 4절이 넣은 1).
+    'a_items_before_dismiss', 11,
+    -- 그 한 줄(seen_at보다 나중)이 지금 점을 켜고 있다. 치우면 꺼진다.
+    'a_new_before_dismiss', true,
+    'a_items_dismissed', 10,
+    'a_dismissed_present', 0,
+    'a_new_after_dismiss', false,
+    -- 두 번 쳐도 한 행이다.
+    'a_dismiss_rows', 1,
+    -- 50건은 치운 것을 뺀 뒤의 수다 - 치운 줄 대신 밀려나 있던 n = 51이 들어온다.
+    'd_items_after_dismiss', 50,
+    'd_n51_rows', 1,
+    'd_dismissed_present', 0,
+    -- 원장 행이 사라지면 치운 기록도 cascade로 함께 사라진다.
+    'cascade_dismiss_before', 1,
+    'cascade_dismiss_after', 0,
+    -- 탈퇴하면 치운 기록도 함께 지워진다.
+    'f_dismissals_before', 1,
+    'f_dismissals', 0,
+    -- 테이블에는 정책이 없다 -> 사용자 롤로는 아무것도 보이지 않고 쓰지도 못한다.
+    'dismissals_as_user', 0,
+    'dismissals_insert', 'RLS 차단',
+    'anon_dismiss', '권한 없음',
+    'noauth_dismiss', '로그인이 필요합니다.'
   );
 
   select coalesce(string_agg(format('%s expected=%s actual=%s', e.key, e.value, coalesce(a.value::text, 'null')), '; '), '')

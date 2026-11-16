@@ -164,6 +164,7 @@ unique (recipient_id, dedup_key)
 index (created_at) where status = 'pending'
 ```
 - RLS: 켜고 **정책을 하나도 두지 않는다**(선례: `quality_judgments`). 서버 전용 함수만 만진다. 앱 안 알림함·읽음 표시는 spec 범위 밖이므로 클라이언트가 이 테이블을 읽을 이유가 없다.
+  - **2026-11-13 추기**: 뒤 문장만 뒤집혔다. `notification-inbox`가 앱 안 알림함을 배포 전 범위로 넣으면서 **수신자 본인의 읽기를 열었다** — 다만 **테이블 정책은 여전히 하나도 없다.** 읽기를 여는 자리는 `security definer` 함수 셋(`list_notifications`·`has_new_notifications`·`mark_notifications_seen`)이고, 그 함수가 돌려주는 컬럼은 화이트리스트라 `status`·`last_error`는 앱에 가지 않는다. 쓰기는 어떤 경로로도 열리지 않는다. 근거는 `docs/specs/notification-inbox/design.md` 2장.
 - `status` 뜻: `pending` 발송 대기 / `sending` 임대 중 / `sent` 최소 한 기기에 전달 / `failed` 시도했으나 실패(재시도하지 않는다) / `dropped` 보낼 이유가 사라짐(토큰 없음, 마감 지난 N6, 종결된 대결의 N6).
 - payload는 사건이 확정되는 트랜잭션에서 만든 **스냅샷**이다. Edge가 DB를 다시 읽지 않으므로 발송 시점에 값이 바뀌어도 문구가 흔들리지 않고, Edge가 대결·제출 테이블에 접근할 이유가 없어 비공개 정보가 새는 경로 자체가 없다.
 

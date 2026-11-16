@@ -121,4 +121,13 @@ class AppIcons {
 
   /// AI 데이터 제공 동의 메뉴. 방패(개인정보)이지 로봇·얼굴이 아니다.
   static const consent = Icons.verified_user_rounded;
+
+  /// 네 탭 앱바의 알림함 입구(종).
+  static const bell = Icons.notifications_rounded;
+
+  /// 알림함 빈 상태. 빈 상태는 윤곽 변형을 쓴다(선례: todoOutlined).
+  static const bellOutlined = Icons.notifications_none_rounded;
+
+  /// 알림함의 `judge_turn` 줄(판정할 차례). 의사봉이지 얼굴·캐릭터가 아니다.
+  static const judge = Icons.gavel_rounded;
 }

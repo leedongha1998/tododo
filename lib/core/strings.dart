@@ -403,10 +403,51 @@ class AppStrings {
   static const battleRecordVoided = '무효';
 
   // 알림 안내. 꺼져 있을 때만 보인다 — 앱 안 on/off 스위치는 두지 않는다(design 결정 4).
-  // 알림 **본문** 문구는 여기 없다. 앱이 종료된 상태에서도 시스템이 그려야 하므로 서버가 만든다.
+  //
+  // **문구의 출처가 두 자리로 갈린다**(notification-inbox design 4장):
+  // - 푸시(잠금화면) 제목·본문은 서버 `supabase/functions/_shared/notification_text.ts`가 만든다.
+  //   앱이 종료된 상태에서도 안드로이드 시스템이 앱 코드 없이 그려야 하기 때문이다.
+  // - **앱 안 알림함 줄**은 여기 + `lib/features/notification/domain/notification_line.dart`다.
+  //   앱이 떠 있을 때 앱이 그리므로 위 예외를 적용할 근거가 없다.
+  // 두 자리는 같은 kind를 **같은 사실**로 읽어야 하고, kind를 늘리면 함께 고친다.
   static const notificationSection = '알림';
   static const notificationDisabled = '알림이 꺼져 있어요';
   static const notificationDisabledGuide = '기기 설정 > 앱 > 투두두두 > 알림에서 켤 수 있어요.';
+
+  // 앱 안 알림함(notification-inbox). 네 탭 앱바의 종 아이콘으로 들어간다.
+  static const notificationInboxTitle = '알림';
+  // 배지는 점 하나라 색만으로는 전달되지 않는다. 화면 읽기에 이 라벨을 함께 준다.
+  static const notificationNewSemantics = '새 알림 있음';
+  // 대결을 재촉하지 않는다(spec).
+  static const notificationInboxEmpty = '아직 받은 알림이 없어요.';
+  static const notificationInboxLoadFailed = '알림을 불러오지 못했어요.';
+  // 알림 줄을 눌렀지만 그 대결을 더 볼 수 없을 때. 오류 화면을 띄우지 않고 알림함에 머문다.
+  static const notificationBattleGone = '더 볼 수 없는 대결이에요.';
+  // payload에 대결 제목이 없거나 빈 문자열일 때. 서버 문구의 '「대결」'과 같은 대체값이다.
+  static const notificationFallbackTitle = '대결';
+  // 0점은 하한(0점 아래로 내려가지 않는다)에 걸린 경우다. '0점'이라고 적으면 사실과 어긋난다.
+  static const notificationScoreUnchanged = '점수 변화 없음';
+  // 사건 문구 7종. **지금 기준으로 계산되는 값(남은 시간)과 촉구 문장을 말하지 않는다** —
+  // 알림함은 과거 사건의 기록이고 현재 상태의 정답은 대결 상세다(design 원칙 4).
+  static const notificationMatched = '상대가 참가했어요';
+  static const notificationSubmitted = '상대가 사진을 냈어요';
+  static const notificationJudgeTurn = '판정할 차례가 됐어요';
+  static const notificationDeadlineSoon = '마감이 다가왔어요';
+  static const notificationFinishedWin = '이겼어요';
+  static const notificationFinishedLoss = '졌어요';
+  static const notificationFinishedDraw = '무승부예요';
+  static const notificationVoided = '판정이 무효가 됐어요';
+  static const notificationCancelled = '상대가 탈퇴해서 취소됐어요';
+  // 사건이 일어난 시각. 한 가지 꼴만 쓴다('11월 8일 오후 3:04'). 오늘 것도 같은 꼴이고
+  // 상대 표기('3분 전')를 쓰지 않는다. 연도는 적지 않는다(design 4장 "시각 표기").
+  static String notificationTime({
+    required int month,
+    required int day,
+    required bool isAm,
+    required int hour12,
+    required int minute,
+  }) =>
+      '$month월 $day일 ${isAm ? '오전' : '오후'} $hour12:${minute.toString().padLeft(2, '0')}';
 
   static const accountSection = '계정';
   static const openSourceLicenses = '오픈소스 라이선스';

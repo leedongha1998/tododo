@@ -42,10 +42,13 @@ void main() {
     'chevronRight': AppIcons.chevronRight,
     'history': AppIcons.history,
     'consent': AppIcons.consent,
+    'bell': AppIcons.bell,
+    'bellOutlined': AppIcons.bellOutlined,
+    'judge': AppIcons.judge,
   };
 
-  test('37개 상수가 모두 서로 다른 글리프다', () {
-    expect(icons.length, 37);
+  test('40개 상수가 모두 서로 다른 글리프다', () {
+    expect(icons.length, 40);
     final codePoints = icons.values.map((icon) => icon.codePoint).toSet();
     expect(codePoints.length, icons.length);
   });

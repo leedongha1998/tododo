@@ -1,6 +1,6 @@
 ---
 name: feedback_riverpod_async_review_probe
-description: Riverpod AsyncNotifier(피드·페이징) 리뷰는 ProviderContainer 일회용 probe로 경합을 재현해 확인하고, AsyncValue가 실패·재빌드에도 이전 value를 유지한다는 사실을 에러 분기 검토에 쓴다
+description: Riverpod AsyncNotifier(피드·페이징) 리뷰는 ProviderContainer 일회용 probe로 경합을 재현해 확인하고, AsyncValue가 실패·재빌드에도 이전 value를 유지한다는 사실을 에러 분기와 깜빡임 검토에 쓴다
 metadata:
   type: feedback
 ---
@@ -22,6 +22,16 @@ Riverpod `AsyncNotifier` 기반 목록/페이징 코드를 리뷰할 때 두 가
 - `build()` 재실행 중에도 `state.value`가 살아 있어 `loadMore()` 같은 메서드가 "이전 커서"로 요청을
   더 날릴 수 있다. `build()` 첫 줄에서 세대 번호를 올리는 가드는 **그 뒤에 시작된** 호출을 막지 못한다
   (호출이 새 세대 번호를 잡는다). `state.isLoading` 확인이나 조건을 상태에 함께 담아 비교하는 쪽이 맞다.
+
+**2-1) 거울상: `!isLoading`으로 값을 막으면 새로고침마다 표시가 깜빡인다.** 2의 반대쪽 실수다.
+`invalidate` 뒤 상태는 **이전 value를 들고 있는 `AsyncLoading`**이라 `isLoading`이 참이므로,
+`!async.isLoading && (async.value ?? false)` 같은 식은 "첫 로딩에는 안 보인다"를 노렸어도
+**재조회 1 RTT 동안 표시를 꺼 버린다.** 배지·점·칩처럼 자주 invalidate되는 자리(탭 전환·앱 재개마다
+무효화하는 값)에서 눈에 띄는 깜빡임이 된다. 첫 로딩만 가리려면 value가 null인 것으로 충분하다
+(`error == null && (async.value ?? false)`). 확인 probe: 느린 가짜 repo로 pumpAndSettle →
+`container.invalidate(provider)` → **`pump()` 한 번**만 하고 그 순간의 위젯 속성
+(`Badge.isLabelVisible` 등)을 읽는다. notification-inbox 리뷰(2026-11-13)에서 `notification_bell.dart`가
+이 꼴이었고 probe가 `duringRefresh=false after=true`로 확정했다.
 
 **Why**: recruit-browse 리뷰(2026-10-29)에서 이 두 가지로 Critical 2건을 찾았다. 하나는 조건 변경
 중의 `loadMore`가 목록 중간 20건을 영구히 빠뜨리는 경합(probe로 `b0~b19 + b40~b59` 재현), 다른 하나는

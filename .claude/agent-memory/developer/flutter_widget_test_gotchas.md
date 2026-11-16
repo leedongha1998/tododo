@@ -1,6 +1,6 @@
 ---
 name: flutter-widget-test-gotchas
-description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump, PopScope는 maybePop으로만, 남은 시간 내림 픽스처, Cupertino delegate 누락
+description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump, PopScope는 maybePop으로만, 남은 시간 내림 픽스처, Cupertino delegate 누락, 공용 앱바 위젯이 기존 테스트 전부에 override를 요구함
 metadata:
   type: feedback
 ---
@@ -76,6 +76,15 @@ metadata:
     목록으로 `supportedLocales`를 확인해서, 없으면 **모든 위젯 테스트가**
     `Warning: This application's locale, ko, is not supported by all of its localization delegates`
     예외로 깨진다(2026-11-09 todo-due-date 4단계).
+
+13. **네 탭 앱바에 공용 위젯 하나를 더하면 그 화면을 띄우는 기존 위젯 테스트 **전부**가 깨지거나
+    더러워진다.** 그 위젯이 provider를 watch하면, override가 없는 테스트에서 `supabase` getter가
+    "You must initialize the supabase instance" assertion을 던지고 riverpod이 그 스택을 통째로
+    쏟아 **한 파일에 2만 줄**이 나온다(테스트는 통과하므로 놓치기 쉽다 — 실제 실패를 가린다).
+    새 feature에 `..._fakes.dart`(가짜 + top-level final override 목록)를 만들어 각
+    `ProviderScope(overrides: [...])`에 한 줄씩 끼운다(2026-11-13 notification-inbox, 10개 파일 31곳).
+    앱바에 `IconButton`이 하나 늘어나므로 `find.byType(IconButton)`을 쓰던 테스트도 함께 모호해진다
+    (→ 4번).
 
 **Why:** 1~3번은 mutual-judge 판정 화면(4단계), 4~5번은 recruit-browse의 찾기 탭(검색·필터·무한 스크롤),
 6~7번은 retro-theme 가독성 개정(2026-10-29, 글꼴 표를 바꾸고 배율 1.3 넘침 테스트를 쓸 때),

@@ -1,6 +1,6 @@
 ---
 name: riverpod-async-pitfalls
-description: riverpod 3의 AsyncValue가 실패해도 직전 값을 들고 있고, AsyncNotifier.build()는 같은 인스턴스에서 다시 돌아 "세대 번호" 가드가 한 방향만 막는다
+description: riverpod 3의 AsyncValue가 실패해도 직전 값을 들고 있고, AsyncNotifier.build()는 같은 인스턴스에서 다시 돌아 "세대 번호" 가드가 한 방향만 막는다. listen에 fireImmediately가 없고 Override 타입은 export되지 않는다
 metadata:
   type: feedback
 ---
@@ -35,6 +35,18 @@ metadata:
    거기에 "직전 상태와 같으면 건너뛴다" 캐시까지 있으면 **일시적 경합이 영구 오상태로 굳는다**
    (다음 발화가 조회조차 안 한다). `Future<void> _queue`에 `then`으로 이어 붙여 한 줄로 세우고,
    캐시 비교도 그 사슬 **안**에서 한다. `TodoWidgetService._lastJson`을 그대로 베끼지 말 것.
+
+7. **riverpod 3의 `WidgetRef.listen`에는 `fireImmediately` 인자가 없다**(`listenManual`에만 있다).
+   그래서 "화면이 떴을 때 provider 값이 **이미 data**인 경우" 콜백이 한 번도 불리지 않는다 —
+   autoDispose provider라도 화면을 닫았다 바로 다시 열면 캐시가 살아 있어 이 경로를 밟는다.
+   "첫 성공 로드에서 딱 한 번" 같은 일은 `ref.watch`한 값을 **build 안에서 직접** 검사하는 쪽이
+   두 경우를 다 덮는다(플래그로 한 번만 돌게 하고 `setState`는 쓰지 않는다 — 다시 그리는 것은
+   watch가 한다).
+8. **`Override` 타입은 공개 export가 아니다.** `flutter_riverpod`/`riverpod`의 `show` 목록에 없어서
+   테스트 헬퍼에 `List<Override>`를 적을 수 없다(`non_type_as_type_argument`). 초기화식에서 추론되는
+   `final myOverrides = [...]`로 두고 호출하는 쪽이 `...myOverrides`로 펼친다. 함수로 만들어
+   반환 타입을 생략하면 `strict_top_level_inference` info가 뜨므로 **함수가 아니라 top-level final**로.
+   플래그를 받아 `ProviderScope`를 직접 만드는 pump 헬퍼도 좋은 우회다.
 
 **Why:** 1·2번은 recruit-browse 리뷰에서 "반드시 고칠 것"으로 지적된 결함 두 건의 원인이고, 둘 다
 기능이 조용히 틀린 결과를 보여 주는 쪽(스펙의 "조용히 빠지지 않는다" 위반)이었다.

@@ -63,11 +63,17 @@ Future<ProviderContainer> _pumpInbox(
   WidgetTester tester, {
   required FakeNotificationRepository notifications,
   _GateRepository? battles,
+  bool stubDetail = false,
 }) async {
   final container = ProviderContainer(
     overrides: [
       notificationRepositoryProvider.overrideWithValue(notifications),
       battleRepositoryProvider.overrideWithValue(battles ?? _GateRepository()),
+      // 상세가 실제로 열리는 경로를 보는 테스트에서만. 가짜 대결 레포지토리는 `noSuchMethod`로
+      // 막혀 있어 상세 화면이 그대로는 그려지지 않으므로, 선례(`battle_detail_load_test`)대로
+      // 상세 provider를 덮는다 — 상세 화면의 내용은 이 파일의 관심이 아니다.
+      if (stubDetail)
+        battleDetailProvider(_battleId).overrideWith((ref) async => throw Exception('detail')),
     ],
     // Riverpod의 자동 재시도 타이머가 테스트 종료 뒤까지 남지 않게 끈다.
     retry: (retryCount, error) => null,
@@ -156,6 +162,64 @@ void main() {
       expect(findText(AppStrings.notificationBattleGone), findsOneWidget);
       // 알림함에 머문다.
       expect(findText(AppStrings.notificationInboxTitle), findsOneWidget);
+    });
+
+    // 2026-11-16 오너 추가: "알림을 확인하면 걔는 리스트에서 지워주고".
+    // **원장을 지우는 것이 아니다** — 치운 사실이 따로 적히고 목록 조회가 그 줄을 빼고 돌려준다.
+    testWidgets('줄을 누르면 그 줄을 치우고 대결 상세로 간다', (tester) async {
+      final notifications = FakeNotificationRepository(
+        inbox: NotificationInbox(seenAt: null, items: [_item()]),
+      );
+      await _pumpInbox(tester, notifications: notifications, stubDetail: true);
+
+      await tester.tap(findText(AppStrings.notificationJudgeTurn));
+      await tester.pumpAndSettle();
+
+      expect(notifications.dismissedIds, [1]);
+      expect(find.byType(BattleDetailScreen), findsOneWidget);
+    });
+
+    testWidgets('치운 줄은 목록에서 사라지고 나머지는 남는다', (tester) async {
+      final notifications = FakeNotificationRepository(
+        inbox: NotificationInbox(
+          seenAt: null,
+          items: [_item(), _item(id: 2, kind: 'submitted')],
+        ),
+      );
+      // 상세를 열지 못하는 대결로 둔다 — 알림함에 머물러야 목록을 눈으로 확인할 수 있고,
+      // **열 수 없는 대결의 줄도 누르면 사라진다**가 수용 기준이다(영원히 열 수 없는 줄이
+      // 목록에 남지 않게).
+      await _pumpInbox(
+        tester,
+        notifications: notifications,
+        battles: _GateRepository(fetchError: Exception('gone')),
+      );
+
+      await tester.tap(findText(AppStrings.notificationJudgeTurn));
+      await tester.pumpAndSettle();
+
+      expect(findText(AppStrings.notificationJudgeTurn), findsNothing);
+      expect(findText(AppStrings.notificationSubmitted), findsOneWidget);
+      expect(findText(AppStrings.notificationInboxTitle), findsOneWidget);
+    });
+
+    testWidgets('치우기가 실패하면 줄이 그대로 남는다', (tester) async {
+      final notifications = FakeNotificationRepository(
+        inbox: NotificationInbox(seenAt: null, items: [_item()]),
+        dismissError: Exception('dismiss down'),
+      );
+      await _pumpInbox(
+        tester,
+        notifications: notifications,
+        battles: _GateRepository(fetchError: Exception('gone')),
+      );
+
+      await tester.tap(findText(AppStrings.notificationJudgeTurn));
+      await tester.pumpAndSettle();
+
+      expect(notifications.dismissedIds, isEmpty);
+      // 줄이 남은 것이 실패를 이미 말한다 — 치우기 실패에 토스트를 띄우지 않는다.
+      expect(findText(AppStrings.notificationJudgeTurn), findsOneWidget);
     });
   });
 

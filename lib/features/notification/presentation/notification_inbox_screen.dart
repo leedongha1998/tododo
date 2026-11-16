@@ -19,9 +19,10 @@ import '../domain/notification_providers.dart';
 
 /// 앱 안 알림함. 서버 원장에 남은 **내 몫의 대결 알림 사건**을 최신순으로 모아 보여 준다.
 ///
-/// 이 화면은 **읽기 전용 거울**이다. 할 수 있는 일은 "읽는다"와 "그 대결로 간다" 둘뿐이고,
-/// 판정·제출·포기·삭제로 가는 길이 없다(spec 범위 밖). 알림함을 보지 않아도 대결 진행·판정·결과는
-/// 완전히 똑같다 — 관문이 아니다.
+/// 이 화면은 **읽기 전용 거울**이다. 할 수 있는 일은 "읽는다", "그 대결로 간다", "누른 줄을
+/// 내 목록에서 치운다" 셋뿐이고, 판정·제출·포기로 가는 길이 없다(spec 범위 밖). 치움도 **원장을
+/// 지우지 않는다** — 내 목록에서 빼는 사실만 따로 적힌다. 알림함을 보지 않아도 대결 진행·판정·
+/// 결과는 완전히 똑같다 — 관문이 아니다.
 ///
 /// **지금 상태의 정답은 언제나 대결 상세다.** 그래서 줄은 "그때 일어난 일"만 적고 지금 기준으로
 /// 계산되는 값(남은 시간)이나 촉구 문장을 말하지 않는다(design 원칙 4).
@@ -78,6 +79,33 @@ class _NotificationInboxScreenState extends ConsumerState<NotificationInboxScree
     if (!mounted) return;
     // 점이 사라지는 순간이다.
     ref.invalidate(hasNewNotificationsProvider);
+  }
+
+  /// 줄을 누르면 **치우고 나서** 그 대결로 간다(spec 2026-11-16 추가).
+  ///
+  /// 순서가 "치우기 → 열기"인 이유: 수용 기준이 **대결을 열 수 있든 없든 그 줄을 치운다**로
+  /// 못 박았다. 영원히 열 수 없는 줄(상대 탈퇴 등)이 목록에 남으면 누를 때마다 토스트만 뜨는
+  /// 줄이 되기 때문이다. 그래서 열기 성공 여부를 기다려 갈라지지 않는다.
+  Future<void> _onTapItem(NotificationItem item) async {
+    await _dismiss(item);
+    if (!mounted) return;
+    await _openBattle(item.battleId);
+  }
+
+  /// 치우기 실패는 `debugPrint`만 남긴다(CLAUDE.md "에러는 삼키지 않는다"의 예외 — 읽음 표시·
+  /// 배지 조회와 같은 가족). 관문이 아니고(치워지지 않아도 대결 진행·판정·결과가 똑같다),
+  /// 사용자가 할 수 있는 일은 다시 누르는 것뿐이며, 실패하면 **줄이 그대로 남아** 그 사실이
+  /// 화면에 이미 드러난다. 그 위에 토스트를 겹치면 곧 열릴 상세를 가린다.
+  Future<void> _dismiss(NotificationItem item) async {
+    try {
+      await ref.read(notificationRepositoryProvider).dismiss(item.id);
+    } catch (error) {
+      debugPrint('dismiss_notification failed(${item.id}): $error');
+      return;
+    }
+    if (!mounted) return;
+    // 목록을 다시 읽어 그 줄이 사라지게 한다. `_marked`가 이미 켜져 있어 읽음을 다시 찍지 않는다.
+    ref.invalidate(notificationInboxProvider);
   }
 
   /// 푸시를 탭했을 때와 **같은 곳·같은 관문**이다 — 열 수 있는지 서버에 먼저 묻고, 안 되면
@@ -148,7 +176,7 @@ class _NotificationInboxScreenState extends ConsumerState<NotificationInboxScree
                 line: line,
                 time: notificationTimeLabel(item.createdAt),
                 isNew: item.isNewSince(_seenAtAtOpen),
-                onTap: () => _openBattle(item.battleId),
+                onTap: () => _onTapItem(item),
               );
             },
           );

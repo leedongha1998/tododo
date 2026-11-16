@@ -150,3 +150,84 @@ supabase db query --linked -f supabase/tests/notification_inbox_smoke.sql
 ### 3.4 실기기 (오너, design 10.4)
 
 알림 권한을 거부한 계정으로 한 바퀴 / 두 기기 배지 / 알림함을 열어 둔 채 상대 제출.
+
+---
+
+## 4. 6단계 — 누른 줄은 목록에서 사라진다 (2026-11-16 오너 추가)
+
+> 입력: `spec.md` 맨 끝 **"## 추가 (2026-11-16 오너)"**(확정·범위 밖·수용 기준이 거기 있다).
+> 설계는 메인 세션이 확정했다(원장은 건드리지 않고, 치운 사실을 따로 적고, 읽기는 RPC로만) —
+> 이 절은 **순서와 검증**만 적고 다시 고르지 않는다.
+>
+> 1~5단계는 이미 끝나 **원격 DB까지 적용됐다**(2026-11-16). 이번 작업은 그 위의 작은 추가다.
+
+### 4.0 충돌 검토 — 멈출 충돌 없음
+
+문서끼리 어긋나 보이는 자리가 둘 있다. 어떻게 읽었는지만 적어 둔다.
+
+| 어긋나 보이는 것 | 실제 | 처리 |
+|---|---|---|
+| `design.md` 11장 "범위 밖(재확인)"에 **삭제**가 들어 있다 ↔ spec의 2026-11-16 추가 | spec이 더 나중(오너)이고 그 문서가 범위 밖 항목에 취소선을 긋고 **무엇이 뒤집혔는지(누른 줄 하나)와 무엇이 그대로인지(스와이프·전체 지우기·undo·원장 행 삭제)**를 직접 적었다. 즉 **spec이 상위**이고 design은 아직 그 사실을 모른다 | 11장을 고쳐 쓰지 않고 **12장을 덧붙여** 어느 항목이 어떻게 좁혀졌는지 적는다(5-③). 임의로 한쪽을 택한 것이 아니라 spec에 적힌 범위를 옮기는 일이라 멈추지 않았다 |
+| CLAUDE.md "에러는 삼키지 않는다" ↔ 치우기 실패를 `debugPrint`만 남김 | 그 줄에 이미 같은 성격의 예외가 둘(읽음 표시·배지 조회) 있다. 치우기도 관문이 아니고(치워지지 않아도 대결 진행·판정·결과가 똑같다) 사용자가 할 수 있는 일은 다시 누르는 것뿐이다 | 그 예외 줄에 **치우기를 함께 적어** 규칙을 지킨다(6-②). 메인 세션의 지시와 같다 |
+
+**이 작업에서 하지 않는 것**: 원격 DB 적용(`supabase db push`/`db query`/대시보드), 커밋. 둘 다 오너·메인 세션 몫이다.
+옛 마이그레이션 파일(`20261113120000_notification_inbox.sql` 포함)은 한 글자도 고치지 않는다 — 이미 적용됐다.
+
+### 4.1 순서
+
+| 순서 | 파일 | 작업 | 스키마 |
+|---|---|---|---|
+| ① | `supabase/migrations/20261116120000_notification_dismiss.sql` (신규) | ⓐ `notification_dismissals` 테이블(user_id→profiles, notification_id→notification_outbox on delete cascade, 기본키 둘, `notification_id` FK 인덱스, RLS 켜고 **정책 없음**) + 원장에 컬럼을 더하지 않은 이유를 테이블 주석에 ⓑ `dismiss_notification(p_notification_id bigint)` RPC(내 몫만, 아니면 조용히 무시, 멱등) ⓒ `list_notifications`·`has_new_notifications`를 `create or replace`로 갱신(치운 줄 제외, **50건은 치운 것을 뺀 뒤의 수**) ⓓ `delete_account` 재정의 — `20261113120000`의 정의를 **그대로 복사**하고 `delete from public.notification_dismissals ...` 한 줄만 더한다 ⓔ `revoke ... from public, anon` + `grant ... to authenticated` | **있음** |
+| ② | `supabase/tests/notification_inbox_smoke.sql` | 기존 `do` 블록 **안에** 7절을 더한다(기존 항목·기대값은 한 글자도 바꾸지 않는다) | — |
+| ③ | `lib/features/notification/data/notification_repository.dart` | `dismiss(int id)` 한 메서드 | — |
+| ④ | `lib/features/notification/presentation/notification_inbox_screen.dart` | 줄 탭 = **치우기 → 기존 열기 흐름**(열 수 있든 없든 치운다). 치운 뒤 `notificationInboxProvider` invalidate. 치우기 실패는 `debugPrint`만 남기고 줄은 그대로 둔다 | — |
+| ⑤ | `test/features/notification/notification_fakes.dart`, `notification_inbox_test.dart` | 가짜에 `dismissedIds`·`dismissError`를 두고(치운 줄을 실제로 빼는 가짜) 위젯 테스트 추가 | — |
+| ⑥ | `CLAUDE.md`, `docs/specs/notification-inbox/design.md` | ② 에러 예외 줄에 치우기 추기 ③ design에 **12장** 하나 | — |
+
+순서의 근거: 서버 계약(①)이 먼저 정해져야 앱이 부를 이름이 생기고, 스모크(②)는 그 계약과 같은 자리에서
+적는 편이 어긋나지 않는다. 앱은 레포지토리(③) → 화면(④) → 테스트(⑤)의 기존 순서를 따른다. 문서(⑥)는
+코드가 확정된 뒤 적는다. **새 화면이 없어 커밋 경계는 하나다**(커밋은 메인 세션 몫).
+
+### 4.2 지킨 규칙 (CLAUDE.md)
+
+- 이번 변경은 **판정에 한 줄도 닿지 않는다.** 알림함은 읽기 전용 거울이고 치움은 "내 목록에서 빼는 사실"
+  하나다 — 승부·점수·상태 전이·cron·AI 호출·적재 함수에 변경이 없다. 그래서 "판정 로직은 DB에서"와
+  "테스트 없이 판정 로직 수정 금지"에 해당하는 변경이 아니다(그럼에도 SQL 스모크와 위젯 테스트로 덮는다).
+- 새 테이블의 사용자 FK는 `auth.users`가 아니라 `public.profiles`. 탈퇴가 묘비를 남겨 cascade가 돌지 않으니
+  `delete_account`가 명시적으로 지운다.
+- RLS는 테이블을 만들 때 함께 켠다. **정책을 두지 않는 것**이 선례다(`notification_reads`·`notification_outbox`) —
+  쓰기 경로는 RPC 하나뿐이고 화면이 이 테이블의 값을 직접 쓸 일이 없다.
+- 새 RPC: `security definer set search_path = public`, 첫 줄 `auth.uid() is null` 가드,
+  `revoke execute ... from public, anon` + `grant execute ... to authenticated`.
+- 스키마 변경은 마이그레이션 파일로만. 새 패키지 없음.
+
+### 4.3 범위 밖(만들지 않는다)
+
+스와이프 삭제·길게 눌러 메뉴·되돌리기(undo)·전체 지우기·"치운 알림 다시 보기"·원장 행 삭제·발송 상태 노출.
+치움을 위한 새 kind·새 상태·행별 읽음 구조도 만들지 않는다(spec "여전히 범위 밖").
+
+### 4.4 순서를 바꾼 기록
+
+- (2026-11-16) ⑤에서 **치우기 성공 뒤 상세가 열리는 경로**를 보는 테스트에 `battleDetailProvider`
+  override를 하나 더 끼웠다. 그 경로는 `BattleDetailScreen`을 실제로 띄우는데, 알림함 테스트의 가짜
+  대결 레포지토리는 `noSuchMethod`로 막혀 있어 상세가 그대로는 그려지지 않는다. 선례(`battle_detail_load_test`)대로
+  상세 provider를 실패로 덮어 "상세가 열렸다"만 확인한다 — 상세 화면의 내용은 이 테스트의 관심이 아니다.
+- (2026-11-16) ②를 "파일 끝에 새 `do` 블록을 붙이기"가 아니라 **기존 블록 안에 7절을 더하기**로 했다.
+  기존 블록은 마지막에 일부러 예외를 던져 롤백하므로, 뒤에 붙인 블록은 **트랜잭션이 끊겨 영원히 돌지 않는다.**
+  기존 항목·기대값은 건드리지 않고 선언·7절·결과표에만 줄을 더했다.
+
+### 4.5 검증
+
+- `flutter analyze` / `flutter test` — 결과는 보고에 숫자로 적는다. 치우기 동작(누르면 사라진다,
+  실패하면 남는다, 열 수 없는 대결의 줄도 사라진다)은 위젯 테스트로 덮는다.
+- SQL은 원격 적용 뒤 오너·메인 세션이 돌린다:
+  `supabase db query --linked -f supabase/tests/notification_inbox_smoke.sql` → `SMOKE RESULT ok=true`.
+  7절이 확인하는 것: 남의 알림 id는 치워지지 않는다 / 치운 줄이 목록과 배지에서 빠진다 / 두 번 쳐도 한 행 /
+  50건이 치운 것을 뺀 뒤의 수 / 탈퇴하면 치운 기록도 지워진다 / 원장 행이 사라지면 cascade.
+- 사람 눈: 새 마이그레이션이 옛 파일을 고치지 않았는지(`git diff --stat supabase/migrations/`에 신규 하나),
+  `delete_account` 재정의가 `20261113120000`의 정의와 **한 줄만** 다른지 `diff`로 비교.
+- (2026-11-16) ①에 **메인 세션이 적어 준 목록에 없던 것 하나**를 더했다: `notification_id`에 FK
+  인덱스(`notification_dismissals_notification_idx`). 기본키의 선두 축이 `user_id`라 **원장 행이
+  지워질 때 도는 cascade**가 인덱스를 못 쓰고 전체 훑기가 된다(탈퇴는 내 수신 원장 행을 통째로
+  지운다). 설계 판단을 바꾼 것이 아니라 같은 모양에 인덱스 하나를 붙인 것이고, 컬럼·제약·정책·
+  RPC 계약은 적어 준 그대로다.

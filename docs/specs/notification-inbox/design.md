@@ -621,3 +621,145 @@ judge         = Icons.gavel_rounded                // judge_turn 줄
 2. **원장 읽기는 테이블 정책이 아니라 definer RPC 세 개로 연다**(2장). 뒤집으면: 정책 한 줄로 끝나지만 `status`·`last_error`가 앱 API에 열리고 50건 상한이 클라이언트 몫이 된다.
 3. **알림함 출시 시점에 이미 쌓여 있던 행은 "새 알림"으로 본다**(= 첫 실행에서 점이 켜진다). 뒤집으면: 마이그레이션에서 기존 사용자에게 `seen_at = now()`를 미리 넣어 첫 점을 끈다. 그대로 두는 쪽을 고른 이유는 그 행들이 **정말로 사용자가 못 본 알림**이라는 것이고(특히 알림 권한을 거부한 사용자), 지금 영향받는 계정은 내부 테스트 계정뿐이다.
 4. **당겨서 새로고침을 넣지 않는다**(spec P1). 뒤집으면 `RefreshIndicator` 한 겹이다. 넣지 않은 이유는 가장 가까운 선례(지난 대결 화면)에 없고, 화면을 닫고 열면 다시 읽히며 포그라운드 수신이 목록을 갱신하기 때문이다.
+
+---
+
+## 12. 추가 설계 — 누른 줄은 목록에서 사라진다 (2026-11-16 오너)
+
+> 근거: spec.md 맨 끝 "## 추가 (2026-11-16 오너)". 이 절은 **11장의 범위 밖 목록 중 한 항목만**
+> 좁힌다 — **누른 줄 하나가 내 목록에서 사라지는 것**이다. 스와이프 삭제·길게 눌러 메뉴·
+> 되돌리기(undo)·전체 지우기·원장 행 삭제·"치운 알림 다시 보기"·발송 상태 노출은 **범위 밖 그대로**다.
+> 11장을 고쳐 쓰지 않고 이 절을 덧붙인 이유: 당시의 판단과 뒤집은 근거가 함께 보여야 다음에 같은
+> 판단을 다시 할 수 있다(이 저장소의 관행).
+
+### 12.0 원칙은 그대로다
+
+원칙 1~4(읽기 전용 거울 / 원장 테이블은 정책 없는 서버 전용 / 줄은 payload와 kind만으로 / 지금
+상태의 정답은 상세)은 **한 줄도 바뀌지 않는다.** 치움은 승부·점수·상태 전이·cron·AI 호출에 닿지
+않고, 원장에 쓰지도 않는다. 이 절이 더하는 것은 **"내 목록에서 빼는 사실"** 하나다.
+
+**치움과 읽음은 다른 축이다.** 읽음(계정당 시각 하나, `notification_reads`)은 그대로이고 배지는
+여전히 "마지막으로 본 시각보다 새 행이 있는가"다. 치우지 않고 읽을 수 있고, 치운 뒤에도 새 알림은
+또 온다. 그래서 두 값을 한 테이블에 합치지 않는다.
+
+### 12.1 데이터 모델 — `notification_dismissals` (신규 테이블)
+
+```sql
+create table public.notification_dismissals (
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  notification_id bigint not null references public.notification_outbox (id) on delete cascade,
+  dismissed_at timestamptz not null default now(),
+  primary key (user_id, notification_id)
+);
+alter table public.notification_dismissals enable row level security;
+-- 정책 없음(선례: notification_reads, notification_outbox, quality_judgments)
+```
+
+| 후보 | 채택 | 이유 |
+|---|---|---|
+| `notification_outbox`에 `dismissed_at`/`dismissed` 컬럼 | ✗ | 그 행은 **dedup의 열쇠**(`unique (recipient_id, dedup_key)`)이고 발송기가 `status`로 돌리는 원장이다. 거기에 "앱에서 치웠는지"를 더하면 **발송의 사실과 앱 안 표시의 사실이 한 그릇에 섞인다** — payload 금지 키 규칙을 지킨 것과 같은 결의 판단이다. 게다가 발송기(service_role)와 알림함(authenticated)이 같은 컬럼을 두고 다투게 된다 |
+| 기기 로컬 저장(SharedPreferences) | ✗ | 읽음과 같은 이유로 안 된다 — 치움도 **계정에 붙어야** 두 기기에서 같은 줄을 두 번 치우지 않는다(spec "치운 줄은 그 계정에서만 사라진다"는 공개 범위의 요구이고, 기기별이면 같은 계정에서도 목록이 갈린다) |
+| **신규 테이블** | **✓** | `notification_reads`와 **같은 결**이다: 사용자별 사실을 따로 적고, 정책 없이 RLS만 켜고, 쓰기는 RPC 하나뿐. 원장은 한 글자도 바뀌지 않는다 |
+
+- `user_id` FK는 `public.profiles`다(CLAUDE.md). 탈퇴가 묘비를 남겨 cascade가 돌지 않으므로
+  `delete_account`가 명시적으로 지운다(12.4).
+- `notification_id` FK는 `on delete cascade`다 — 대결 행이 사라지면 원장 행이 사라지고(그 FK도
+  cascade) 그 줄을 치운 기록도 함께 사라진다. **가리킬 것이 없는 기록을 남기지 않는다.**
+- 기본키가 `(user_id, notification_id)`라 **멱등이 테이블 제약으로 보장된다**(두 번 눌러도 한 행).
+  목록·배지 조회는 두 축을 다 주므로 그 기본키로 끝난다. 다만 **cascade는 `notification_id`만으로
+  찾으므로** 그 컬럼에 인덱스를 따로 둔다(`notification_dismissals_notification_idx`) — 없으면
+  원장 행이 지워질 때마다 전체 훑기가 된다(탈퇴가 내 수신 원장 행을 통째로 지운다).
+- `dismissed_at`은 지금 어떤 질의도 쓰지 않는다. "언제 치웠나"를 설명해야 할 때를 위한 기록이고,
+  이것을 근거로 "치운 알림 다시 보기"를 만들지 않는다(범위 밖).
+
+### 12.2 API 계약
+
+#### 12.2.1 `dismiss_notification(p_notification_id bigint)` → `void` (신규)
+
+```sql
+insert into public.notification_dismissals (user_id, notification_id)
+select v_user, o.id
+from public.notification_outbox o
+where o.id = p_notification_id
+  and o.recipient_id = v_user
+on conflict (user_id, notification_id) do nothing;
+```
+
+- `security definer set search_path = public`, 첫 줄 `auth.uid() is null` 가드,
+  `revoke execute ... from public, anon` + `grant execute ... to authenticated`(CLAUDE.md).
+- **내 몫의 행만 치운다.** 원장에 그 id가 있고 `recipient_id = auth.uid()`일 때만 넣는다.
+- **남의 id·없는 id에는 조용히 아무 것도 하지 않는다**(예외를 던지지 않는다). 예외 문구가 갈리면
+  남의 알림 id를 넣어 보는 것으로 "그 id가 있는가"를 알아낼 수 있다 — 없는 id와 반응이 같아야 한다.
+  대가: 앱은 "정말 치워졌는가"를 반환값으로 알 수 없다. 알 필요도 없다(다음 목록 조회가 답이다).
+- 멱등이다. 새 오류 코드·`hint`를 만들지 않는다.
+
+#### 12.2.2 `list_notifications()` — `create or replace`로 갱신
+
+반환 키·50건 상한·정렬·발송 상태 무관은 **그대로**다. `limit` **안쪽** 질의의 `where`에 조각 하나가 붙는다.
+
+```sql
+and not exists (
+  select 1 from public.notification_dismissals d
+  where d.user_id = v_user and d.notification_id = o.id
+)
+```
+
+**`not exists`를 `limit` 안쪽에 두는 것이 이 변경의 핵심이다.** 밖에서 걸러내면 치운 줄이 50칸 중
+한 자리를 차지해 목록이 점점 짧아진다 — **50건은 "치운 것을 뺀 뒤의 최근 50건"**이다(spec).
+
+#### 12.2.3 `has_new_notifications()` — 같은 조각을 더한다
+
+실제로는 치우려면 먼저 알림함을 열어야 해서(= 읽음이 찍혀서) 값이 달라지는 경우가 거의 없지만,
+**"치운 줄이 점을 켜지 않는다"**가 더 분명하다. 개수를 세지 않는 것(점 하나)은 그대로다.
+
+### 12.3 화면 동작
+
+```
+줄 탭
+ → dismiss(item.id)                      // 성공: notificationInboxProvider invalidate -> 줄이 사라진다
+                                          // 실패: debugPrint만, 줄은 그대로 남는다
+ → 기존 열기 흐름(fetchBattle 선확인 -> 상세 push / 실패하면 토스트)
+```
+
+- 순서가 **치우기 → 열기**이고, **대결을 열 수 있든 없든 치운다**(spec 수용 기준). 근거: 영원히 열
+  수 없는 줄(상대 탈퇴 등)이 목록에 남으면 누를 때마다 토스트만 뜨는 줄이 된다. 그래서 열기의
+  성공 여부로 갈라지지 않는다.
+- 치운 뒤 `ref.invalidate(notificationInboxProvider)`로 목록을 다시 읽는다. 상태를 손으로 patch하지
+  않는다(dev-standards). 읽음은 `_marked`가 이미 켜져 있어 **다시 찍지 않는다**.
+- **치우기 실패는 `debugPrint`만** 남긴다 — 읽음 표시·배지 조회와 같은 예외 가족이다(CLAUDE.md의
+  그 줄에 치우기를 함께 적었다). 관문이 아니고, 사용자가 할 수 있는 일은 다시 누르는 것뿐이며,
+  실패하면 **줄이 그대로 남아** 그 사실이 화면에 이미 드러난다. 토스트를 띄우면 곧 열릴 상세를 가린다.
+- 스와이프 삭제·길게 눌러 메뉴·되돌리기·전체 지우기 버튼을 두지 않는다. 카드에 생기는 동작은
+  **여전히 탭 하나**다.
+- "새 알림 점"은 그대로다(치움과 읽음은 다른 축이다). 치운 줄은 목록에 없으므로 점도 함께 사라진다.
+- 치운 뒤 같은 대결에 새 사건이 생기면 **새 원장 행**이므로 새 줄로 다시 보인다(치움은 줄 하나의 일이다).
+
+### 12.4 `delete_account`
+
+`20261113120000_notification_inbox.sql`의 정의를 **그대로 복사**하고 7번 단계에 한 줄만 더한다 —
+`delete from public.notification_dismissals where user_id = v_user_id;`. 다른 동작은 바꾸지 않는다.
+(바로 위에서 내 수신 원장 행을 지우므로 `notification_id` 쪽 cascade로도 사라지지만, 순서에 기대지
+않는 편이 안전하고 `user_id` FK는 묘비 때문에 cascade가 돌지 않는다.)
+
+### 12.5 테스트
+
+**SQL 스모크** — `supabase/tests/notification_inbox_smoke.sql`의 **기존 `do` 블록 안에 7절을 더한다**
+(파일 끝에 새 블록을 붙이면 기존 블록이 마지막에 일부러 던지는 예외로 트랜잭션이 끊겨 영원히 돌지
+않는다). 기존 항목·기대값은 한 글자도 바꾸지 않았다.
+
+- [x] 남의 알림 id를 치우면 **예외 없이** 아무 행도 생기지 않는다. 없는 id도 반응이 같다.
+- [x] 치운 줄이 `list_notifications`와 `has_new_notifications`에서 함께 빠진다.
+- [x] 두 번 쳐도 `notification_dismissals`는 한 행이다.
+- [x] 60건 중 하나를 치우면 여전히 50건이고 **밀려나 있던 51번째가 들어온다**(치운 줄이 자리를
+      차지하지 않는다).
+- [x] 원장 행이 사라지면(대결 삭제 → cascade) 치운 기록도 함께 사라진다.
+- [x] 탈퇴하면 그 사용자의 치운 기록이 0이다.
+- [x] `authenticated` 롤로 `notification_dismissals`는 0행이고 직접 insert가 막힌다. `anon`은 RPC를
+      부를 수 없고, 로그인 없이는 `로그인이 필요합니다.`다.
+
+**위젯** — `test/features/notification/notification_inbox_test.dart`
+
+- [x] 줄을 누르면 그 줄을 치우고(`dismissedIds`) 상세가 열린다.
+- [x] 치운 줄이 목록에서 사라지고 나머지 줄은 남는다 — **열 수 없는 대결의 줄도 사라진다.**
+- [x] 치우기가 실패하면 줄이 그대로 남고 토스트가 없다.
+- 가짜 레포지토리가 **치운 줄을 뺀 목록**을 돌려준다(서버의 성질을 그대로 흉내 낸다).

@@ -8,6 +8,7 @@ class FakeNotificationRepository implements NotificationRepository {
     this.inbox = NotificationInbox.empty,
     this.hasNewValue = false,
     this.listError,
+    this.dismissError,
   });
 
   final NotificationInbox inbox;
@@ -16,14 +17,33 @@ class FakeNotificationRepository implements NotificationRepository {
   /// 목록 조회가 실패하는 경우를 그리고 싶을 때.
   final Object? listError;
 
+  /// 치우기가 실패하는 경우를 그리고 싶을 때(그때 줄은 그대로 남아야 한다).
+  final Object? dismissError;
+
   /// 읽음을 몇 번 찍었는지. **한 번만 찍는다**를 확인하는 자리다.
   int markSeenCalls = 0;
+
+  /// 치운 줄의 id. 서버와 같이 **치운 줄을 뺀 목록**을 돌려주므로(아래 [fetchInbox]) 화면이
+  /// 다시 읽으면 그 줄이 사라진다 — 가짜가 서버의 성질을 그대로 흉내 내야 "누르면 사라진다"를
+  /// 화면 쪽에서 확인할 수 있다.
+  final List<int> dismissedIds = [];
 
   @override
   Future<NotificationInbox> fetchInbox() async {
     final error = listError;
     if (error != null) throw error;
-    return inbox;
+    if (dismissedIds.isEmpty) return inbox;
+    return NotificationInbox(
+      seenAt: inbox.seenAt,
+      items: inbox.items.where((item) => !dismissedIds.contains(item.id)).toList(),
+    );
+  }
+
+  @override
+  Future<void> dismiss(int id) async {
+    final error = dismissError;
+    if (error != null) throw error;
+    dismissedIds.add(id);
   }
 
   @override

@@ -30,4 +30,15 @@ class NotificationRepository {
   Future<void> markSeen() {
     return _client.rpc('mark_notifications_seen');
   }
+
+  /// 줄 하나를 치운다(누른 줄은 목록에서 사라진다 — spec 2026-11-16 추가).
+  ///
+  /// **원장 행은 지우지 않는다.** 치운 사실만 따로 적히고, 다음 목록·배지 조회가 그 줄을 빼고
+  /// 돌려준다. 내가 수신자인 행만 치워지며, 남의 알림 id나 없는 id에는 서버가 조용히 아무 것도
+  /// 하지 않는다(존재 여부를 알려 주지 않는다). 멱등이라 두 번 눌러도 한 행이고 되돌리기는 없다.
+  ///
+  /// 치움과 읽음은 **다른 축**이다 — 치우지 않고 읽을 수 있고, 치운 뒤에도 새 알림은 또 온다.
+  Future<void> dismiss(int id) {
+    return _client.rpc('dismiss_notification', params: {'p_notification_id': id});
+  }
 }

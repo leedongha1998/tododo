@@ -262,7 +262,15 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
         ),
       ),
       if (_customDuration) ...[
-        Row(
+        // `Row`가 아니라 `Wrap`이다(2026-11-17 줄넘김 점검). 단위 세그먼트는 폭 192dp로 고정돼
+        // 줄지 않으므로 `Row`에서는 96 + 8 + 192 = 296dp가 되어 **320dp 폭 화면에서 글자 배율과
+        // 무관하게 16dp 넘쳤다**(`RenderFlex overflowed`). 세그먼트를 `Expanded`로 줄이는 쪽은
+        // 칸이 좁아져 "시간"이 어절 안에서 끊긴다 — 그래서 넘칠 때 다음 줄로 내린다
+        // (readability.md 3-1 "빼지 않고 다음 줄로"). 360dp에서는 지금처럼 한 줄이다.
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             SizedBox(
               width: 96,
@@ -278,7 +286,6 @@ class _CreateBattleScreenState extends ConsumerState<CreateBattleScreen> {
                 onChanged: (_) => _applyCustomDuration(),
               ),
             ),
-            const SizedBox(width: 8),
             SegmentedButton<DurationUnit>(
               showSelectedIcon: false,
               segments: [

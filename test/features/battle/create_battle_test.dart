@@ -191,6 +191,7 @@ Future<void> _pumpCreate(
   _FakeBattleRepository? battles,
   MyLimits? limits,
   ThemeData? theme,
+  double textScale = 1.0,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -199,7 +200,14 @@ Future<void> _pumpCreate(
         battleRepositoryProvider.overrideWithValue(battles ?? _FakeBattleRepository()),
         if (limits != null) myLimitsProvider.overrideWith((ref) async => limits),
       ],
-      child: MaterialApp(theme: theme, home: const CreateBattleScreen()),
+      child: MaterialApp(
+        theme: theme,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        ),
+        home: const CreateBattleScreen(),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -447,6 +455,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(findText(AppStrings.battleDurationQuick), findsOneWidget);
   });
+
+  // 2026-11-17 줄넘김 점검: 직접 입력 줄이 `Row`였을 때 96(입력칸) + 8 + 192(단위 세그먼트,
+  // 폭이 줄지 않는다) = 296dp라 **320dp 폭 화면에서 글자 배율과 무관하게 16dp 넘쳤다.**
+  // `Wrap`이므로 좁으면 단위 세그먼트가 다음 줄로 내려간다(어절을 쪼개지 않는다).
+  for (final scale in [1.0, 1.5]) {
+    testWidgets('320dp·$scale배: 직접 입력 줄이 넘치지 않고 단위 칸이 줄어들지 않는다', (tester) async {
+      tester.view.physicalSize = const Size(320, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await _pumpCreate(
+        tester,
+        criteria: _FakeCriteriaRepository(generateResult: _speedResult),
+        theme: AppTheme.light,
+        textScale: scale,
+      );
+
+      await tester.tap(findText(AppStrings.battleDurationCustom));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      final field = tester.getRect(find.byType(TextField).last);
+      final units = tester.getRect(find.byType(SegmentedButton<DurationUnit>));
+      // 화면 가장자리 20 안에 둘 다 들어온다.
+      for (final rect in [field, units]) {
+        expect(rect.left, greaterThanOrEqualTo(20 - 0.5));
+        expect(rect.right, lessThanOrEqualTo(300 + 0.5));
+      }
+      // 한 줄에 못 들어가면 아래로 내려간다(옆에서 찌그러지지 않는다).
+      expect(units.top, greaterThan(field.bottom - 0.5));
+    });
+  }
 
   testWidgets('기간은 빠른 선택과 직접 입력으로 정하고 범위 밖이면 즉시 알린다', (tester) async {
     final criteria = _FakeCriteriaRepository(generateResult: _speedResult);

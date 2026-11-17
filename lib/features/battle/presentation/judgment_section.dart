@@ -389,8 +389,9 @@ class JudgmentProgressCard extends StatelessWidget {
   }
 }
 
-/// 진행 줄 하나: 최소 높이 40, [배지 24] 8 [주체 bodyMedium ink] 8 [상태 labelMedium 14/700].
-/// 좁거나 글자가 커지면 주체·상태가 각자 칸 안에서 어절 단위로 줄을 바꾼다(넘치지 않는다).
+/// 진행 줄 하나: 최소 높이 40, [배지 24] 8 [주체 bodyMedium ink] … [상태 labelMedium 14/700].
+/// 주체와 상태는 한 `Wrap`에 들어가 **둘이 들어가면 한 줄**(상태가 오른쪽 끝), 좁거나 글자가
+/// 커져 함께 못 들어가면 **상태가 통째로 다음 줄로** 내려간다(넘치지 않고 어절도 쪼개지지 않는다).
 class JudgmentProgressLine extends StatelessWidget {
   const JudgmentProgressLine({super.key, required this.row, required this.face});
 
@@ -456,18 +457,27 @@ class JudgmentProgressLine extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            // 주체와 상태를 `Expanded` 둘로 반반 나누지 않는다(2026-11-17 줄넘김 점검). 반반이면
+            // 왼쪽이 비어 있어도 오른쪽이 그 자리를 쓸 수 없어, 배율 1.5배에서 "판정할 사진 없음"이
+            // 두 줄이 되고 320dp에서는 "기다리는 중"이 "기다리는 / 중"으로 한 글자만 남았다.
+            // `Wrap`이면 들어갈 때는 지금처럼 한 줄(간격이 벌어져 상태가 오른쪽 끝에 선다)이고,
+            // 둘이 함께 못 들어갈 때만 상태가 **통째로** 다음 줄로 내려간다 — 어절이 쪼개지지 않는다.
             Expanded(
-              child: KeepWordsText(
-                partyLabel,
-                style: textTheme.bodyMedium!.copyWith(color: AppPalette.ink),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: KeepWordsText(
-                stateLabel,
-                textAlign: TextAlign.end,
-                style: textTheme.labelMedium!.copyWith(color: stateColor),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 2,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  KeepWordsText(
+                    partyLabel,
+                    style: textTheme.bodyMedium!.copyWith(color: AppPalette.ink),
+                  ),
+                  KeepWordsText(
+                    stateLabel,
+                    style: textTheme.labelMedium!.copyWith(color: stateColor),
+                  ),
+                ],
               ),
             ),
           ],

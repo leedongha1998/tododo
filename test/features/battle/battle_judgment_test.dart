@@ -850,5 +850,49 @@ void main() {
         }
       });
     }
+
+    // 2026-11-17 줄넘김 점검: 주체·상태가 `Expanded` 둘로 반반을 나눠 가져, 왼쪽이 비어 있어도
+    // 오른쪽이 못 써서 배율 1.5배에서 상태 라벨이 두 줄이 됐다("판정할 사진 없음", 좁은 화면에서는
+    // "기다리는 중" → "기다리는 / 중"). 한 `Wrap`이므로 들어가는 동안은 한 줄이고, 못 들어갈 때만
+    // 상태가 통째로 다음 줄로 내려간다.
+    testWidgets('진행 줄의 상태 라벨은 한 줄로 서고 자리가 없으면 통째로 다음 줄로 내려간다', (tester) async {
+      tester.view.physicalSize = const Size(360, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      Future<Rect> stateRectAt(double scale) async {
+        await tester.pumpWidget(_screen(
+          // 상대가 사진을 내지 않아 내가 판정할 것이 없는 단계 — 상태 라벨이 가장 길다.
+          _judging(opponentHasSubmitted: false, myHasJudged: false),
+          _FakeBattleRepository(),
+          photo: photoOk,
+          theme: AppTheme.light,
+          textScale: scale,
+        ));
+        await tester.pumpAndSettle();
+        final paragraph = tester.renderObject<RenderParagraph>(find.descendant(
+          of: findText(AppStrings.battleJudgmentProgressNoPhoto).first,
+          matching: find.byType(RichText),
+        ));
+        // 한 줄인지 보려면 글자 높이를 재는 것으로 충분하다(두 줄이면 두 배가 된다).
+        expect(
+          paragraph.size.height,
+          lessThan(paragraph.preferredLineHeight * 1.5),
+          reason: '배율 $scale: 상태 라벨이 두 줄이다',
+        );
+        return tester.getRect(findText(AppStrings.battleJudgmentProgressNoPhoto).first);
+      }
+
+      // 1.0배: 주체와 같은 줄에서 오른쪽 끝에 선다.
+      final narrow = await stateRectAt(1.0);
+      final party = tester.getRect(findText(AppStrings.battleJudgmentProgressMine).first);
+      expect(narrow.top, moreOrLessEquals(party.top, epsilon: 2));
+      expect(narrow.right, greaterThan(party.right));
+
+      // 1.5배: 둘이 함께 못 들어가므로 상태가 다음 줄로 내려간다(쪼개지지 않는다).
+      final wide = await stateRectAt(1.5);
+      final partyWide = tester.getRect(findText(AppStrings.battleJudgmentProgressMine).first);
+      expect(wide.top, greaterThan(partyWide.bottom - 0.5));
+    });
   });
 }

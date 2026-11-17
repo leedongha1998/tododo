@@ -242,7 +242,14 @@
 | `nothingToJudge` | info | `surface` 원 + `hourglass_bottom_rounded` 20 `primary` | `battleJudgmentNothingTitle` / `battleJudgmentNothing` |
 | `windowClosed` | neutral(`sunken`) | `surface` 원 + `schedule_rounded` 20 `inkMuted` | `battleJudgmentWindowClosedTitle` / `battleJudgmentWindowClosed` |
 
-**확장형(진행 줄 — 결정 필요 4, designer 추천):** 제목 아래 4, 본문 위에 진행 줄 2–3개를 넣는다. 줄 하나 = 최소 높이 40, `[배지 24] 8 [이름 bodyMedium ink, 남은 폭] 8 [상태 labelMedium 14/700]`.
+**확장형(진행 줄 — 결정 필요 4, designer 추천):** 제목 아래 4, 본문 위에 진행 줄 2–3개를 넣는다. 줄 하나 = 최소 높이 40, `[배지 24] 8 [이름 bodyMedium ink] … [상태 labelMedium 14/700]`.
+
+- 이름과 상태는 **한 `Wrap`**(`spaceBetween`)에 든다(2026-11-17 줄넘김 점검에서 바꿈 — 처음 구현은
+  `Expanded` 둘로 **반반**을 나눠 가졌다). 근거: 반반이면 이름 쪽이 비어 있어도 상태가 그 자리를
+  쓸 수 없어, 배율 1.5배에서 가장 긴 상태 라벨(`판정할 사진 없음`, 157dp)이 112dp 칸에 들어가며
+  두 줄이 됐고 320dp에서는 `기다리는 중`이 `기다리는 / 중`으로 한 글자만 남았다. `Wrap`이면 둘이
+  들어가는 동안은 지금과 똑같은 한 줄(상태가 오른쪽 끝)이고, 함께 못 들어갈 때만 상태가 **통째로**
+  다음 줄로 내려간다. 회귀 테스트: `battle_judgment_test.dart`의 "진행 줄의 상태 라벨은 한 줄로 서고…".
 
 | 단계 | 내 판정 | 상대 판정 | AI 재판정 |
 |---|---|---|---|

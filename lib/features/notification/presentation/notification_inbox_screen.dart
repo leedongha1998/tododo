@@ -264,11 +264,17 @@ class NotificationTile extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.bodyMedium?.copyWith(color: mutedColor),
                 ),
+                const SizedBox(height: 4),
+                // 시각은 **셋째 줄**이다(2026-11-17 줄넘김 점검 — design 5.2 구성도의 "오른쪽 끝"에서
+                // 바꿈). 오른쪽 끝에 두면 `Row`의 비유연 자식이라 자기 폭(배율 1.0에서 106dp,
+                // 1.5에서 159dp)을 **먼저** 가져가고 남은 것만 글자 칸이 받는다 — 360dp·1.0배에서
+                // 벌써 사건 문구가 두 줄이 되고(칸 86dp), 1.5배에서는 칸이 66dp로 줄어 제목이
+                // 사실상 사라지며, 320dp·1.5배에서는 26dp가 되어 글자가 한 글자씩 열한 줄로 쌓였다.
+                // 아래로 내리면 세 줄이 모두 칸 폭 전부를 쓴다. "줄마다 다른 축"은 그대로다.
+                KeepWordsText(time, style: textTheme.bodySmall?.copyWith(color: mutedColor)),
               ],
             ),
           ),
-          const SizedBox(width: 12),
-          KeepWordsText(time, style: textTheme.bodySmall?.copyWith(color: mutedColor)),
         ],
       ),
     );

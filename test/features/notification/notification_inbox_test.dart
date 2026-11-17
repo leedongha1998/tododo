@@ -64,6 +64,7 @@ Future<ProviderContainer> _pumpInbox(
   required FakeNotificationRepository notifications,
   _GateRepository? battles,
   bool stubDetail = false,
+  double textScale = 1.0,
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -82,7 +83,14 @@ Future<ProviderContainer> _pumpInbox(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp(theme: AppTheme.light, home: const NotificationInboxScreen()),
+      child: MaterialApp(
+        theme: AppTheme.light,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        ),
+        home: const NotificationInboxScreen(),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -122,6 +130,38 @@ void main() {
       expect(findText('아침 달리기'), findsOneWidget);
       expect(findTextContaining('월'), findsOneWidget);
     });
+
+    // 2026-11-17 줄넘김 점검: 시각이 줄 오른쪽 끝에 있을 때 `Row`의 비유연 자식이라 자기 폭
+    // (배율 1.0에서 106dp, 1.5에서 159dp)을 먼저 가져가, 360dp에서 글자 칸이 86 → 66dp까지
+    // 줄어 사건 문구가 두세 줄이 되고 제목이 사실상 사라졌다. 시각은 이제 같은 칸의 셋째 줄이다.
+    for (final scale in [1.0, 1.5]) {
+      testWidgets('360dp·$scale배: 글자 칸이 줄 폭을 거의 다 쓰고 시각이 그 아래 줄에 있다', (tester) async {
+        tester.view.physicalSize = const Size(360, 900);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await _pumpInbox(
+          tester,
+          notifications: FakeNotificationRepository(
+            inbox: NotificationInbox(seenAt: null, items: [_item()]),
+          ),
+          textScale: scale,
+        );
+
+        // 카드 안쪽 288 − (점 8 + 8 + 아이콘 20 + 12) = 240dp가 글자 칸이다.
+        // (글자 위젯 자체는 한 줄일 때 글자 폭만 차지하므로 칸은 그 Column으로 잰다.)
+        final column = tester.getRect(
+          find.descendant(of: find.byType(NotificationTile), matching: find.byType(Column)),
+        );
+        expect(column.width, greaterThan(220));
+
+        final text = tester.getRect(findText(AppStrings.notificationJudgeTurn));
+
+        // 시각은 사건 문구와 같은 왼쪽 선에서 시작해 그 아래에 있다(오른쪽 칸을 선점하지 않는다).
+        final time = tester.getRect(findTextContaining('월'));
+        expect(time.left, moreOrLessEquals(text.left, epsilon: 0.5));
+        expect(time.top, greaterThan(text.bottom - 0.5));
+      });
+    }
 
     testWidgets('첫 성공 로드에서 읽음을 한 번만 찍는다', (tester) async {
       final notifications = FakeNotificationRepository(

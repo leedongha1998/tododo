@@ -1,10 +1,15 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:todododo/core/push/push_service.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
+import 'package:todododo/features/auth/domain/auth_providers.dart';
+import 'package:todododo/features/auth/presentation/auth_gate.dart';
+import 'package:todododo/features/auth/presentation/login_screen.dart';
 import 'package:todododo/features/todo/data/todo_widget_payload.dart';
 import 'package:todododo/features/todo/domain/todo_widget_service.dart';
 
@@ -69,6 +74,53 @@ void main() {
       expect(host.saved, hasLength(1));
     });
   });
+
+  group('AuthGate', () {
+    testWidgets('세션이 사라지면 그 자리에서 캐시가 비워진다', (WidgetTester tester) async {
+      final host = FakeTodoWidgetHost();
+      final auth = StreamController<AuthState>();
+      addTearDown(auth.close);
+
+      await _pumpGate(tester, host: host, auth: auth.stream);
+      auth.add(AuthState(AuthChangeEvent.signedOut, null));
+      await tester.pumpAndSettle();
+
+      // 사용자가 로그아웃을 누르지 않은 경로(세션 만료·서버에서의 무효화)를 덮는 방어선이다.
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(host.saved.last.centerText, AppStrings.widgetLoggedOut);
+      // 체크 칸 탭을 받을 백그라운드 콜백은 **앱 실행마다** 다시 등록한다(핸들이 낡는다).
+      expect(host.registerCallbackCount, 1);
+    });
+
+    testWidgets('세션을 복구하는 중에는 캐시를 건드리지 않는다', (WidgetTester tester) async {
+      final host = FakeTodoWidgetHost();
+      final auth = StreamController<AuthState>();
+      addTearDown(auth.close);
+
+      await _pumpGate(tester, host: host, auth: auth.stream);
+
+      // 앱이 막 떠서 아직 아무 이벤트도 없는 상태(loading). 여기서 비우면 네트워크가 없을 때
+      // 유일하게 보여 줄 지난 목록이 홈 화면에서 사라진다.
+      expect(host.saved, isEmpty);
+    });
+  });
+}
+
+Future<void> _pumpGate(
+  WidgetTester tester, {
+  required FakeTodoWidgetHost host,
+  required Stream<AuthState> auth,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        ...todoWidgetOverrides(host: host),
+        authStateProvider.overrideWith((ref) => auth),
+      ],
+      child: const MaterialApp(home: AuthGate()),
+    ),
+  );
+  await tester.pump();
 }
 
 /// 세션이 없는 상태에서 로그아웃·탈퇴를 부르면 마지막 단계가 던진다. 그 예외는 이 테스트의

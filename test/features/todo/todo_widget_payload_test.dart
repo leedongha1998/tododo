@@ -639,6 +639,112 @@ void main() {
     });
   });
 
+  // 체크의 백그라운드 경로는 실기기에서만 검증된다. 그래서 판단할 수 있는 부분을 전부 떼어
+  // 여기서 고정한다(design 12.1).
+  group('todoWidgetCheckDecisionOf', () {
+    const id = '11111111-1111-1111-1111-111111111111';
+    const other = '22222222-2222-2222-2222-222222222222';
+    final cached = TodoWidgetPayload.fromTodos(
+      [_todo(id, '장보기'), _todo(other, '책 반납')],
+      now: now,
+    );
+
+    TodoWidgetCheckDecision decide({
+      TodoWidgetAction action = const TodoWidgetAction.check(id),
+      TodoWidgetPayload? payload,
+      bool appAlive = false,
+      DateTime? at,
+    }) {
+      return todoWidgetCheckDecisionOf(
+        action: action,
+        cached: payload,
+        appAlive: appAlive,
+        now: at ?? now,
+      );
+    }
+
+    test('체크가 아닌 Uri는 아무 일도 하지 않는다', () {
+      expect(
+        decide(action: const TodoWidgetAction.none(), payload: cached),
+        TodoWidgetCheckDecision.ignore,
+      );
+    });
+
+    test('앱이 살아 있으면 맡기고, 죽어 있으면 직접 쓴다', () {
+      // 살아 있는 앱에 맡기는 것이 W5의 핵심이다 — 백그라운드가 클라이언트를 또 만들면
+      // 토큰이 돌아 앱이 조용히 로그아웃된다.
+      expect(
+        decide(payload: cached, appAlive: true),
+        TodoWidgetCheckDecision.handOff,
+      );
+      expect(decide(payload: cached), TodoWidgetCheckDecision.writeHere);
+    });
+
+    test('같은 줄을 연속으로 두 번 누르면 두 번째를 버린다', () {
+      final pending = TodoWidgetPayload.pending(cached, id, now: now);
+
+      expect(
+        decide(payload: pending, at: now.add(const Duration(seconds: 5))),
+        TodoWidgetCheckDecision.ignore,
+      );
+      // 다른 줄은 막지 않는다.
+      expect(
+        decide(
+          action: const TodoWidgetAction.check(other),
+          payload: pending,
+          at: now.add(const Duration(seconds: 5)),
+        ),
+        TodoWidgetCheckDecision.writeHere,
+      );
+    });
+
+    test('60초가 지난 쓰는 중은 다음 탭을 막지 않는다', () {
+      final pending = TodoWidgetPayload.pending(cached, id, now: now);
+
+      // 쓰기 도중에 프로세스가 죽으면 캐시에 pending만 남는다. 그 줄을 영원히 체크할 수 없게
+      // 되면 안 된다(네이티브도 같은 기준으로 그 표시를 무시한다).
+      expect(
+        decide(payload: pending, at: now.add(const Duration(seconds: 59))),
+        TodoWidgetCheckDecision.ignore,
+      );
+      expect(
+        decide(payload: pending, at: now.add(const Duration(seconds: 60))),
+        TodoWidgetCheckDecision.writeHere,
+      );
+    });
+
+    test('캐시에 없는 할 일은 무시한다(이미 성공해 사라진 줄이다)', () {
+      final done = TodoWidgetPayload.fromTodos([_todo(other, '책 반납')], now: now);
+
+      expect(decide(payload: done), TodoWidgetCheckDecision.ignore);
+      // 로그아웃 캐시의 낡은 그림을 누른 경우도 같다.
+      expect(
+        decide(payload: TodoWidgetPayload.loggedOut(now: now)),
+        TodoWidgetCheckDecision.ignore,
+      );
+    });
+
+    test('캐시를 읽지 못했으면 막지 않는다', () {
+      // 중복인지 알 수 없을 때 사용자가 누른 것을 조용히 버리는 쪽이 더 나쁘다(서버 쓰기는 멱등).
+      expect(decide(), TodoWidgetCheckDecision.writeHere);
+      expect(decide(appAlive: true), TodoWidgetCheckDecision.handOff);
+    });
+
+    test('기한이 지난 할 일도 같은 결정을 받는다', () {
+      // 기한은 체크에 개입하지 않는다 — "지난 할 일의 체크를 막는다" 같은 규칙을 만들지 않았다(spec).
+      final withDue = TodoWidgetPayload.fromTodos(
+        [_todo(id, '장보기', dueAt: DateTime(2020, 1, 1))],
+        now: now,
+      );
+
+      expect(decide(payload: withDue), TodoWidgetCheckDecision.writeHere);
+      expect(
+        decide(payload: withDue, appAlive: true),
+        TodoWidgetCheckDecision.handOff,
+      );
+    });
+  });
+
   group('checkFailed의 기준 시각', () {
     test('직전 목록이 없어도 1970년이 되지 않는다', () {
       final failed = TodoWidgetPayload.checkFailed(null, now: now);

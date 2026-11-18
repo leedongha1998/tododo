@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // ProviderScope의 overrides 타입(`Override`)은 flutter_riverpod.dart가 아니라 misc.dart에 있다.
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:todododo/features/todo/data/todo_widget_host.dart';
@@ -41,6 +43,15 @@ class FakeTodoWidgetHost extends TodoWidgetHost {
     final error = readError;
     if (error != null) throw error;
     return stored;
+  }
+
+  /// 체크 칸 탭을 받을 백그라운드 콜백이 등록됐는지. 가짜로 받지 않으면 실제 플러그인에 닿아
+  /// 던지고(채널이 없다) `AuthGate`가 로그로 삼킨다 — 통과하지만 출력만 더러워진다.
+  int registerCallbackCount = 0;
+
+  @override
+  Future<void> registerCallback(FutureOr<void> Function(Uri?) callback) async {
+    registerCallbackCount++;
   }
 
   @override

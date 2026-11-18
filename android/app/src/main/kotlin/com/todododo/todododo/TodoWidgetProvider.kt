@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
+import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetPlugin
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -203,6 +204,24 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       if (isPending) {
         views.setTextViewText(PENDING_IDS[index], pendingLabel)
       }
+      if (todoId.isNotEmpty()) {
+        // 체크 칸(48x40dp)에만 백그라운드 브로드캐스트를 건다. 자식에 건 것이 부모(앱 열기)보다
+        // 앞서므로 **그 사각형 안에서만** 체크가 일어나고 1px 밖은 앱 열기다.
+        //
+        // **줄마다 다른 PendingIntent가 되는 근거는 Uri data다.** PendingIntent의 동일성은
+        // Intent.filterEquals(action·data·type·component·categories)로 따지므로 data가 다르면
+        // 다른 것으로 본다. extras에 id를 싣는 방식은 쓰지 않는다 — extras는 filterEquals가 보지
+        // 않아 모든 줄이 한 PendingIntent로 합쳐지고, 아무 줄을 눌러도 같은 할 일이 체크되는
+        // 사고가 난다(home_widget의 getBroadcast는 요청 코드를 0으로 고정하므로 data가 유일한
+        // 구분 수단이다).
+        views.setOnClickPendingIntent(
+            CHECK_IDS[index],
+            HomeWidgetBackgroundIntent.getBroadcast(
+                context,
+                Uri.parse("$CHECK_URI_PREFIX$todoId"),
+            ),
+        )
+      }
     }
 
     if (moreCount > 0) {
@@ -304,6 +323,12 @@ class TodoWidgetProvider : HomeWidgetProvider() {
 
     /** todo_widget_payload.dart의 widgetTargetOf가 해석하는 Uri. */
     const val LAUNCH_URI = "todododo://widget/todo"
+
+    /**
+     * 체크 칸의 Uri. 뒤에 할 일 id가 붙는다 —
+     * todo_widget_payload.dart의 `todoWidgetActionOf`가 해석하는 꼴과 같아야 한다.
+     */
+    const val CHECK_URI_PREFIX = "todododo://widget/check?id="
 
     val ROW_IDS =
         intArrayOf(

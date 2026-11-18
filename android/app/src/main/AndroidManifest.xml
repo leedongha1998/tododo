@@ -55,6 +55,18 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/todo_widget_info"/>
         </receiver>
+        <!-- 위젯의 체크 칸 탭을 받아 백그라운드 Dart(onTodoWidgetAction)를 깨우는 리시버.
+             **home_widget 0.10.0은 자기 매니페스트에 이것을 넣어 주지 않는다**(패키지의
+             AndroidManifest.xml이 비어 있고, 예제 앱이 앱 쪽에 적어 둔다) — 없으면 체크를 눌러도
+             아무 일도 일어나지 않는다. exported="false"로 둔다: 이 리시버를 깨우는 PendingIntent는
+             우리 앱이 만들어 런처에 넘긴 것이고 그 브로드캐스트는 우리 앱의 자격으로 발송된다. -->
+        <receiver
+            android:name="es.antonborri.home_widget.HomeWidgetBackgroundReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="es.antonborri.home_widget.action.BACKGROUND"/>
+            </intent-filter>
+        </receiver>
         <!-- 예약된 기한 알림을 실제로 띄우는 리시버와, 재부팅·앱 업데이트 뒤 예약을 다시 거는
              리시버. 둘 다 flutter_local_notifications의 클래스이고 exported="false"다
              (시스템과 패키지가 건 알람만 깨우면 된다). 이것이 없으면 예약은 되는데 알림이

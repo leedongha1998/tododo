@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:home_widget/home_widget.dart';
 
 import 'todo_widget_payload.dart';
@@ -31,5 +33,14 @@ class TodoWidgetHost {
   /// 홈 화면의 위젯을 다시 그리게 한다(네이티브 브로드캐스트).
   Future<void> update() async {
     await HomeWidget.updateWidget(qualifiedAndroidName: providerName);
+  }
+
+  /// 위젯의 체크 칸 탭을 받을 백그라운드 콜백을 등록한다.
+  ///
+  /// **앱 실행마다 다시 등록한다**(`AuthGate`): 등록되는 것은 Dart 콜백의 핸들이고 앱을
+  /// 업데이트하면 그 값이 낡는다. 등록 실패는 `debugPrint`만 남긴다 — 체크가 안 되는 것은
+  /// 위젯의 손해이고 앱의 로그인·화면을 막을 이유가 없다.
+  Future<void> registerCallback(FutureOr<void> Function(Uri?) callback) async {
+    await HomeWidget.registerInteractivityCallback(callback);
   }
 }

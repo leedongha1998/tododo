@@ -535,6 +535,62 @@ TodoWidgetAction todoWidgetActionOf(Uri? uri) {
   return TodoWidgetAction.check(id);
 }
 
+/// 체크 탭 하나를 어떻게 처리할지. 백그라운드 콜백에서 **결정만** 떼어 낸 것이다.
+///
+/// 그 콜백은 실기기에서만 검증되므로(isolate·네트워크·백그라운드 engine을 테스트하지 않는다)
+/// 판단할 수 있는 부분을 전부 여기로 옮겨 유닛 테스트로 덮는다(design 12장).
+enum TodoWidgetCheckDecision {
+  /// 아무 일도 하지 않는다 — 체크가 아닌 Uri, 중복 탭, 이미 목록에서 사라진 할 일.
+  ignore,
+
+  /// **앱의 main isolate에 쓰기를 맡긴다.** 그쪽의 살아 있는 Supabase 클라이언트가 쓰므로
+  /// 이 isolate가 클라이언트를 또 만들지 않는다 — 토큰이 돌아 앱이 로그아웃되는 경로를 막는
+  /// 것이 W5의 핵심이다(design 4.2).
+  handOff,
+
+  /// 이 isolate에서 직접 쓴다. 앱 프로세스가 죽어 있으므로 토큰 회전으로 깨뜨릴 상대가 없다.
+  writeHere,
+}
+
+/// [action]·캐시 상태·앱 생존 여부로 [TodoWidgetCheckDecision]을 고른다.
+///
+/// 캐시를 보는 두 가지 이유(design 4.3의 2번):
+///   - **중복 탭**: 같은 줄을 연속으로 두 번 누르면 첫 탭이 아직 쓰고 있다. 서버 쓰기가 멱등이라
+///     두 번 가도 해롭지는 않지만, 두 번째 발행이 첫 번째의 `쓰는 중`을 흔든다.
+///   - **이미 사라진 줄**: 성공해 목록에서 빠진 할 일이나 로그아웃 뒤 남은 그림을 누른 경우다.
+///
+/// 캐시를 아예 읽지 못했으면(판 번호를 모르거나 읽기 실패) **막지 않는다** — 그때는 중복인지
+/// 알 수 없고, 사용자가 누른 것을 조용히 버리는 쪽이 더 나쁘다(서버 쓰기는 멱등이다).
+TodoWidgetCheckDecision todoWidgetCheckDecisionOf({
+  required TodoWidgetAction action,
+  required TodoWidgetPayload? cached,
+  required bool appAlive,
+  required DateTime now,
+}) {
+  final todoId = action.todoId;
+  if (todoId == null) return TodoWidgetCheckDecision.ignore;
+  if (cached != null) {
+    if (cached.pendingId == todoId && !_pendingExpired(cached, now)) {
+      return TodoWidgetCheckDecision.ignore;
+    }
+    if (!cached.items.any((item) => item.id == todoId)) {
+      return TodoWidgetCheckDecision.ignore;
+    }
+  }
+  return appAlive
+      ? TodoWidgetCheckDecision.handOff
+      : TodoWidgetCheckDecision.writeHere;
+}
+
+/// `쓰는 중` 표시가 이미 효력을 잃었는지. 네이티브가 그 줄을 평소대로 그리는 기준과 같다
+/// (쓰기 도중에 프로세스가 죽은 경우 다음 탭이 막히지 않아야 한다).
+bool _pendingExpired(TodoWidgetPayload cached, DateTime now) {
+  final at = cached.pendingAtMs;
+  if (at == null) return true;
+  return now.millisecondsSinceEpoch - at >=
+      todoWidgetPendingTimeoutSeconds * 1000;
+}
+
 /// 위젯 탭으로 앱이 열렸을 때 어디로 보낼 것인가. 해석할 수 없으면 아무것도 하지 않는다
 /// (오류 화면을 보이지 않는다 — 알림 탭 규칙과 같은 태도).
 TodoWidgetTapTarget? widgetTargetOf(Uri? uri) {

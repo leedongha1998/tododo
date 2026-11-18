@@ -20,6 +20,16 @@ metadata:
    그래서 "앱을 내려 두고 백그라운드 경로를 몇 번 쓰다가 앱을 다시 열면 로그인 화면" 이라는
    **재현 가능한** 경로가 된다.
 
+5. **`Supabase.initialize`는 세션 갱신을 기다리지 않는다**(2026-11-18 구현에서 확인). 저장된 세션을
+   `setInitialSession`으로 메모리에 올리는 것까지만 await하고, 실제 갱신(`recoverSession`)은
+   `CancelableOperation`으로 **unawaited**로 띄운다. 그래서 액세스 토큰이 만료된 상태에서
+   `await initSupabase()` 직후 바로 쓰면 **거의 항상 401**이다(하루에 한 번 앱을 여는 사용자가 그
+   경우다). 직접 쓰기 경로에서는 `currentSession.isExpired`면 `auth.refreshSession()`을 **먼저
+   await**할 것 — gotrue가 같은 refresh token의 갱신을 하나로 합치므로(`_pendingRefreshes`) 토큰이
+   두 번 돌지 않는다.
+6. **`Supabase.initialize`는 멱등하다.** 이미 초기화돼 있으면 로그만 남기고 돌아오므로, 같은
+   백그라운드 engine이 여러 번 깨어나도 가드를 따로 두지 않아도 된다.
+
 **Why:** 증상이 "가끔 로그아웃"이라 추적이 매우 어렵고, 원인이 기능 코드가 아니라 인증이라 배포
 직전에 손대기 가장 나쁜 곳이다. 백그라운드에서 Supabase를 부르는 설계는 이 비용을 먼저 계산해야 한다.
 

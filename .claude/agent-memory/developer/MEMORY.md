@@ -8,6 +8,7 @@
 - [안드로이드 org.json의 optString 함정](android_json_optstring_null.md) — 값이 명시적 null이면 fallback이 아니라 "null" 네 글자가 온다. Dart에서 null 키를 빼고 Kotlin에서 isNull을 먼저 본다.
 - [끌어 옮기기(ReorderableListView) 함정](flutter_reorderable_list_gotchas.md) — onReorder 폐기(3.47), stretch Row의 무한 높이, 빈 칸은 안 잡힘, maxScrollExtent는 추정값, 꾹 누르기와 탭의 공존, 기본 접근성 액션.
 - [백그라운드 isolate의 Supabase 세션](supabase_background_isolate_session.md) — 백그라운드에서 initialize하면 토큰이 회전해 앱이 다음 resume에 조용히 로그아웃된다. IsolateNameServer로 앱에 쓰기를 맡겨라.
+- [home_widget 패키지 함정](home_widget_package_gotchas.md) — 백그라운드 리시버를 앱 매니페스트에 직접 선언해야 하고, getBroadcast의 요청 코드는 0 고정이라 Uri data로만 줄을 구분한다.
 - [한 컬럼을 두 경로가 채울 때](sql_shared_value_space.md) — 컬럼 기본값(시퀀스)과 RPC가 같은 값 공간을 쓰면 숫자로 교차 검산. 증상은 다른 경로의 insert 실패로 나온다.
 - [오너는 모바일 관례를 앞세운다](feedback_owner_mobile_convention.md) — 기획이 "숨은 제스처라 기각"했어도 뒤집힐 수 있다. 딸린 레이아웃 타협까지 함께 되돌린다.
 - [Gemini 한도 문서의 현재 위치](reference_gemini_rate_limits.md) — 무료 등급 모델별 RPM/RPD 숫자는 문서에서 사라졌다. 성질만 적고 숫자는 오너에게 넘긴다. embedding-001은 768차원을 직접 정규화해야 한다.

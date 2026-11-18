@@ -6,6 +6,7 @@ import '../data/due_alarm_host.dart';
 import '../data/todo.dart';
 import '../data/todo_repository.dart';
 import '../data/todo_widget_host.dart';
+import '../data/todo_widget_notice_store.dart';
 import 'due_alarm_service.dart';
 import 'todo_widget_service.dart';
 
@@ -32,6 +33,11 @@ final todoWidgetHostProvider = Provider<TodoWidgetHost>((ref) {
 /// 위젯 캐시 발행. 직전 발행을 기억해야 하므로 앱 수명 동안 하나만 산다.
 final todoWidgetServiceProvider = Provider<TodoWidgetService>((ref) {
   return TodoWidgetService(ref.watch(todoWidgetHostProvider));
+});
+
+/// 홈 화면 노출 안내를 봤는지 기억하는 곳(기기 로컬·계정별). 테스트에서 가짜로 바꾸는 지점이다.
+final todoWidgetNoticeStoreProvider = Provider<TodoWidgetNoticeStore>((ref) {
+  return const TodoWidgetNoticeStore();
 });
 
 /// 기한 알림(기기 로컬)의 네이티브 접점. 테스트에서 가짜로 바꾸는 지점이다.

@@ -512,4 +512,15 @@ class AppStrings {
   }) =>
       '$year/$month/$day $time';
   static String widgetDueOverdue(String due) => '$due 지남';
+  // 할 일 화면 맨 위에 **처음 한 번만** 뜨는 홈 화면 노출 안내(spec 결정 기록 3: 가리기 설정은
+  // 만들지 않고 앱에서 한 번 알린다).
+  //
+  // **위젯을 올렸는지 몰라도 사실인 문장**으로 적는다 — "위젯이 올라갔는지"를 알아내는 네이티브
+  // 조회에 의존하면 설계가 플러그인 API 유무에 걸린다(design 7.1).
+  // 2026-11-18에 기한이 더해져 **드러나는 것이 "제목과 기한" 둘**이 됐고, 문구도 그만큼 넓혔다.
+  static const widgetNoticeTitle = '홈 화면 위젯';
+  static const widgetNotice =
+      '홈 화면 위젯을 올리면 할 일 제목과 기한이 홈 화면에 그대로 보여요. '
+      '런처 설정에 따라 잠금화면에도 보일 수 있어요.';
+  static const widgetNoticeDismiss = '안내 닫기';
 }

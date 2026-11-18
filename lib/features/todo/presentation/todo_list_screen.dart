@@ -60,10 +60,75 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
   /// 새 할 일이 맨 아래에 생기므로 추가 직후 거기를 보여 준다(design 4.5).
   final _scrollController = ScrollController();
 
+  /// 홈 화면 노출 안내를 지금 띄우고 있는지(home-widget design 7.1). **처음 한 번만** 뜨고 닫으면
+  /// 끝이다 — 다시 꺼내는 설정을 만들지 않는다.
+  bool _widgetNoticeVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadWidgetNotice());
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// 안내를 띄울지 기기 기록으로 정한다. 실패하면 **띄우지 않고 로그만** 남긴다 — 안내는 관문이
+  /// 아니고(위젯이 무엇을 보여 주는지 모른 채로도 할 일은 그대로 쓴다) 여기서 토스트를 띄우면
+  /// 화면이 뜨는 순간 사용자가 하지 않은 일로 방해받는다(VS 인트로 "봤음" 기록과 같은 태도).
+  Future<void> _loadWidgetNotice() async {
+    try {
+      final userId = ref.read(authRepositoryProvider).currentUser?.id;
+      if (userId == null) return;
+      final seen = await ref.read(todoWidgetNoticeStoreProvider).hasSeen(userId);
+      if (!mounted || seen) return;
+      setState(() => _widgetNoticeVisible = true);
+    } catch (e) {
+      debugPrint('todoWidgetNotice read failed: $e');
+    }
+  }
+
+  /// 닫기. **먼저 치우고** 기록한다 — 기록이 실패해도 지금 누른 것은 그 자리에서 사라져야 한다
+  /// (실패하면 다음에 한 번 더 뜨는 것이 전부다).
+  Future<void> _dismissWidgetNotice() async {
+    setState(() => _widgetNoticeVisible = false);
+    try {
+      final userId = ref.read(authRepositoryProvider).currentUser?.id;
+      if (userId == null) return;
+      await ref.read(todoWidgetNoticeStoreProvider).markSeen(userId);
+    } catch (e) {
+      debugPrint('todoWidgetNotice write failed: $e');
+    }
+  }
+
+  /// 홈 화면에 **무엇이 드러나는지** 한 번 알린다(spec "P0. 홈 화면 노출" + 결정 기록 3).
+  /// 가리기 설정을 만들지 않는 대신 사실을 말해 두는 자리다.
+  Widget _widgetNotice() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: AppPanel.tone(
+        tone: AppTone.info,
+        title: AppStrings.widgetNoticeTitle,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Expanded(child: KeepWordsText(AppStrings.widgetNotice)),
+            // 닫기는 48dp 칸이다(줄의 체크·삭제와 같은 손가락 감각).
+            SizedBox(
+              width: _cellWidth,
+              child: IconButton(
+                icon: const Icon(AppIcons.close, color: AppPalette.inkMuted),
+                tooltip: AppStrings.widgetNoticeDismiss,
+                onPressed: () => unawaited(_dismissWidgetNotice()),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 다음에 문구가 바뀌는 때까지의 간격(없으면 null — 그때는 `TimeTicker`가 타이머를 아예 두지
@@ -416,7 +481,24 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
         // 알림함 입구는 네 탭 앱바 모두에 같은 자리·같은 모양으로 둔다(spec 결정 4).
         actions: const [NotificationBell()],
       ),
-      body: todosAsync.when(
+      // 안내는 목록 **위**에 자기 자리를 받는다(목록 안에 넣으면 끌어 옮기기의 인덱스와 섞인다).
+      body: Column(
+        children: [
+          if (_widgetNoticeVisible) _widgetNotice(),
+          Expanded(child: _todoBody(todosAsync)),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        // 찾기 탭 FAB와 같은 이유로 고유 태그를 준다(기본값이면 Hero 태그가 겹친다).
+        heroTag: 'addTodoFab',
+        onPressed: _openAddDialog,
+        child: const Icon(AppIcons.add),
+      ),
+    );
+  }
+
+  Widget _todoBody(AsyncValue<List<Todo>> todosAsync) {
+    return todosAsync.when(
         data: (data) {
           // 끌어 놓은 결과가 있으면 그것을 그린다(서버가 답하면 리스너가 지운다).
           final todos = _dragged ?? data;
@@ -460,13 +542,6 @@ class _TodoListScreenState extends ConsumerState<TodoListScreen> {
           debugPrint('todosProvider error: $error');
           return const StatusMessage.error(message: AppStrings.loadTodosFailed, fill: true);
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        // 찾기 탭 FAB와 같은 이유로 고유 태그를 준다(기본값이면 Hero 태그가 겹친다).
-        heroTag: 'addTodoFab',
-        onPressed: _openAddDialog,
-        child: const Icon(AppIcons.add),
-      ),
     );
   }
 }

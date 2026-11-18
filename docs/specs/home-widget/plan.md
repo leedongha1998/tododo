@@ -738,3 +738,292 @@
   `test/features/todo/todo_widget_notice_test.dart`
   / `docs: 위젯 배포 준비`: `DEPLOY.md`, `CLAUDE.md`, `test/tool/widget_resources_test.dart`,
   `docs/specs/home-widget/{spec,design,plan}.md`
+
+---
+
+# 2026-11-18 추가 범위 2 — design 13.2의 9~13단계
+
+입력: `docs/specs/home-widget/design.md`의 **13.2**(현재 기준의 단계 분할)와 그것이 가리키는 장
+(원칙 2의 추가 범위 2 각주 · 2.2.2 · 2.3.1 · 2.4의 둘째 각주 · 4.6 · 5장 끝 각주 · 6.1.2 · 6.2.2 ·
+6.3.1 · 6.4 · 7.2 · 9.2 · 11.3 · 12.3 · 12.4), `docs/specs/home-widget/spec.md`의
+`## 2026-11-18 추가 범위 2`(F·G·H·I + 수용 기준 + **오너 확정 4건**).
+**결정 필요는 하나도 남아 있지 않다**(design "## 결정 필요 → 2026-11-18 추가 범위 2에 대해: 없음").
+
+**이번 작업 범위는 9~13단계 전부다.** 순서를 바꾸지 않는다 — 9(머리 줄·개수) → 10(완료 줄) →
+11(판 경계) → 12(되돌리기) → 13(안내·문서). 그 순서 자체가 "깨지면 그 커밋만 되돌린다"는 설계
+결정이고(spec 후퇴 경로 `I → H`), **9와 10을 합치지 않는 이유**도 design 13.2에 적혀 있다
+(합치면 실기기에서 "줄이 한 줄 줄었다"와 "완료 줄 규칙이 틀렸다"가 한 커밋에 섞인다).
+
+## 공통 규칙 (위 두 `## 공통 규칙`에 더하는 것)
+- **단계 끝마다** `flutter analyze` 이슈 0 + `flutter test` 전부 통과. **네이티브·리소스가 바뀐
+  단계(9·10·11·12)는 `flutter build apk --release --dart-define-from-file=env.json`까지** 돌리고
+  종료 코드를 `EXIT=$?`로 **따로 찍는다**(`tail`로 파이프하면 종료 코드가 가려진다).
+- **스키마 변경 없음, 새 패키지 없음**(design 11.3). `supabase/`·`pubspec.yaml`의 의존성을 건드리면
+  범위를 잘못 읽은 것이다.
+- 위젯 색·문구 네이티브 리소스는 **생성기로만** 만든다(`flutter test tool/generate_widget_resources.dart`).
+  `widget_resources.xml`을 손으로 고치지 않고, 생성기를 고치면 `test/tool/widget_resources_test.dart`도
+  함께 맞춘다(그 테스트는 생성기 규칙을 일부러 베껴 둔 대조판이다).
+- **캐시 판 번호 `v`를 올리지 않는다**(design 2.2.2). 옛 캐시가 옛 규칙과 같게 읽히게 하는 장치가
+  `rank`의 기본값을 **배열 index**로 두는 것(`optInt("rank", index)`)이다 — 그 동작을 바꾸지 않는다.
+- **고정비 24dp · 줄 피치 42dp · 상한 6을 바꾸지 않는다**(design 6.2.2). 머리 줄이 옛 아래 note의
+  자리를 물려받고 2dp를 루트 아래 여백에서 뺀다.
+- 이 세션도 **커밋하지 않는다**. 단계별 파일 목록이 커밋 분할의 기준이다.
+
+## 착수 전 확인 (2026-11-18, 추가 범위 2)
+- 기준선: `flutter analyze` 이슈 0, `flutter test` **850개 통과**.
+- `env.json`이 저장소 루트에 있다 → 릴리스 빌드를 돌릴 수 있다.
+- 1차 범위(4~8단계)는 커밋까지 끝났다(`0de54cc`까지). 작업 트리에서 수정 중인 것은
+  `docs/specs/home-widget/{spec,design}.md`뿐이다.
+
+## CLAUDE.md·dev-standards와의 충돌 점검 (2026-11-18, 추가 범위 2)
+**구현을 멈춰야 하는 충돌은 없다.** 새로 확인한 항목만 적는다.
+- **"판정 로직은 DB/Edge"·"클라이언트에서 승패 계산 금지"** — 이번에도 `todos`만 읽고
+  `todos.is_done`만 쓴다(값이 `true` 하나에서 `true|false`로 넓어질 뿐이다. design 11.3).
+  대결 테이블·점수·전적에 닿는 경로가 없다.
+- **"테스트 없이 판정 로직 수정 금지"** — 판정 로직을 수정하지 않는다. 이번에 늘어나는 판단
+  (랭크 규칙·줄 자리 계산·헤더 문장·되돌리기 결정)을 전부 Dart 순수 함수로 두고 유닛 테스트로
+  고정한다(design 12.3).
+- **"사용자에게 보이는 문자열은 `lib/core/strings.dart`"** — 헤더·개수 문장도 거기서 나간다.
+  네이티브가 직접 갖는 `todo_widget_header`는 **생성기가 `AppStrings`에서 뽑는다**(출처가 한 곳).
+- **"새 화면 하나 = 새 커밋 하나"** — 새 화면이 없다. 커밋은 13.2의 다섯 단계다.
+- **범위 밖 확인**: 다크 모드·완료 자동 정리·완료 시각 열·진도율을 만들지 않는다(spec 범위 밖).
+
+---
+
+## 9단계 — 위젯 머리 줄에 할 일과 개수를 적는다
+
+### 파일
+1. `lib/core/strings.dart` — `widgetHeader`(`할 일`), `widgetHeaderCount({done, total})`
+   (`할 일 $done/$total`, **낱말을 덧붙이지 않는다** — 오너 확정 2). note 세 문구 단축:
+   `widgetNoteFresh` → `$time 기준`, `widgetNoteStale` → `못 불러왔어요 · $time 기준`,
+   `widgetCheckFailed` → `체크하지 못했어요 · 앱에서 확인해요`(design 6.1.2의 폭 계산).
+2. `lib/features/todo/data/todo_widget_payload.dart` — 최상위 `header` 키 + 상태별 채우기
+   (3·3b·4·8만 개수를 적고 1·2·5·6은 `할 일`. 4·8은 **직전 header를 물려받는다**).
+3. `android/app/src/main/res/layout/todo_widget.xml` — 머리 줄 `widget_header_row` 신설(헤더 +
+   `widget_note` **이사**, id 유지), 루트 `paddingBottom` 4dp → **2dp**, 아래 note 삭제.
+4. `android/app/src/main/kotlin/.../TodoWidgetProvider.kt` — 머리 줄 그리기(`header`가 비면 **손대지
+   않는다** → 레이아웃 기본값 `할 일`이 남는다).
+5. `tool/generate_widget_resources.dart` + 생성물 — `todo_widget_header` 문자열,
+   `widget_primary_deep` 색(헤더 글자색).
+6. `test/tool/widget_resources_test.dart` — 새 문자열·색 한 칸씩.
+7. `test/features/todo/todo_widget_payload_test.dart` — 헤더 문장·note 문구·`widgetRowCount` 225dp.
+
+### 검증
+`flutter analyze` 이슈 0 / `flutter test` 통과 / **릴리스 APK 빌드**.
+
+---
+
+## 10단계 — 위젯에서 체크한 줄이 선 그어진 완료 줄로 남는다 (이번 범위의 본체)
+
+### 파일
+1. `lib/features/todo/data/todo_widget_payload.dart` — `TodoWidgetItem`에 `done`·`rank`,
+   완료 캐시 상한 `todoWidgetMaxDoneItems = 6`, 랭크 규칙(2.2.2), `visibleRows`의 새 몸(6.2.2),
+   `fromTodos(justCheckedId:)`, 상태 3b, 머리 주석의 **"판단 넷 → 여섯"**.
+2. `lib/features/todo/domain/todo_widget_service.dart` — `markJustChecked`·`publishTodos`(7.2 (1)).
+3. `lib/core/navigation/main_shell.dart` — 성공 갈래 한 줄(`publishTodos`). 실패·로딩 갈래는 그대로.
+4. `lib/features/auth/presentation/auth_gate.dart` — `_onWidgetCheck`가 `setDone` **앞에서**
+   `markJustChecked(todoId)`.
+5. `lib/features/todo/data/todo_widget_callback.dart` — `_writeHere`의 `justCheckedId`.
+6. `android/app/src/main/res/drawable/widget_row_done.xml`·`widget_check_done.xml`(**신규**).
+7. `tool/generate_widget_resources.dart` + 생성물 — `widget_primary` 색.
+8. `test/tool/widget_resources_test.dart` — 그 색 한 칸.
+9. `android/app/src/main/kotlin/.../TodoWidgetProvider.kt` — `rank` 걸러 내기 + **`rowIndex` 분리**,
+   완료 모양 셋(면·제목 색+취소선 span·체크 그림), 클래스 주석의 판단 목록 넷 → 여섯.
+10. `test/features/todo/todo_widget_payload_test.dart` — 12.3의 절반(랭크·`visibleRows`·3b·왕복).
+11. `test/features/auth/logout_widget_cache_test.dart` 또는 새 테스트 — `markJustChecked`·`publishTodos`.
+
+### 검증
+`flutter analyze` 이슈 0 / `flutter test` 통과 / **릴리스 APK 빌드**.
+
+---
+
+## 11단계 — 위젯 판의 경계를 또렷하게
+`android/app/src/main/res/drawable/widget_frame.xml`에 1dp `widget_line` `<stroke>` 한 줄(6.4).
+검증: analyze / test / **릴리스 APK 빌드**.
+
+---
+
+## 12단계 — 위젯 완료 줄을 다시 눌러 되돌린다
+
+### 파일
+1. `lib/features/todo/data/todo_widget_payload.dart` — `TodoWidgetAction.setDone(id, done:)`,
+   `todoWidgetActionOf`의 `done`(없거나 모르는 값이면 **완료**로 읽는다 — 옛 PendingIntent 호환),
+   결정 함수의 `ignore` 조건(**이미 목표 값이면 무시**).
+2. `lib/features/todo/data/todo_widget_callback.dart` — 포트 메시지 셋 + `_writeHere`.
+3. `lib/features/auth/presentation/auth_gate.dart` — `_onWidgetCheck`가 길이 3 + 타입 셋 검사.
+4. `android/app/src/main/kotlin/.../TodoWidgetProvider.kt` — 체크 Uri에 `done=1|0`.
+5. 테스트 — `todoWidgetActionOf`·결정 함수(12.3).
+
+### 검증
+analyze / test / **릴리스 APK 빌드**.
+
+---
+
+## 13단계 — 위젯 노출 안내 문구를 넓힌다 + 배포 준비
+1. `lib/core/strings.dart` — `widgetNotice`에 "끝낸 할 일과 개수"(7.2 (2)). **"봤음" 키는 바꾸지
+   않는다**(아직 배포 전이라 안내를 닫은 사용자가 없다).
+2. `DEPLOY.md` — 위젯 확인 줄을 **12.4까지** 넓힌다.
+3. `CLAUDE.md` — 범위 서술의 "체크까지 허용"을 **체크·되돌리기**로 한 단어 넓힌다.
+4. 생성물 대조 테스트가 새 색·문자열을 덮는지 확인(9·10단계에서 이미 더했으면 확인만).
+검증: analyze / test. 릴리스 빌드 불필요.
+
+---
+
+## 진행 기록 (2026-11-18 추가 범위 2)
+
+### 9단계 — 머리 줄(헤더·개수) (구현 완료, 커밋 전, 2026-11-18)
+- 파일(수정): `lib/core/strings.dart`(`widgetHeader`·`widgetHeaderCount` 신설, `widgetNoteFresh`·
+  `widgetNoteStale`·`widgetCheckFailed` 단축), `lib/features/todo/data/todo_widget_payload.dart`
+  (`header` 필드 + 상태별 채우기 + 왕복 + 고정비 주석 갱신),
+  `android/app/src/main/res/layout/todo_widget.xml`(머리 줄 신설 + `widget_note` 이사 +
+  루트 `paddingBottom` 2dp + 아래 note 삭제),
+  `android/app/src/main/kotlin/.../TodoWidgetProvider.kt`(`showHeader` + `FIXED_DP` 주석),
+  `tool/generate_widget_resources.dart`(`todo_widget_header`·`widget_primary_deep`),
+  `android/app/src/main/res/values/widget_resources.xml`(**생성물**),
+  `test/tool/widget_resources_test.dart`, `test/features/todo/todo_widget_payload_test.dart`,
+  `lib/core/navigation/main_shell.dart`(주석 한 줄).
+  **신규 파일 없음.**
+- 검증: `flutter analyze` 이슈 0, `flutter test` **858개 통과**(기준선 850 + 8),
+  **릴리스 APK 빌드 성공**(`EXIT=0`, 62.3MB).
+- 설계와 달라진 점: 없다(머리 줄 수치·문구 단축·고정비 24dp 유지 전부 design 6.1.2·6.2.2 그대로).
+  - 헤더 글자색은 **레이아웃이 `@color/widget_primary_deep`을 직접 참조**하게 뒀다(네이티브가
+    `setTextColor`로 칠하지 않는다). design 6.4가 둘 중 어느 쪽이어도 좋다고 적었고, 캐시가 없을
+    때·옛 캐시일 때도 색이 맞는 쪽이 레이아웃 참조다.
+- 함정 메모
+  - **note 문구를 줄이면 네 자리가 함께 깨진다.** `지금은 못 불러왔어요 · …`를 하드코딩한 테스트가
+    세 파일(`todo_widget_payload_test`·`todo_widget_publish_test`·`widget_test`)에 있었다.
+    문구를 고칠 때 `grep`으로 먼저 찾을 것.
+  - 문구 길이를 **글자 수로 테스트하지 말 것.** design이 적은 "17자"는 한글 낱자만 센 값이고 공백·
+    가운뎃점을 넣으면 20자다. `startsWith`/`isNot(contains(...))`로 **성질**을 고정했다.
+  - `widget_note`의 **id를 그대로 두는 것**이 네이티브 `showNote`와 옛 캐시 호환의 전제다. 머리 줄은
+    `widget_rows`를 감싼 `FrameLayout` **밖**(루트의 첫 자식)이어야 한다 — 안에 넣으면
+    `widget_center`(match_parent)가 머리 줄을 덮는다.
+  - 편집 훅의 `dart format` 실패 보고는 이번에도 거짓 경보였다(`git diff`가 더한 줄뿐이다).
+
+### 10단계 — 완료 줄(`done`·`rank`) (구현 완료, 커밋 전, 2026-11-18)
+- 파일(신규): `android/app/src/main/res/drawable/widget_row_done.xml`,
+  `android/app/src/main/res/drawable/widget_check_done.xml`.
+  파일(수정): `lib/features/todo/data/todo_widget_payload.dart`(`TodoWidgetItem.done`·`rank`,
+  `todoWidgetMaxDoneItems`, `_keepDone`·`_ranksOf`, `fromTodos(justCheckedId:)`, 상태 3b,
+  `visibleRows` 새 몸, `_itemOf`, 머리 주석 **넷 → 여섯**),
+  `lib/features/todo/domain/todo_widget_service.dart`(`markJustChecked`·`publishTodos`),
+  `lib/core/navigation/main_shell.dart`(성공 갈래 한 줄),
+  `lib/features/auth/presentation/auth_gate.dart`(`markJustChecked` 호출),
+  `lib/features/todo/data/todo_widget_callback.dart`(`justCheckedId`),
+  `android/app/src/main/kotlin/.../TodoWidgetProvider.kt`(`rank` 걸러 내기 + `rowIndex` 분리 +
+  `showRow`·`struckThrough` + 클래스 주석 넷 → 여섯),
+  `tool/generate_widget_resources.dart`(`widget_primary`) + 생성물,
+  `test/tool/widget_resources_test.dart`, `test/features/todo/todo_widget_payload_test.dart`,
+  `test/features/todo/todo_widget_publish_test.dart`, `test/widget_test.dart`.
+- 검증: `flutter analyze` 이슈 0, `flutter test` **875개 통과**(858 + 17), 릴리스 APK 빌드(아래).
+- 설계와 달라진 점: 없다(랭크 규칙·두 상한·`visibleRows` 새 몸·판 번호 유지 전부 design 2.2.2·6.2.2
+  그대로). 다만 **테스트 기대값 하나를 설계의 보기와 맞추며 고쳤다**: design 6.2.2의 보기는
+  `justChecked`가 있는 경우이고, 같은 목록에서 `justChecked`가 **없으면** 미완료 4개가 4줄에 딱 들어가
+  `그 외` 줄이 아예 생기지 않는다(처음에 `['A','C','D']`를 기대해 실패했다). 두 경우를 **각각** 칸으로
+  두었다.
+- 함정 메모
+  - **`rowIndex`와 항목 index를 겹쳐 쓰지 말 것.** `rank`로 걸러 내므로 "배열 3번째 항목"이
+    "2번째 줄"에 들어간다. 겹쳐 쓰면 걸러진 항목 자리에 **빈 줄**이 남는다(design 6.3.1의 경고).
+  - 취소선은 `SpannableString` + `StrikethroughSpan`이다. `setInt(id, "setPaintFlags", …)`는
+    **컴파일은 되고 적용 시점에 위젯 전체가 깨진다**(`@RemotableViewMethod`가 아니다).
+  - 완료 모양은 `setInt(id, "setBackgroundResource", …)` + `setTextColor` + `setImageViewResource`
+    셋이고 **미완료 줄에서는 되돌려 쓰지 않는다**(매 그리기가 새 `RemoteViews`라 레이아웃 기본값이
+    곧 미완료 모양이다).
+  - `ranks.putIfAbsent(id, () => ranks.length)`는 **삽입 전 길이**를 쓴다(Dart의 `putIfAbsent`가
+    `ifAbsent()`를 먼저 부른다) — 그래서 0부터 빈틈 없이 매겨진다.
+  - `TodoWidgetItem.rank`를 **required로** 두면 기존 테스트의 손으로 만든 항목이 컴파일에서
+    걸린다(그게 의도다. 기본값 0을 주면 모든 줄이 rank 0이 되어 조용히 깨진다).
+  - `TodoWidgetItem.fromJson`에 **index 인자**가 생겼다(옛 캐시의 `rank` 기본값). 네이티브의
+    `optInt("rank", index)`와 같은 규칙이고, 이 둘이 판 번호를 올리지 않아도 되는 근거다.
+  - 완료 줄에 기한을 숨기는 일은 **Dart가 캐시에서 끝낸다**(`_itemOf`가 `isDone`이면 기한 키를
+    만들지 않는다). 네이티브에 완료 전용 분기를 만들지 말 것.
+
+### 11단계 — 판의 경계 (구현 완료, 커밋 전, 2026-11-18)
+- 파일(수정): `android/app/src/main/res/drawable/widget_frame.xml`(1dp `widget_line` `<stroke>` 한 줄
+  + 2026-11-04의 "테두리 없음"을 뒤집는 근거 주석). **그 파일 하나뿐이다.**
+- 검증: `flutter analyze` 이슈 0, `flutter test` 875개 통과(변화 없음 — Dart가 바뀌지 않았다),
+  릴리스 APK 빌드(아래 표).
+- 설계와 달라진 점: 없다(모서리 16dp·면 색·그라데이션 없음 전부 그대로).
+- 함정 메모: 이 커밋은 **되돌리기가 한 줄**이다(design 13.2가 11단계를 따로 둔 이유). 오너가
+  "이건 아니다"라고 하면 색 포인트 셋(9·10단계)을 건드리지 않고 이 줄만 지운다.
+
+### 12단계 — 되돌리기 (구현 완료, 커밋 전, 2026-11-18)
+- 파일(수정): `lib/features/todo/data/todo_widget_payload.dart`(`TodoWidgetAction.setDone(id, done:)`
+  + `isWrite`, `todoWidgetActionOf`의 `done` 해석, 결정 함수의 바뀐 `ignore` 조건),
+  `lib/features/todo/data/todo_widget_callback.dart`(포트 메시지 셋 + `_writeHere`가 목표 값을 쓴다),
+  `lib/features/auth/presentation/auth_gate.dart`(길이 3 + 타입 셋 검사 → `setDone(todoId, done)`),
+  `android/app/src/main/kotlin/.../TodoWidgetProvider.kt`(체크 Uri에 `&done=1|0`, `CHECK_URI_DONE`),
+  `test/features/todo/todo_widget_payload_test.dart`.
+- 검증: `flutter analyze` 이슈 0, `flutter test` **879개 통과**(875 + 4), 릴리스 APK 빌드(아래 표).
+- 설계와 달라진 점: 없다(목표 값 Uri·`done` 없으면 완료·`ignore` 조건 전부 design 4.6 그대로).
+- 함정 메모
+  - **`TodoWidgetAction.check`를 지우면 이름이 네 자리에서 걸린다**(`isCheck`까지). `sed`로 한 번에
+    고치되 **마지막 한 자리**(`todoWidgetActionOf(null).isCheck`)가 패턴에서 빠지기 쉽다.
+  - `done`은 `!= '0'`으로 읽는다(모르는 값·없는 값이 전부 완료로 떨어진다) — 옛 PendingIntent
+    호환이 그 기본값의 이유이고, 테스트 칸으로 박아 두었다.
+  - **포트 메시지 길이가 2 → 3으로 바뀌는 것이 isolate 경계의 깨지기 쉬운 자리다.** 받는 쪽이
+    길이·타입을 검사해 어긋나면 **아무 일도 하지 않으므로**(답할 곳도 모른다) 한쪽만 고치면
+    "눌렀는데 아무 일도 안 난다"가 된다. 두 파일을 같은 커밋에 둔다.
+
+### 13단계 — 노출 안내 문구와 배포 준비 (구현 완료, 커밋 전, 2026-11-18)
+- 파일(수정): `lib/core/strings.dart`(`widgetNotice`에 "끝낸 할 일과 개수" + "봤음" 키를 바꾸지 않는
+  근거 주석), `DEPLOY.md`(위젯 실기기 확인을 **design 12.4까지** 넓힘 — 13칸 추가),
+  `CLAUDE.md`(범위 서술의 "체크까지 허용" → **"체크·되돌리기까지 허용"**).
+- 문서 확인 결과(고치지 않은 것)
+  - **생성물 대조 테스트**(`test/tool/widget_resources_test.dart`)는 9·10단계에서 이미 새 문자열
+    하나와 새 색 둘을 덮도록 고쳤다. 13단계에서는 확인만 했다(생성기를 다시 돌려도 결과가 같다).
+  - CLAUDE.md의 **개발 명령어 생성기 한 줄**과 **코딩 규칙의 위젯 예외들**은 이미 들어가 있다.
+  - 개인정보처리방침 확인은 **오너 몫**이다(design 14장 3번). 이번 범위도 수집 항목을 늘리지 않았다
+    (완료 여부는 이미 서버에 있는 내 데이터이고, 기기 캐시는 로그아웃·탈퇴 때 덮어쓴다).
+- 검증: `flutter analyze` 이슈 0, `flutter test` **879개 통과**(변화 없음). 네이티브 변경 없음.
+- 설계와 달라진 점: 없다.
+- 함정 메모: `widgetNotice`는 어느 테스트도 **문장을 하드코딩하지 않는다**(`AppStrings`를 참조한다) —
+  그래서 문구를 넓혀도 테스트가 깨지지 않았다. note 문구와 달랐던 자리다.
+
+---
+
+## 커밋 분할용 파일 목록 (2026-11-18 추가 범위 2, 9~13단계)
+
+커밋 메시지는 design 13.2의 "커밋 제안"을 그대로 쓴다. **단계 경계를 넘는 파일이 다섯 있다** —
+아래에 표시했고, 그 자리는 `git add -p`로 나눠야 한다.
+
+- **9단계** `feat: 위젯 머리 줄에 할 일과 개수를 적는다`:
+  `lib/core/strings.dart`(헤더 둘 + note 셋 단축) ※9·13단계가 이어 고침,
+  `lib/features/todo/data/todo_widget_payload.dart`(`header`) ※9·10·12단계가 이어 고침,
+  `android/app/src/main/res/layout/todo_widget.xml`(머리 줄·이사·여백),
+  `android/app/src/main/kotlin/com/todododo/todododo/TodoWidgetProvider.kt`(`showHeader`·주석)
+  ※9·10·12단계가 이어 고침,
+  `tool/generate_widget_resources.dart`(문자열 하나 + 색 하나) ※9·10단계가 이어 고침,
+  `android/app/src/main/res/values/widget_resources.xml`(**생성물**) ※9·10단계가 이어 고침,
+  `test/tool/widget_resources_test.dart` ※9·10단계가 이어 고침,
+  `test/features/todo/todo_widget_payload_test.dart` ※9·10·12단계가 이어 고침,
+  `lib/core/navigation/main_shell.dart`(주석 한 줄) ※9·10단계가 이어 고침,
+  그리고 **문구 단축에 딸린 테스트 세 자리**:
+  `test/features/todo/todo_widget_publish_test.dart`(※10단계도 고침), `test/widget_test.dart`
+  (※10단계도 고침)
+- **10단계** `feat: 위젯에서 체크한 줄이 선 그어진 완료 줄로 남는다`:
+  `lib/features/todo/data/todo_widget_payload.dart`(`done`·`rank`·랭크 규칙·`visibleRows`·3b),
+  `lib/features/todo/domain/todo_widget_service.dart`,
+  `lib/core/navigation/main_shell.dart`(성공 갈래 한 줄),
+  `lib/features/auth/presentation/auth_gate.dart`(`markJustChecked`) ※10·12단계가 이어 고침,
+  `lib/features/todo/data/todo_widget_callback.dart`(`justCheckedId`) ※10·12단계가 이어 고침,
+  `android/app/src/main/res/drawable/widget_row_done.xml`(**신규**),
+  `android/app/src/main/res/drawable/widget_check_done.xml`(**신규**),
+  `tool/generate_widget_resources.dart`(`widget_primary`) + 생성물,
+  `test/tool/widget_resources_test.dart`, `TodoWidgetProvider.kt`(`rank`·`rowIndex`·완료 모양·취소선),
+  `test/features/todo/todo_widget_payload_test.dart`,
+  `test/features/todo/todo_widget_publish_test.dart`(`markJustChecked` 묶음), `test/widget_test.dart`
+- **11단계** `feat: 위젯 판의 경계를 또렷하게`:
+  `android/app/src/main/res/drawable/widget_frame.xml` **하나뿐이다**(되돌리기가 한 줄이다)
+- **12단계** `feat: 위젯 완료 줄을 다시 눌러 되돌린다`:
+  `lib/features/todo/data/todo_widget_payload.dart`(`TodoWidgetAction.setDone`·`done` 해석·`ignore`),
+  `lib/features/todo/data/todo_widget_callback.dart`(포트 메시지·목표 값),
+  `lib/features/auth/presentation/auth_gate.dart`(길이 3 검사),
+  `TodoWidgetProvider.kt`(`&done=1|0`·`CHECK_URI_DONE`),
+  `test/features/todo/todo_widget_payload_test.dart`
+- **13단계** `feat: 위젯 노출 안내 문구를 넓힌다`: `lib/core/strings.dart`(`widgetNotice`)
+  / `docs: 2차 범위 배포 준비`: `DEPLOY.md`, `CLAUDE.md`,
+  `docs/specs/home-widget/{spec,design,plan}.md`
+
+**커밋에 넣지 말 것**: `android/.kotlin/`(Kotlin 2.x가 릴리스 빌드 중에 만드는 캐시 디렉터리.
+`errors/`·`sessions/`뿐이고 이번 작업과 무관하다 — 무시하거나 별도 커밋에서 `.gitignore`에 올린다).

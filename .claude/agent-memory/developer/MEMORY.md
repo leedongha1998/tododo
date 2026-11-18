@@ -12,3 +12,4 @@
 - [한 컬럼을 두 경로가 채울 때](sql_shared_value_space.md) — 컬럼 기본값(시퀀스)과 RPC가 같은 값 공간을 쓰면 숫자로 교차 검산. 증상은 다른 경로의 insert 실패로 나온다.
 - [오너는 모바일 관례를 앞세운다](feedback_owner_mobile_convention.md) — 기획이 "숨은 제스처라 기각"했어도 뒤집힐 수 있다. 딸린 레이아웃 타협까지 함께 되돌린다.
 - [Gemini 한도 문서의 현재 위치](reference_gemini_rate_limits.md) — 무료 등급 모델별 RPM/RPD 숫자는 문서에서 사라졌다. 성질만 적고 숫자는 오너에게 넘긴다. embedding-001은 768차원을 직접 정규화해야 한다.
+- [RemoteViews 그리기 함정](remoteviews_gotchas.md) — 취소선은 span만 되고 setPaintFlags 반사는 위젯을 깨뜨린다. 줄 슬롯 번호와 항목 index를 겹쳐 쓰면 빈 줄이 남는다.

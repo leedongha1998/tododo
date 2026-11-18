@@ -13,12 +13,25 @@ const _googleRedirectUrl = 'com.todododo.todododo://login-callback/';
 /// (P0 리뷰 지적과 같은 모양). 조립은 `auth_providers.dart`가 한다.
 typedef CancelDeviceAlarms = Future<void> Function();
 
+/// 로그아웃·탈퇴 때 홈 화면 위젯의 기기 캐시를 "로그인하지 않음"으로 덮는 일.
+///
+/// [CancelDeviceAlarms]와 **같은 모양**으로 함수만 받는다 — 위젯 캐시 발행은
+/// `features/todo/domain`의 일이고, 이 파일(`features/auth/data`)이 다른 feature의 `domain`을
+/// import하면 계층이 거꾸로 선다. 조립은 `auth_providers.dart`가 한다(design 8.1).
+typedef ClearWidgetCache = Future<void> Function();
+
 class AuthRepository {
-  AuthRepository(this._client, this._push, this._cancelDeviceAlarms);
+  AuthRepository(
+    this._client,
+    this._push,
+    this._cancelDeviceAlarms,
+    this._clearWidgetCache,
+  );
 
   final SupabaseClient _client;
   final PushService _push;
   final CancelDeviceAlarms _cancelDeviceAlarms;
+  final ClearWidgetCache _clearWidgetCache;
 
   Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
 
@@ -38,11 +51,16 @@ class AuthRepository {
   /// 통하므로 로그아웃 뒤에는 지울 수 없고, 남겨 두면 다음 사용자에게 내 알림이 간다.
   /// 토큰 정리 실패는 로그아웃을 막지 않는다(PushService가 로그만 남긴다).
   ///
-  /// 기한 알림 예약도 함께 버린다 — 기기를 넘겨받은 사람에게 내 할 일 제목이 알림으로 뜨면
-  /// 안 된다(위젯 캐시를 로그아웃 때 지우는 것과 같은 이유). 이쪽 실패도 로그아웃을 막지 않는다.
+  /// 기한 알림 예약도 함께 버리고 홈 화면 위젯 캐시도 비운다 — 기기를 넘겨받은 사람에게 내 할 일
+  /// 제목이 알림으로 뜨거나 홈 화면에 남아 있으면 안 된다. 이쪽 실패도 로그아웃을 막지 않는다.
+  ///
+  /// 위젯 캐시 비우기를 `auth.signOut()` **앞**에 두는 이유: 캐시는 기기 로컬이라 세션이 필요
+  /// 없지만, 뒤에 두면 앞 단계가 던질 때 건너뛰어진다. **다음 주기 갱신(최대 30분)을 기다려야
+  /// 비워지는 것은 spec이 받지 않는다** — 그래서 그 자리에서 즉시 덮는다.
   Future<void> signOut() async {
     await _push.forgetCurrentToken();
     await _cancelDeviceAlarms();
+    await _clearWidgetCache();
     await _client.auth.signOut();
   }
 
@@ -76,8 +94,11 @@ class AuthRepository {
     }
 
     await _client.rpc('delete_account');
-    // 탈퇴한 뒤 이 기기에 내 할 일 제목이 알림으로 뜨면 안 된다(signOut과 같은 이유).
+    // 탈퇴한 뒤 이 기기에 내 할 일 제목이 알림으로 뜨거나 홈 화면 위젯에 남아 있으면 안 된다
+    // (signOut과 같은 이유). **이 경로는 signOut()을 거치지 않고** auth.signOut()을 직접 부르므로
+    // 두 정리를 여기에 따로 적어야 한다.
     await _cancelDeviceAlarms();
+    await _clearWidgetCache();
     await _client.auth.signOut();
   }
 }

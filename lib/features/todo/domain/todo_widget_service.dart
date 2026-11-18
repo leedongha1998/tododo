@@ -48,6 +48,19 @@ class TodoWidgetService {
     await publish(TodoWidgetPayload.loading(now: now));
   }
 
+  /// 캐시를 **"로그인하지 않음"으로 덮는다**(키를 지우지 않는다 — 키가 없으면 네이티브가 "아직
+  /// 아무것도 모른다" 화면을 띄우는데 그건 로그아웃 상태와 다른 뜻이다. design 2.1).
+  ///
+  /// 페이로드 타입을 바깥에 내보내지 않는 얇은 창구다. 부르는 쪽(`features/auth`)이 `todo/data`의
+  /// 타입을 import하지 않게 하려는 것이고(design 8.1), 그래서 로그아웃·탈퇴 경로는 함수 하나만
+  /// 받아 쓴다(`AuthRepository`의 `ClearWidgetCache`).
+  ///
+  /// 실패는 [publish]가 안에서 삼키고 `debugPrint`만 남기므로 호출부에 `try`가 필요 없다 —
+  /// 위젯 캐시 때문에 로그아웃·탈퇴가 막히지 않는다.
+  Future<void> publishLoggedOut({DateTime? now}) {
+    return publish(TodoWidgetPayload.loggedOut(now: now ?? DateTime.now()));
+  }
+
   Future<void> publish(TodoWidgetPayload payload) async {
     _publishCount++;
     final json = payload.encode();

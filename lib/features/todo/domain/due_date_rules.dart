@@ -1,6 +1,11 @@
 // 개인 투두의 기한 규칙(todo-due-date). Flutter에 의존하지 않는 순수 함수만 둔다 —
 // 문구를 유닛 테스트로 고정하기 위해서다(design 원칙 2, 선례: todo_widget_payload.dart).
 //
+// **위젯의 절대 시각 서식(`오후 6:00` / `11/20 오후 6:00`)은 여기가 아니라
+// `../data/todo_widget_payload.dart`의 `formatWidgetDue`에 있다** — 페이로드가 `data/`라서 이쪽을
+// import할 수 없고(계층이 거꾸로 선다), 그 꼴은 위젯 전용이다(design 6.1.1). 기한 서식을 찾는
+// 사람이 한 번에 셋(목록·대화상자·위젯)을 보게 적어 둔다.
+//
 // **목록 순서는 이 파일이 만들지 않는다.** 기한 우선 정렬(sortedForList·compareForList)은
 // 2026-11-10 todo-reorder로 폐기됐다 — 순서는 사용자가 끌어 정하고 서버의 order by position이
 // 만든다. 여기 남은 것은 남은 시간 문구와 기한 값 서식, 즉 **표시**뿐이다.

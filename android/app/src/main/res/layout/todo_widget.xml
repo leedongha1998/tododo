@@ -3,14 +3,21 @@
      RemoteViews는 런처 프로세스가 그리므로 커스텀 View·데이터 바인딩을 쓸 수 없다. 그래서 줄
      6개를 미리 선언해 두고 TodoWidgetProvider가 남는 줄을 GONE으로 접는다(design 1.2의 안 A).
      문구는 전부 기기 캐시에서 오고, 이 파일에 한국어가 있는 자리는 없다(캐시가 아예 없을 때의
-     한 줄만 생성된 @string/todo_widget_no_cache를 쓴다). -->
+     한 줄만 생성된 @string/todo_widget_no_cache를 쓴다).
+
+     줄의 수치는 design 6.1.1(2026-11-18)이 현재 기준이다 — 줄 minHeight 40dp + 아래 여백 2dp
+     (= 간격 42dp, 줄 수 공식의 ROW_PITCH_DP와 같은 값), 체크 칸 48x40dp, 기한은 제목 아래.
+     paddingHorizontal/paddingVertical은 **쓰지 않는다**: API 26부터이고 이 앱의 minSdk는 24다. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_frame"
     android:orientation="vertical"
-    android:padding="8dp">
+    android:paddingLeft="8dp"
+    android:paddingRight="8dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -30,35 +37,68 @@
                 android:layout_marginBottom="2dp"
                 android:background="@drawable/widget_row"
                 android:gravity="center_vertical"
+                android:minHeight="40dp"
                 android:orientation="horizontal"
-                android:padding="5dp">
+                android:paddingRight="8dp">
 
+                <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
+                     뷰 전체가 칠해져 48x40dp짜리 거대한 네모가 그려지므로 src로 옮겼다. 그려지는
+                     사각형은 content box(20x20dp)이고 터치는 뷰 전체(48x40dp = 지금의 7.5배)가 받는다. -->
                 <ImageView
                     android:id="@+id/widget_check_0"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/widget_check"
-                    android:contentDescription="@null" />
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="@null"
+                    android:paddingLeft="14dp"
+                    android:paddingRight="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp"
+                    android:src="@drawable/widget_check" />
 
+                <!-- 쓰는 중 표시. 체크 칸과 같은 칸·같은 폭(48dp)이라 줄의 들여쓰기가 흔들리지 않는다. -->
                 <TextView
                     android:id="@+id/widget_pending_0"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:minWidth="48dp"
                     android:textColor="@color/widget_ink_muted"
                     android:textSize="12sp"
                     android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/widget_title_0"
+                <!-- 제목과 기한을 감싼 칸. **앱 열기 PendingIntent가 걸리는 자리**다(design 4.5) —
+                     제목과 기한에 따로 걸지 않는다(기한을 눌러도 같은 결과여야 한다). -->
+                <LinearLayout
+                    android:id="@+id/widget_text_0"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/widget_ink"
-                    android:textSize="14sp" />
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/widget_title_0"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink"
+                        android:textSize="14sp" />
+
+                    <!-- 기한. 기본이 gone이고 캐시에 기한 키가 있는 줄에서만 켜진다(design 6.3).
+                         기한이 없는 줄에는 대체 문구·기호를 그리지 않는다. -->
+                    <TextView
+                        android:id="@+id/widget_due_0"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink_muted"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -68,35 +108,68 @@
                 android:layout_marginBottom="2dp"
                 android:background="@drawable/widget_row"
                 android:gravity="center_vertical"
+                android:minHeight="40dp"
                 android:orientation="horizontal"
-                android:padding="5dp">
+                android:paddingRight="8dp">
 
+                <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
+                     뷰 전체가 칠해져 48x40dp짜리 거대한 네모가 그려지므로 src로 옮겼다. 그려지는
+                     사각형은 content box(20x20dp)이고 터치는 뷰 전체(48x40dp = 지금의 7.5배)가 받는다. -->
                 <ImageView
                     android:id="@+id/widget_check_1"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/widget_check"
-                    android:contentDescription="@null" />
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="@null"
+                    android:paddingLeft="14dp"
+                    android:paddingRight="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp"
+                    android:src="@drawable/widget_check" />
 
+                <!-- 쓰는 중 표시. 체크 칸과 같은 칸·같은 폭(48dp)이라 줄의 들여쓰기가 흔들리지 않는다. -->
                 <TextView
                     android:id="@+id/widget_pending_1"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:minWidth="48dp"
                     android:textColor="@color/widget_ink_muted"
                     android:textSize="12sp"
                     android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/widget_title_1"
+                <!-- 제목과 기한을 감싼 칸. **앱 열기 PendingIntent가 걸리는 자리**다(design 4.5) —
+                     제목과 기한에 따로 걸지 않는다(기한을 눌러도 같은 결과여야 한다). -->
+                <LinearLayout
+                    android:id="@+id/widget_text_1"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/widget_ink"
-                    android:textSize="14sp" />
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/widget_title_1"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink"
+                        android:textSize="14sp" />
+
+                    <!-- 기한. 기본이 gone이고 캐시에 기한 키가 있는 줄에서만 켜진다(design 6.3).
+                         기한이 없는 줄에는 대체 문구·기호를 그리지 않는다. -->
+                    <TextView
+                        android:id="@+id/widget_due_1"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink_muted"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -106,35 +179,68 @@
                 android:layout_marginBottom="2dp"
                 android:background="@drawable/widget_row"
                 android:gravity="center_vertical"
+                android:minHeight="40dp"
                 android:orientation="horizontal"
-                android:padding="5dp">
+                android:paddingRight="8dp">
 
+                <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
+                     뷰 전체가 칠해져 48x40dp짜리 거대한 네모가 그려지므로 src로 옮겼다. 그려지는
+                     사각형은 content box(20x20dp)이고 터치는 뷰 전체(48x40dp = 지금의 7.5배)가 받는다. -->
                 <ImageView
                     android:id="@+id/widget_check_2"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/widget_check"
-                    android:contentDescription="@null" />
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="@null"
+                    android:paddingLeft="14dp"
+                    android:paddingRight="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp"
+                    android:src="@drawable/widget_check" />
 
+                <!-- 쓰는 중 표시. 체크 칸과 같은 칸·같은 폭(48dp)이라 줄의 들여쓰기가 흔들리지 않는다. -->
                 <TextView
                     android:id="@+id/widget_pending_2"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:minWidth="48dp"
                     android:textColor="@color/widget_ink_muted"
                     android:textSize="12sp"
                     android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/widget_title_2"
+                <!-- 제목과 기한을 감싼 칸. **앱 열기 PendingIntent가 걸리는 자리**다(design 4.5) —
+                     제목과 기한에 따로 걸지 않는다(기한을 눌러도 같은 결과여야 한다). -->
+                <LinearLayout
+                    android:id="@+id/widget_text_2"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/widget_ink"
-                    android:textSize="14sp" />
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/widget_title_2"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink"
+                        android:textSize="14sp" />
+
+                    <!-- 기한. 기본이 gone이고 캐시에 기한 키가 있는 줄에서만 켜진다(design 6.3).
+                         기한이 없는 줄에는 대체 문구·기호를 그리지 않는다. -->
+                    <TextView
+                        android:id="@+id/widget_due_2"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink_muted"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -144,35 +250,68 @@
                 android:layout_marginBottom="2dp"
                 android:background="@drawable/widget_row"
                 android:gravity="center_vertical"
+                android:minHeight="40dp"
                 android:orientation="horizontal"
-                android:padding="5dp">
+                android:paddingRight="8dp">
 
+                <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
+                     뷰 전체가 칠해져 48x40dp짜리 거대한 네모가 그려지므로 src로 옮겼다. 그려지는
+                     사각형은 content box(20x20dp)이고 터치는 뷰 전체(48x40dp = 지금의 7.5배)가 받는다. -->
                 <ImageView
                     android:id="@+id/widget_check_3"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/widget_check"
-                    android:contentDescription="@null" />
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="@null"
+                    android:paddingLeft="14dp"
+                    android:paddingRight="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp"
+                    android:src="@drawable/widget_check" />
 
+                <!-- 쓰는 중 표시. 체크 칸과 같은 칸·같은 폭(48dp)이라 줄의 들여쓰기가 흔들리지 않는다. -->
                 <TextView
                     android:id="@+id/widget_pending_3"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:minWidth="48dp"
                     android:textColor="@color/widget_ink_muted"
                     android:textSize="12sp"
                     android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/widget_title_3"
+                <!-- 제목과 기한을 감싼 칸. **앱 열기 PendingIntent가 걸리는 자리**다(design 4.5) —
+                     제목과 기한에 따로 걸지 않는다(기한을 눌러도 같은 결과여야 한다). -->
+                <LinearLayout
+                    android:id="@+id/widget_text_3"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/widget_ink"
-                    android:textSize="14sp" />
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/widget_title_3"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink"
+                        android:textSize="14sp" />
+
+                    <!-- 기한. 기본이 gone이고 캐시에 기한 키가 있는 줄에서만 켜진다(design 6.3).
+                         기한이 없는 줄에는 대체 문구·기호를 그리지 않는다. -->
+                    <TextView
+                        android:id="@+id/widget_due_3"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink_muted"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -182,35 +321,68 @@
                 android:layout_marginBottom="2dp"
                 android:background="@drawable/widget_row"
                 android:gravity="center_vertical"
+                android:minHeight="40dp"
                 android:orientation="horizontal"
-                android:padding="5dp">
+                android:paddingRight="8dp">
 
+                <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
+                     뷰 전체가 칠해져 48x40dp짜리 거대한 네모가 그려지므로 src로 옮겼다. 그려지는
+                     사각형은 content box(20x20dp)이고 터치는 뷰 전체(48x40dp = 지금의 7.5배)가 받는다. -->
                 <ImageView
                     android:id="@+id/widget_check_4"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/widget_check"
-                    android:contentDescription="@null" />
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="@null"
+                    android:paddingLeft="14dp"
+                    android:paddingRight="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp"
+                    android:src="@drawable/widget_check" />
 
+                <!-- 쓰는 중 표시. 체크 칸과 같은 칸·같은 폭(48dp)이라 줄의 들여쓰기가 흔들리지 않는다. -->
                 <TextView
                     android:id="@+id/widget_pending_4"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:minWidth="48dp"
                     android:textColor="@color/widget_ink_muted"
                     android:textSize="12sp"
                     android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/widget_title_4"
+                <!-- 제목과 기한을 감싼 칸. **앱 열기 PendingIntent가 걸리는 자리**다(design 4.5) —
+                     제목과 기한에 따로 걸지 않는다(기한을 눌러도 같은 결과여야 한다). -->
+                <LinearLayout
+                    android:id="@+id/widget_text_4"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/widget_ink"
-                    android:textSize="14sp" />
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/widget_title_4"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink"
+                        android:textSize="14sp" />
+
+                    <!-- 기한. 기본이 gone이고 캐시에 기한 키가 있는 줄에서만 켜진다(design 6.3).
+                         기한이 없는 줄에는 대체 문구·기호를 그리지 않는다. -->
+                    <TextView
+                        android:id="@+id/widget_due_4"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink_muted"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+                </LinearLayout>
             </LinearLayout>
 
             <LinearLayout
@@ -220,35 +392,68 @@
                 android:layout_marginBottom="2dp"
                 android:background="@drawable/widget_row"
                 android:gravity="center_vertical"
+                android:minHeight="40dp"
                 android:orientation="horizontal"
-                android:padding="5dp">
+                android:paddingRight="8dp">
 
+                <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
+                     뷰 전체가 칠해져 48x40dp짜리 거대한 네모가 그려지므로 src로 옮겼다. 그려지는
+                     사각형은 content box(20x20dp)이고 터치는 뷰 전체(48x40dp = 지금의 7.5배)가 받는다. -->
                 <ImageView
                     android:id="@+id/widget_check_5"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
-                    android:layout_marginEnd="6dp"
-                    android:background="@drawable/widget_check"
-                    android:contentDescription="@null" />
+                    android:layout_width="48dp"
+                    android:layout_height="40dp"
+                    android:contentDescription="@null"
+                    android:paddingLeft="14dp"
+                    android:paddingRight="14dp"
+                    android:paddingTop="10dp"
+                    android:paddingBottom="10dp"
+                    android:src="@drawable/widget_check" />
 
+                <!-- 쓰는 중 표시. 체크 칸과 같은 칸·같은 폭(48dp)이라 줄의 들여쓰기가 흔들리지 않는다. -->
                 <TextView
                     android:id="@+id/widget_pending_5"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
+                    android:gravity="center"
+                    android:maxLines="1"
+                    android:minWidth="48dp"
                     android:textColor="@color/widget_ink_muted"
                     android:textSize="12sp"
                     android:visibility="gone" />
 
-                <TextView
-                    android:id="@+id/widget_title_5"
+                <!-- 제목과 기한을 감싼 칸. **앱 열기 PendingIntent가 걸리는 자리**다(design 4.5) —
+                     제목과 기한에 따로 걸지 않는다(기한을 눌러도 같은 결과여야 한다). -->
+                <LinearLayout
+                    android:id="@+id/widget_text_5"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="@color/widget_ink"
-                    android:textSize="14sp" />
+                    android:gravity="center_vertical"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/widget_title_5"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink"
+                        android:textSize="14sp" />
+
+                    <!-- 기한. 기본이 gone이고 캐시에 기한 키가 있는 줄에서만 켜진다(design 6.3).
+                         기한이 없는 줄에는 대체 문구·기호를 그리지 않는다. -->
+                    <TextView
+                        android:id="@+id/widget_due_5"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:textColor="@color/widget_ink_muted"
+                        android:textSize="11sp"
+                        android:visibility="gone" />
+                </LinearLayout>
             </LinearLayout>
 
             <!-- "그 외 N개". 담기지 않는 할 일이 있을 때 마지막 줄 하나를 이 줄로 바꿔 쓴다. -->
@@ -275,12 +480,15 @@
             android:visibility="gone" />
     </FrameLayout>
 
-    <!-- 아래 한 줄. 상태 문구·기준 시각·실패 안내가 모두 여기로 모인다. 자리가 아주 좁을 때도 남긴다. -->
+    <!-- 아래 한 줄. 상태 문구·기준 시각·실패 안내가 모두 여기로 모인다. 자리가 아주 좁을 때도 남긴다.
+         줄 수 공식(design 6.2.1)이 이 높이(약 16dp)를 **먼저 떼고** 계산하므로 줄이 두꺼워져도
+         note가 밀려나지 않는다. -->
     <TextView
         android:id="@+id/widget_note"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:ellipsize="end"
+        android:includeFontPadding="false"
         android:maxLines="1"
         android:paddingStart="2dp"
         android:paddingTop="2dp"

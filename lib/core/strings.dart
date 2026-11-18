@@ -488,4 +488,28 @@ class AppStrings {
     required int minute,
   }) =>
       '${isAm ? '오전' : '오후'} $hour:${minute.toString().padLeft(2, '0')}';
+  // 할 일 기한. 위젯은 **절대 시각**으로만 적는다(design 6.1.1) — 주기 갱신은 Dart를 깨우지 않고
+  // 캐시를 다시 그리기만 하므로 `3시간 남음` 같은 상대 표현은 발행 시점에 굳어 **틀린 문장**이
+  // 된다. 날을 가리키는 낱말(`오늘`·`내일`)도 쓰지 않는다: 자정을 넘기면 거짓이 되는데 그것을
+  // 알려 주는 표시가 없다.
+  //
+  // **목록의 `todoDueRemaining`·`todoDuePassed`를 재사용하지 않는다.** 그쪽은 수량이 붙는 문구이고
+  // (`3시간 지남`), 여기는 시각에 붙는 꼬리다(`오후 6:00 지남`). 한 상수를 둘이 나눠 쓰면 한쪽을
+  // 고칠 때 다른 쪽이 조용히 함께 바뀐다(투두·대결 문구를 따로 두는 것과 같은 이유).
+  //
+  // 월·일·연에 0을 채우지 않는다(`1/5`). 시각은 widgetTime이 분만 두 자리로 적는다.
+  static String widgetDueDate({
+    required int month,
+    required int day,
+    required String time,
+  }) =>
+      '$month/$day $time';
+  static String widgetDueDateYear({
+    required int year,
+    required int month,
+    required int day,
+    required String time,
+  }) =>
+      '$year/$month/$day $time';
+  static String widgetDueOverdue(String due) => '$due 지남';
 }

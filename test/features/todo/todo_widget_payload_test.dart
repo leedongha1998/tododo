@@ -111,6 +111,194 @@ void main() {
     });
   });
 
+  // 기한 서식은 **위젯 전용**이고(앱 목록은 formatDueLabel, 대화상자는 formatDueValue) 네이티브는
+  // 이 문장들 중에서 고르기만 하므로(테스트하지 않는다) 여기가 유일한 검증이다.
+  group('formatWidgetDue', () {
+    // 이 묶음의 "오늘"은 11/18이다(파일 맨 위의 now는 11/4라 "같은 날" 칸을 쓸 수 없다).
+    final now = DateTime(2026, 11, 18, 9, 14);
+
+    test('같은 날이면 시각만 적는다', () {
+      expect(formatWidgetDue(DateTime(2026, 11, 18, 18), now), '오후 6:00');
+    });
+
+    test('다른 날·같은 해는 월/일을 붙인다', () {
+      expect(
+        formatWidgetDue(DateTime(2026, 11, 20, 18), now),
+        '11/20 오후 6:00',
+      );
+    });
+
+    test('다른 해는 연/월/일을 붙이고 0을 채우지 않는다', () {
+      expect(
+        formatWidgetDue(DateTime(2027, 1, 5, 18), now),
+        '2027/1/5 오후 6:00',
+      );
+    });
+
+    test('날을 가리키는 낱말을 어느 꼴에도 쓰지 않는다', () {
+      // `내일 09:00` 꼴은 자정을 넘기면 틀린 문장이 되는데 그 거짓을 알려 주는 표시가 없다
+      // (발행 뒤 Dart는 깨어나지 않고, 기한이 아직 안 지났으니 `지남`도 붙지 않는다).
+      for (final at in [
+        DateTime(2026, 11, 18, 23, 59),
+        DateTime(2026, 11, 19, 9),
+        DateTime(2026, 11, 20, 18),
+        DateTime(2027, 1, 5, 18),
+        DateTime(2025, 12, 31, 18),
+      ]) {
+        final label = formatWidgetDue(at, now);
+        for (final word in ['오늘', '내일', '어제', '모레', '남음', '지난']) {
+          expect(label.contains(word), isFalse, reason: '$label / $word');
+        }
+      }
+    });
+
+    test('날이 갈리는 경계에서 꼴이 바뀐다', () {
+      // 같은 날 23:59는 시각만, 다음 날 00:00은 월/일이 붙는다.
+      expect(formatWidgetDue(DateTime(2026, 11, 18, 23, 59), now), '오후 11:59');
+      expect(
+        formatWidgetDue(DateTime(2026, 11, 19), now),
+        '11/19 오전 12:00',
+      );
+    });
+
+    test('12시간제의 두 함정과 분 0 패딩', () {
+      final midnight = DateTime(2026, 11, 18, 0, 30);
+      final noon = DateTime(2026, 11, 18, 12, 30);
+
+      // 0시는 오전 12시, 12시는 오후 12시다(0:30·12:30이 아니다).
+      expect(formatWidgetDue(midnight, now), '오전 12:30');
+      expect(formatWidgetDue(noon, now), '오후 12:30');
+      expect(formatWidgetDue(DateTime(2026, 11, 18, 18, 5), now), '오후 6:05');
+    });
+  });
+
+  group('기한 키', () {
+    // 위 묶음과 같은 이유로 "오늘"을 11/18로 둔다.
+    final now = DateTime(2026, 11, 18, 9, 14);
+
+    test('기한이 있는 할 일은 문장 둘과 절대 시각을 함께 싣는다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기', dueAt: DateTime(2026, 11, 18, 18))],
+        now: now,
+      );
+
+      final item = payload.items.single;
+      expect(item.due, '오후 6:00');
+      // dueOver는 같은 문장에 꼬리만 붙은 꼴이다(네이티브가 문구를 만들지 않게).
+      expect(item.dueOver, '오후 6:00 지남');
+      expect(item.dueAtMs, DateTime(2026, 11, 18, 18).millisecondsSinceEpoch);
+    });
+
+    test('기한이 없는 할 일은 세 키가 캐시에 **없다**', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [_todo('1', '운동하기')],
+        now: now,
+      );
+
+      final json = payload.items.single.toJson();
+      // AOSP org.json의 optString은 명시적 null에 "null" 네 글자를 돌려준다. 키째로 빼지 않으면
+      // 기한을 안 쓰는 사용자의 줄마다 `null`이 뜬다(spec: 아무것도 보이지 않는다).
+      expect(json.containsKey('due'), isFalse);
+      expect(json.containsKey('dueOver'), isFalse);
+      expect(json.containsKey('dueAtMs'), isFalse);
+      expect(json.values.any((value) => value == null), isFalse);
+    });
+
+    test('기한이 섞인 목록도 null 값을 캐시에 넣지 않는다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [
+          _todo('1', '장보기', dueAt: DateTime(2026, 11, 18, 18)),
+          _todo('2', '운동하기'),
+        ],
+        now: now,
+      );
+
+      final items = payload.toJson()['items'] as List;
+      for (final raw in items) {
+        final item = raw as Map<String, dynamic>;
+        expect(item.values.any((value) => value == null), isFalse, reason: '$item');
+      }
+    });
+
+    test('왕복에서 기한 키 셋이 그대로 돌아온다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [
+          _todo('1', '장보기', dueAt: DateTime(2026, 11, 20, 18)),
+          _todo('2', '운동하기'),
+        ],
+        now: now,
+      );
+
+      final decoded = TodoWidgetPayload.decode(payload.encode())!;
+
+      expect(decoded.items, payload.items);
+      expect(decoded.items.first.dueOver, '11/20 오후 6:00 지남');
+      expect(decoded.items.last.due, isNull);
+      expect(decoded.items.last.dueAtMs, isNull);
+    });
+
+    test('dueAtMs는 시간대와 무관한 절대 시각이다', () {
+      final utc = DateTime.utc(2026, 11, 18, 9);
+      final sameMoment = utc.toLocal();
+
+      final a = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기', dueAt: utc)],
+        now: now,
+      );
+      final b = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기', dueAt: sameMoment)],
+        now: now,
+      );
+
+      // 같은 순간을 다른 표현으로 넣어도 네이티브가 비교할 값은 같다.
+      expect(a.items.single.dueAtMs, b.items.single.dueAtMs);
+      expect(a.items.single.dueAtMs, utc.millisecondsSinceEpoch);
+      expect(a.items.single.due, b.items.single.due);
+    });
+
+    test('"지남"이 발행 시점에 굳지 않는다', () {
+      // 이미 지난 기한으로 발행해도 캐시에는 **상태가 들어 있지 않다** — 문장 둘과 절대 시각뿐이고
+      // `overdue: true` 같은 불값이 없다. 어느 쪽을 그릴지는 네이티브가 다시 그릴 때 정한다.
+      // 네이티브의 비교 자체는 테스트하지 않으므로 이 단언이 "Dart가 굳히지 않았다"의 유일한 방어선이다.
+      final past = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기', dueAt: DateTime(2026, 11, 18, 1))],
+        now: now,
+      );
+
+      final json = past.toJson()['items'] as List;
+      final keys = (json.single as Map<String, dynamic>).keys.toSet();
+      expect(keys, {'id', 'title', 'due', 'dueOver', 'dueAtMs'});
+      expect(past.items.single.due, '오전 1:00');
+      expect(past.items.single.dueOver, '오전 1:00 지남');
+    });
+
+    test('완료한 할 일의 기한은 캐시에 들어오지 않는다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [
+          _todo('1', '장보기', isDone: true, dueAt: DateTime(2026, 11, 18, 18)),
+          _todo('2', '운동하기'),
+        ],
+        now: now,
+      );
+
+      // 완료한 할 일은 items에 애초에 들어오지 않으므로 별도 분기가 필요 없다.
+      expect(payload.items.map((item) => item.id), ['2']);
+    });
+
+    test('목록을 물려받는 발행은 기한도 함께 물려받는다', () {
+      final previous = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기', dueAt: DateTime(2026, 11, 20, 18))],
+        now: now,
+      );
+
+      final failed = TodoWidgetPayload.fetchFailed(previous, now: now);
+      final pending = TodoWidgetPayload.pending(previous, '1', now: now);
+
+      expect(failed.items.single.due, '11/20 오후 6:00');
+      expect(pending.items.single.dueAtMs, previous.items.single.dueAtMs);
+    });
+  });
+
   group('상태 발행', () {
     test('로그인하지 않음은 목록을 비우고 탭 대상을 로그인으로 둔다', () {
       final payload = TodoWidgetPayload.loggedOut(now: now);
@@ -169,7 +357,7 @@ void main() {
         now: now,
       );
 
-      final failed = TodoWidgetPayload.checkFailed(previous);
+      final failed = TodoWidgetPayload.checkFailed(previous, now: now);
 
       // 목록에서 지운 적이 없으므로 체크하려던 할 일이 자동으로 되살아난다(spec의 조건).
       expect(failed.items.map((item) => item.id), ['1', '2']);
@@ -181,6 +369,7 @@ void main() {
     test('체크 실패 안내는 다음 정상 발행에서 사라진다', () {
       final failed = TodoWidgetPayload.checkFailed(
         TodoWidgetPayload.fromTodos([_todo('1', '장보기')], now: now),
+        now: now,
       );
 
       final next = TodoWidgetPayload.fromTodos([_todo('1', '장보기')], now: now);
@@ -234,6 +423,7 @@ void main() {
     test('danger note와 로그인 대상도 보존된다', () {
       final payload = TodoWidgetPayload.checkFailed(
         TodoWidgetPayload.fromTodos([_todo('1', '장보기')], now: now),
+        now: now,
       );
 
       final decoded = TodoWidgetPayload.decode(payload.encode())!;
@@ -273,7 +463,7 @@ void main() {
         TodoWidgetPayload.loggedOut(now: now),
         TodoWidgetPayload.fetchFailed(normal, now: now),
         TodoWidgetPayload.fetchFailed(null, now: now),
-        TodoWidgetPayload.checkFailed(normal),
+        TodoWidgetPayload.checkFailed(normal, now: now),
         TodoWidgetPayload.pending(normal, '1', now: now),
       ]) {
         expect(
@@ -356,6 +546,46 @@ void main() {
     });
   });
 
+  // 줄 수는 표가 아니라 **공식**이고 그 주인은 Dart다(design 6.2.1). 네이티브는 같은 상수로 같은
+  // 식을 옮겨 쓰기만 하므로(테스트하지 않는다) 이 칸들이 공식의 유일한 검증이다.
+  group('widgetRowCount', () {
+    test('경계가 42dp 간격으로 한 줄씩 늘어난다', () {
+      // 고정 비용 24dp(루트 여백 8 + note 16) + 줄 간격 42dp.
+      expect(widgetRowCount(65), 1);
+      expect(widgetRowCount(66), 1);
+      expect(widgetRowCount(107), 1);
+      expect(widgetRowCount(108), 2);
+      expect(widgetRowCount(149), 2);
+      expect(widgetRowCount(150), 3);
+      expect(widgetRowCount(191), 3);
+      expect(widgetRowCount(192), 4);
+      expect(widgetRowCount(233), 4);
+      expect(widgetRowCount(234), 5);
+      expect(widgetRowCount(275), 5);
+      expect(widgetRowCount(276), 6);
+    });
+
+    test('기본 크기(4x2)에서 할 일이 두 줄 보인다', () {
+      // spec 수용 기준이 이 한 칸이다. 110dp는 todo_widget_info.xml이 선언한 minHeight이고,
+      // 런처가 높이를 알려 주지 않을 때 네이티브가 쓰는 기본값도 같은 값이다.
+      expect(widgetRowCount(110), 2);
+    });
+
+    test('하한 1줄, 상한 6줄을 넘지 않는다', () {
+      // 아주 납작하게 줄여도 할 일 한 줄은 그린다(0줄 위젯은 빈 사각형이다).
+      expect(widgetRowCount(0), 1);
+      expect(widgetRowCount(-1), 1);
+      expect(widgetRowCount(10000), todoWidgetMaxRows);
+    });
+
+    test('상수가 레이아웃·캐시 상한과 어긋나지 않는다', () {
+      // 줄 상한(6)이 캐시 상한(8)보다 작아야 "그 외 N개"가 어긋나지 않는다.
+      expect(todoWidgetMaxRows, lessThanOrEqualTo(todoWidgetMaxItems));
+      expect(todoWidgetRowPitchDp, 42);
+      expect(todoWidgetFixedHeightDp, 24);
+    });
+  });
+
   group('Uri 해석', () {
     const id = '11111111-1111-1111-1111-111111111111';
 
@@ -406,6 +636,34 @@ void main() {
       expect(widgetTargetOf(null), isNull);
       expect(widgetTargetOf(Uri.parse('todododo://widget/battle')), isNull);
       expect(widgetTargetOf(Uri.parse('https://example.com/todo')), isNull);
+    });
+  });
+
+  group('checkFailed의 기준 시각', () {
+    test('직전 목록이 없어도 1970년이 되지 않는다', () {
+      final failed = TodoWidgetPayload.checkFailed(null, now: now);
+
+      // 이 갈래는 지금 note가 비어 있어 화면에 보이지 않지만, 값 자체가 거짓이면 다음에 note가
+      // 붙는 순간 `오전 12:00 기준`이 찍힌다(2026-11-05 리뷰 정리 1건).
+      expect(failed.updatedAtMs, now.millisecondsSinceEpoch);
+      expect(failed.updatedAtMs, isNot(0));
+      expect(failed.centerText, AppStrings.widgetCheckFailed);
+      expect(failed.noteTone, TodoWidgetNoteTone.danger);
+    });
+
+    test('직전 목록이 있으면 그 기준 시각을 물려받는다', () {
+      final previous = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기')],
+        now: now,
+      );
+
+      final failed = TodoWidgetPayload.checkFailed(
+        previous,
+        now: now.add(const Duration(hours: 3)),
+      );
+
+      // 기준 시각은 "목록이 언제 것인가"를 뜻한다. 실패한 시각이 아니다.
+      expect(failed.updatedAtMs, previous.updatedAtMs);
     });
   });
 }

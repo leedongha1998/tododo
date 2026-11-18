@@ -3,7 +3,8 @@
      RemoteViews는 런처 프로세스가 그리므로 커스텀 View·데이터 바인딩을 쓸 수 없다. 그래서 줄
      6개를 미리 선언해 두고 TodoWidgetProvider가 남는 줄을 GONE으로 접는다(design 1.2의 안 A).
      문구는 전부 기기 캐시에서 오고, 이 파일에 한국어가 있는 자리는 없다(캐시가 아예 없을 때의
-     한 줄만 생성된 @string/todo_widget_no_cache를 쓴다).
+     한 줄 @string/todo_widget_no_cache와 머리 줄 기본값 @string/todo_widget_header만 생성된
+     리소스를 쓴다 — 둘 다 캐시가 쓰이지 않는 자리다).
 
      줄의 수치는 design 6.1.1(2026-11-18)이 현재 기준이다 — 줄 minHeight 40dp + 아래 여백 2dp
      (= 간격 42dp, 줄 수 공식의 ROW_PITCH_DP와 같은 값), 체크 칸 48x40dp, 기한은 제목 아래.
@@ -17,7 +18,56 @@
     android:paddingLeft="8dp"
     android:paddingRight="8dp"
     android:paddingTop="4dp"
-    android:paddingBottom="4dp">
+    android:paddingBottom="2dp">
+
+    <!-- 머리 줄(design 6.1.2). 헤더와 note가 한 줄을 나눠 쓴다 — 둘을 따로 두면 고정비가
+         24dp에서 40dp로 늘어 4x2 기본 크기에서 할 일이 1줄로 떨어진다(세로 예산, design 6.2.2).
+         **줄 영역을 감싼 FrameLayout 밖, 루트의 첫 자식이어야 한다**: 안에 넣으면 가운데 안내
+         (widget_center, match_parent)가 이 줄을 덮는다.
+         예산 18dp(13sp + paddingBottom 2dp)이고, 옛 아래 note(16dp)보다 2dp 두꺼운 것을 루트
+         아래 여백 4dp → 2dp로 상계해 **고정비 24dp가 그대로다**(줄 수가 바뀌지 않는다). -->
+    <LinearLayout
+        android:id="@+id/widget_header_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingBottom="2dp">
+
+        <!-- 헤더. 제목(14sp)보다 작고 note(11sp)보다 크다 — 헤더가 할 일 제목보다 커지면 위젯이
+             "제목이 큰 판"이 되어 목록이 뒤로 밀린다. 위계는 굵기와 브랜드색으로 만든다.
+             **android:text의 기본값을 둔다**: 캐시가 아예 없을 때·옛 캐시일 때·위젯 선택기
+             미리보기에서도 왼쪽 위에 `할 일`이 보여야 하고, 그 자리들은 캐시가 쓰이지 않는다. -->
+        <TextView
+            android:id="@+id/widget_header"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingStart="2dp"
+            android:text="@string/todo_widget_header"
+            android:textColor="@color/widget_primary_deep"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <!-- 기준 시각·낡음·실패 안내. 아래에서 **이사만 왔고 id는 그대로다** — 네이티브의
+             showNote가 자리만 바뀐 채 동작하고 옛 캐시 호환도 이 id 유지에 기댄다.
+             오른쪽 정렬이라 헤더와 붙지 않고, 좁아지면 꼬리부터 잘린다(문구가 사실로 시작한다). -->
+        <TextView
+            android:id="@+id/widget_note"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:gravity="end"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:paddingStart="6dp"
+            android:paddingEnd="2dp"
+            android:textColor="@color/widget_ink_muted"
+            android:textSize="11sp"
+            android:visibility="gone" />
+    </LinearLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -479,20 +529,6 @@
             android:textSize="12sp"
             android:visibility="gone" />
     </FrameLayout>
-
-    <!-- 아래 한 줄. 상태 문구·기준 시각·실패 안내가 모두 여기로 모인다. 자리가 아주 좁을 때도 남긴다.
-         줄 수 공식(design 6.2.1)이 이 높이(약 16dp)를 **먼저 떼고** 계산하므로 줄이 두꺼워져도
-         note가 밀려나지 않는다. -->
-    <TextView
-        android:id="@+id/widget_note"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:includeFontPadding="false"
-        android:maxLines="1"
-        android:paddingStart="2dp"
-        android:paddingTop="2dp"
-        android:textColor="@color/widget_ink_muted"
-        android:textSize="12sp"
-        android:visibility="gone" />
+    <!-- 아래 한 줄은 **없다**(2026-11-18 추가 범위 2). note는 위 머리 줄로 올라갔다 —
+         두 자리에 두면 기준 시각이 두 번 보인다(spec 수용 기준: 한 자리에서만). -->
 </LinearLayout>

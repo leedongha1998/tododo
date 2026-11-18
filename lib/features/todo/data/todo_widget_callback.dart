@@ -79,9 +79,9 @@ Future<void> onTodoWidgetAction(Uri? uri) async {
 
   try {
     if (port != null && decision == TodoWidgetCheckDecision.handOff) {
-      await _handOff(port, todoId, service, cached, now);
+      await _handOff(port, action, service, cached, now);
     } else {
-      await _writeHere(todoId, service, now);
+      await _writeHere(action, service, now);
     }
   } catch (error) {
     // 네트워크가 없으면 여기로 온다 → 위젯에 `체크하지 못했어요`가 뜨고 그 할 일은 목록에
@@ -97,14 +97,16 @@ Future<void> onTodoWidgetAction(Uri? uri) async {
 /// 그래서 이쪽은 아무것도 더 쓰지 않는다.
 Future<void> _handOff(
   SendPort port,
-  String todoId,
+  TodoWidgetAction action,
   TodoWidgetService service,
   TodoWidgetPayload? cached,
   DateTime now,
 ) async {
   final reply = ReceivePort();
   try {
-    port.send([todoId, reply.sendPort]);
+    // 메시지는 **셋**이다(2026-11-18 추가 범위 2): 할 일 id, **목표 값**, 답을 보낼 포트.
+    // 받는 쪽(`AuthGate`)이 길이와 타입 셋을 검사하고 어긋나면 아무 일도 하지 않는다.
+    port.send([action.todoId, action.done, reply.sendPort]);
     final answer = await reply.first.timeout(todoWidgetHandOffTimeout);
     if (answer == todoWidgetCheckOk) return;
     if (answer == todoWidgetCheckLoggedOut) {
@@ -123,10 +125,11 @@ Future<void> _handOff(
 
 /// 앱 프로세스가 죽어 있을 때. 이 isolate에 다른 클라이언트가 없으므로 세션 복구·갱신이 안전하다.
 Future<void> _writeHere(
-  String todoId,
+  TodoWidgetAction action,
   TodoWidgetService service,
   DateTime now,
 ) async {
+  final todoId = action.todoId!;
   // 이미 초기화돼 있으면(같은 백그라운드 engine이 두 번 깨어난 경우) 그대로 지나간다.
   await initSupabase();
   final session = supabase.auth.currentSession;
@@ -147,11 +150,19 @@ Future<void> _writeHere(
   }
 
   final repository = TodoRepository(supabase);
-  await repository.setDone(todoId, true);
+  // **목표 값**을 그대로 쓴다(뒤집지 않는다 — 낡은 그림을 누른 탭이 사용자가 본 것과 반대로
+  // 쓰이지 않게 하는 장치다. design 4.6 (1)). 되돌리기도 이 한 줄을 지난다.
+  await repository.setDone(todoId, action.done);
   // 어차피 깨어난 기회에 목록을 다시 받아 캐시를 새로 만든다(design 3.1의 5번) — 위젯을 쓰는
   // 사람은 그래서 자연히 최신 캐시를 갖는다.
   final todos = await repository.fetchTodos(userId);
+  // 이 isolate는 id를 직접 들고 있어 `markJustChecked`를 쓰지 않는다(그 기억은 앱 쪽 서비스의
+  // 것이고, 여기서 적어 두면 같은 isolate 안에서만 유효한 기억이 되어 번거로울 뿐이다).
   await service.publish(
-    TodoWidgetPayload.fromTodos(todos, now: DateTime.now()),
+    TodoWidgetPayload.fromTodos(
+      todos,
+      now: DateTime.now(),
+      justCheckedId: todoId,
+    ),
   );
 }

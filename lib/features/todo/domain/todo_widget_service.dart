@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../data/todo.dart';
 import '../data/todo_widget_host.dart';
 import '../data/todo_widget_payload.dart';
 
@@ -19,6 +20,10 @@ class TodoWidgetService {
   TodoWidgetPayload? _lastPublished;
   String? _lastJson;
   int _publishCount = 0;
+
+  /// **다음 한 번의 [publishTodos]만** 쓰는 기억(design 7.2 (1)).
+  String? _justCheckedId;
+  DateTime? _justCheckedAt;
 
   /// 위젯이 지금 보여 주고 있는 것. 조회·체크가 실패했을 때 "직전 목록"으로 쓴다.
   TodoWidgetPayload? get lastPublished => _lastPublished;
@@ -59,6 +64,48 @@ class TodoWidgetService {
   /// 위젯 캐시 때문에 로그아웃·탈퇴가 막히지 않는다.
   Future<void> publishLoggedOut({DateTime? now}) {
     return publish(TodoWidgetPayload.loggedOut(now: now ?? DateTime.now()));
+  }
+
+  /// **"방금 누른 줄"의 id를 한 번만 적어 둔다**(design 7.2 (1)).
+  ///
+  /// 이 기억이 필요한 이유는 자리의 문제다 — 앱의 발행 지점(`MainShell`의 `ref.listen`)은
+  /// "목록이 바뀌었다"만 알고 **어느 줄을 눌렀는지 모른다**. 그리고 위젯 탭이 앱에 쓰기를 맡기는
+  /// 경로에서는 `pendingId`를 적은 캐시를 **백그라운드 isolate가** 썼으므로 앱 쪽 서비스는 그
+  /// 값을 들고 있지도 않다(두 isolate가 각자 인스턴스를 갖는다). 그래서 id를 아는 자리
+  /// (`AuthGate._onWidgetCheck`)가 적어 두고 다음 발행이 소비한다.
+  void markJustChecked(String id, {DateTime? at}) {
+    _justCheckedId = id;
+    _justCheckedAt = at ?? DateTime.now();
+  }
+
+  /// 목록 하나를 캐시로 발행한다. **앱 안에서 `fromTodos`를 부르는 자리를 여기 하나로 줄인다**
+  /// (백그라운드 직접 쓰기만 예외다 — 그쪽은 자기가 id를 들고 있다).
+  ///
+  /// [markJustChecked]로 적어 둔 id는 **이 한 번의 발행에만** 쓰이고 바로 지워진다. 그것이
+  /// spec 조항("이 예외가 유효한 동안 = 그 발행 동안")의 구현이다. 60초 상한을 함께 두는 이유는
+  /// 쓰기가 성공했는데 목록 재조회가 늦어져 발행이 한참 뒤에 올 때 **엉뚱한 발행이 그 예외를
+  /// 쓰지 않게** 하려는 것이다(`pending` 만료와 같은 수명을 쓴다).
+  Future<void> publishTodos(List<Todo> todos, {required DateTime now}) {
+    return publish(
+      TodoWidgetPayload.fromTodos(
+        todos,
+        now: now,
+        justCheckedId: _consumeJustChecked(now),
+      ),
+    );
+  }
+
+  String? _consumeJustChecked(DateTime now) {
+    final id = _justCheckedId;
+    final at = _justCheckedAt;
+    _justCheckedId = null;
+    _justCheckedAt = null;
+    if (id == null || at == null) return null;
+    final elapsed = now.millisecondsSinceEpoch - at.millisecondsSinceEpoch;
+    if (elapsed < 0 || elapsed >= todoWidgetPendingTimeoutSeconds * 1000) {
+      return null;
+    }
+    return id;
   }
 
   Future<void> publish(TodoWidgetPayload payload) async {

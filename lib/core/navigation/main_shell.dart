@@ -193,7 +193,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       final error = next.error;
       if (error != null) {
         // 로그는 화면(TodoListScreen)의 error 갈래가 이미 남긴다. 여기서 또 남기지 않는다.
-        // 마지막으로 받아온 목록은 그대로 두고 "지금은 못 불러왔어요"만 붙인다.
+        // 마지막으로 받아온 목록은 그대로 두고 "못 불러왔어요"만 붙인다.
         unawaited(
           service.publish(
             TodoWidgetPayload.fetchFailed(service.lastPublished, now: now),
@@ -203,9 +203,10 @@ class _MainShellState extends ConsumerState<MainShell> {
       }
       final todos = next.value;
       if (todos == null) return;
-      unawaited(
-        service.publish(TodoWidgetPayload.fromTodos(todos, now: now)),
-      );
+      // `publishTodos`를 쓰는 이유: "방금 누른 줄은 반드시 보인다"는 예외를 쓰려면 그 줄의 id가
+      // 필요한데 **이 자리는 id를 모른다**("목록이 바뀌었다"만 안다). 그 기억의 수명은 서비스가
+      // 들고 있다(design 7.2 (1)).
+      unawaited(service.publishTodos(todos, now: now));
       // 기한 알림 예약도 같은 자리에서 맞춘다. 목록이 바뀌는 모든 경로(추가·수정·완료·삭제·
       // 새로고침·탭 복귀)가 여기를 지나므로 spec의 취소·갱신 여섯 가지와 기기 성질 보정이
       // 한 자리에서 해결된다(design 8.6). 조회 실패·로딩에서는 위에서 먼저 돌아나가므로

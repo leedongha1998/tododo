@@ -9,7 +9,9 @@ void main() {
   final now = DateTime(2026, 11, 4, 9, 14);
 
   group('fromTodos', () {
-    test('미완료만 담고 받은 순서(= 앱 목록 순서)를 그대로 지킨다', () {
+    // 2026-11-18(추가 범위 2): **완료도 담는다.** 배열 순서는 받은 순서(= position) 그대로이고,
+    // 완료 줄이 제자리에 남는 것이 이번 요구의 본체다. 어느 줄이 **보일지**는 rank가 정한다.
+    test('완료까지 담고 받은 순서(= 앱 목록 순서)를 그대로 지킨다', () {
       final payload = TodoWidgetPayload.fromTodos(
         [
           _todo('1', '장보기'),
@@ -19,7 +21,9 @@ void main() {
         now: now,
       );
 
-      expect(payload.items.map((item) => item.title), ['장보기', '책 반납']);
+      expect(payload.items.map((item) => item.title), ['장보기', '운동하기', '책 반납']);
+      expect(payload.items.map((item) => item.done), [false, true, false]);
+      // totalCount는 **미완료 전체**다(완료를 세지 않는다). `그 외 N개`가 미완료만 세는 근거다.
       expect(payload.totalCount, 2);
       expect(payload.centerText, isNull);
       expect(payload.noteTone, TodoWidgetNoteTone.muted);
@@ -77,15 +81,24 @@ void main() {
       expect(payload.note, '');
     });
 
-    test('전부 완료면 다 끝냈다고 말한다', () {
+    // 옛 상태 7(안내만)이 상태 3b가 됐다(design 2.3.1). 가운데 안내는 줄 영역을 **덮는** 자리라
+    // 완료 줄과 구조적으로 공존할 수 없어서, 사용자가 방금 끝낸 할 일들을 보여 주고 그 문장을
+    // 머리 줄로 옮겼다 — 한 줄보다 정보가 많다.
+    test('전부 완료면 완료 줄을 보여 주고 다 끝냈다고 말한다', () {
       final payload = TodoWidgetPayload.fromTodos(
         [_todo('1', '장보기', isDone: true)],
         now: now,
       );
 
-      // 할 일이 없는 것과 다 끝낸 것은 다른 상태다. 가르는 값은 완료까지 포함한 전체 개수다.
-      expect(payload.centerText, AppStrings.widgetAllDone);
-      expect(payload.centerText, isNot(AppStrings.widgetEmpty));
+      expect(payload.items.map((item) => item.id), ['1']);
+      expect(payload.centerText, isNull);
+      expect(payload.note, AppStrings.widgetAllDone);
+      expect(payload.header, '할 일 1/1');
+      // 할 일이 없는 것과 다 끝낸 것은 여전히 다른 상태다. 가르는 값은 전체 개수다.
+      expect(
+        TodoWidgetPayload.fromTodos(const [], now: now).centerText,
+        AppStrings.widgetEmpty,
+      );
     });
 
     test('정상 상태의 note에 기준 시각이 들어간다', () {
@@ -94,8 +107,126 @@ void main() {
         now: now,
       );
 
-      expect(payload.note, '할 일 · 오전 9:14 기준');
+      // 2026-11-18(추가 범위 2): `할 일 ·`이 빠졌다 — 머리 줄의 헤더가 이미 그 말을 들고 있어
+      // 한 줄에 두 번 보이고, note에 남는 가로가 약 190dp라 꼬리가 잘린다(design 6.1.2).
+      expect(payload.note, '오전 9:14 기준');
+      expect(payload.note, isNot(contains('할 일')));
       expect(payload.updatedAtMs, now.millisecondsSinceEpoch);
+    });
+  });
+
+  // 머리 줄의 문장은 **Dart가 완성해** 캐시에 싣는다(네이티브는 숫자를 세지도 분수를 조립하지도
+  // 않는다. design 2.2.2). 오너가 직접 고른 꼴이라 테스트로 못 박는다.
+  group('header', () {
+    test('정상 상태는 완료/전체 분수로 적는다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [
+          _todo('1', '장보기'),
+          _todo('2', '운동하기', isDone: true),
+          _todo('3', '책 반납'),
+          _todo('4', '전화하기', isDone: true),
+          _todo('5', '청소하기'),
+        ],
+        now: now,
+      );
+
+      // 분자가 완료, 분모가 전체(미완료+완료)다.
+      expect(payload.header, '할 일 2/5');
+    });
+
+    test('낱말을 덧붙이지 않는다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기'), _todo('2', '운동하기', isDone: true)],
+        now: now,
+      );
+
+      // pm이 반대를 권했고 오너가 보고 고른 꼴이다 — `개`·`완료`·`남음` 같은 글자를 넣지 않는다.
+      expect(payload.header, '할 일 1/2');
+      for (final word in ['개', '완료', '남음', '중']) {
+        expect(payload.header, isNot(contains(word)));
+      }
+    });
+
+    test('전부 완료면 분자와 분모가 같다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [
+          _todo('1', '장보기', isDone: true),
+          _todo('2', '운동하기', isDone: true),
+        ],
+        now: now,
+      );
+
+      expect(payload.header, '할 일 2/2');
+    });
+
+    test('줄이 보이지 않는 상태는 개수 없이 할 일만 적는다', () {
+      // `0/0`류의 허전한 숫자를 만들지 않는다(spec 수용 기준). 그 상태들에서는 셀 목록이 손에
+      // 없거나(로그아웃·조회 중·목록 없는 조회 실패) 숫자가 전부 0이다(할 일 없음).
+      expect(TodoWidgetPayload.loggedOut(now: now).header, AppStrings.widgetHeader);
+      expect(TodoWidgetPayload.loading(now: now).header, AppStrings.widgetHeader);
+      expect(
+        TodoWidgetPayload.fetchFailed(null, now: now).header,
+        AppStrings.widgetHeader,
+      );
+      expect(
+        TodoWidgetPayload.fromTodos(const [], now: now).header,
+        AppStrings.widgetHeader,
+      );
+      expect(AppStrings.widgetHeader, '할 일');
+    });
+
+    test('조회 실패·체크 실패는 직전 header를 물려받는다', () {
+      final previous = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기'), _todo('2', '운동하기', isDone: true)],
+        now: now,
+      );
+      final later = now.add(const Duration(hours: 1));
+
+      // 그 두 상태는 items를 그대로 물려받으므로 개수도 **같은 시점의 값**이어야 한다. 새로
+      // 세면 셀 목록이 없고(조회 실패), 서버 반영에 실패한 체크를 성공으로 센 숫자가 된다.
+      expect(
+        TodoWidgetPayload.fetchFailed(previous, now: later).header,
+        previous.header,
+      );
+      expect(
+        TodoWidgetPayload.checkFailed(previous, now: later).header,
+        previous.header,
+      );
+      expect(
+        TodoWidgetPayload.pending(previous, '1', now: later).header,
+        previous.header,
+      );
+    });
+
+    test('왕복에서 header가 보존되고 옛 캐시는 할 일로 읽힌다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기'), _todo('2', '운동하기', isDone: true)],
+        now: now,
+      );
+
+      expect(TodoWidgetPayload.decode(payload.encode())!.header, '할 일 1/2');
+      // 판 번호를 올리지 않았으므로 header 키가 없는 옛 캐시도 그대로 읽힌다 — 개수를 모르면
+      // 말하지 않는다(design 2.2.2).
+      expect(
+        TodoWidgetPayload.fromJson({
+          'v': 1,
+          'items': const [],
+          'totalCount': 0,
+          'updatedAtMs': 0,
+        })!.header,
+        AppStrings.widgetHeader,
+      );
+    });
+
+    test('낡음·체크 실패 문구가 사실로 시작한다', () {
+      // 머리 줄에서 꼬리부터 잘리므로(ellipsize=end) 사실이 앞에 와야 남는다(design 6.1.2).
+      expect(AppStrings.widgetNoteStale('오후 7:15'), startsWith('못 불러왔어요'));
+      expect(AppStrings.widgetCheckFailed, startsWith('체크하지 못했어요'));
+      // `눌러서`로 늘어지던 꼬리를 덜어냈다(design 6.1.2의 폭 표: 한글 17자 ≈ 175dp로 머리 줄에
+      // 빡빡하게 들어간다. 공백·가운뎃점까지 세면 20글자다).
+      expect(AppStrings.widgetNoteStale('오후 7:15'), isNot(contains('지금은')));
+      expect(AppStrings.widgetCheckFailed, isNot(contains('눌러서')));
+      expect(AppStrings.widgetCheckFailed, endsWith('앱에서 확인해요'));
     });
   });
 
@@ -267,7 +398,7 @@ void main() {
 
       final json = past.toJson()['items'] as List;
       final keys = (json.single as Map<String, dynamic>).keys.toSet();
-      expect(keys, {'id', 'title', 'due', 'dueOver', 'dueAtMs'});
+      expect(keys, {'id', 'title', 'rank', 'due', 'dueOver', 'dueAtMs'});
       expect(past.items.single.due, '오전 1:00');
       expect(past.items.single.dueOver, '오전 1:00 지남');
     });
@@ -281,8 +412,22 @@ void main() {
         now: now,
       );
 
-      // 완료한 할 일은 items에 애초에 들어오지 않으므로 별도 분기가 필요 없다.
-      expect(payload.items.map((item) => item.id), ['2']);
+      // 완료 줄은 **보이지만** 기한 키가 캐시에 없다(Dart가 그 규칙을 끝낸다) — 네이티브의
+      // "기한 키가 없으면 GONE" 첫 분기가 그대로 처리하므로 완료 전용 분기가 생기지 않는다.
+      // "끝냈는데 혼난다"로 읽히는 붉은 기한이 완료 줄에 붙을 수 없는 근거이기도 하다.
+      expect(payload.items.map((item) => item.id), ['1', '2']);
+      final doneItem = payload.items.first;
+      expect(doneItem.done, isTrue);
+      expect(doneItem.due, isNull);
+      expect(doneItem.dueOver, isNull);
+      expect(doneItem.dueAtMs, isNull);
+      final json = payload.toJson()['items'] as List;
+      expect((json.first as Map<String, dynamic>).keys.toSet(), {
+        'id',
+        'title',
+        'rank',
+        'done',
+      });
     });
 
     test('목록을 물려받는 발행은 기한도 함께 물려받는다', () {
@@ -330,7 +475,7 @@ void main() {
       expect(failed.items, previous.items);
       expect(failed.totalCount, previous.totalCount);
       // 기준 시각은 "목록이 언제 것인가"를 뜻한다. 실패한 시각이 아니다.
-      expect(failed.note, '지금은 못 불러왔어요 · 오전 9:14 기준');
+      expect(failed.note, '못 불러왔어요 · 오전 9:14 기준');
       expect(failed.updatedAtMs, previous.updatedAtMs);
       expect(failed.noteTone, TodoWidgetNoteTone.muted);
     });
@@ -484,9 +629,13 @@ void main() {
     });
   });
 
+  // 아래 묶음은 **미완료만 있는 캐시**(= 옛 캐시와 같은 모양: rank가 배열 index와 같고 done이
+  // 전부 false)를 쓴다. 그래서 이 칸들이 그대로 통과하는 것이 "새 규칙이 옛 규칙과 같게 읽힌다"는
+  // 증거이고, 판 번호를 올리지 않은 근거다(design 2.2.2).
   group('visibleRows', () {
     final items = [
-      for (var i = 0; i < 8; i++) TodoWidgetItem(id: '$i', title: '할 일 $i'),
+      for (var i = 0; i < 8; i++)
+        TodoWidgetItem(id: '$i', title: '할 일 $i', rank: i),
     ];
 
     test('자리가 넉넉하면 그대로 그리고 그 외 줄을 쓰지 않는다', () {
@@ -546,11 +695,253 @@ void main() {
     });
   });
 
+  // 이번 범위에서 규칙이 가장 많이 늘어난 곳이 줄 자리 계산이고, 그것이 전부 순수 함수라
+  // **테스트가 유일한 방어선**이다(네이티브는 `rank < limit` 비교와 리소스 고르기뿐이다).
+  group('랭크 규칙', () {
+    List<String> ranksOf(TodoWidgetPayload payload) => [
+          for (final item in [...payload.items]
+            ..sort((a, b) => a.rank.compareTo(b.rank)))
+            item.id,
+        ];
+
+    test('미완료가 먼저 받고 완료가 그 뒤를 받는다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [
+          _todo('1', '장보기', isDone: true),
+          _todo('2', '운동하기'),
+          _todo('3', '책 반납', isDone: true),
+          _todo('4', '전화하기'),
+        ],
+        now: now,
+      );
+
+      // 고르는 순서: 미완료 2·4 → 완료 1·3. 같은 묶음 안에서는 position 순서다.
+      expect(ranksOf(payload), ['2', '4', '1', '3']);
+      // 그리는 순서는 그대로 position 순서다(제자리에서 모양만 바뀐다).
+      expect(payload.items.map((item) => item.id), ['1', '2', '3', '4']);
+    });
+
+    test('방금 누른 줄이 rank 0을 받는다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [
+          _todo('1', '장보기'),
+          _todo('2', '운동하기', isDone: true),
+          _todo('3', '책 반납'),
+        ],
+        now: now,
+        justCheckedId: '2',
+      );
+
+      expect(ranksOf(payload), ['2', '1', '3']);
+      // 배열(그리는 순서)은 흔들리지 않는다 — 합치면 체크한 줄이 목록 맨 아래로 뛴다.
+      expect(payload.items.map((item) => item.id), ['1', '2', '3']);
+    });
+
+    test('방금 누른 줄이 미완료거나 목록에 없으면 무시된다', () {
+      final todos = [
+        _todo('1', '장보기'),
+        _todo('2', '운동하기', isDone: true),
+      ];
+
+      // 되돌린 줄은 미완료가 되어 어차피 앞 순위다 — 방향마다 다른 길을 만들지 않는다.
+      expect(
+        ranksOf(
+          TodoWidgetPayload.fromTodos(todos, now: now, justCheckedId: '1'),
+        ),
+        ['1', '2'],
+      );
+      expect(
+        ranksOf(
+          TodoWidgetPayload.fromTodos(todos, now: now, justCheckedId: '없는id'),
+        ),
+        ['1', '2'],
+      );
+    });
+
+    test('미완료 8 + 완료 6을 따로 담아 서로를 밀어내지 않는다', () {
+      final todos = [
+        for (var i = 0; i < 10; i++) _todo('u$i', '미완료 $i'),
+        for (var i = 0; i < 10; i++) _todo('d$i', '완료 $i', isDone: true),
+      ];
+
+      final payload = TodoWidgetPayload.fromTodos(todos, now: now);
+
+      final undone = payload.items.where((item) => !item.done);
+      final done = payload.items.where((item) => item.done);
+      expect(undone, hasLength(todoWidgetMaxItems));
+      expect(done, hasLength(todoWidgetMaxDoneItems));
+      // 한 상한에 섞어 담으면 완료가 앞에 몰린 사용자의 캐시가 완료로 채워져 빈자리가 생긴다.
+      expect(undone.map((item) => item.id).first, 'u0');
+      expect(done.map((item) => item.id).first, 'd0');
+      expect(payload.totalCount, 10);
+      expect(payload.header, '할 일 10/20');
+    });
+
+    test('방금 누른 줄이 완료 7번째여도 캐시에 들어오고 배열 순서가 유지된다', () {
+      final todos = [
+        for (var i = 0; i < 7; i++) _todo('d$i', '완료 $i', isDone: true),
+        _todo('u0', '장보기'),
+      ];
+
+      final payload = TodoWidgetPayload.fromTodos(
+        todos,
+        now: now,
+        justCheckedId: 'd6',
+      );
+
+      // done.take(5) + [그것] — 그 줄은 앞 6개에 없었으므로 position이 그들보다 뒤다.
+      expect(
+        payload.items.map((item) => item.id),
+        ['d0', 'd1', 'd2', 'd3', 'd4', 'd6', 'u0'],
+      );
+      expect(payload.items.firstWhere((item) => item.id == 'd6').rank, 0);
+    });
+  });
+
+  group('visibleRows와 완료 줄', () {
+    TodoWidgetPayload payloadOf({String? justCheckedId}) {
+      return TodoWidgetPayload.fromTodos(
+        [
+          _todo('B', '책 반납', isDone: true),
+          _todo('A', '장보기'),
+          _todo('C', '운동하기'),
+          _todo('D', '전화하기'),
+          _todo('E', '청소하기'),
+          _todo('F', '설거지', isDone: true),
+        ],
+        now: now,
+        justCheckedId: justCheckedId,
+      );
+    }
+
+    test('미완료가 자리를 다 쓰면 완료 줄이 하나도 보이지 않는다', () {
+      final payload = payloadOf();
+      final result = visibleRows(payload.items, payload.totalCount, 4);
+
+      // 미완료 4개(A·C·D·E)가 자리를 전부 쓰고 완료(B·F)는 밀려 보이지 않는다. 그 사실은
+      // 머리 줄의 개수가 말한다(spec F). 미완료가 딱 들어맞으므로 `그 외` 줄도 쓰지 않는다.
+      expect(result.rows.map((item) => item.id), ['A', 'C', 'D', 'E']);
+      expect(result.rows.every((item) => !item.done), isTrue);
+      expect(result.moreCount, 0);
+    });
+
+    test('미완료가 자리보다 많으면 완료 줄 없이 그 외 N개로 접힌다', () {
+      final payload = payloadOf();
+      final result = visibleRows(payload.items, payload.totalCount, 3);
+
+      expect(result.rows.map((item) => item.id), ['A', 'C']);
+      expect(result.moreCount, 2);
+    });
+
+    test('자리가 남으면 완료가 배열 순서 그대로 들어온다', () {
+      final payload = payloadOf();
+      final result = visibleRows(payload.items, payload.totalCount, 6);
+
+      expect(result.rows.map((item) => item.id), [
+        'B',
+        'A',
+        'C',
+        'D',
+        'E',
+        'F',
+      ]);
+      expect(result.moreCount, 0);
+    });
+
+    test('design 6.2.2의 보기를 그대로 둔다(방금 누른 줄이 제자리에 보인다)', () {
+      final payload = payloadOf(justCheckedId: 'B');
+      final result = visibleRows(payload.items, payload.totalCount, 4);
+
+      // 방금 누른 줄이 보이고, 아래 줄이 올라오지 않았고, 미완료가 자리를 먼저 썼다.
+      expect(result.rows.map((item) => item.id), ['B', 'A', 'C']);
+      expect(result.rows.first.done, isTrue);
+      // `그 외 N개`는 미완료만 센다 — 보이는 미완료는 A·C 둘이고 전체 미완료는 4다.
+      expect(result.moreCount, 2);
+    });
+
+    test('방금 누른 완료 줄은 한 줄짜리 위젯에서도 보인다', () {
+      final payload = payloadOf(justCheckedId: 'B');
+      final result = visibleRows(payload.items, payload.totalCount, 1);
+
+      // spec이 "미완료 한 줄을 밀어낼 수 있다"로 허용한 경우다.
+      expect(result.rows.map((item) => item.id), ['B']);
+      expect(result.moreCount, 0);
+    });
+
+    test('완료 줄이 자리를 먹으면 그 외 N개가 그만큼 커진다', () {
+      final payload = payloadOf(justCheckedId: 'B');
+
+      for (var rowCount = 2; rowCount <= 6; rowCount++) {
+        final result = visibleRows(payload.items, payload.totalCount, rowCount);
+        final shownUndone = result.rows.where((item) => !item.done).length;
+        // 보이는 미완료 + 그 외 N개 = 미완료 전체. 어긋나면 사용자가 센 것과 다르다.
+        expect(
+          shownUndone + result.moreCount,
+          payload.totalCount,
+          reason: '$rowCount줄에서 어긋났다',
+        );
+        expect(result.rows.length, lessThanOrEqualTo(rowCount));
+      }
+    });
+  });
+
+  group('완료 줄의 JSON', () {
+    test('done·rank가 왕복에서 그대로 돌아온다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기', isDone: true), _todo('2', '운동하기')],
+        now: now,
+        justCheckedId: '1',
+      );
+
+      final decoded = TodoWidgetPayload.decode(payload.encode())!;
+
+      expect(decoded.items, payload.items);
+      expect(decoded.items.first.done, isTrue);
+      expect(decoded.items.first.rank, 0);
+      expect(decoded.items.last.done, isFalse);
+      expect(decoded.items.last.rank, 1);
+    });
+
+    test('done이 false면 키를 싣지 않는다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기')],
+        now: now,
+      );
+
+      final json = payload.toJson()['items'] as List;
+      expect((json.single as Map<String, dynamic>).containsKey('done'), isFalse);
+    });
+
+    test('rank가 없는 옛 캐시는 배열 순서를 rank로 읽는다', () {
+      // 판 번호를 올리지 않은 근거다 — 옛 캐시(미완료만, position 순서)에서 `rank < limit`이
+      // 옛 규칙 `take(limit)`과 정확히 같아진다(design 2.2.2).
+      final decoded = TodoWidgetPayload.fromJson({
+        'v': 1,
+        'items': [
+          {'id': '1', 'title': '장보기'},
+          {'id': '2', 'title': '운동하기'},
+          {'id': '3', 'title': '책 반납'},
+        ],
+        'totalCount': 3,
+        'updatedAtMs': 0,
+      })!;
+
+      expect(decoded.items.map((item) => item.rank), [0, 1, 2]);
+      expect(decoded.items.every((item) => !item.done), isTrue);
+      expect(
+        visibleRows(decoded.items, 3, 2).rows.map((item) => item.id),
+        ['1'],
+      );
+    });
+  });
+
   // 줄 수는 표가 아니라 **공식**이고 그 주인은 Dart다(design 6.2.1). 네이티브는 같은 상수로 같은
   // 식을 옮겨 쓰기만 하므로(테스트하지 않는다) 이 칸들이 공식의 유일한 검증이다.
   group('widgetRowCount', () {
+    // **이 칸이 그대로 통과하는 것이 "상수를 바꾸지 않았다"는 증거다**(design 12.3). 머리 줄이
+    // 옛 아래 note의 자리를 물려받았으므로 모든 높이에서 줄 수가 같아야 한다.
     test('경계가 42dp 간격으로 한 줄씩 늘어난다', () {
-      // 고정 비용 24dp(루트 여백 8 + note 16) + 줄 간격 42dp.
+      // 고정 비용 24dp(루트 여백 4+2 + 머리 줄 18) + 줄 간격 42dp.
       expect(widgetRowCount(65), 1);
       expect(widgetRowCount(66), 1);
       expect(widgetRowCount(107), 1);
@@ -569,6 +960,12 @@ void main() {
       // spec 수용 기준이 이 한 칸이다. 110dp는 todo_widget_info.xml이 선언한 minHeight이고,
       // 런처가 높이를 알려 주지 않을 때 네이티브가 쓰는 기본값도 같은 값이다.
       expect(widgetRowCount(110), 2);
+    });
+
+    test('실기기(Galaxy S20, 4x2 = 225dp)에서 네 줄이 유지된다', () {
+      // spec G의 수용 조건 ②가 이 한 칸이다 — 머리 줄이 생긴 뒤에도 지금 보이는 4줄이 줄면
+      // 헤더를 얻고 위젯의 목적을 잃는다. (225 − 24) ÷ 42 = 4.78 → 4.
+      expect(widgetRowCount(225), 4);
     });
 
     test('하한 1줄, 상한 6줄을 넘지 않는다', () {
@@ -594,17 +991,50 @@ void main() {
         Uri.parse('todododo://widget/check?id=$id'),
       );
 
-      expect(action.isCheck, isTrue);
+      expect(action.isWrite, isTrue);
       expect(action.todoId, id);
+    });
+
+    test('done 파라미터가 목표 값을 가른다', () {
+      // 토글이 아니라 **목표 값**이다 — 낡은 그림을 누른 탭이 사용자가 본 것과 반대로 쓰이지
+      // 않게 하는 장치다(design 4.6 (1)).
+      expect(
+        todoWidgetActionOf(
+          Uri.parse('todododo://widget/check?id=$id&done=1'),
+        ).done,
+        isTrue,
+      );
+      expect(
+        todoWidgetActionOf(
+          Uri.parse('todododo://widget/check?id=$id&done=0'),
+        ).done,
+        isFalse,
+      );
+    });
+
+    test('done이 없거나 모르는 값이면 완료로 읽는다', () {
+      // `PendingIntent`는 앱 업데이트를 넘어 시스템에 남아 있다. 업데이트 직후 위젯이 아직 다시
+      // 그려지지 않은 사이에 옛 APK가 만든 Uri(done이 없는 꼴)가 발사될 수 있고, 그때의 옳은
+      // 동작이 정확히 완료 처리다(옛 위젯의 체크 칸은 완료 전용이었다).
+      expect(
+        todoWidgetActionOf(Uri.parse('todododo://widget/check?id=$id')).done,
+        isTrue,
+      );
+      expect(
+        todoWidgetActionOf(
+          Uri.parse('todododo://widget/check?id=$id&done=yes'),
+        ).done,
+        isTrue,
+      );
     });
 
     test('uuid 모양이 아니거나 id가 없으면 아무 일도 하지 않는다', () {
       expect(
-        todoWidgetActionOf(Uri.parse('todododo://widget/check?id=abc')).isCheck,
+        todoWidgetActionOf(Uri.parse('todododo://widget/check?id=abc')).isWrite,
         isFalse,
       );
       expect(
-        todoWidgetActionOf(Uri.parse('todododo://widget/check')).isCheck,
+        todoWidgetActionOf(Uri.parse('todododo://widget/check')).isWrite,
         isFalse,
       );
     });
@@ -617,12 +1047,12 @@ void main() {
         'todododo://widget/check/extra?id=$id',
       ]) {
         expect(
-          todoWidgetActionOf(Uri.parse(raw)).isCheck,
+          todoWidgetActionOf(Uri.parse(raw)).isWrite,
           isFalse,
           reason: raw,
         );
       }
-      expect(todoWidgetActionOf(null).isCheck, isFalse);
+      expect(todoWidgetActionOf(null).isWrite, isFalse);
     });
 
     test('탭 Uri는 할 일 화면을 가리킨다', () {
@@ -650,7 +1080,7 @@ void main() {
     );
 
     TodoWidgetCheckDecision decide({
-      TodoWidgetAction action = const TodoWidgetAction.check(id),
+      TodoWidgetAction action = const TodoWidgetAction.setDone(id, done: true),
       TodoWidgetPayload? payload,
       bool appAlive = false,
       DateTime? at,
@@ -690,7 +1120,7 @@ void main() {
       // 다른 줄은 막지 않는다.
       expect(
         decide(
-          action: const TodoWidgetAction.check(other),
+          action: const TodoWidgetAction.setDone(other, done: true),
           payload: pending,
           at: now.add(const Duration(seconds: 5)),
         ),
@@ -713,13 +1143,69 @@ void main() {
       );
     });
 
-    test('캐시에 없는 할 일은 무시한다(이미 성공해 사라진 줄이다)', () {
-      final done = TodoWidgetPayload.fromTodos([_todo(other, '책 반납')], now: now);
+    test('목록에 아예 없는 id는 무시한다(아주 낡은 그림을 누른 경우다)', () {
+      final onlyOther = TodoWidgetPayload.fromTodos(
+        [_todo(other, '책 반납')],
+        now: now,
+      );
 
-      expect(decide(payload: done), TodoWidgetCheckDecision.ignore);
+      expect(decide(payload: onlyOther), TodoWidgetCheckDecision.ignore);
       // 로그아웃 캐시의 낡은 그림을 누른 경우도 같다.
       expect(
         decide(payload: TodoWidgetPayload.loggedOut(now: now)),
+        TodoWidgetCheckDecision.ignore,
+      );
+    });
+
+    test('이미 목표 값인 항목은 무시한다', () {
+      // 완료 줄이 목록에 남게 된 뒤로는 "없어짐"이 성공의 표시가 아니다. 그래서 옛 조건
+      // ("items에 없으면 무시")을 이 조건으로 바꿨다(design 4.6 (2)). 아무것도 바꾸지 않는
+      // 쓰기를 서버에 보내지 않고, 그 때문에 `쓰는 중`이 깜빡이지도 않게 한다.
+      final mixed = TodoWidgetPayload.fromTodos(
+        [_todo(id, '장보기', isDone: true), _todo(other, '책 반납')],
+        now: now,
+      );
+
+      expect(decide(payload: mixed), TodoWidgetCheckDecision.ignore);
+      expect(
+        decide(
+          action: const TodoWidgetAction.setDone(other, done: false),
+          payload: mixed,
+        ),
+        TodoWidgetCheckDecision.ignore,
+      );
+      // 반대 값이면 쓴다(되돌리기가 이 갈래다).
+      expect(
+        decide(
+          action: const TodoWidgetAction.setDone(id, done: false),
+          payload: mixed,
+        ),
+        TodoWidgetCheckDecision.writeHere,
+      );
+      expect(
+        decide(
+          action: const TodoWidgetAction.setDone(other, done: true),
+          payload: mixed,
+          appAlive: true,
+        ),
+        TodoWidgetCheckDecision.handOff,
+      );
+    });
+
+    test('중복 탭은 방향과 무관하게 무시한다', () {
+      final mixed = TodoWidgetPayload.fromTodos(
+        [_todo(id, '장보기', isDone: true), _todo(other, '책 반납')],
+        now: now,
+      );
+      final pending = TodoWidgetPayload.pending(mixed, id, now: now);
+
+      // 되돌리기를 쓰는 중에 또 누르면 첫 탭의 `쓰는 중`이 흔들릴 뿐이다.
+      expect(
+        decide(
+          action: const TodoWidgetAction.setDone(id, done: false),
+          payload: pending,
+          at: now.add(const Duration(seconds: 5)),
+        ),
         TodoWidgetCheckDecision.ignore,
       );
     });

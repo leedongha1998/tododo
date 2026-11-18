@@ -22,6 +22,8 @@ void main() {
       'todo_widget_name': AppStrings.widgetName,
       'todo_widget_description': AppStrings.widgetDescription,
       'todo_widget_no_cache': AppStrings.widgetNoCache,
+      // 머리 줄의 기본값. 레이아웃이 직접 참조하므로 캐시가 없을 때도 왼쪽 위에 보인다.
+      'todo_widget_header': AppStrings.widgetHeader,
     };
     strings.forEach((name, value) {
       expect(
@@ -42,6 +44,9 @@ void main() {
       'widget_ink': AppPalette.ink,
       'widget_ink_muted': AppPalette.inkMuted,
       'widget_danger': AppPalette.danger,
+      // 추가 범위 2의 포인트 색(헤더 글자 / 완료한 체크 칸의 면).
+      'widget_primary_deep': AppPalette.primaryDeep,
+      'widget_primary': AppPalette.primary,
     };
     colors.forEach((name, color) {
       expect(

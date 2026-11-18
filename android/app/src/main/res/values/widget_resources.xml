@@ -7,6 +7,9 @@
     <string name="todo_widget_description">남은 할 일을 홈 화면에서 보고 체크해요.</string>
     <!-- 캐시가 아직 없거나 판 번호를 모를 때의 마지막 한 줄. 빈 사각형을 보여 주지 않는다. -->
     <string name="todo_widget_no_cache">앱을 한 번 열어 주세요</string>
+    <!-- 머리 줄의 기본값. 캐시가 없을 때·옛 캐시일 때·위젯 선택기 미리보기에서도
+         왼쪽 위에 보여야 하는 한 낱말이라 레이아웃이 직접 참조한다(design 2.4). -->
+    <string name="todo_widget_header">할 일</string>
     <!-- 앱 화면과 같은 팔레트(redesign). 위젯은 다크 모드에서도 같은 색을 쓴다. -->
     <color name="widget_background">#FFEEF1F6</color>
     <color name="widget_surface">#FFFFFFFF</color>
@@ -16,4 +19,6 @@
     <color name="widget_ink">#FF1B2033</color>
     <color name="widget_ink_muted">#FF4A5168</color>
     <color name="widget_danger">#FFCC2F3F</color>
+    <color name="widget_primary_deep">#FF2238C8</color>
+    <color name="widget_primary">#FF3355FF</color>
 </resources>

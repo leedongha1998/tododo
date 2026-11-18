@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 완료한 체크 칸. widget_check.xml과 같은 모양·같은 크기이고 **면이 브랜드색으로 채워진다**
+     (앱 체크박스가 선택됐을 때 쓰는 primary 그대로).
+     ✓ 글리프를 넣지 않는다: 사선은 shape XML로 그릴 수 없어 벡터 drawable이 필요하고, RemoteViews에서
+     벡터를 쓰는 것은 기기·런처에 따라 위험이 남는다. spec이 요구한 것은 "미완료는 테두리만, 완료는
+     채워진 모양"이라 단색 사각형이 그 요구를 그대로 만족한다(design 6.1.2 (2)).
+     src로 쓰이므로 고유 크기가 없어 content box(20x20dp)를 채운다 — widget_check.xml과 같은 성질이다. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_primary" />
+    <stroke android:width="2dp" android:color="@color/widget_primary" />
+    <corners android:radius="4dp" />
+</shape>

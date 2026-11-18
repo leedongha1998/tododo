@@ -76,11 +76,14 @@ class _AuthGateState extends ConsumerState<AuthGate> {
   /// 캐시를 직접 쓰지 않는다. 사용자가 앱으로 돌아왔을 때 화면과 위젯이 어긋나지 않는 것도
   /// 그 `invalidate` 덕이다.
   Future<void> _onWidgetCheck(Object? message) async {
-    // [todoId, 답을 보낼 포트]. 모양이 어긋나면 아무 일도 하지 않는다(답할 곳도 모른다).
-    if (message is! List || message.length != 2) return;
+    // [todoId, 목표 값, 답을 보낼 포트]. 모양이 어긋나면 아무 일도 하지 않는다(답할 곳도 모른다).
+    // **목표 값**을 받는 이유는 토글이 아니기 때문이다 — 낡은 그림을 누른 탭이 사용자가 본 것과
+    // 반대로 쓰이지 않게 한다(design 4.6 (1)).
+    if (message is! List || message.length != 3) return;
     final todoId = message[0];
-    final reply = message[1];
-    if (todoId is! String || reply is! SendPort) return;
+    final done = message[1];
+    final reply = message[2];
+    if (todoId is! String || done is! bool || reply is! SendPort) return;
 
     try {
       final userId = ref.read(authRepositoryProvider).currentUser?.id;
@@ -89,7 +92,10 @@ class _AuthGateState extends ConsumerState<AuthGate> {
         reply.send(todoWidgetCheckLoggedOut);
         return;
       }
-      await ref.read(todoRepositoryProvider).setDone(todoId, true);
+      // **`setDone` 앞에서** 적어 둔다. 그 뒤 `invalidate`가 일으키는 발행이 "방금 누른 줄"을
+      // 알게 하는 유일한 길이다(이 자리만 id를 안다. design 7.2 (1)).
+      ref.read(todoWidgetServiceProvider).markJustChecked(todoId);
+      await ref.read(todoRepositoryProvider).setDone(todoId, done);
       ref.invalidate(todosProvider);
       reply.send(todoWidgetCheckOk);
     } catch (error) {

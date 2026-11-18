@@ -1222,8 +1222,14 @@ void main() {
       ],
     );
 
-    // 위젯이 보여 주는 것은 "남은 것"이다. 완료한 할 일이 캐시에 실리면 안 된다.
-    expect(host.saved.last.items.map((item) => item.title), ['설거지하기']);
+    // 2026-11-18(추가 범위 2): 완료한 할 일도 **선 그어진 완료 줄**로 캐시에 실린다. 대신
+    // 줄 자리는 미완료가 먼저 쓰고(rank), `그 외 N개`가 세는 totalCount는 미완료만 센다 —
+    // "남은 것이 목적"이라는 취지는 그 제한으로 지킨다(spec F).
+    expect(host.saved.last.items.map((item) => item.title), ['설거지하기', '빨래하기']);
+    expect(host.saved.last.items.map((item) => item.done), [false, true]);
+    expect(host.saved.last.items.map((item) => item.rank), [0, 1]);
+    expect(host.saved.last.totalCount, 1);
+    expect(host.saved.last.header, '할 일 1/2');
     // 캐시만 쓰고 끝나면 홈 화면은 그대로다. 다시 그리라는 브로드캐스트까지 가야 한다.
     expect(host.updateCount, greaterThan(0));
   });
@@ -1282,7 +1288,7 @@ void main() {
       isNot(contains(AppStrings.widgetLoading)),
     );
     expect(host.saved.last.items.single.title, '설거지하기');
-    expect(host.saved.last.note, '지금은 못 불러왔어요 · 오전 9:14 기준');
+    expect(host.saved.last.note, '못 불러왔어요 · 오전 9:14 기준');
   });
 
   testWidgets('본 화면이 뜨면 미래 기한의 알림이 이 기기에 예약된다', (

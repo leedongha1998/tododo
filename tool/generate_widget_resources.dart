@@ -34,7 +34,10 @@ void main() {
       ..writeln('    <string name="todo_widget_name">${_xml(AppStrings.widgetName)}</string>')
       ..writeln('    <string name="todo_widget_description">${_xml(AppStrings.widgetDescription)}</string>')
       ..writeln('    <!-- 캐시가 아직 없거나 판 번호를 모를 때의 마지막 한 줄. 빈 사각형을 보여 주지 않는다. -->')
-      ..writeln('    <string name="todo_widget_no_cache">${_xml(AppStrings.widgetNoCache)}</string>');
+      ..writeln('    <string name="todo_widget_no_cache">${_xml(AppStrings.widgetNoCache)}</string>')
+      ..writeln('    <!-- 머리 줄의 기본값. 캐시가 없을 때·옛 캐시일 때·위젯 선택기 미리보기에서도')
+      ..writeln('         왼쪽 위에 보여야 하는 한 낱말이라 레이아웃이 직접 참조한다(design 2.4). -->')
+      ..writeln('    <string name="todo_widget_header">${_xml(AppStrings.widgetHeader)}</string>');
 
     // 이름은 앱 팔레트 역할 이름을 따른다. Kotlin(TodoWidgetProvider)이 직접 쓰는 widget_danger·
     // widget_ink_muted는 이름을 바꾸지 않는다.
@@ -47,6 +50,10 @@ void main() {
       'widget_ink': AppPalette.ink,
       'widget_ink_muted': AppPalette.inkMuted,
       'widget_danger': AppPalette.danger,
+      // 2026-11-18(추가 범위 2)의 포인트 색. primaryDeep은 **글자로 쓰는 브랜드색**이고(머리 줄),
+      // primary는 **선택 상태의 면**이다(완료한 체크 칸). 둘 다 팔레트 대비 표 안에 있다.
+      'widget_primary_deep': AppPalette.primaryDeep,
+      'widget_primary': AppPalette.primary,
     };
     buffer.writeln('    <!-- 앱 화면과 같은 팔레트(redesign). 위젯은 다크 모드에서도 같은 색을 쓴다. -->');
     for (final MapEntry(key: name, value: color) in colors.entries) {

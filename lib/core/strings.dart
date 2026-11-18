@@ -469,19 +469,35 @@ class AppStrings {
   static const widgetDescription = '남은 할 일을 홈 화면에서 보고 체크해요.';
   // 캐시가 아직 없거나(설치 직후) 판 번호를 모를 때. 빈 사각형을 보여 주지 않기 위한 마지막 줄이다.
   static const widgetNoCache = '앱을 한 번 열어 주세요';
+  // 위젯 왼쪽 위의 머리 줄. 캐시가 없을 때·옛 캐시일 때·위젯 선택기 미리보기에서도 보여야 하므로
+  // 생성기가 이 값을 `@string/todo_widget_header`로 떨군다(레이아웃의 기본값이다).
+  static const widgetHeader = '할 일';
+  // 개수는 **분자가 완료, 분모가 전체(미완료+완료)**인 분수 꼴이다(2026-11-18 오너가 직접 고른 꼴).
+  // **낱말을 덧붙이지 않는다** — `할 일 2/5`가 확정 문구이고 `개`·`완료` 같은 글자를 넣지 않는다.
+  static String widgetHeaderCount({required int done, required int total}) =>
+      '$widgetHeader $done/$total';
   static const widgetLoggedOut = '로그인하면 할 일이 여기에 보여요';
   static const widgetLoading = '할 일을 불러오는 중이에요';
   static const widgetEmpty = '할 일이 없어요. 눌러서 추가해요';
   static const widgetAllDone = '할 일을 모두 끝냈어요';
   static const widgetFetchFailed = '할 일을 불러오지 못했어요. 눌러서 다시 시도해요';
-  // 체크(쓰기)가 서버에 반영되지 않았을 때. 그 할 일은 위젯 목록에 그대로 남는다.
-  static const widgetCheckFailed = '체크하지 못했어요. 눌러서 앱에서 확인해요';
+  // 체크(쓰기)가 서버에 반영되지 않았을 때. 그 줄은 **선이 그어지지 않은 채** 목록에 그대로
+  // 남는다(2026-11-18: 줄이 사라지지 않게 되면서 실패의 1차 신호가 "되살아남"에서 "바뀌지
+  // 않음"으로 바뀌었다 — spec 추가 범위 2 F).
+  //
+  // 머리 줄에서 헤더와 가로를 나눠 쓰므로(design 6.1.2) 문구를 17자로 줄였다. **사실이 문장의
+  // 맨 앞에** 오게 적는다 — 폭이 모자라 잘릴 때 꼬리가 잘려야 `체크하지 못했어요…`가 남는다.
+  static const widgetCheckFailed = '체크하지 못했어요 · 앱에서 확인해요';
   static const widgetPendingLabel = '쓰는 중';
   // 네이티브가 숫자 하나를 끼우는 유일한 문자열. %d는 안드로이드 서식이라 그대로 둔다.
   static const widgetMoreFormat = '그 외 %d개';
   // 위젯은 낡을 수 있다는 전제를 사용자에게도 알리려고 "기준 시각"을 함께 적는다.
-  static String widgetNoteFresh(String time) => '할 일 · $time 기준';
-  static String widgetNoteStale(String time) => '지금은 못 불러왔어요 · $time 기준';
+  //
+  // 2026-11-18(추가 범위 2): 두 문구에서 **`할 일 ·`과 `지금은`을 덜어냈다.** 머리 줄이 이미
+  // `할 일 2/5`를 들고 있어 한 줄에 같은 말이 두 번 보이고, 남는 가로가 약 190dp라 꼬리가
+  // 잘린다(design 6.1.2의 폭 표).
+  static String widgetNoteFresh(String time) => '$time 기준';
+  static String widgetNoteStale(String time) => '못 불러왔어요 · $time 기준';
   static String widgetTime({
     required bool isAm,
     required int hour,

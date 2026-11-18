@@ -73,7 +73,7 @@ void main() {
 
     final published = host.saved.last;
     expect(published.items.single.id, '1');
-    expect(published.note, '지금은 못 불러왔어요 · 오전 9:14 기준');
+    expect(published.note, '못 불러왔어요 · 오전 9:14 기준');
   });
 
   test('다시 그리기가 실패하면 직전으로 기억하지 않는다', () async {
@@ -116,7 +116,7 @@ void main() {
       );
 
       expect(host.saved.single.items.single.id, '1');
-      expect(host.saved.single.note, '지금은 못 불러왔어요 · 오전 9:14 기준');
+      expect(host.saved.single.note, '못 불러왔어요 · 오전 9:14 기준');
     });
 
     test('캐시에 보여 줄 것이 없으면 불러오는 중을 발행한다', () async {
@@ -152,13 +152,61 @@ void main() {
     expect(host.saved.last.items, isEmpty);
     expect(host.saved.last.centerText, AppStrings.widgetLoggedOut);
   });
+
+  // "방금 누른 줄은 반드시 보인다"는 예외의 **수명**이 여기서 결정된다(design 7.2 (1)).
+  // 적어 두는 자리(`AuthGate`)와 발행하는 자리(`MainShell`)가 달라서 그 사이를 서비스가 잇는다.
+  group('markJustChecked', () {
+    final todos = [_todo('1', isDone: true), _todo('2')];
+
+    test('적어 둔 id가 다음 한 번의 발행에만 쓰인다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+
+      service.markJustChecked('1', at: now);
+      await service.publishTodos(todos, now: now);
+      // 첫 발행에서는 그 완료 줄이 rank 0을 받아 어떤 줄 자리 수에서도 보인다.
+      expect(host.saved.last.items.first.rank, 0);
+      expect(host.saved.last.items.first.id, '1');
+
+      // 목록을 다시 받은 두 번째 발행에는 그 예외가 남아 있지 않다(평소 랭크로 돌아간다).
+      await service.publishTodos([...todos, _todo('3')], now: now);
+      final later = host.saved.last.items;
+      expect(later.firstWhere((item) => item.id == '1').rank, 2);
+      expect(later.firstWhere((item) => item.id == '2').rank, 0);
+    });
+
+    test('60초가 지난 기억은 쓰이지 않는다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+
+      // 쓰기는 성공했는데 목록 재조회가 한참 늦어진 경우다 — 엉뚱한 발행이 예외를 쓰지 않는다.
+      service.markJustChecked('1', at: now);
+      await service.publishTodos(
+        todos,
+        now: now.add(const Duration(seconds: 60)),
+      );
+
+      expect(host.saved.last.items.firstWhere((i) => i.id == '1').rank, 1);
+    });
+
+    test('적어 두지 않았으면 평소 랭크로 발행된다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+
+      await service.publishTodos(todos, now: now);
+
+      // 미완료가 먼저 고른다.
+      expect(host.saved.last.items.firstWhere((i) => i.id == '2').rank, 0);
+      expect(host.saved.last.items.firstWhere((i) => i.id == '1').rank, 1);
+    });
+  });
 }
 
-Todo _todo(String id) {
+Todo _todo(String id, {bool isDone = false}) {
   return Todo(
     id: id,
     title: '할 일 $id',
-    isDone: false,
+    isDone: isDone,
     createdAt: DateTime(2026, 11, 4, 8),
   );
 }

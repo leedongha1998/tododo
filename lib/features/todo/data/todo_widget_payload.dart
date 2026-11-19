@@ -2,8 +2,8 @@
 //
 // 설계 원칙 하나가 이 파일에 모여 있다(design.md 원칙 2): 네이티브는 그리기만 하고 판단은
 // Dart가 한다. 어떤 상태인지, 어떤 문구를 쓰는지, 몇 개까지 담는지, 기준 시각을 어떻게 적는지를
-// 여기서 전부 정해 JSON 하나로 적어 둔다. 네이티브(TodoWidgetProvider.kt)가 하는 판단은 **여섯**
-// 이고 전부 "비교하고 Dart가 보낸 것 중에서 고르기"다(design 원칙 2의 2026-11-18 각주 둘):
+// 여기서 전부 정해 JSON 하나로 적어 둔다. 네이티브(TodoWidgetProvider.kt)가 하는 판단은 **여덟**
+// 이고 거의 전부 "비교하고 Dart가 보낸 것 중에서 고르기"다(design 원칙 2의 각주들):
 //   1. 높이 → 줄 수(widgetRowCount와 같은 식)
 //   2. moreFormat에 숫자 하나 끼우기
 //   3. now - pendingAtMs < 60초 → `쓰는 중`을 그릴지
@@ -11,8 +11,16 @@
 //   5. rank < limit → 이 항목을 그릴지(줄 자리 수는 네이티브만 아는 값이라 Dart가 순서만 굳혀
 //      보낸다 — 정책은 여기, 비교 한 줄은 거기)
 //   6. done → 줄 면·제목 색·취소선·체크 그림 고르기(사실은 Dart가 적어 보낸다)
+//   7. (2026-11-19) 탭 순간의 기기 상태 → 낙관 모드인가 `쓰는 중` 모드인가
+//   8. (2026-11-19) 탭 자국의 나이 → 신선(6초)/지남(60초)/잊음. 3의 두 갈래가 셋이 된 것이다
 // 문장을 **만드는** 일은 한 자도 네이티브에 두지 않는다. 개수 문구(`할 일 2/5`)도 완성된 문장으로
 // 실려 가고, 네이티브는 숫자를 세거나 분수를 조립하지 않는다.
+//
+// **캐시를 쓰는 사람은 둘이다(2026-11-19).** Dart가 쓰는 것은 아래 `toJson`이 싣는 키 전부이고,
+// 네이티브는 **탭 자국 네 키**(`pendingId`·`pendingAtMs`·`pendingDone`·`pendingMode`)만 쓴다.
+// 그래서 `toJson`은 자국 키를 **한 자도 싣지 않는다** — 그 덕에 모든 Dart 발행이 자국을 지우고
+// "결말이 자국을 걷는다"가 코드 한 줄 없이 성립한다(design 2.2.3 · 4.7 (6)). 이 비대칭을 깨고
+// 자국을 다시 실으면 이 설계의 경합 방지가 통째로 무너진다.
 //
 // 플랫폼 타입이 섞이지 않아 전부 유닛 테스트로 고정할 수 있다
 // (test/features/todo/todo_widget_payload_test.dart).
@@ -44,9 +52,22 @@ const todoWidgetMaxDoneItems = 6;
 /// 제목을 자르는 길이. 한 줄에 들어갈 수 있는 글자 수보다 넉넉하다 — 캐시를 작게 두기 위한 상한이다.
 const todoWidgetMaxTitleLength = 80;
 
-/// `pending` 표시가 유효한 시간(초). 네이티브는 이 시간이 지난 `pending`을 무시하고 그 줄을
-/// 평소대로 그린다 — 쓰기 도중에 프로세스가 죽어도 "체크된 것처럼" 남지 않는다(design 4.3).
+/// 탭 자국을 **잊는** 시간(초). 네이티브는 이 시간이 지난 자국을 무시하고 그 줄을 평소대로
+/// 그린다 — 쓰기 도중에 프로세스가 죽어도 "체크된 것처럼" 남지 않는다(design 4.3 · 2.2.3).
+///
+/// **네이티브의 `PENDING_TIMEOUT_MS`와 값이 같아야 한다**(TodoWidgetProvider.kt).
+/// `todoWidgetRowPitchDp`/`ROW_PITCH_DP`와 같은 규칙이고 **테스트로 잡히지 않는다** — 어긋나면
+/// 증상이 "그림이 영영 안 걷힌다"거나 "너무 일찍 걷힌다"로 나온다.
 const todoWidgetPendingTimeoutSeconds = 60;
+
+/// 탭 자국이 **신선한** 시간(초). 그 안에서는 네이티브가 모드대로 그리고(`쓰는 중` 또는 낙관),
+/// 지나면 줄을 되돌리고 실패 한 줄을 적는다. **중복 탭 가드도 이 창을 쓴다**
+/// ([todoWidgetCheckDecisionOf]).
+///
+/// **네이티브의 `TAP_MARK_FRESH_MS`와 값이 같아야 한다**(위와 같은 규칙).
+/// 6초인 근거는 결말의 약속이다 — 정상 2~4초, 어떤 경우에도 8초. 6초에서 끊고 탭+7초에 한 번 더
+/// 그리면 최악의 결말이 7초라 약속 안쪽이고, 같은 이유로 핸드오프 상한도 6초다(design 2.2.3).
+const todoWidgetTapMarkFreshSeconds = 6;
 
 /// 위젯이 쓰는 Uri의 스킴·호스트. OAuth 콜백(`com.todododo.todododo://login-callback`)과 다르고,
 /// `supabase_flutter`의 딥링크 관찰자는 인증 파라미터가 없는 Uri를 무시한다(design 5장).
@@ -231,8 +252,12 @@ class TodoWidgetPayload {
 
   final TodoWidgetNoteTone noteTone;
 
-  /// 지금 체크를 쓰고 있는 할 일. 네이티브는 [todoWidgetPendingTimeoutSeconds]가 지나지 않은
-  /// `pending`만 `쓰는 중`으로 그린다.
+  /// **네이티브가 찍은 탭 자국**(어느 줄을 언제 눌렀는가). 2026-11-19부터 이 둘은 **순수
+  /// 입력**이다 — [fromJson]이 읽어 중복 탭 가드([todoWidgetCheckDecisionOf])가 쓰고, [toJson]은
+  /// 싣지 않는다(design 2.2.3).
+  ///
+  /// 자국의 나머지 둘(`pendingDone`·`pendingMode`)은 **Dart가 아예 모른다.** 모르는 키는 다음
+  /// 발행에서 자연히 빠지므로 그 사실 자체가 "결말이 자국을 지운다"의 구현이다.
   final String? pendingId;
   final int? pendingAtMs;
 
@@ -421,26 +446,6 @@ class TodoWidgetPayload {
     );
   }
 
-  /// 체크를 쓰는 중. 그 줄만 `쓰는 중`으로 바뀌고 나머지는 직전 그대로다.
-  factory TodoWidgetPayload.pending(
-    TodoWidgetPayload previous,
-    String todoId, {
-    required DateTime now,
-  }) {
-    return TodoWidgetPayload(
-      items: previous.items,
-      totalCount: previous.totalCount,
-      updatedAtMs: previous.updatedAtMs,
-      header: previous.header,
-      centerText: previous.centerText,
-      note: previous.note,
-      noteTone: previous.noteTone,
-      pendingId: todoId,
-      pendingAtMs: now.millisecondsSinceEpoch,
-      tapTarget: previous.tapTarget,
-    );
-  }
-
   /// 서버 쓰기가 **끝난 뒤**, 목록을 다시 받지 않고 **그 체크만큼만** 고친 캐시를 만든다
   /// (design 4.7 (2)의 경로 B = 앱이 죽어 있을 때).
   ///
@@ -555,8 +560,10 @@ class TodoWidgetPayload {
         'moreFormat': moreFormat,
         'pendingLabel': AppStrings.widgetPendingLabel,
         'failNote': failNote,
-        if (pendingId != null) 'pendingId': pendingId,
-        if (pendingAtMs != null) 'pendingAtMs': pendingAtMs,
+        // **탭 자국 네 키를 싣지 않는다**(2026-11-19). 그 키 공간의 writer는 네이티브 하나이고
+        // (design 2.2.3), 그래서 **모든 Dart 발행이 자국을 지운다** — "결말이 자국을 걷는다"가
+        // 여기에 아무것도 적지 않음으로써 성립한다. 다시 실으면 두 writer가 같은 키를 다투고
+        // 이 설계의 경합 방지가 무너진다. `fromJson`은 계속 **읽는다**(중복 탭 가드가 쓴다).
         'tapTarget': tapTarget.name,
         'updatedAtMs': updatedAtMs,
       };
@@ -941,7 +948,7 @@ TodoWidgetCheckDecision todoWidgetCheckDecisionOf({
   final todoId = action.todoId;
   if (todoId == null) return TodoWidgetCheckDecision.ignore;
   if (cached != null) {
-    if (cached.pendingId == todoId && !_pendingExpired(cached, now)) {
+    if (cached.pendingId == todoId && !_tapMarkStale(cached, now)) {
       return TodoWidgetCheckDecision.ignore;
     }
     final item = cached.items.where((item) => item.id == todoId).firstOrNull;
@@ -954,13 +961,17 @@ TodoWidgetCheckDecision todoWidgetCheckDecisionOf({
       : TodoWidgetCheckDecision.writeHere;
 }
 
-/// `쓰는 중` 표시가 이미 효력을 잃었는지. 네이티브가 그 줄을 평소대로 그리는 기준과 같다
+/// 탭 자국이 이미 **신선함을 잃었는지**. 네이티브가 그 줄을 모드대로 그리는 창과 같은 값을 쓴다
 /// (쓰기 도중에 프로세스가 죽은 경우 다음 탭이 막히지 않아야 한다).
-bool _pendingExpired(TodoWidgetPayload cached, DateTime now) {
+///
+/// 2026-11-19에 창이 60초에서 **6초**로 좁아졌다(design 2.2.3): 결말이 정상 2~4초에 오므로
+/// 60초짜리 가드는 "결말을 보고 다시 누른 탭"까지 막는다. 네이티브의 `TAP_MARK_FRESH_MS`와
+/// 같은 값이어야 한다.
+bool _tapMarkStale(TodoWidgetPayload cached, DateTime now) {
   final at = cached.pendingAtMs;
   if (at == null) return true;
   return now.millisecondsSinceEpoch - at >=
-      todoWidgetPendingTimeoutSeconds * 1000;
+      todoWidgetTapMarkFreshSeconds * 1000;
 }
 
 /// 위젯 탭으로 앱이 열렸을 때 어디로 보낼 것인가. 해석할 수 없으면 아무것도 하지 않는다

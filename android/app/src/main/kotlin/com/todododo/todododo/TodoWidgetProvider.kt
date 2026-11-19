@@ -1,7 +1,11 @@
 package com.todododo.todododo
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
@@ -18,12 +22,27 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
+ * 탭 자국의 나이 셋(design 2.2.3 · 6.3.3 (1)). 판단 3("`쓰는 중`을 그릴지")의 두 갈래가 셋이 된
+ * 것이고, 수명 상수 둘은 Dart에 같은 값으로 있다.
+ */
+private enum class Mark {
+  /** 자국이 없거나 60초가 지나 잊었다. */
+  NONE,
+
+  /** 6초 안쪽. 결말을 기다리는 중이다. */
+  FRESH,
+
+  /** 6~60초. 결말이 오지 않았다 — 줄을 되돌리고 이유를 적는다. */
+  LAPSED,
+}
+
+/**
  * 홈 화면 투두 위젯을 그린다.
  *
  * 이 파일은 **그리기만** 한다. 어떤 상태인지, 어떤 문구를 쓰는지, 몇 개까지 담는지, 기준 시각을
  * 어떻게 적는지는 전부 Dart가 정해 기기 캐시(JSON 한 개)에 적어 둔다
- * (lib/features/todo/data/todo_widget_payload.dart). 여기서 하는 판단은 **여섯**이고 전부
- * "비교하고 Dart가 보내 준 것 중에서 고르기"다(design 원칙 2의 2026-11-18 각주 둘):
+ * (lib/features/todo/data/todo_widget_payload.dart). 여기서 하는 판단은 **여덟**이고 거의 전부
+ * "비교하고 Dart가 보내 준 것 중에서 고르기"다(design 원칙 2의 각주들):
  *   1. 이 높이에 몇 줄이 들어가나([rowCountFor])
  *   2. 캐시가 준 서식에 숫자 하나 끼우기("그 외 %d개")
  *   3. `now - pendingAtMs < 60초`인가(`쓰는 중`을 그릴지)
@@ -31,7 +50,10 @@ import org.json.JSONObject
  *   5. `rank < limit`인가(이 항목을 그릴지 — 줄 자리 수는 런처가 주는 높이에서 나와 Dart가
  *      모르므로, Dart가 **순서만 숫자로 굳혀** 보내고 여기서 비교 한 줄을 한다)
  *   6. `done`인가(줄 면·제목 색·취소선·체크 그림 고르기 — 사실은 Dart가 적어 보낸다)
- * 그 여섯 외의 규칙을 이 파일에 더하지 말 것, 특히 **문장을 만들지 말 것** — 네이티브는
+ *   7. (2026-11-19) 탭 순간의 **기기 상태** → 낙관 모드인가 `쓰는 중` 모드인가([tapMode])
+ *   8. (2026-11-19) 탭 **자국의 나이** → 신선(6초)/지남(60초)/잊음([markOf]). 판단 3의 두 갈래가
+ *      셋이 된 것이다
+ * 그 여덟 외의 규칙을 이 파일에 더하지 말 것, 특히 **문장을 만들지 말 것** — 네이티브는
  * 테스트하지 않으므로 판단이 늘어나면 검증되지 않는 코드가 늘어난다(design 원칙 2).
  * 머리 줄의 개수(`할 일 2/5`)도 **완성된 문장**으로 실려 오므로 여기서 숫자를 세지 않는다.
  * 머리 띠의 면(평소 primary / 체크 실패 danger)도 **새 판단이 아니다** — showNote가 쓰던 그
@@ -39,6 +61,13 @@ import org.json.JSONObject
  *
  * 주기 갱신(30분, res/xml/todo_widget_info.xml)이 하는 일도 "캐시를 다시 읽어 그리기"뿐이다.
  * 서버를 부르지 않고 Dart를 깨우지 않는다.
+ *
+ * **2026-11-19(추가 범위 3 J): 이 파일이 캐시를 쓰는 자리가 하나 생겼다.** 탭 순간에는 Dart가
+ * 깨어 있지 않으므로(engine이 뜨는 데 1초 안쪽) 그 자리에서 즉시 그리려면 네이티브가 그려야 한다.
+ * 범위는 **최상위 탭 자국 네 키(`pendingId`·`pendingAtMs`·`pendingDone`·`pendingMode`)뿐**이고,
+ * `items`·`header`·`note`·`totalCount`는 **읽기만** 한다. **Dart는 그 넷을 쓰지 않으므로**
+ * (todo_widget_payload.dart의 `toJson`) 모든 Dart 발행이 자국을 자동으로 지운다 — 즉 "결말이
+ * 자국을 걷는다"가 코드 한 줄 없이 성립한다(design 2.2.3 · 4.7 (6)).
  */
 class TodoWidgetProvider : HomeWidgetProvider() {
 
@@ -49,6 +78,115 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       widgetData: SharedPreferences,
   ) {
     appWidgetIds.forEach { id -> render(context, appWidgetManager, id, widgetData) }
+  }
+
+  /**
+   * 체크 칸 탭과 쓸어내기 알람을 받는다. **그 둘 말고는 전부 `super`에게 넘긴다** — 넘기지
+   * 않으면 주기 갱신(APPWIDGET_UPDATE)·크기 변경·삭제가 통째로 멈추고, 증상이 "가끔 안 바뀐다"라
+   * 추적이 어렵다(design 9.4의 첫 함정).
+   */
+  override fun onReceive(context: Context, intent: Intent) {
+    when (intent.action) {
+      ACTION_CHECK -> onCheckTap(context, intent.data)
+      ACTION_SWEEP -> renderAll(context)
+      else -> super.onReceive(context, intent)
+    }
+  }
+
+  /**
+   * 탭에서 결말까지의 **네이티브 구간**(design 4.7 (1)의 1~5). 목표는 0.1초, 상한 0.2초다 —
+   * 여기에는 네트워크도 Dart도 없고 기기 안에서 끝나는 일만 있다.
+   *
+   * 순서가 중요하다:
+   *   1. 모드를 고른다([tapMode]) — 조건 ②(항상 실패하는 상태에서는 낙관 그림을 그리지 않는다).
+   *   2. **자국을 먼저 쓰고** 3에서 그린다. 순서를 바꾸면 "그린 그림이 캐시에 없는" 순간이 생겨
+   *      그 사이의 `reapply`가 그림을 되돌린다.
+   *   4. 결말이 영영 오지 않아도 되돌아오게 쓸어내기 알람을 건다(탭+7초).
+   *   5. **브로드캐스트 발사는 맨 뒤다.** `home_widget`은 콜백을 WorkManager로 돌리므로 그
+   *      enqueue가 수십 ms를 쓸 수 있고, 그 비용이 그리기 앞에 오면 그만큼 늦게 보인다.
+   */
+  private fun onCheckTap(context: Context, data: Uri?) {
+    if (data == null) return
+    val todoId = data.getQueryParameter("id").orEmpty()
+    if (todoId.isEmpty()) return
+    // Dart의 todoWidgetActionOf와 같은 규칙이다: `0`이 아니면 완료로 읽는다(옛 PendingIntent 호환).
+    val done = data.getQueryParameter("done") != "0"
+
+    markTap(context, todoId, done, tapMode())
+    renderAll(context)
+    scheduleSweep(context)
+    // 패키지의 공개 API를 그대로 쓴다 — 리시버 클래스 이름·액션 문자열 같은 내부를 베껴 적으면
+    // 패키지가 바뀔 때 조용히 어긋난다.
+    HomeWidgetBackgroundIntent.getBroadcast(context, data).send()
+  }
+
+  /**
+   * 탭 자국 네 키를 캐시에 적는다. **`apply()`가 아니라 `commit()`이다** — 뒤이어 깨어나는
+   * 백그라운드 engine이 그 값을 **반드시** 보아야 중복 탭 가드가 성립한다(design 4.7 (6)).
+   * 받는 자리가 `onReceive`(수 ms 작업)라 동기 쓰기의 비용이 문제 되지 않는다.
+   *
+   * 캐시를 아예 읽지 못하면(설치 직후·판 번호 모름) 아무것도 적지 않는다. 그때는 그릴 줄도 없다.
+   */
+  private fun markTap(context: Context, todoId: String, done: Boolean, mode: String) {
+    val widgetData = HomeWidgetPlugin.getData(context)
+    val payload = readPayload(widgetData) ?: return
+    try {
+      payload.put("pendingId", todoId)
+      payload.put("pendingAtMs", System.currentTimeMillis())
+      payload.put("pendingDone", done)
+      payload.put("pendingMode", mode)
+    } catch (error: Exception) {
+      return
+    }
+    widgetData.edit().putString(PAYLOAD_KEY, payload.toString()).commit()
+  }
+
+  /**
+   * 탭 순간의 그리기 모드. **2026-11-19 J 단계에서는 언제나 `쓰는 중`**이고, 기기 상태를 보고
+   * 낙관 모드를 고르는 일(조건 ②)은 L 단계에서 이 함수 안에 들어온다.
+   */
+  private fun tapMode(): String = MODE_WRITING
+
+  /**
+   * 올라가 있는 모든 위젯을 캐시로 다시 그린다.
+   *
+   * **"화면에만 그리는 경로"를 만들지 않는다**(`partiallyUpdateAppWidget`을 쓰지 않는다):
+   * 그려지는 것이 언제나 캐시의 함수로 남아야 다음 `reapply`·주기 갱신·크기 변경이 **같은 그림**을
+   * 낸다(design 4.7 (3) 나). 비용은 JSON 하나를 읽고 파싱하는 수 ms이고, 줄이려는 것은 ms가
+   * 아니라 초다.
+   */
+  private fun renderAll(context: Context) {
+    val manager = AppWidgetManager.getInstance(context) ?: return
+    val ids = manager.getAppWidgetIds(ComponentName(context, TodoWidgetProvider::class.java))
+    if (ids.isEmpty()) return
+    val widgetData = HomeWidgetPlugin.getData(context)
+    ids.forEach { id -> render(context, manager, id, widgetData) }
+  }
+
+  /**
+   * 탭+7초에 한 번 더 그리게 한다. **결말이 영영 오지 않아도 그 줄이 되돌아오고 이유가 함께
+   * 보이게** 하는 장치다(design 4.7 (3) 다).
+   *
+   * **부정확 알람이다**(`set`은 API 19부터 inexact). `setExact`를 쓰면 `SCHEDULE_EXACT_ALARM`
+   * 권한이 늘어나는데, 여기서 몇 초 늦는 것은 손해가 아니다 — 이미 끝났으면 무해한 다시 그리기이고,
+   * 아예 오지 않아도 다음 그리기 계기(주기 갱신·앱 발행·크기 변경)가 결국 치운다.
+   *
+   * 요청 코드 고정 + `FLAG_UPDATE_CURRENT`라 **마지막 탭 하나만 남는다.**
+   */
+  private fun scheduleSweep(context: Context) {
+    val alarm = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+    val pending =
+        PendingIntent.getBroadcast(
+            context,
+            SWEEP_REQUEST_CODE,
+            Intent(context, TodoWidgetProvider::class.java).setAction(ACTION_SWEEP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    try {
+      alarm.set(AlarmManager.RTC, System.currentTimeMillis() + SWEEP_DELAY_MS, pending)
+    } catch (error: Exception) {
+      // 알람을 걸지 못해도 탭 자체는 그대로 간다 — 위젯은 관문이 아니다.
+    }
   }
 
   /** 사용자가 위젯 크기를 바꾼 직후에도 줄 수가 따라오게 한다. */
@@ -84,6 +222,12 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     }
 
     val payload = readPayload(widgetData)
+    val mark = markOf(payload)
+    // **"지남"이 보이는 유일한 계기가 쓸어내기 알람이다.** 결말이 제때 오면 자국 자체가 사라지므로
+    // 이 갈래는 거의 그려지지 않는다 — 그려지는 순간은 "Dart가 끝내 답하지 못했다"는 뜻이고,
+    // 그때 **되돌림(줄이 평소 모양)과 이유(이 한 줄)가 한 화면에** 나온다(spec 조건 ①).
+    val failNote =
+        if (mark == Mark.LAPSED) payload?.text("failNote").orEmpty() else ""
     // **머리 줄은 캐시를 읽기 전에, 어떤 갈래에서도 반드시 다시 쓴다.** 안 쓰고 넘어가면 앞서 쓴
     // 값이 남는다(`reapply`, showRow의 주석 참고) — 로그아웃 캐시에서 가운데가 `로그인이
     // 필요해요`인데 머리 줄만 **직전 사용자의 `할 일 2/5`**로 남는 사고가 난다.
@@ -95,7 +239,8 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     views.setInt(
         R.id.widget_header_row,
         "setBackgroundResource",
-        if (payload?.isDanger() == true) R.drawable.widget_band_danger else R.drawable.widget_band,
+        if (payload?.isDanger() == true || failNote.isNotEmpty()) R.drawable.widget_band_danger
+        else R.drawable.widget_band,
     )
 
     if (payload == null) {
@@ -118,9 +263,10 @@ class TodoWidgetProvider : HomeWidgetProvider() {
               views,
               payload,
               rowCountFor(appWidgetManager.getAppWidgetOptions(appWidgetId)),
+              mark,
           )
     }
-    val note = showNote(views, payload)
+    val note = showNote(views, payload, failNote)
 
     // 마지막 방어선: 그릴 것이 하나도 없으면 반드시 대체 문구로 떨어진다(design 6.3). 어떤
     // 캐시를 읽어도 빈 사각형이 홈 화면에 남지 않게 한다.
@@ -157,6 +303,27 @@ class TodoWidgetProvider : HomeWidgetProvider() {
   /** 캐시가 `danger` 톤인가. note와 가운데 안내가 **같은 기준**으로 색을 고른다. */
   private fun JSONObject.isDanger(): Boolean = text("noteTone", "muted") == "danger"
 
+  /**
+   * 탭 자국의 나이(판단 8). 기기 시계와 `pendingAtMs`만 본다.
+   *
+   * | 자국 | 뜻 | 그리는 것 |
+   * |---|---|---|
+   * | [Mark.NONE] | 자국이 없거나 60초가 지나 **잊었다** | 평소 그대로 |
+   * | [Mark.FRESH] | 6초 안쪽 — 아직 결말을 기다리는 중이다 | 모드대로(`쓰는 중` 또는 낙관) |
+   * | [Mark.LAPSED] | 6~60초 — **결말이 오지 않았다** | 줄은 평소대로 되돌리고 실패 한 줄 |
+   *
+   * 수명 상수 둘은 Dart에 같은 값으로 있다([TAP_MARK_FRESH_MS]·[PENDING_TIMEOUT_MS]의 주석).
+   */
+  private fun markOf(payload: JSONObject?): Mark {
+    if (payload == null || payload.text("pendingId").isEmpty()) return Mark.NONE
+    val age = System.currentTimeMillis() - payload.optLong("pendingAtMs", 0L)
+    return when {
+      age >= PENDING_TIMEOUT_MS -> Mark.NONE
+      age < TAP_MARK_FRESH_MS -> Mark.FRESH
+      else -> Mark.LAPSED
+    }
+  }
+
   private fun showCenter(
       context: Context,
       views: RemoteViews,
@@ -178,6 +345,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       views: RemoteViews,
       payload: JSONObject,
       rowCount: Int,
+      mark: Mark,
   ): Int {
     val items = payload.optJSONArray("items")
     val itemCount = items?.length() ?: 0
@@ -199,11 +367,9 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       moreCount = totalCount - undoneShown(items, itemCount, limit)
     }
 
-    val pendingId = payload.text("pendingId")
-    val pendingAt = payload.optLong("pendingAtMs", 0L)
-    // 60초가 지난 pending은 무시한다. 쓰기 도중에 프로세스가 죽어도 "체크된 것처럼" 남지 않는다.
-    val pendingFresh =
-        pendingId.isNotEmpty() && System.currentTimeMillis() - pendingAt < PENDING_TIMEOUT_MS
+    // 자국이 **신선할 때만** 그 줄을 다르게 그린다. "지남"이면 줄은 평소 모양으로 되돌아가고
+    // (= 쓰기가 끝나지 않았다는 사실) 이유는 머리 줄 한 줄이 말한다(design 6.3.3 (1)).
+    val pendingId = if (mark == Mark.FRESH) payload.text("pendingId") else ""
     val pendingLabel = payload.text("pendingLabel")
 
     // **줄 슬롯 번호(rowIndex)와 항목 index는 같지 않다.** rank로 걸러 내므로 "배열의 3번째
@@ -214,7 +380,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       if (rowIndex >= MAX_ROWS) break
       val item = items?.optJSONObject(index) ?: continue
       if (item.rankOf(index) >= limit) continue
-      showRow(context, views, rowIndex, item, pendingFresh, pendingId, pendingLabel)
+      showRow(context, views, rowIndex, item, pendingId, pendingLabel)
       rowIndex++
     }
     for (slot in rowIndex until MAX_ROWS) {
@@ -273,7 +439,6 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       views: RemoteViews,
       rowIndex: Int,
       item: JSONObject,
-      pendingFresh: Boolean,
       pendingId: String,
       pendingLabel: String,
   ) {
@@ -295,7 +460,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     showDue(context, views, rowIndex, item)
 
     val todoId = item.text("id")
-    val isPending = pendingFresh && todoId == pendingId
+    val isPending = pendingId.isNotEmpty() && todoId == pendingId
     views.setViewVisibility(CHECK_IDS[rowIndex], if (isPending) View.GONE else View.VISIBLE)
     views.setViewVisibility(PENDING_IDS[rowIndex], if (isPending) View.VISIBLE else View.GONE)
     if (isPending) {
@@ -315,11 +480,28 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       // **Uri에 목표 값을 싣는다**: 미완료 줄은 `&done=1`(완료 처리), 완료 줄은 `&done=0`
       // (되돌리기). 토글이 아니라 목표 값이라 낡은 그림을 누른 탭도 사용자가 본 대로 쓰인다
       // (design 4.6 (1)). 줄마다·방향마다 data가 달라 filterEquals 구분도 그대로 성립한다.
+      //
+      // **2026-11-19: 탭이 우리 리시버로 먼저 들어온다**(design 4.7 (3) 가). 전에는
+      // `home_widget`의 리시버로 바로 가서 우리 코드가 한 줄도 돌지 않았고, 그래서 engine이
+      // 뜰 때까지 1초 넘게 화면에 아무 변화가 없었다. 이제 우리가 받아 그 자리에서 그리고
+      // **그 브로드캐스트를 대신 발사한다**([onCheckTap]).
+      //
+      // 매니페스트에 새 `intent-filter`를 더하지 않는다 — 명시적 component Intent라 필터가
+      // 필요 없고 `exported="false"`도 그대로다(우리가 만들어 런처에 넘긴 PendingIntent는
+      // 우리 자격으로 발송된다). `FLAG_IMMUTABLE`은 API 31+에서 필수다.
       views.setOnClickPendingIntent(
           CHECK_IDS[rowIndex],
-          HomeWidgetBackgroundIntent.getBroadcast(
+          PendingIntent.getBroadcast(
               context,
-              Uri.parse("$CHECK_URI_PREFIX$todoId$CHECK_URI_DONE${if (done) "0" else "1"}"),
+              0,
+              Intent(context, TodoWidgetProvider::class.java)
+                  .setAction(ACTION_CHECK)
+                  .setData(
+                      Uri.parse(
+                          "$CHECK_URI_PREFIX$todoId$CHECK_URI_DONE${if (done) "0" else "1"}"
+                      )
+                  ),
+              PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
           ),
       )
     }
@@ -396,8 +578,10 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    * 색 신호는 글자에서 **띠 면**으로 옮겨 갔다(render 맨 앞의 widget_band_danger. design 6.3.2 (2)).
    * 그래서 이 함수는 보이기/숨기기와 글자 넣기만 한다 — 칠하지 않으므로 reapply 함정도 없다.
    */
-  private fun showNote(views: RemoteViews, payload: JSONObject): Boolean {
-    val note = payload.text("note")
+  private fun showNote(views: RemoteViews, payload: JSONObject, failNote: String): Boolean {
+    // 자국이 지나 줄을 되돌린 경우에는 **그 이유를 캐시에서 골라** 머리 줄에 적는다 — 되돌림과
+    // 설명이 같은 그리기에서 함께 나와야 한다(spec 조건 ①). 문장은 Dart가 보낸 것 그대로다.
+    val note = failNote.ifEmpty { payload.text("note") }
     if (note.isEmpty()) {
       views.setViewVisibility(R.id.widget_note, View.GONE)
       return false
@@ -431,7 +615,39 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     /** todoWidgetSchemaVersion과 같은 값이어야 한다. */
     const val SCHEMA_VERSION = 1
 
+    /**
+     * 탭 자국을 **잊는** 시각. Dart의 `todoWidgetPendingTimeoutSeconds`(60초)와 **값이 같아야
+     * 한다**(design 2.2.3). `ROW_PITCH_DP`와 같은 규칙이고 **테스트로 잡히지 않는다** —
+     * 어긋나면 "낙관 그림이 영영 안 걷힌다"거나 "너무 일찍 걷힌다"로 나온다.
+     */
     const val PENDING_TIMEOUT_MS = 60_000L
+
+    /**
+     * 탭 자국이 **신선한** 동안. Dart의 `todoWidgetTapMarkFreshSeconds`(6초)와 **값이 같아야
+     * 한다**(위와 같은 규칙이고, Dart 쪽은 중복 탭 가드가 같은 창을 쓴다).
+     *
+     * 6초인 근거는 K의 약속이다 — 정상 2~4초, 어떤 경우에도 8초. 6초에서 끊고 탭+7초에 한 번 더
+     * 그리면([SWEEP_DELAY_MS]) 최악의 결말이 7초라 약속 안쪽이다. 같은 이유로 Dart의 핸드오프
+     * 상한도 6초다(todo_widget_callback.dart).
+     */
+    const val TAP_MARK_FRESH_MS = 6_000L
+
+    /** 쓸어내기 알람까지의 시간(탭+7초). [TAP_MARK_FRESH_MS]보다 뒤여야 자국이 "지남"으로 읽힌다. */
+    const val SWEEP_DELAY_MS = 7_000L
+
+    /** 쓸어내기 PendingIntent의 요청 코드. 고정이라 **마지막 탭 하나만 남는다.** */
+    const val SWEEP_REQUEST_CODE = 1
+
+    /** 우리 리시버가 받는 액션 둘. 그 밖의 액션은 전부 `super.onReceive`로 간다. */
+    const val ACTION_CHECK = "com.todododo.todododo.action.WIDGET_CHECK"
+    const val ACTION_SWEEP = "com.todododo.todododo.action.WIDGET_SWEEP"
+
+    /**
+     * 탭 자국의 그리기 모드. `writing`이면 `쓰는 중`만 그린다(= 낙관 반영이 꺼진 상태).
+     * 낙관 모드(`optimistic`)는 L 단계에서 들어온다 — Dart는 이 키를 **모른다**(design 2.2.3).
+     */
+    const val MODE_WRITING = "writing"
+
     const val DEFAULT_MIN_HEIGHT_DP = 110
 
     /**

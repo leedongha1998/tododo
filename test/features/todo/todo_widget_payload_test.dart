@@ -192,8 +192,9 @@ void main() {
         TodoWidgetPayload.checkFailed(previous, now: later).header,
         previous.header,
       );
+      // 네이티브가 찍은 탭 자국도 머리 줄을 건드리지 않는다(자국은 그리기의 입력일 뿐이다).
       expect(
-        TodoWidgetPayload.pending(previous, '1', now: later).header,
+        _withTapMark(previous, todoId: '1', at: later).header,
         previous.header,
       );
     });
@@ -437,10 +438,10 @@ void main() {
       );
 
       final failed = TodoWidgetPayload.fetchFailed(previous, now: now);
-      final pending = TodoWidgetPayload.pending(previous, '1', now: now);
+      final marked = _withTapMark(previous, todoId: '1', at: now);
 
       expect(failed.items.single.due, '11/20 오후 6:00');
-      expect(pending.items.single.dueAtMs, previous.items.single.dueAtMs);
+      expect(marked.items.single.dueAtMs, previous.items.single.dueAtMs);
     });
   });
 
@@ -524,31 +525,65 @@ void main() {
       expect(next.note, isNot(AppStrings.widgetCheckFailed));
     });
 
-    test('pending은 그 줄 표시만 더하고 목록·기준 시각은 건드리지 않는다', () {
-      final previous = TodoWidgetPayload.fromTodos(
+    // 2026-11-19(추가 범위 3 J): `쓰는 중`을 발행하던 팩토리가 없어졌다. 그 그림은 네이티브가
+    // 탭 순간에 그리고, Dart는 **결말 하나**만 발행한다.
+    test('어떤 Dart 발행도 탭 자국 네 키를 싣지 않는다', () {
+      final normal = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기'), _todo('2', '운동하기', isDone: true)],
+        now: now,
+      );
+      // 네이티브가 찍은 자국이 든 캐시를 재료로 삼아도 마찬가지여야 한다 — 그래서 **모든 발행이
+      // 자국을 지운다**("결말이 자국을 걷는다"가 코드 한 줄 없이 성립하는 근거다).
+      final marked = _withTapMark(normal, todoId: '1', at: now);
+      expect(marked.pendingId, '1');
+
+      for (final payload in [
+        normal,
+        marked,
+        TodoWidgetPayload.loggedOut(now: now),
+        TodoWidgetPayload.loading(now: now),
+        TodoWidgetPayload.fromTodos(const [], now: now),
+        TodoWidgetPayload.fetchFailed(marked, now: now),
+        TodoWidgetPayload.fetchFailed(null, now: now),
+        TodoWidgetPayload.checkFailed(marked, now: now),
+        TodoWidgetPayload.checkFailed(null, now: now),
+        TodoWidgetPayload.applyCheck(marked, todoId: '1', done: true)!,
+      ]) {
+        final json = payload.toJson();
+        for (final key in [
+          'pendingId',
+          'pendingAtMs',
+          'pendingDone',
+          'pendingMode',
+        ]) {
+          expect(json.containsKey(key), isFalse, reason: '$key / $json');
+        }
+      }
+    });
+
+    test('자국은 fromJson이 읽고 toJson이 지운다', () {
+      final normal = TodoWidgetPayload.fromTodos(
         [_todo('1', '장보기')],
         now: now,
       );
       final tappedAt = now.add(const Duration(hours: 2));
 
-      final pending = TodoWidgetPayload.pending(previous, '1', now: tappedAt);
+      final marked = _withTapMark(normal, todoId: '1', at: tappedAt);
 
-      expect(pending.pendingId, '1');
-      expect(pending.pendingAtMs, tappedAt.millisecondsSinceEpoch);
-      expect(pending.items, previous.items);
-      expect(pending.note, previous.note);
-      expect(pending.updatedAtMs, previous.updatedAtMs);
+      // 읽는 쪽만 남는다 — 중복 탭 가드가 그 값을 쓴다.
+      expect(marked.pendingId, '1');
+      expect(marked.pendingAtMs, tappedAt.millisecondsSinceEpoch);
+      expect(marked.items, normal.items);
+      expect(marked.updatedAtMs, normal.updatedAtMs);
+      // 그 캐시를 다시 쓰면 자국이 사라진다.
+      expect(TodoWidgetPayload.decode(marked.encode())!.pendingId, isNull);
     });
   });
 
   group('JSON', () {
     test('왕복에서 값이 보존된다', () {
-      final payload = TodoWidgetPayload.pending(
-        TodoWidgetPayload.fromTodos(
-          [_todo('11111111-1111-1111-1111-111111111111', '장보기')],
-          now: now,
-        ),
-        '11111111-1111-1111-1111-111111111111',
+      final payload = TodoWidgetPayload.fromTodos(
+        [_todo('11111111-1111-1111-1111-111111111111', '장보기')],
         now: now,
       );
 
@@ -558,8 +593,7 @@ void main() {
       expect(decoded.totalCount, payload.totalCount);
       expect(decoded.note, payload.note);
       expect(decoded.noteTone, payload.noteTone);
-      expect(decoded.pendingId, payload.pendingId);
-      expect(decoded.pendingAtMs, payload.pendingAtMs);
+      expect(decoded.header, payload.header);
       expect(decoded.updatedAtMs, payload.updatedAtMs);
       expect(decoded.tapTarget, payload.tapTarget);
       expect(decoded.centerText, payload.centerText);
@@ -609,7 +643,7 @@ void main() {
         TodoWidgetPayload.fetchFailed(normal, now: now),
         TodoWidgetPayload.fetchFailed(null, now: now),
         TodoWidgetPayload.checkFailed(normal, now: now),
-        TodoWidgetPayload.pending(normal, '1', now: now),
+        TodoWidgetPayload.applyCheck(normal, todoId: '1', done: true)!,
       ]) {
         expect(
           payload.toJson().values.any((value) => value == null),
@@ -1111,34 +1145,47 @@ void main() {
     });
 
     test('같은 줄을 연속으로 두 번 누르면 두 번째를 버린다', () {
-      final pending = TodoWidgetPayload.pending(cached, id, now: now);
+      final marked = _withTapMark(cached, todoId: id, at: now);
 
       expect(
-        decide(payload: pending, at: now.add(const Duration(seconds: 5))),
+        decide(payload: marked, at: now.add(const Duration(seconds: 5))),
         TodoWidgetCheckDecision.ignore,
       );
       // 다른 줄은 막지 않는다.
       expect(
         decide(
           action: const TodoWidgetAction.setDone(other, done: true),
-          payload: pending,
+          payload: marked,
           at: now.add(const Duration(seconds: 5)),
         ),
         TodoWidgetCheckDecision.writeHere,
       );
     });
 
-    test('60초가 지난 쓰는 중은 다음 탭을 막지 않는다', () {
-      final pending = TodoWidgetPayload.pending(cached, id, now: now);
+    // 2026-11-19(추가 범위 3): 가드의 창이 60초에서 **6초**로 좁아졌다. 결말이 정상 2~4초에
+    // 오므로 60초짜리 가드는 "결말을 보고 다시 누른 탭"까지 막는다. 네이티브의
+    // TAP_MARK_FRESH_MS와 같은 값이어야 한다(테스트로 잡히지 않는 자리라 주석으로 묶어 두었다).
+    test('6초가 지난 자국은 다음 탭을 막지 않는다', () {
+      final marked = _withTapMark(cached, todoId: id, at: now);
 
-      // 쓰기 도중에 프로세스가 죽으면 캐시에 pending만 남는다. 그 줄을 영원히 체크할 수 없게
-      // 되면 안 된다(네이티브도 같은 기준으로 그 표시를 무시한다).
+      // 경계 전수. 쓰기 도중에 프로세스가 죽으면 캐시에 자국만 남는데, 그 줄을 영원히 체크할
+      // 수 없게 되면 안 된다(네이티브도 같은 기준으로 그 자국을 버린다).
       expect(
-        decide(payload: pending, at: now.add(const Duration(seconds: 59))),
+        decide(
+          payload: marked,
+          at: now.add(const Duration(milliseconds: 5900)),
+        ),
         TodoWidgetCheckDecision.ignore,
       );
       expect(
-        decide(payload: pending, at: now.add(const Duration(seconds: 60))),
+        decide(
+          payload: marked,
+          at: now.add(const Duration(milliseconds: 6100)),
+        ),
+        TodoWidgetCheckDecision.writeHere,
+      );
+      expect(
+        decide(payload: marked, at: now.add(const Duration(seconds: 59))),
         TodoWidgetCheckDecision.writeHere,
       );
     });
@@ -1197,13 +1244,13 @@ void main() {
         [_todo(id, '장보기', isDone: true), _todo(other, '책 반납')],
         now: now,
       );
-      final pending = TodoWidgetPayload.pending(mixed, id, now: now);
+      final marked = _withTapMark(mixed, todoId: id, at: now, done: false);
 
-      // 되돌리기를 쓰는 중에 또 누르면 첫 탭의 `쓰는 중`이 흔들릴 뿐이다.
+      // 되돌리기를 쓰는 중에 또 누르면 첫 탭의 그림이 흔들릴 뿐이다.
       expect(
         decide(
           action: const TodoWidgetAction.setDone(id, done: false),
-          payload: pending,
+          payload: marked,
           at: now.add(const Duration(seconds: 5)),
         ),
         TodoWidgetCheckDecision.ignore,
@@ -1663,6 +1710,26 @@ void main() {
       expect(decoded.headerAfterUncheck, payload.headerAfterUncheck);
     });
   });
+}
+
+/// **네이티브가 캐시에 찍는 탭 자국**을 흉내 낸다(design 2.2.3).
+///
+/// Dart에는 그 넷을 **쓰는 코드가 없다**(`toJson`이 싣지 않는다 — 그것이 "결말이 자국을 걷는다"의
+/// 구현이다). 그래서 캐시 JSON에 직접 얹어 되읽는다 — 백그라운드 콜백이 실제로 읽는 재료와 같은
+/// 모양이다.
+TodoWidgetPayload _withTapMark(
+  TodoWidgetPayload payload, {
+  required String todoId,
+  required DateTime at,
+  bool done = true,
+  String mode = 'writing',
+}) {
+  final json = payload.toJson();
+  json['pendingId'] = todoId;
+  json['pendingAtMs'] = at.millisecondsSinceEpoch;
+  json['pendingDone'] = done;
+  json['pendingMode'] = mode;
+  return TodoWidgetPayload.fromJson(json)!;
 }
 
 Todo _todo(

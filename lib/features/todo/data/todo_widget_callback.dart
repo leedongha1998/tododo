@@ -12,6 +12,11 @@
 //
 // **거짓 성공을 만들지 않는다**: 성공 발행은 서버 쓰기가 끝난 뒤에만 일어나고, 어떤 예외든
 // `checkFailed`로 끝나 위젯 안 한 줄로 말한다(spec "P0. 쓰기 동작").
+//
+// **2026-11-19 추기.** spec이 그 조항을 뒤집어 **낙관적 반영**을 허용했지만(추가 범위 3의 L),
+// 뒤집힌 자리는 **네이티브의 그리기**이고 이 파일은 그대로다 — 여기서 성공을 발행하는 것은
+// 여전히 **서버 쓰기가 끝난 뒤**뿐이다. 낙관 그림은 캐시를 고치지 않고 탭 자국 위에 그려지며,
+// 이 isolate의 결말 발행이 그 자국을 걷어 간다(design 4.7 (6)).
 
 import 'dart:async';
 import 'dart:isolate';
@@ -79,13 +84,11 @@ Future<void> onTodoWidgetAction(Uri? uri) async {
   );
   if (decision == TodoWidgetCheckDecision.ignore) return;
 
-  // 그 줄을 `쓰는 중`으로 바꿔 즉시 다시 그린다. 백그라운드 engine이 뜨는 데 1초 안쪽이 걸릴 수
-  // 있어 탭과 표시 사이에 짧은 공백이 있다 — 위젯에 진행 표시를 더 그릴 자리가 없어 받아들인다.
-  // 목록이 없는 캐시(로그아웃·안내 화면)에는 바꿀 줄이 없으므로 건너뛴다.
-  if (cached != null && cached.hasItems) {
-    await service.publish(TodoWidgetPayload.pending(cached, todoId, now: now));
-  }
-
+  // **`쓰는 중` 발행이 없다**(2026-11-19, design 4.7 (1)의 7). 그 그림은 **네이티브가 탭 순간에
+  // 이미 그렸다** — 여기까지 오는 데만 engine 기동으로 1초 안쪽이 걸리므로, 이 자리에서 그리면
+  // 사용자가 기다린 뒤에야 "눌렸다"를 보게 된다. 그래서 이 isolate가 하는 발행은 **결말 하나**다.
+  // 덤으로 조건 ①("되돌림과 이유가 같은 화면에")이 자동으로 성립한다 — 중간 상태가 생길 자리가
+  // 없기 때문이다.
   try {
     if (port != null && decision == TodoWidgetCheckDecision.handOff) {
       await _handOff(port, action, service, cached, now);

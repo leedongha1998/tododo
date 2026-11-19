@@ -7,8 +7,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.StrikethroughSpan
@@ -34,6 +37,20 @@ private enum class Mark {
 
   /** 6~60초. 결말이 오지 않았다 — 줄을 되돌리고 이유를 적는다. */
   LAPSED,
+}
+
+/**
+ * 그리기에 들어가는 **탭 자국**. 네이티브가 탭 순간에 캐시에 적어 둔 넷을 읽은 것이다.
+ *
+ * [optimistic]이 켜져 있으면 그 줄([id])의 `done`을 [done]으로 **뒤집어 그린다**(낙관적 반영).
+ * 그 뒤집기를 읽는 자리는 **셋**이고 전부 `effectiveDone`을 지나야 한다 — 줄 그리기,
+ * `그 외 N개`의 기준(`undoneShown`), 그리고 `totalCount` 보정. **셋 중 하나라도 빠지면 숫자가
+ * 어긋난다**(design 6.3.3 (2) · 4.7 (5)).
+ */
+private class TapMark(val state: Mark, val id: String, val done: Boolean, val optimistic: Boolean) {
+  companion object {
+    val none = TapMark(Mark.NONE, "", done = true, optimistic = false)
+  }
 }
 
 /**
@@ -112,7 +129,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     // Dart의 todoWidgetActionOf와 같은 규칙이다: `0`이 아니면 완료로 읽는다(옛 PendingIntent 호환).
     val done = data.getQueryParameter("done") != "0"
 
-    markTap(context, todoId, done, tapMode())
+    markTap(context, todoId, done, tapMode(context))
     renderAll(context)
     scheduleSweep(context)
     // 패키지의 공개 API를 그대로 쓴다 — 리시버 클래스 이름·액션 문자열 같은 내부를 베껴 적으면
@@ -142,10 +159,51 @@ class TodoWidgetProvider : HomeWidgetProvider() {
   }
 
   /**
-   * 탭 순간의 그리기 모드. **2026-11-19 J 단계에서는 언제나 `쓰는 중`**이고, 기기 상태를 보고
-   * 낙관 모드를 고르는 일(조건 ②)은 L 단계에서 이 함수 안에 들어온다.
+   * 탭 순간의 그리기 모드(판단 7). **낙관적 반영을 끄는 조건 ②가 여기에 있다.**
+   *
+   * 평소에는 [MODE_OPTIMISTIC]이고, **쓰기가 막힌 것이 탭 순간에 이미 드러난** 상태에서만
+   * [MODE_WRITING]으로 떨어진다. 그 상태의 사용자는 "체크됨 → 풀림"을 보지 않고 `쓰는 중` →
+   * 실패만 본다(spec L의 조건 ②).
+   *
+   * **읽기가 실패하면 낙관 쪽으로 둔다.** 조건 ②는 "항상 실패하는 상태임이 **드러난** 경우"만
+   * 끄라는 것이고, 모르는 것을 실패로 단정해 모든 사용자의 체감을 깎지 않는다(design 4.7 (4)).
    */
-  private fun tapMode(): String = MODE_WRITING
+  private fun tapMode(context: Context): String =
+      try {
+        if (writeBlocked(context)) MODE_WRITING else MODE_OPTIMISTIC
+      } catch (error: Exception) {
+        MODE_OPTIMISTIC
+      }
+
+  /**
+   * 백그라운드 쓰기가 **지금 막혀 있는가.** 셋을 OR로 본다 — 전부 네트워크도 Dart도 없이 읽을 수
+   * 있고, **전부 "끄는 쪽으로만" 틀린다**(네트워크가 있는데 없다고 읽거나, 종량제가 아닌데 데이터
+   * 세이버로 읽는 쪽). 틀려서 켜는 경우가 없는 것이 이 묶음의 안전장치다(design 4.7 (4)).
+   *
+   *   1. **절전 모드**(API 21+, 권한 없음) — 안드로이드가 백그라운드 UID의 네트워크를 방화벽으로
+   *      끊어서 위젯 탭이 깨우는 브로드캐스트가 DNS 단계에서 즉시 실패한다(2026-11-19 실기기
+   *      확인, `TODO_BACKLOG.md`).
+   *   2. **활성 네트워크가 없거나 인터넷을 못 쓴다**(API 23+, `ACCESS_NETWORK_STATE`) —
+   *      비행기 모드·권외. 쓰기가 나갈 길이 없다.
+   *   3. **데이터 세이버**(API 24+, 같은 권한) — **지금 기본 네트워크가 종량제일 때만** ENABLED를
+   *      돌려주므로 과하게 걸리지 않는다. 그 상태의 백그라운드 쓰기는 1번과 같은 이유로 막힌다.
+   *
+   * 도즈(`isDeviceIdleMode`)는 **보지 않는다** — 홈 화면을 보며 탭하는 순간은 화면이 켜져 있어
+   * 도즈가 아니다. 서버 응답 지연·이동 중 권외 전환 같은 **눌러 봐야 아는 실패**는 애초에 미리
+   * 알 수 없고, spec 트레이드오프가 그 대가를 이미 적었다.
+   */
+  private fun writeBlocked(context: Context): Boolean {
+    val power = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+    if (power?.isPowerSaveMode == true) return true
+    val connectivity =
+        context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return false
+    val network = connectivity.activeNetwork ?: return true
+    val capabilities = connectivity.getNetworkCapabilities(network) ?: return true
+    if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return true
+    return connectivity.restrictBackgroundStatus ==
+        ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED
+  }
 
   /**
    * 올라가 있는 모든 위젯을 캐시로 다시 그린다.
@@ -227,11 +285,11 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     // 이 갈래는 거의 그려지지 않는다 — 그려지는 순간은 "Dart가 끝내 답하지 못했다"는 뜻이고,
     // 그때 **되돌림(줄이 평소 모양)과 이유(이 한 줄)가 한 화면에** 나온다(spec 조건 ①).
     val failNote =
-        if (mark == Mark.LAPSED) payload?.text("failNote").orEmpty() else ""
+        if (mark.state == Mark.LAPSED) payload?.text("failNote").orEmpty() else ""
     // **머리 줄은 캐시를 읽기 전에, 어떤 갈래에서도 반드시 다시 쓴다.** 안 쓰고 넘어가면 앞서 쓴
     // 값이 남는다(`reapply`, showRow의 주석 참고) — 로그아웃 캐시에서 가운데가 `로그인이
     // 필요해요`인데 머리 줄만 **직전 사용자의 `할 일 2/5`**로 남는 사고가 난다.
-    showHeader(context, views, payload)
+    showHeader(context, views, payload, mark)
     // **띠 면도 같은 이유로 어떤 갈래에서든, payload == null로 일찍 돌아가기 전에 칠한다.**
     // 한쪽만 칠하면 체크 실패로 붉어진 띠가 그 뒤 성공 갈래에서도 붉게 남고(`reapply`), 캐시를
     // 못 읽는 갈래로 떨어질 때는 `앱을 한 번 열어 주세요` 위에 실패 색 띠가 뜬다(design 6.3.2 (1)).
@@ -313,16 +371,39 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    * | [Mark.LAPSED] | 6~60초 — **결말이 오지 않았다** | 줄은 평소대로 되돌리고 실패 한 줄 |
    *
    * 수명 상수 둘은 Dart에 같은 값으로 있다([TAP_MARK_FRESH_MS]·[PENDING_TIMEOUT_MS]의 주석).
+   *
+   * **낙관 모드는 신선할 때만 켜진다.** 모드를 모르면(`pendingMode`가 없는 옛 캐시) 보수적인
+   * 쪽 = `쓰는 중`으로 본다(거짓 성공을 그리지 않는 쪽).
    */
-  private fun markOf(payload: JSONObject?): Mark {
-    if (payload == null || payload.text("pendingId").isEmpty()) return Mark.NONE
+  private fun markOf(payload: JSONObject?): TapMark {
+    val id = payload?.text("pendingId").orEmpty()
+    if (payload == null || id.isEmpty()) return TapMark.none
     val age = System.currentTimeMillis() - payload.optLong("pendingAtMs", 0L)
-    return when {
-      age >= PENDING_TIMEOUT_MS -> Mark.NONE
-      age < TAP_MARK_FRESH_MS -> Mark.FRESH
-      else -> Mark.LAPSED
-    }
+    val state =
+        when {
+          age >= PENDING_TIMEOUT_MS -> Mark.NONE
+          age < TAP_MARK_FRESH_MS -> Mark.FRESH
+          else -> Mark.LAPSED
+        }
+    if (state == Mark.NONE) return TapMark.none
+    return TapMark(
+        state = state,
+        id = id,
+        done = payload.optBoolean("pendingDone", true),
+        optimistic =
+            state == Mark.FRESH && payload.text("pendingMode") == MODE_OPTIMISTIC,
+    )
   }
+
+  /**
+   * 그 줄을 **어느 쪽으로 그릴지**. 낙관 구간에만 캐시의 `done`과 달라진다.
+   *
+   * `isDone()`을 직접 부르던 자리를 **전부** 이 헬퍼로 바꿨다. 빠뜨리면 그림과 숫자가 어긋난다 —
+   * 특히 `undoneShown`에서 빠뜨리면 **보이는 미완료만 하나 줄어 `그 외 N개`가 1 늘고**, 숨겨진
+   * 할 일이 생긴 것처럼 보인다(design 6.3.3 (2)가 "가장 틀리기 쉬운 한 줄"로 꼽은 자리다).
+   */
+  private fun JSONObject.effectiveDone(mark: TapMark): Boolean =
+      if (mark.optimistic && text("id") == mark.id) mark.done else isDone()
 
   private fun showCenter(
       context: Context,
@@ -345,11 +426,18 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       views: RemoteViews,
       payload: JSONObject,
       rowCount: Int,
-      mark: Mark,
+      mark: TapMark,
   ): Int {
     val items = payload.optJSONArray("items")
     val itemCount = items?.length() ?: 0
-    val totalCount = payload.optInt("totalCount", itemCount)
+    // **낙관 구간에는 미완료 전체 개수도 함께 ∓1 한다.** 보이는 미완료가 하나 줄 때 전체도 하나
+    // 줄어야 `그 외 N개`가 그대로다 — 안 하면 숨겨진 할 일이 생긴 것처럼 보인다(design 4.7 (5)).
+    // 산수는 여전히 하나뿐이다(moreCount = totalCount − undoneShown): 그 식에 들어가는 입력
+    // 하나를 옮기는 것이고 문장을 만드는 일이 아니다.
+    val totalCount =
+        payload.optInt("totalCount", itemCount).let {
+          if (!mark.optimistic) it else if (mark.done) it - 1 else it + 1
+        }.coerceAtLeast(0)
 
     views.setViewVisibility(R.id.widget_center, View.GONE)
     views.setViewVisibility(R.id.widget_rows, View.VISIBLE)
@@ -362,14 +450,17 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     // 개수로 판단한다(design 6.2.2).
     var limit = if (rowCount > 0) rowCount else 0
     var moreCount = 0
-    if (itemCount > 0 && rowCount > 1 && totalCount > undoneShown(items, itemCount, rowCount)) {
+    if (itemCount > 0 &&
+        rowCount > 1 &&
+        totalCount > undoneShown(items, itemCount, rowCount, mark)) {
       limit = rowCount - 1
-      moreCount = totalCount - undoneShown(items, itemCount, limit)
+      moreCount = totalCount - undoneShown(items, itemCount, limit, mark)
     }
 
-    // 자국이 **신선할 때만** 그 줄을 다르게 그린다. "지남"이면 줄은 평소 모양으로 되돌아가고
-    // (= 쓰기가 끝나지 않았다는 사실) 이유는 머리 줄 한 줄이 말한다(design 6.3.3 (1)).
-    val pendingId = if (mark == Mark.FRESH) payload.text("pendingId") else ""
+    // `쓰는 중`은 **낙관이 꺼진 신선한 자국**에서만 그린다(= 절전 모드 등. 조건 ②). 낙관이
+    // 켜져 있으면 그 줄은 이미 완료 모양이라 `쓰는 중`을 겹치지 않는다 — 모양은 셋뿐이고 네
+    // 번째를 만들지 않는다. "지남"이면 줄이 평소 모양으로 되돌아가고 이유는 머리 줄이 말한다.
+    val pendingId = if (mark.state == Mark.FRESH && !mark.optimistic) mark.id else ""
     val pendingLabel = payload.text("pendingLabel")
 
     // **줄 슬롯 번호(rowIndex)와 항목 index는 같지 않다.** rank로 걸러 내므로 "배열의 3번째
@@ -380,7 +471,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       if (rowIndex >= MAX_ROWS) break
       val item = items?.optJSONObject(index) ?: continue
       if (item.rankOf(index) >= limit) continue
-      showRow(context, views, rowIndex, item, pendingId, pendingLabel)
+      showRow(context, views, rowIndex, item, pendingId, pendingLabel, mark)
       rowIndex++
     }
     for (slot in rowIndex until MAX_ROWS) {
@@ -411,12 +502,22 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    */
   private fun JSONObject.rankOf(index: Int): Int = optInt("rank", index)
 
-  /** `rank < limit`로 보이게 되는 항목 중 **미완료**가 몇인가(`그 외 N개`의 기준이다). */
-  private fun undoneShown(items: JSONArray?, itemCount: Int, limit: Int): Int {
+  /**
+   * `rank < limit`로 보이게 되는 항목 중 **미완료**가 몇인가(`그 외 N개`의 기준이다).
+   *
+   * **낙관 구간에는 `effectiveDone`을 쓴다.** 줄만 뒤집고 여기를 안 뒤집으면 보이는 미완료가
+   * 하나 줄어 `그 외 N개`가 1 늘어난다(design 6.3.3 (2)).
+   */
+  private fun undoneShown(
+      items: JSONArray?,
+      itemCount: Int,
+      limit: Int,
+      mark: TapMark,
+  ): Int {
     var count = 0
     for (index in 0 until itemCount) {
       val item = items?.optJSONObject(index) ?: continue
-      if (item.rankOf(index) < limit && !item.isDone()) count++
+      if (item.rankOf(index) < limit && !item.effectiveDone(mark)) count++
     }
     return count
   }
@@ -441,8 +542,11 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       item: JSONObject,
       pendingId: String,
       pendingLabel: String,
+      mark: TapMark,
   ) {
-    val done = item.isDone()
+    // 낙관 구간에는 **뒤집힌 값**으로 면·제목 색·취소선·체크 그림·기한·체크 Uri를 고른다.
+    // 여섯 자리가 모두 이 한 값을 쓰므로 그림이 서로 어긋나지 않는다.
+    val done = item.effectiveDone(mark)
     val title = item.text("title")
     views.setViewVisibility(ROW_IDS[rowIndex], View.VISIBLE)
     views.setTextViewText(TITLE_IDS[rowIndex], if (done) struckThrough(title) else title)
@@ -457,7 +561,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     }
     // 줄의 제목 색은 기한과 무관하다(지났다는 사실은 기한 줄 하나에서만 말한다 — 줄 전체를
     // 붉게 칠하면 홈 화면에서 "오류"로 읽힌다). 완료 줄에는 캐시에 기한 키가 없어 GONE이 된다.
-    showDue(context, views, rowIndex, item)
+    showDue(context, views, rowIndex, item, done)
 
     val todoId = item.text("id")
     val isPending = pendingId.isNotEmpty() && todoId == pendingId
@@ -533,12 +637,22 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    * 그것을 금지했다("발행 뒤에 기한이 지난 할 일도, 위젯을 다시 그린 뒤에는 지난 것으로 보인다").
    * 문장은 둘 다 캐시가 미리 보내 주므로 여기서 문구를 만들지는 않는다.
    */
-  private fun showDue(context: Context, views: RemoteViews, index: Int, item: JSONObject) {
+  private fun showDue(
+      context: Context,
+      views: RemoteViews,
+      index: Int,
+      item: JSONObject,
+      done: Boolean,
+  ) {
     val dueAtMs = item.optLong("dueAtMs", 0L)
     val due = item.text("due")
     // 0은 "기한 없음"으로 다룬다(1970년을 기한으로 둔 할 일은 없다). Dart는 기한이 없는 줄에
     // 이 키를 애초에 싣지 않는다.
-    if (dueAtMs <= 0L || due.isEmpty()) {
+    //
+    // [done]을 함께 보는 이유는 **낙관 구간** 하나다: 그 줄은 아직 캐시에 기한 키를 들고 있는데
+    // 완료 모양으로 그려진다 → 완료 줄에 기한을 보여 주지 않는다는 규칙을 여기서 지킨다.
+    // 평소에는 Dart가 캐시에서 끝내므로(완료 항목에 키를 싣지 않는다) 이 분기가 돌지 않는다.
+    if (done || dueAtMs <= 0L || due.isEmpty()) {
       views.setViewVisibility(DUE_IDS[index], View.GONE)
       return
     }
@@ -563,8 +677,23 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    * XML 기본값"에 기대지 않는다. 런처가 `reapply()`로 덧칠하므로 안 쓰고 넘어가면 **앞서 쓴 개수가
    * 그대로 남는다**(2026-11-19 확인한 함정. showRow의 주석 참고).
    */
-  private fun showHeader(context: Context, views: RemoteViews, payload: JSONObject?) {
-    val header = payload?.text("header").orEmpty()
+  private fun showHeader(
+      context: Context,
+      views: RemoteViews,
+      payload: JSONObject?,
+      mark: TapMark,
+  ) {
+    // 낙관 구간에는 **Dart가 미리 만들어 보낸 대체 문장 둘** 중에서 고른다(design 2.2.3). 탭 한
+    // 번은 완료 개수를 정확히 ∓1 하므로 문장 둘로 모든 줄의 탭을 덮는다 — 여기서 숫자를 세거나
+    // 분수를 조립하지 않는다. 그 키가 없으면(옛 캐시·전부 완료 등) 머리 줄을 그대로 두어 개수가
+    // 1~4초 늦게 맞는다("모르면 말하지 않는다").
+    val alternate =
+        if (mark.optimistic) {
+          payload?.text(if (mark.done) "headerAfterCheck" else "headerAfterUncheck").orEmpty()
+        } else {
+          ""
+        }
+    val header = alternate.ifEmpty { payload?.text("header").orEmpty() }
     views.setTextViewText(
         R.id.widget_header,
         header.ifEmpty { context.getString(R.string.todo_widget_header) },
@@ -643,10 +772,13 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     const val ACTION_SWEEP = "com.todododo.todododo.action.WIDGET_SWEEP"
 
     /**
-     * 탭 자국의 그리기 모드. `writing`이면 `쓰는 중`만 그린다(= 낙관 반영이 꺼진 상태).
-     * 낙관 모드(`optimistic`)는 L 단계에서 들어온다 — Dart는 이 키를 **모른다**(design 2.2.3).
+     * 탭 자국의 그리기 모드. `writing`이면 `쓰는 중`만 그리고(= 낙관 반영이 꺼진 상태),
+     * `optimistic`이면 그 줄을 **완료 모양으로 미리** 그린다.
+     *
+     * **Dart는 이 키를 모른다**(design 2.2.3) — 모르는 키는 다음 발행에서 자연히 빠진다.
      */
     const val MODE_WRITING = "writing"
+    const val MODE_OPTIMISTIC = "optimistic"
 
     const val DEFAULT_MIN_HEIGHT_DP = 110
 

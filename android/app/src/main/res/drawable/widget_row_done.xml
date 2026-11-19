@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 완료한 할 일 한 줄의 면. widget_row.xml과 **면 색만** 다르다(가라앉은 면 sunken).
-     장식이 아니라 상태 표시다 — 앱의 할 일 목록이 완료한 줄에 쓰는 바로 그 면이다.
-     색은 res/values/widget_resources.xml(생성 파일)에서 온다. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="@color/widget_sunken" />
-    <stroke android:width="1dp" android:color="@color/widget_line" />
-    <corners android:radius="10dp" />
-</shape>

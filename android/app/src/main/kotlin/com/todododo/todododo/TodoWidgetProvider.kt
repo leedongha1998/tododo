@@ -271,11 +271,11 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     views.setViewVisibility(ROW_IDS[rowIndex], View.VISIBLE)
     views.setTextViewText(TITLE_IDS[rowIndex], if (done) struckThrough(title) else title)
     if (done) {
-      views.setInt(ROW_IDS[rowIndex], "setBackgroundResource", R.drawable.widget_row_done)
+      views.setInt(ROW_IDS[rowIndex], "setBackgroundResource", R.drawable.widget_row_done_line)
       views.setTextColor(TITLE_IDS[rowIndex], context.getColor(R.color.widget_ink_muted))
       views.setImageViewResource(CHECK_IDS[rowIndex], R.drawable.widget_check_done)
     } else {
-      views.setInt(ROW_IDS[rowIndex], "setBackgroundResource", R.drawable.widget_row)
+      views.setInt(ROW_IDS[rowIndex], "setBackgroundResource", R.drawable.widget_row_line)
       views.setTextColor(TITLE_IDS[rowIndex], context.getColor(R.color.widget_ink))
       views.setImageViewResource(CHECK_IDS[rowIndex], R.drawable.widget_check)
     }

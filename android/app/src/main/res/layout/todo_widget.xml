@@ -6,8 +6,9 @@
      한 줄 @string/todo_widget_no_cache와 머리 줄 기본값 @string/todo_widget_header만 생성된
      리소스를 쓴다 — 둘 다 캐시가 쓰이지 않는 자리다).
 
-     줄의 수치는 design 6.1.1(2026-11-18)이 현재 기준이다 — 줄 minHeight 40dp + 아래 여백 2dp
-     (= 간격 42dp, 줄 수 공식의 ROW_PITCH_DP와 같은 값), 체크 칸 48x40dp, 기한은 제목 아래.
+     줄의 수치는 design 6.1.3(2026-11-19 시안 C)이 현재 기준이다 — 줄 minHeight 40dp + **아래 여백
+     0**(줄 사이는 줄 바닥의 1dp 구분선이 나눈다). 줄 수 공식의 ROW_PITCH_DP(42dp)는 그대로 두므로
+     줄마다 2dp씩 여유가 생긴다(design 6.2.3의 여유 표). 체크 칸 48x40dp, 기한은 제목 아래.
      paddingHorizontal/paddingVertical은 **쓰지 않는다**: API 26부터이고 이 앱의 minSdk는 24다. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -84,11 +85,11 @@
                 android:id="@+id/widget_row_0"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="2dp"
-                android:background="@drawable/widget_row"
+                android:background="@drawable/widget_row_line"
                 android:gravity="center_vertical"
                 android:minHeight="40dp"
                 android:orientation="horizontal"
+                android:paddingLeft="8dp"
                 android:paddingRight="8dp">
 
                 <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
@@ -155,11 +156,11 @@
                 android:id="@+id/widget_row_1"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="2dp"
-                android:background="@drawable/widget_row"
+                android:background="@drawable/widget_row_line"
                 android:gravity="center_vertical"
                 android:minHeight="40dp"
                 android:orientation="horizontal"
+                android:paddingLeft="8dp"
                 android:paddingRight="8dp">
 
                 <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
@@ -226,11 +227,11 @@
                 android:id="@+id/widget_row_2"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="2dp"
-                android:background="@drawable/widget_row"
+                android:background="@drawable/widget_row_line"
                 android:gravity="center_vertical"
                 android:minHeight="40dp"
                 android:orientation="horizontal"
+                android:paddingLeft="8dp"
                 android:paddingRight="8dp">
 
                 <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
@@ -297,11 +298,11 @@
                 android:id="@+id/widget_row_3"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="2dp"
-                android:background="@drawable/widget_row"
+                android:background="@drawable/widget_row_line"
                 android:gravity="center_vertical"
                 android:minHeight="40dp"
                 android:orientation="horizontal"
+                android:paddingLeft="8dp"
                 android:paddingRight="8dp">
 
                 <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
@@ -368,11 +369,11 @@
                 android:id="@+id/widget_row_4"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="2dp"
-                android:background="@drawable/widget_row"
+                android:background="@drawable/widget_row_line"
                 android:gravity="center_vertical"
                 android:minHeight="40dp"
                 android:orientation="horizontal"
+                android:paddingLeft="8dp"
                 android:paddingRight="8dp">
 
                 <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면
@@ -439,11 +440,11 @@
                 android:id="@+id/widget_row_5"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="2dp"
-                android:background="@drawable/widget_row"
+                android:background="@drawable/widget_row_line"
                 android:gravity="center_vertical"
                 android:minHeight="40dp"
                 android:orientation="horizontal"
+                android:paddingLeft="8dp"
                 android:paddingRight="8dp">
 
                 <!-- 체크 칸. 그림 크기와 터치 영역을 패딩으로 분리한다 — background에 shape를 걸면

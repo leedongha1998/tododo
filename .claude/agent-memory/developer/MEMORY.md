@@ -13,3 +13,5 @@
 - [오너는 모바일 관례를 앞세운다](feedback_owner_mobile_convention.md) — 기획이 "숨은 제스처라 기각"했어도 뒤집힐 수 있다. 딸린 레이아웃 타협까지 함께 되돌린다.
 - [Gemini 한도 문서의 현재 위치](reference_gemini_rate_limits.md) — 무료 등급 모델별 RPM/RPD 숫자는 문서에서 사라졌다. 성질만 적고 숫자는 오너에게 넘긴다. embedding-001은 768차원을 직접 정규화해야 한다.
 - [RemoteViews 그리기 함정](remoteviews_gotchas.md) — 취소선은 span만 되고 setPaintFlags는 위젯을 깨뜨린다. 상태 색은 이른 return보다 먼저, 양쪽 분기로 칠한다.
+- [자국 기반 가드의 함정](native_mark_guard_pitfall.md) — 네이티브가 쓰고 Dart가 읽는 자국으로 중복 탭을 가르면 모든 탭이 버려진다. 쓰는 쪽에 판정을 둔다.
+- [회귀 수정의 모양](feedback_regression_fix_workflow.md) — 빨간 테스트 먼저, 커밋 하나, 틀린 설계 절에 추기, 네이티브 규칙은 순수 함수로 뽑아 묶기.

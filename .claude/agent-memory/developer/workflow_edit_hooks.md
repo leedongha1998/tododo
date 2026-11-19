@@ -13,7 +13,11 @@ metadata:
 판단한다. 그래서 `lib/core/strings.dart`, `battle_providers.dart` 등은 **HEAD 상태에서도** 포맷 검사에
 실패한다(2026-10-30 stash 후 확인). 기존 파일을 통째로 재포맷하면 작업과 무관한 거대한 diff가 생긴다.
 
-`--output=none`이므로 **훅은 파일을 고치지 않는다**(예전 메모의 "이미 포맷되어 저장된다"는 틀렸다).
+~~`--output=none`이므로 훅은 파일을 고치지 않는다.~~ **2026-11-20 정정: 지금 훅은 파일을 고친다.**
+보고에 `Changed <파일> / Formatted 1 file (1 changed)`가 찍히면 그 파일은 **이미 재포맷되어 저장됐다.**
+그래도 겁낼 필요는 없었다 — **훅 아래에서 태어난 최근 파일들은 이미 80칸 포맷이라 diff가 내 변경
+크기 그대로였다**(`todo_widget_payload.dart`에 2줄 넣고 `git diff --stat`이 `+2`였다). **위험한 것은
+오래된 파일을 처음 건드리는 순간**이고, 그래서 아래의 `git diff --stat` 확인 습관은 그대로 유효하다.
 
 여러 Edit을 연달아 보내면 중간 상태에서 "isn't defined / unused_local_variable" 같은 analyze 오류가
 함께 보고되는데, 이는 뒤이은 Edit이 아직 적용되지 않아서다. **analyze 오류는 진짜일 때가 많으니

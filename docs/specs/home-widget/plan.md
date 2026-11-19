@@ -1182,3 +1182,147 @@ analyze / test / **릴리스 APK 빌드**.
   26·28번(줄 수가 줄지 않았는가), 3번(밝은 벽지에서 흰 판의 경계), 4번(판 모서리 밖으로 띠가
   삐져나오지 않는가), 그리고 `체크하지 못했어요 · 앱에서 확인해요`가 띠에서 몇 글자나 잘리는가
   (6.1.3 (4)의 경계 칸 — 보기 싫으면 미리 정해 둔 조정은 띠 안쪽 가로 패딩 10dp → 8dp다).
+
+---
+
+# 2026-11-19 추가 범위 3 — 체크 반응 속도 (17~20단계)
+
+입력은 `spec.md`의 `## 2026-11-19 추가 범위 3 — 체크 반응 속도`와 `design.md`의 2.2.3 · 4.7 ·
+6.3.3 · 9.4 · 11.4 · 12.7 · 12.8 · 13.4(+ 원칙 2 · 3.2 · 3.3 · 4.3 · 4.4 · 4.6의 2026-11-19 추기)다.
+**순서·커밋 제목은 13.4 표 그대로**이고 바꾸지 않는다.
+
+## 착수 전 확인
+
+- **충돌 없음.** CLAUDE.md·dev-standards와 spec/design이 어긋나는 자리를 찾지 못했다. 근거:
+  - 판정 로직은 그대로 서버에 있다 — 이 범위가 쓰는 것은 `todos.is_done` 하나이고 대결에 닿지 않는다.
+  - "테스트 없이 판정 로직 수정 금지"는 걸리지 않는다(판정이 아니다). 그래도 **새 순수 함수 둘
+    (`applyCheck`·`todosWithDone`)에는 유닛 테스트를 먼저 박는다**(12.7).
+  - "새 화면 하나 = 새 커밋 하나" → 13.4가 이미 네 커밋으로 쪼개 두었고 그대로 따른다.
+  - 스키마 변경·새 패키지·새 문구·생성기 변경이 **하나도 없다**(11.4 · 9.4). 생성기는 단계마다 돌려
+    `widget_resources.xml`의 diff가 비어 있는지만 확인한다.
+  - 네이티브가 캐시를 쓰는 것(탭 자국 네 키)은 원칙 2의 선을 넓히는 일이지만 **design이 그 사실과
+    근거·대가를 명시적으로 적고 넓혔다**(원칙 2의 2026-11-19 각주, 결정 필요 3번). 구현이 임의로
+    고를 자리가 아니다.
+- **오너 확정이 전제다**: L 허용(조건 ①·② 포함) / 절전 모드는 고치지 않고 배포 / 배포 전에 넣는다.
+
+## 공통 규칙 (앞의 `## 공통 규칙`들에 더하는 것)
+
+1. **단계마다** `flutter analyze`(이슈 0) + `flutter test` 통과 + 생성 리소스 diff 비어 있음.
+2. **18·19단계는 릴리스 APK까지** 돌린다(`flutter build apk --release --dart-define-from-file=env.json`,
+   `EXIT=$?`를 따로 찍는다). 17단계는 Dart만이라 설계가 요구하지 않지만 **19단계가 끝난 뒤 한 번 더**
+   돌려 최종 상태를 확인한다.
+3. **수명 상수 둘은 Dart·Kotlin 두 사본**(6초 `todoWidgetTapMarkFreshSeconds`/`TAP_MARK_FRESH_MS`,
+   60초 `todoWidgetPendingTimeoutSeconds`/`PENDING_TIMEOUT_MS`). `ROW_PITCH_DP`와 같은 규칙이고
+   **테스트로 잡히지 않으므로 양쪽 주석에 서로를 적는다**(2.2.3 · 12.7).
+4. **`reapply()` 전수 표(6.3.3 (3))를 체크리스트로 훑고 커밋한다.** 행은 하나도 늘지 않고
+   **자국이 입력을 바꾸는 자리가 아홉**이다.
+
+## 17단계 — `feat: 위젯 체크 결말을 왕복 한 번으로` (K)
+
+### 파일
+| 파일 | 하는 일 |
+|---|---|
+| `lib/features/todo/data/todo_widget_payload.dart` | `applyCheck`(신규 순수 함수) · `todosWithDone`(신규 순수 함수) · `fromTodos(basisAt:)` · 키 셋 추가(`headerAfterCheck`·`headerAfterUncheck`·`failNote`) |
+| `lib/features/todo/domain/todo_widget_service.dart` | `publishChecked(todos, todoId:, done:, now:)` — `_justCheckedId`를 **소비하지 않는다** |
+| `lib/features/auth/presentation/auth_gate.dart` | `_onWidgetCheck`에 결말 발행 한 줄(`markJustChecked` → `setDone` → **발행** → `invalidate`) |
+| `lib/features/todo/data/todo_widget_callback.dart` | 결말을 `applyCheck`로 · 보정 재조회를 **별도 try**로 · 핸드오프 상한 8초 → **6초**(직접 쓰기에도 같은 상한) |
+| `test/features/todo/todo_widget_payload_test.dart` · `todo_widget_publish_test.dart` | 12.7의 칸들 |
+
+### 검증
+`flutter analyze` · `flutter test` · 생성기 diff.
+
+## 18단계 — `feat: 위젯 체크 탭을 그 자리에서 그린다` (J)
+
+### 파일
+| 파일 | 하는 일 |
+|---|---|
+| `.../TodoWidgetProvider.kt` | `onReceive` 오버라이드(ACTION_CHECK·ACTION_SWEEP, 나머지 `super`) · 탭 처리(자국 `commit` → `renderAll` → 쓸어내기 알람 → `home_widget` 브로드캐스트) · 체크 PendingIntent를 **우리 리시버**로 · 자국 셋(FRESH/LAPSED/NONE) 렌더 · `failNote`로 되돌림 설명 · 각주 여섯 → 여덟 |
+| `lib/features/todo/data/todo_widget_payload.dart` | `pending` 팩토리 **삭제** · `toJson`에서 `pendingId`·`pendingAtMs` **제외**(`fromJson`은 계속 읽는다) · 6초 상수 · 중복 탭 가드가 그 창을 쓰게 |
+| `lib/features/todo/data/todo_widget_callback.dart` | `쓰는 중` 발행 **삭제** + 파일 머리 주석에 2026-11-19 추기 |
+| 테스트 | `pending` 팩토리 칸을 지우고 "어떤 Dart 발행도 자국 네 키를 싣지 않는다"로 바꾼다 · 6초 창 경계 |
+
+### 함정(9.4)
+`super.onReceive` 누락 → 주기 갱신이 통째로 멈춘다 / `FLAG_IMMUTABLE` 필수 / 자국은 `commit()` /
+알람은 **부정확**(`set`) / `getAppWidgetIds`에 `ComponentName`.
+
+### 검증
+`flutter analyze` · `flutter test` · 생성기 diff · **릴리스 APK**.
+
+## 19단계 — `feat: 위젯 체크를 낙관적으로 보여 준다` (L, 조건 ①·② 포함)
+
+### 파일
+| 파일 | 하는 일 |
+|---|---|
+| `.../TodoWidgetProvider.kt` | 모드 판정 셋(절전 · 활성 네트워크 없음 · 데이터 세이버, **OR**) = 조건 ② · `effectiveDone` 헬퍼 · `totalCount` 보정 · 대체 헤더 고르기 · 낙관 완료 줄의 기한 `GONE` · 체크 Uri 뒤집기 |
+| `android/app/src/main/AndroidManifest.xml` | `ACCESS_NETWORK_STATE` 한 줄 + 이유 주석 |
+
+### 함정
+`effectiveDone`을 **`undoneShown`에도** 쓸 것(안 쓰면 `그 외 N개`가 1 늘어 "숨은 할 일"이 생긴다 —
+설계가 "가장 틀리기 쉬운 한 줄"로 꼽았다) / 읽기가 예외면 `optimistic`(모르는 것을 실패로 단정하지
+않는다) / 판정은 **끄는 쪽으로만 틀린다**.
+
+### 검증
+`flutter analyze` · `flutter test` · 생성기 diff · **릴리스 APK**(끝난 뒤 최종 상태로 한 번 더).
+
+## 20단계 — `docs: 반응 속도 배포 준비`
+
+- `DEPLOY.md`의 위젯 실기기 확인 줄에 **두 줄**("체크 칸을 누르면 그 자리에서 즉시 반응한다",
+  "비행기 모드에서 누르면 줄이 되돌아가고 그 이유가 보인다").
+- `TODO_BACKLOG.md`의 절전 모드 줄에 **한 줄 덧붙이기**("2026-11-19: 이 상태에서는 낙관적 반영을
+  끈다 — 즉시 반응은 `쓰는 중`"). **그 줄 자체는 지우지 않는다**(spec 확정 2).
+
+---
+
+## 진행 기록 (2026-11-19 추가 범위 3, 17~20단계)
+
+**네 단계 모두 구현·검증·커밋까지 끝났다. 푸시하지 않았다.** 순서는 계획대로 17 → 18 → 19 → 20이고
+바꾼 곳이 없다.
+
+| 단계 | 커밋 | analyze | test | 릴리스 APK |
+|---|---|---|---|---|
+| 기준선 | `4906631` | 이슈 0 | 879개 통과 | — |
+| 17 (K) | `d720d1d` `feat: 위젯 체크 결말을 왕복 한 번으로` | 이슈 0 | **903개**(+24) | 불필요(Dart만) |
+| 18 (J) | `b9f0924` `feat: 위젯 체크 탭을 그 자리에서 그린다` | 이슈 0 | **904개**(+1) | `EXIT=0` |
+| 19 (L) | `1cb3ca5` `feat: 위젯 체크를 낙관적으로 보여 준다` | 이슈 0 | 904개 통과 | `EXIT=0` |
+| 20 | `cfeaf08` `docs: 반응 속도 배포 준비` | — | — | 불필요(문서만) |
+
+- **새 유닛 테스트는 25개다**(17단계 24 + 18단계 +1 = `pending` 팩토리 칸 하나를 지우고 자국 칸 둘을
+  더했다). 12.7의 칸을 전부 덮었다: `applyCheck` 열둘(①~⑫), `todosWithDone` 둘, `basisAt` 둘,
+  새 키 셋 넷, 대체 문장 왕복, 자국의 `toJson` 제외·`fromJson` 유지, 중복 탭 가드의 **6초 경계
+  전수**(5.9초 → ignore / 6.1초 → 쓴다 / 59초 → 쓴다), `publishChecked` 셋.
+- **생성기(`flutter test tool/generate_widget_resources.dart`)를 단계마다 돌려 `widget_resources.xml`의
+  diff가 비어 있음을 확인했다.** 세 번 모두 비었다 — 이번 범위에 새 문구가 한 줄도 없다는 증거다.
+- **`reapply()` 점검은 6.3.3 (3)의 전수 표를 체크리스트로 훑었다.** 행이 하나도 늘지 않았고(새로
+  칠하는 뷰가 0개) 자국이 입력을 바꾸는 아홉 자리를 `grep`으로 하나씩 대조했다. `effectiveDone`을
+  부르는 자리는 **셋뿐**이고(`showRow`·`undoneShown`·`totalCount` 보정) `isDone()`을 직접 부르는
+  자리는 **그 헬퍼 안 하나만** 남았다.
+- **수명 상수 둘을 양쪽에 같은 값으로 두고 주석으로 묶었다**: `todoWidgetTapMarkFreshSeconds`(6) ↔
+  `TAP_MARK_FRESH_MS`(6_000), `todoWidgetPendingTimeoutSeconds`(60) ↔ `PENDING_TIMEOUT_MS`(60_000).
+  쓸어내기는 7초(`SWEEP_DELAY_MS`)이고 Dart 핸드오프 상한은 6초다.
+- **`ACCESS_NETWORK_STATE`가 Play 권한 목록을 바꾸지 않는 것을 릴리스 병합 결과로 다시 확인했다**
+  (`build/app/intermediates/merged_manifests/release/processReleaseManifest/AndroidManifest.xml`):
+  권한 집합이 이전과 같고 그 줄은 **한 번만** 나온다.
+
+### 설계와 다르게 한 곳 (셋, 전부 주석·죽은 인자 수준이거나 설계의 근거를 따른 것)
+
+1. **`applyCheck`에서 `danger` 톤이던 note는 톤만 내리지 않고 문장까지 바꾼다.** 4.7 (2)의 표는
+   "직전 문장 그대로, 단 tone이 `danger`였으면 `muted`로 내린다"고 적었는데, 그러면 성공한 화면에
+   `체크하지 못했어요 · 앱에서 확인해요`가 **색만 흐려진 채 남는다.** 같은 칸이 근거로 적은
+   "앞선 체크 실패가 이번 성공으로 지워진다"를 따라 **note를 `… 기준`으로 되돌렸다**(톤은 `muted`).
+   `못 불러왔어요 · … 기준`은 표 그대로 **남긴다.** 유닛 테스트로 둘 다 박았다.
+2. **`applyCheck`는 대체 머리 줄 둘(`headerAfterCheck`/`headerAfterUncheck`)을 싣지 않는다.**
+   4.7 (2)의 표에 출력으로 적혀 있지 않고, 셀 목록이 손에 없어 다시 만들 수도 없다(캐시를 되읽은
+   재료에는 개수가 없다). 그 결과 **앱이 죽어 있는 경로에서 1~2초 안에 같은 위젯을 또 누르면 머리
+   줄 개수가 그 탭에서는 늦게 맞는다** — 2.2.3이 "없으면 머리 줄을 그대로 둔다"로 이미 정의한
+   갈래이고, 뒤따르는 보정 발행이 채워 준다.
+3. **`tapMode()`가 18단계에서는 인자를 받지 않는다**(19단계에서 `tapMode(context)`가 된다).
+   18단계에 `context`를 받아 두면 쓰이지 않는 인자가 되어 Kotlin 경고가 남는다 — 14~16단계에서
+   `showNote`의 죽은 인자를 지운 것과 같은 성질이다. 동작은 한 자도 다르지 않다.
+
+- 그 밖에 **새 패키지·스키마 변경·새 문구·생성기 변경·새 리시버·새 intent-filter는 하나도 없다**
+  (확인함). `spec.md`·`design.md`는 **건드리지 않았다.**
+- 이 `plan.md`의 변경은 커밋하지 않고 작업 트리에 남겨 둔다 — 문서 커밋은 메인 세션이 따로 한다
+  (14~16단계와 같은 방식).
+- **남은 일은 오너의 실기기 확인뿐이다**(12.8의 36~48번). 설계가 자동으로 확인할 수 없는 칸이
+  이번에는 특히 많다 — 네이티브의 모드 판정·자국·알람·`effectiveDone`은 유닛 테스트로 덮이지
+  않는다(12.7이 적어 둔 그대로다).

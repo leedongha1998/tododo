@@ -2,7 +2,7 @@
 //
 // 설계 원칙 하나가 이 파일에 모여 있다(design.md 원칙 2): 네이티브는 그리기만 하고 판단은
 // Dart가 한다. 어떤 상태인지, 어떤 문구를 쓰는지, 몇 개까지 담는지, 기준 시각을 어떻게 적는지를
-// 여기서 전부 정해 JSON 하나로 적어 둔다. 네이티브(TodoWidgetProvider.kt)가 하는 판단은 **여덟**
+// 여기서 전부 정해 JSON 하나로 적어 둔다. 네이티브(TodoWidgetProvider.kt)가 하는 판단은 **아홉**
 // 이고 거의 전부 "비교하고 Dart가 보낸 것 중에서 고르기"다(design 원칙 2의 각주들):
 //   1. 높이 → 줄 수(widgetRowCount와 같은 식)
 //   2. moreFormat에 숫자 하나 끼우기
@@ -13,6 +13,9 @@
 //   6. done → 줄 면·제목 색·취소선·체크 그림 고르기(사실은 Dart가 적어 보낸다)
 //   7. (2026-11-19) 탭 순간의 기기 상태 → 낙관 모드인가 `쓰는 중` 모드인가
 //   8. (2026-11-19) 탭 자국의 나이 → 신선(6초)/지남(60초)/잊음. 3의 두 갈래가 셋이 된 것이다
+//   9. (2026-11-20) 이 탭이 중복인가 → 자국과 비교 셋(같은 줄·같은 목표 값·신선함). **Dart에
+//      있던 판단이 네이티브로 옮겨 간 것**이고, 규칙 자체는 이 파일의 isDuplicateWidgetTap에
+//      테스트와 함께 남아 있다(네이티브는 그 규칙을 따른다)
 // 문장을 **만드는** 일은 한 자도 네이티브에 두지 않는다. 개수 문구(`할 일 2/5`)도 완성된 문장으로
 // 실려 가고, 네이티브는 숫자를 세거나 분수를 조립하지 않는다.
 //
@@ -61,8 +64,8 @@ const todoWidgetMaxTitleLength = 80;
 const todoWidgetPendingTimeoutSeconds = 60;
 
 /// 탭 자국이 **신선한** 시간(초). 그 안에서는 네이티브가 모드대로 그리고(`쓰는 중` 또는 낙관),
-/// 지나면 줄을 되돌리고 실패 한 줄을 적는다. **중복 탭 가드도 이 창을 쓴다**
-/// ([todoWidgetCheckDecisionOf]).
+/// 지나면 줄을 되돌리고 실패 한 줄을 적는다. **네이티브의 중복 탭 가드도 이 창을 쓴다**
+/// ([isDuplicateWidgetTap] · [widgetTapMarkFresh]).
 ///
 /// **네이티브의 `TAP_MARK_FRESH_MS`와 값이 같아야 한다**(위와 같은 규칙).
 /// 6초인 근거는 결말의 약속이다 — 정상 2~4초, 어떤 경우에도 8초. 6초에서 끊고 탭+7초에 한 번 더
@@ -253,8 +256,12 @@ class TodoWidgetPayload {
   final TodoWidgetNoteTone noteTone;
 
   /// **네이티브가 찍은 탭 자국**(어느 줄을 언제 눌렀는가). 2026-11-19부터 이 둘은 **순수
-  /// 입력**이다 — [fromJson]이 읽어 중복 탭 가드([todoWidgetCheckDecisionOf])가 쓰고, [toJson]은
-  /// 싣지 않는다(design 2.2.3).
+  /// 입력**이다 — [fromJson]이 읽고 [toJson]은 싣지 않는다(design 2.2.3).
+  ///
+  /// **이 둘로 판단하는 Dart 코드는 없다**(2026-11-20). 중복 탭 가드가 네이티브로 옮겨 갔기
+  /// 때문이다([isDuplicateWidgetTap]) — 백그라운드 Dart가 읽는 자국은 언제나 **이번 탭의
+  /// 것**이라 중복을 가릴 수 없다. 두 필드가 모델에 남아 있는 이유는 **"자국이 섞여 들어와도
+  /// 다음 발행이 지운다"는 비대칭을 드러내 두는 것**이고, 테스트가 그 비대칭을 고정한다.
   ///
   /// 자국의 나머지 둘(`pendingDone`·`pendingMode`)은 **Dart가 아예 모른다.** 모르는 키는 다음
   /// 발행에서 자연히 빠지므로 그 사실 자체가 "결말이 자국을 지운다"의 구현이다.
@@ -563,7 +570,7 @@ class TodoWidgetPayload {
         // **탭 자국 네 키를 싣지 않는다**(2026-11-19). 그 키 공간의 writer는 네이티브 하나이고
         // (design 2.2.3), 그래서 **모든 Dart 발행이 자국을 지운다** — "결말이 자국을 걷는다"가
         // 여기에 아무것도 적지 않음으로써 성립한다. 다시 실으면 두 writer가 같은 키를 다투고
-        // 이 설계의 경합 방지가 무너진다. `fromJson`은 계속 **읽는다**(중복 탭 가드가 쓴다).
+        // 이 설계의 경합 방지가 무너진다. `fromJson`은 계속 **읽기만** 한다.
         'tapTarget': tapTarget.name,
         'updatedAtMs': updatedAtMs,
       };
@@ -914,7 +921,8 @@ TodoWidgetAction todoWidgetActionOf(Uri? uri) {
 /// 그 콜백은 실기기에서만 검증되므로(isolate·네트워크·백그라운드 engine을 테스트하지 않는다)
 /// 판단할 수 있는 부분을 전부 여기로 옮겨 유닛 테스트로 덮는다(design 12장).
 enum TodoWidgetCheckDecision {
-  /// 아무 일도 하지 않는다 — 체크가 아닌 Uri, 중복 탭, 이미 목록에서 사라진 할 일.
+  /// 아무 일도 하지 않는다 — 체크가 아닌 Uri, 목록에 없는 id, 이미 목표 값인 줄.
+  /// (중복 탭을 버리는 일은 네이티브가 한다 — [isDuplicateWidgetTap].)
   ignore,
 
   /// **앱의 main isolate에 쓰기를 맡긴다.** 그쪽의 살아 있는 Supabase 클라이언트가 쓰므로
@@ -928,29 +936,30 @@ enum TodoWidgetCheckDecision {
 
 /// [action]·캐시 상태·앱 생존 여부로 [TodoWidgetCheckDecision]을 고른다.
 ///
-/// 캐시를 보는 세 가지 이유(design 4.3의 2번 · 4.6 (2)):
-///   - **중복 탭**: 같은 줄을 연속으로 두 번 누르면 첫 탭이 아직 쓰고 있다. 서버 쓰기가 멱등이라
-///     두 번 가도 해롭지는 않지만, 두 번째 발행이 첫 번째의 `쓰는 중`을 흔든다. 방향과 무관하다.
+/// 캐시를 보는 이유는 **둘**이다(design 4.3의 2번 · 4.6 (2)):
 ///   - **이미 목표 값인 줄**: 아무것도 바꾸지 않는 쓰기를 서버에 보내지 않고, 그 때문에 `쓰는 중`이
 ///     깜빡이지도 않게 한다. 완료 줄이 목록에 남게 된 뒤로는 **"없어짐"이 더 이상 성공의 표시가
 ///     아니어서**(2026-11-18 추가 범위 2) 옛 조건을 이 조건으로 바꿨다.
 ///   - **목록에 아예 없는 id**: 아주 낡은 그림이나 로그아웃 뒤 남은 그림을 누른 경우다.
 ///
-/// 캐시를 아예 읽지 못했으면(판 번호를 모르거나 읽기 실패) **막지 않는다** — 그때는 중복인지
-/// 알 수 없고, 사용자가 누른 것을 조용히 버리는 쪽이 더 나쁘다(서버 쓰기는 멱등이다). 그래서 세
-/// 조건 모두 **캐시가 분명히 말할 때만** 막는다.
+/// **중복 탭은 여기서 가르지 않는다**(2026-11-20에 네이티브로 옮겼다 — [isDuplicateWidgetTap]).
+/// 네이티브가 탭 자국을 `commit()`한 **뒤에** 이 isolate를 깨우므로 여기서 읽는 `pendingId`는
+/// 언제나 **이번 탭의 것**이고, 그것으로 중복을 가르면 **모든 탭이 버려진다**(그 회귀가 실제로
+/// 났다: 위젯 체크가 서버에 하나도 쓰이지 않고 7초 뒤 되돌아갔다). 그래서 이 함수는 자국을
+/// **아예 보지 않고**, 기준 시각도 **인자로 받지 않는다** — 자국의 나이를 볼 수 없는 것이
+/// 시그니처로 못 박혀 있다.
+///
+/// 캐시를 아예 읽지 못했으면(판 번호를 모르거나 읽기 실패) **막지 않는다** — 사용자가 누른 것을
+/// 조용히 버리는 쪽이 더 나쁘다(서버 쓰기는 멱등이다). 그래서 두 조건 모두 **캐시가 분명히 말할
+/// 때만** 막는다.
 TodoWidgetCheckDecision todoWidgetCheckDecisionOf({
   required TodoWidgetAction action,
   required TodoWidgetPayload? cached,
   required bool appAlive,
-  required DateTime now,
 }) {
   final todoId = action.todoId;
   if (todoId == null) return TodoWidgetCheckDecision.ignore;
   if (cached != null) {
-    if (cached.pendingId == todoId && !_tapMarkStale(cached, now)) {
-      return TodoWidgetCheckDecision.ignore;
-    }
     final item = cached.items.where((item) => item.id == todoId).firstOrNull;
     if (item == null || item.done == action.done) {
       return TodoWidgetCheckDecision.ignore;
@@ -961,16 +970,45 @@ TodoWidgetCheckDecision todoWidgetCheckDecisionOf({
       : TodoWidgetCheckDecision.writeHere;
 }
 
-/// 탭 자국이 이미 **신선함을 잃었는지**. 네이티브가 그 줄을 모드대로 그리는 창과 같은 값을 쓴다
+/// **중복 탭인가.** 자국(mark)과 이번 탭을 비교하는 규칙 하나다.
+///
+/// **이 규칙을 실제로 쓰는 자리는 네이티브다**(`TodoWidgetProvider.onCheckTap` →
+/// `isDuplicateTap`). 탭을 처음 보는 자리도, 자국을 쓰는 자리도 거기이므로 판정도 거기 있어야
+/// 한다(2026-11-20). Dart에 이 함수가 있는 이유는 하나다 — **네이티브는 유닛 테스트가 없으므로
+/// 규칙만 순수 함수로 뽑아 여기서 고정**하고 네이티브가 그것을 그대로 따르게 묶는 것이다
+/// (`ROW_PITCH_DP`·`TAP_MARK_FRESH_MS`와 같은 방식. 바꿀 때는 **양쪽을 함께** 바꾼다).
+///
+/// 규칙은 셋이 모두 맞을 때만 중복이다:
+///   - 같은 줄([markId] == [tapId]),
+///   - **같은 목표 값**([markDone] == [tapDone]),
+///   - 자국이 아직 **신선하다**([markFresh] — [widgetTapMarkFresh], 네이티브의 `Mark.FRESH`).
+///
+/// **방향이 다른 탭은 중복이 아니다.** 낙관적 반영 때문에 사용자는 이미 바뀐 줄을 보고 있고, 그
+/// 줄을 다시 누르는 것은 "되돌리겠다"는 뜻이다 — 막으면 되돌리기가 6초 동안 먹지 않는다.
+///
+/// **이 판정을 `todoWidgetCheckDecisionOf`에 두면 안 된다**(2026-11-20 회귀의 원인): 네이티브가
+/// 자국을 `commit()`한 **뒤에** 백그라운드 Dart를 깨우므로, 그 자리에서 읽는 자국은 언제나
+/// **이번 탭의 것**이고 모든 탭이 중복으로 버려진다.
+bool isDuplicateWidgetTap({
+  required String? markId,
+  required bool markDone,
+  required bool markFresh,
+  required String tapId,
+  required bool tapDone,
+}) {
+  if (!markFresh || markId == null) return false;
+  return markId == tapId && markDone == tapDone;
+}
+
+/// 탭 자국이 아직 **신선한지**. 네이티브가 그 줄을 모드대로 그리는 창과 같은 값을 쓴다
 /// (쓰기 도중에 프로세스가 죽은 경우 다음 탭이 막히지 않아야 한다).
 ///
 /// 2026-11-19에 창이 60초에서 **6초**로 좁아졌다(design 2.2.3): 결말이 정상 2~4초에 오므로
-/// 60초짜리 가드는 "결말을 보고 다시 누른 탭"까지 막는다. 네이티브의 `TAP_MARK_FRESH_MS`와
-/// 같은 값이어야 한다.
-bool _tapMarkStale(TodoWidgetPayload cached, DateTime now) {
-  final at = cached.pendingAtMs;
-  if (at == null) return true;
-  return now.millisecondsSinceEpoch - at >=
+/// 60초짜리 창은 "결말을 보고 다시 누른 탭"까지 막는다. 네이티브의 `TAP_MARK_FRESH_MS`와
+/// 같은 값이어야 하고, 그 값으로 `Mark.FRESH`를 정하는 자리가 `markOf`다.
+bool widgetTapMarkFresh({required int? markAtMs, required DateTime now}) {
+  if (markAtMs == null) return false;
+  return now.millisecondsSinceEpoch - markAtMs <
       todoWidgetTapMarkFreshSeconds * 1000;
 }
 

@@ -58,7 +58,7 @@ private class TapMark(val state: Mark, val id: String, val done: Boolean, val op
  *
  * 이 파일은 **그리기만** 한다. 어떤 상태인지, 어떤 문구를 쓰는지, 몇 개까지 담는지, 기준 시각을
  * 어떻게 적는지는 전부 Dart가 정해 기기 캐시(JSON 한 개)에 적어 둔다
- * (lib/features/todo/data/todo_widget_payload.dart). 여기서 하는 판단은 **여덟**이고 거의 전부
+ * (lib/features/todo/data/todo_widget_payload.dart). 여기서 하는 판단은 **아홉**이고 거의 전부
  * "비교하고 Dart가 보내 준 것 중에서 고르기"다(design 원칙 2의 각주들):
  *   1. 이 높이에 몇 줄이 들어가나([rowCountFor])
  *   2. 캐시가 준 서식에 숫자 하나 끼우기("그 외 %d개")
@@ -70,7 +70,11 @@ private class TapMark(val state: Mark, val id: String, val done: Boolean, val op
  *   7. (2026-11-19) 탭 순간의 **기기 상태** → 낙관 모드인가 `쓰는 중` 모드인가([tapMode])
  *   8. (2026-11-19) 탭 **자국의 나이** → 신선(6초)/지남(60초)/잊음([markOf]). 판단 3의 두 갈래가
  *      셋이 된 것이다
- * 그 여덟 외의 규칙을 이 파일에 더하지 말 것, 특히 **문장을 만들지 말 것** — 네이티브는
+ *   9. (2026-11-20) 이 탭이 **중복인가**([isDuplicateTap]) — 자국과 비교 셋(같은 줄·같은 목표
+ *      값·신선함). Dart에 있던 판단이 **옮겨 온** 것이다: 자국을 쓰는 자리가 여기라서 Dart가
+ *      읽는 자국은 언제나 이번 탭의 것이었다(그래서 모든 탭이 버려졌다). 규칙 자체는 Dart의
+ *      순수 함수 `isDuplicateWidgetTap`에 테스트와 함께 박혀 있고 여기는 그것을 따른다
+ * 그 아홉 외의 규칙을 이 파일에 더하지 말 것, 특히 **문장을 만들지 말 것** — 네이티브는
  * 테스트하지 않으므로 판단이 늘어나면 검증되지 않는 코드가 늘어난다(design 원칙 2).
  * 머리 줄의 개수(`할 일 2/5`)도 **완성된 문장**으로 실려 오므로 여기서 숫자를 세지 않는다.
  * 머리 띠의 면(평소 primary / 체크 실패 danger)도 **새 판단이 아니다** — showNote가 쓰던 그
@@ -115,12 +119,19 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    * 여기에는 네트워크도 Dart도 없고 기기 안에서 끝나는 일만 있다.
    *
    * 순서가 중요하다:
+   *   0. **기존 자국을 먼저 읽어 중복 탭을 버린다**([isDuplicateTap], 2026-11-20). 이 판정이
+   *      **여기** 있어야 하는 이유는 하나다 — 탭을 처음 보는 자리도, 자국을 쓰는 자리도
+   *      네이티브이기 때문이다. 자국을 쓴 뒤에 깨어나는 Dart는 **언제나 이번 탭의 자국**을 읽어
+   *      중복을 가릴 수 없다(그 설계로 위젯 체크가 서버에 하나도 쓰이지 않는 회귀가 났다).
    *   1. 모드를 고른다([tapMode]) — 조건 ②(항상 실패하는 상태에서는 낙관 그림을 그리지 않는다).
    *   2. **자국을 먼저 쓰고** 3에서 그린다. 순서를 바꾸면 "그린 그림이 캐시에 없는" 순간이 생겨
    *      그 사이의 `reapply`가 그림을 되돌린다.
    *   4. 결말이 영영 오지 않아도 되돌아오게 쓸어내기 알람을 건다(탭+7초).
    *   5. **브로드캐스트 발사는 맨 뒤다.** `home_widget`은 콜백을 WorkManager로 돌리므로 그
    *      enqueue가 수십 ms를 쓸 수 있고, 그 비용이 그리기 앞에 오면 그만큼 늦게 보인다.
+   *
+   * 중복으로 판정한 탭은 **자국도 다시 쓰지 않고, 다시 그리지도 않고, 브로드캐스트도 쏘지 않는다**
+   * — 첫 탭의 그림과 쓸어내기 시각을 흔들지 않는 것이 목적이다.
    */
   private fun onCheckTap(context: Context, data: Uri?) {
     if (data == null) return
@@ -129,7 +140,12 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     // Dart의 todoWidgetActionOf와 같은 규칙이다: `0`이 아니면 완료로 읽는다(옛 PendingIntent 호환).
     val done = data.getQueryParameter("done") != "0"
 
-    markTap(context, todoId, done, tapMode(context))
+    // 캐시는 **한 번만** 읽어 중복 판정과 자국 쓰기가 나눠 쓴다(읽기를 두 번 만들지 않는다).
+    val widgetData = HomeWidgetPlugin.getData(context)
+    val payload = readPayload(widgetData)
+    if (isDuplicateTap(markOf(payload), todoId, done)) return
+
+    markTap(widgetData, payload, todoId, done, tapMode(context))
     renderAll(context)
     scheduleSweep(context)
     // 패키지의 공개 API를 그대로 쓴다 — 리시버 클래스 이름·액션 문자열 같은 내부를 베껴 적으면
@@ -138,15 +154,34 @@ class TodoWidgetProvider : HomeWidgetProvider() {
   }
 
   /**
+   * **중복 탭인가**(2026-11-20). 규칙은 Dart의 순수 함수 `isDuplicateWidgetTap`과 **같아야 한다**
+   * (lib/features/todo/data/todo_widget_payload.dart). 네이티브는 유닛 테스트가 없으므로 규칙만
+   * 저쪽에 뽑아 테스트로 고정해 두었다 — `ROW_PITCH_DP`·[TAP_MARK_FRESH_MS]와 같은 방식이고,
+   * **바꿀 때는 양쪽을 함께** 바꾼다.
+   *
+   * 셋이 모두 맞을 때만 중복이다: 같은 줄 · **같은 목표 값** · 자국이 아직 [Mark.FRESH].
+   * **방향이 다른 탭(같은 줄, 다른 `done`)은 중복이 아니다** — 낙관적 반영 때문에 사용자는 이미
+   * 바뀐 줄을 보고 있고, 그 줄을 다시 누르는 것은 "되돌리겠다"는 뜻이다(막으면 되돌리기가 6초
+   * 동안 먹지 않는다).
+   */
+  private fun isDuplicateTap(mark: TapMark, todoId: String, done: Boolean): Boolean =
+      mark.state == Mark.FRESH && mark.id == todoId && mark.done == done
+
+  /**
    * 탭 자국 네 키를 캐시에 적는다. **`apply()`가 아니라 `commit()`이다** — 뒤이어 깨어나는
-   * 백그라운드 engine이 그 값을 **반드시** 보아야 중복 탭 가드가 성립한다(design 4.7 (6)).
+   * 백그라운드 engine이 **자국이 찍힌 캐시**를 보게 하려는 것이다(design 4.7 (6)의 첫 칸).
    * 받는 자리가 `onReceive`(수 ms 작업)라 동기 쓰기의 비용이 문제 되지 않는다.
    *
    * 캐시를 아예 읽지 못하면(설치 직후·판 번호 모름) 아무것도 적지 않는다. 그때는 그릴 줄도 없다.
    */
-  private fun markTap(context: Context, todoId: String, done: Boolean, mode: String) {
-    val widgetData = HomeWidgetPlugin.getData(context)
-    val payload = readPayload(widgetData) ?: return
+  private fun markTap(
+      widgetData: SharedPreferences,
+      payload: JSONObject?,
+      todoId: String,
+      done: Boolean,
+      mode: String,
+  ) {
+    if (payload == null) return
     try {
       payload.put("pendingId", todoId)
       payload.put("pendingAtMs", System.currentTimeMillis())

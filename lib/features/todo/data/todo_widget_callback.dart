@@ -71,16 +71,18 @@ Future<void> onTodoWidgetAction(Uri? uri) async {
   try {
     cached = await host.read();
   } catch (error) {
-    // 되읽기 실패는 막지 않는다(중복 판단만 못 하게 된다). 서버 쓰기는 멱등이다.
+    // 되읽기 실패는 막지 않는다("이미 목표 값인가"를 못 보게 될 뿐이다). 서버 쓰기는 멱등이다.
     debugPrint('todoWidget read failed: $error');
   }
 
   final port = IsolateNameServer.lookupPortByName(todoWidgetWritePortName);
+  // **중복 탭은 여기서 가르지 않는다**(2026-11-20): 네이티브가 탭 자국을 `commit()`한 뒤에 이
+  // isolate를 깨우므로 여기서 읽는 자국은 언제나 **이번 탭의 것**이다. 그래서 이 함수는 기준
+  // 시각조차 받지 않는다(design 4.7 (6)의 정정).
   final decision = todoWidgetCheckDecisionOf(
     action: action,
     cached: cached,
     appAlive: port != null,
-    now: now,
   );
   if (decision == TodoWidgetCheckDecision.ignore) return;
 

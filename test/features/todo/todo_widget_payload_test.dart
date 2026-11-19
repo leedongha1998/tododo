@@ -1117,13 +1117,11 @@ void main() {
       TodoWidgetAction action = const TodoWidgetAction.setDone(id, done: true),
       TodoWidgetPayload? payload,
       bool appAlive = false,
-      DateTime? at,
     }) {
       return todoWidgetCheckDecisionOf(
         action: action,
         cached: payload,
         appAlive: appAlive,
-        now: at ?? now,
       );
     }
 
@@ -1144,48 +1142,42 @@ void main() {
       expect(decide(payload: cached), TodoWidgetCheckDecision.writeHere);
     });
 
-    test('같은 줄을 연속으로 두 번 누르면 두 번째를 버린다', () {
+    // 2026-11-20 회귀 수정(이 테스트가 그 버그를 잡는다). 자국 기반 중복 탭 가드는 **여기에
+    // 없다** — 네이티브로 옮겼다([isDuplicateWidgetTap]).
+    test('네이티브가 이번 탭의 자국을 찍은 캐시여도 쓰기로 간다', () {
+      // 네이티브는 자국을 `commit()`한 **뒤에** 이 isolate를 깨운다(design 4.7 (6)의 첫 칸).
+      // 그래서 여기서 읽는 `pendingId`는 **언제나 이번 탭의 것**이고, 그것으로 중복을 가르면
+      // **모든 탭이 버려진다.** 2026-11-20 실기기 회귀가 정확히 그것이었다(백그라운드 워커가
+      // 11ms 만에 SUCCESS → 7초 뒤 줄이 되돌아가고 `체크하지 못했어요`).
       final marked = _withTapMark(cached, todoId: id, at: now);
 
+      expect(decide(payload: marked), TodoWidgetCheckDecision.writeHere);
       expect(
-        decide(payload: marked, at: now.add(const Duration(seconds: 5))),
-        TodoWidgetCheckDecision.ignore,
+        decide(payload: marked, appAlive: true),
+        TodoWidgetCheckDecision.handOff,
       );
-      // 다른 줄은 막지 않는다.
-      expect(
-        decide(
-          action: const TodoWidgetAction.setDone(other, done: true),
-          payload: marked,
-          at: now.add(const Duration(seconds: 5)),
-        ),
-        TodoWidgetCheckDecision.writeHere,
+      // 탭 직후든 몇 초 뒤든 같다 — 이 함수는 **기준 시각조차 받지 않아** 자국의 나이를 볼
+      // 방법이 없다(그 사실이 시그니처로 못 박혀 있다).
+      final oldMark = _withTapMark(
+        cached,
+        todoId: id,
+        at: now.subtract(const Duration(seconds: 59)),
       );
+      expect(decide(payload: oldMark), TodoWidgetCheckDecision.writeHere);
     });
 
-    // 2026-11-19(추가 범위 3): 가드의 창이 60초에서 **6초**로 좁아졌다. 결말이 정상 2~4초에
-    // 오므로 60초짜리 가드는 "결말을 보고 다시 누른 탭"까지 막는다. 네이티브의
-    // TAP_MARK_FRESH_MS와 같은 값이어야 한다(테스트로 잡히지 않는 자리라 주석으로 묶어 두었다).
-    test('6초가 지난 자국은 다음 탭을 막지 않는다', () {
-      final marked = _withTapMark(cached, todoId: id, at: now);
+    test('되돌리기 탭도 자국에 막히지 않는다', () {
+      final mixed = TodoWidgetPayload.fromTodos(
+        [_todo(id, '장보기', isDone: true), _todo(other, '책 반납')],
+        now: now,
+      );
+      final marked = _withTapMark(mixed, todoId: id, at: now, done: false);
 
-      // 경계 전수. 쓰기 도중에 프로세스가 죽으면 캐시에 자국만 남는데, 그 줄을 영원히 체크할
-      // 수 없게 되면 안 된다(네이티브도 같은 기준으로 그 자국을 버린다).
       expect(
         decide(
+          action: const TodoWidgetAction.setDone(id, done: false),
           payload: marked,
-          at: now.add(const Duration(milliseconds: 5900)),
         ),
-        TodoWidgetCheckDecision.ignore,
-      );
-      expect(
-        decide(
-          payload: marked,
-          at: now.add(const Duration(milliseconds: 6100)),
-        ),
-        TodoWidgetCheckDecision.writeHere,
-      );
-      expect(
-        decide(payload: marked, at: now.add(const Duration(seconds: 59))),
         TodoWidgetCheckDecision.writeHere,
       );
     });
@@ -1239,24 +1231,6 @@ void main() {
       );
     });
 
-    test('중복 탭은 방향과 무관하게 무시한다', () {
-      final mixed = TodoWidgetPayload.fromTodos(
-        [_todo(id, '장보기', isDone: true), _todo(other, '책 반납')],
-        now: now,
-      );
-      final marked = _withTapMark(mixed, todoId: id, at: now, done: false);
-
-      // 되돌리기를 쓰는 중에 또 누르면 첫 탭의 그림이 흔들릴 뿐이다.
-      expect(
-        decide(
-          action: const TodoWidgetAction.setDone(id, done: false),
-          payload: marked,
-          at: now.add(const Duration(seconds: 5)),
-        ),
-        TodoWidgetCheckDecision.ignore,
-      );
-    });
-
     test('캐시를 읽지 못했으면 막지 않는다', () {
       // 중복인지 알 수 없을 때 사용자가 누른 것을 조용히 버리는 쪽이 더 나쁘다(서버 쓰기는 멱등).
       expect(decide(), TodoWidgetCheckDecision.writeHere);
@@ -1275,6 +1249,123 @@ void main() {
         decide(payload: withDue, appAlive: true),
         TodoWidgetCheckDecision.handOff,
       );
+    });
+  });
+
+  // 2026-11-20: 중복 탭 판정이 **네이티브로 옮겨 갔다**(탭을 처음 보는 자리이자 자국을 쓰는
+  // 자리가 거기다). 네이티브는 유닛 테스트가 없으므로 **규칙만 이 순수 함수로 뽑아** 여기서
+  // 고정하고, `TodoWidgetProvider.onCheckTap`/`isDuplicateTap`이 그 규칙을 그대로 따른다
+  // (주석으로 묶어 두었다 — `ROW_PITCH_DP`·`TAP_MARK_FRESH_MS`와 같은 방식).
+  group('isDuplicateWidgetTap', () {
+    const id = '11111111-1111-1111-1111-111111111111';
+    const other = '22222222-2222-2222-2222-222222222222';
+
+    test('같은 줄·같은 목표 값·신선한 자국이면 중복이다', () {
+      expect(
+        isDuplicateWidgetTap(
+          markId: id,
+          markDone: true,
+          markFresh: true,
+          tapId: id,
+          tapDone: true,
+        ),
+        isTrue,
+      );
+      // 되돌리기도 같다(방향이 아니라 "같은 방향인가"를 본다).
+      expect(
+        isDuplicateWidgetTap(
+          markId: id,
+          markDone: false,
+          markFresh: true,
+          tapId: id,
+          tapDone: false,
+        ),
+        isTrue,
+      );
+    });
+
+    test('방향이 다른 탭은 중복이 아니다', () {
+      // 낙관적 반영 때문에 사용자는 **이미 바뀐 줄**을 보고 있다. 그 줄을 다시 누르는 것은
+      // "되돌리겠다"는 뜻이므로 막으면 되돌리기가 6초 동안 먹지 않는다.
+      expect(
+        isDuplicateWidgetTap(
+          markId: id,
+          markDone: true,
+          markFresh: true,
+          tapId: id,
+          tapDone: false,
+        ),
+        isFalse,
+      );
+    });
+
+    test('다른 줄의 자국은 막지 않는다', () {
+      expect(
+        isDuplicateWidgetTap(
+          markId: other,
+          markDone: true,
+          markFresh: true,
+          tapId: id,
+          tapDone: true,
+        ),
+        isFalse,
+      );
+    });
+
+    test('자국이 없거나 신선하지 않으면 중복이 아니다', () {
+      // 쓰기 도중에 프로세스가 죽으면 캐시에 자국만 남는다. 그 줄을 영영 체크할 수 없게 되면
+      // 안 되므로 신선함을 잃은 자국은 다음 탭을 막지 않는다.
+      expect(
+        isDuplicateWidgetTap(
+          markId: id,
+          markDone: true,
+          markFresh: false,
+          tapId: id,
+          tapDone: true,
+        ),
+        isFalse,
+      );
+      expect(
+        isDuplicateWidgetTap(
+          markId: null,
+          markDone: true,
+          markFresh: true,
+          tapId: id,
+          tapDone: true,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('widgetTapMarkFresh', () {
+    test('6초 창의 경계', () {
+      // 네이티브 `markOf`의 FRESH 판정과 같은 값이어야 한다(TAP_MARK_FRESH_MS = 6_000).
+      expect(
+        widgetTapMarkFresh(
+          markAtMs: now.millisecondsSinceEpoch,
+          now: now.add(const Duration(milliseconds: 5900)),
+        ),
+        isTrue,
+      );
+      expect(
+        widgetTapMarkFresh(
+          markAtMs: now.millisecondsSinceEpoch,
+          now: now.add(const Duration(milliseconds: 6100)),
+        ),
+        isFalse,
+      );
+      expect(
+        widgetTapMarkFresh(
+          markAtMs: now.millisecondsSinceEpoch,
+          now: now.add(const Duration(seconds: 59)),
+        ),
+        isFalse,
+      );
+    });
+
+    test('자국이 없으면 신선하지 않다', () {
+      expect(widgetTapMarkFresh(markAtMs: null, now: now), isFalse);
     });
   });
 

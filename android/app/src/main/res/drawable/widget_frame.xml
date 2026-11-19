@@ -1,17 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 위젯 전체 틀. 앱 화면 배경(background)과 같은 면, 모서리 16dp —
-     홈 화면 위에서 앱과 같은 인상을 낸다. Android 12+ 런처는 위젯 바깥 모서리를 시스템 반지름으로 따로 깎는다.
+<!-- 위젯 전체 틀. 모서리 16dp. Android 12+ 런처는 위젯 바깥 모서리를 시스템 반지름으로 따로 깎는다.
      색은 res/values/widget_resources.xml(생성 파일)에서 온다.
 
-     2026-11-18(추가 범위 2 H): **1dp line 테두리 한 줄을 더했다.** 2026-11-04의 "테두리 없음"
+     2026-11-19(시안 C): **면이 앱 화면 배경(background, #EEF1F6)에서 카드 면(surface, 흰색)으로
+     바뀌었다.** 2026-11-04의 "앱 화면 배경과 같은 면으로 앱과 같은 인상을 낸다"를 뒤집은 것이고,
+     근거는 **자리의 성질**이다 — 위젯은 앱 화면이 아니라 남의 벽지 위에 얹히는 카드이고, 그 자리에서
+     앱의 대응물은 "화면 배경"이 아니라 "카드 면"이다(design 6.4.1의 "판 면"). 머리 띠는 이 면의 위
+     모서리를 같은 16dp로 덮는다(widget_band.xml).
+
+     2026-11-18(추가 범위 2 H): **1dp line 테두리 한 줄.** 2026-11-04의 "테두리 없음"
      (redesign design 7.4를 따른 결정)을 이 한 줄이 뒤집는다 — 근거는 spec 수용 기준("밝은 배경과 어두운
-     배경에서 각각 판의 경계가 보인다")이고, **앱 화면이 아니라 남의 배경 위에 얹히는 면**이라 앱과 다른
-     선택이 필요한 자리다. 어두운 배경에서는 밝은 면 자체가 경계를 만들지만 밝은 벽지에서는 연회색
-     면(#EEF1F6)과 흰 벽지의 차이가 작다. outline처럼 진한 선은 쓰지 않는다(홈 화면에서 "선이 굵은 상자"가
-     되어 소란스럽고, 팔레트가 그 토큰을 조작 요소 경계로 정의해 두었다). 그라데이션·그림자·이미지 면은
-     그대로 없다(spec 표면 제약). -->
+     배경에서 각각 판의 경계가 보인다")이다. **흰 판이 된 뒤로 더 중요해졌다**: 밝은 벽지에서는 면 색이
+     경계를 거들지 못해 이 선이 유일한 수단이다(design 6.4.1). outline처럼 진한 선은 쓰지 않는다
+     (홈 화면에서 "선이 굵은 상자"가 되어 소란스럽고, 팔레트가 그 토큰을 조작 요소 경계로 정의해 두었다).
+     그라데이션·그림자·이미지 면은 그대로 없다(spec 표면 제약). -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-    <solid android:color="@color/widget_background" />
+    <solid android:color="@color/widget_surface" />
     <stroke android:width="1dp" android:color="@color/widget_line" />
     <corners android:radius="16dp" />
 </shape>

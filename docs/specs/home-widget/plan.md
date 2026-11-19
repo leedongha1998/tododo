@@ -1027,3 +1027,158 @@ analyze / test / **릴리스 APK 빌드**.
 
 **커밋에 넣지 말 것**: `android/.kotlin/`(Kotlin 2.x가 릴리스 빌드 중에 만드는 캐시 디렉터리.
 `errors/`·`sessions/`뿐이고 이번 작업과 무관하다 — 무시하거나 별도 커밋에서 `.gitignore`에 올린다).
+
+---
+
+# 2026-11-19 시안 C — design 13.3의 14~16단계
+
+입력: `docs/specs/home-widget/design.md`의 **13.3**(현재 기준의 단계 분할)과 그것이 가리키는 절
+(**6.1.3** 레이아웃·수치 · **6.2.3** 세로 예산 · **6.3.2** 네이티브가 한 번 그릴 때 하는 일 +
+`reapply()` 전수 표 · **6.4.1** 색 · **9.3** 건드리는 파일 표 · 12.5 · 12.6),
+그리고 `.claude/agent-memory/developer/remoteviews_gotchas.md`.
+**결정 필요는 남아 있지 않다**(design "## 결정 필요 → 2026-11-19 시안 C에 대해: 묻는 것은 없다").
+
+**이번 작업 범위는 14~16단계 전부고 순서를 바꾸지 않는다** — 14(구분선) → 15(브랜드 띠) →
+16(흰 판). 그 순서가 설계 결정이다: 세로 예산을 건드리는 유일한 커밋(14)을 먼저 둬야 실기기에서
+"줄 수가 줄지 않았는가"(12.6의 26·28번)를 **그 커밋 하나로** 판정할 수 있고, 되돌리기가 싼
+커밋(16은 한 줄)을 뒤에 둬야 후퇴가 `16 → 15 → 14`로 떨어진다.
+
+## 공통 규칙 (위 세 `## 공통 규칙`에 더하는 것)
+- **Dart를 한 줄도 건드리지 않는다**(design 9.3). `lib/**`·`test/**`·`tool/**`·`pubspec.yaml`에
+  변경이 생기면 범위를 잘못 읽은 것이다. `flutter test`는 **그대로 통과해야 하는** 쪽이고,
+  특히 `widgetRowCount`가 빨개지면 세로 예산을 잘못 건드린 것이므로 **멈추고 보고한다**(12.5).
+- **고정비 24dp · 줄 피치 42dp · 상한 6을 바꾸지 않는다**(design 6.2.3). 띠 안쪽 패딩은 **4dp가
+  상한**이고(6.2.3의 민감도 표: 5dp는 1줄 위젯에서, 6dp는 2줄에서 깨진다) 그 이상을 쓰려면
+  `FIXED_DP`를 함께 올려야 하므로 **쓰지 않는다**.
+- **단계마다** `flutter analyze` 이슈 0 + `flutter test` 통과 + **`flutter build apk --release
+  --dart-define-from-file=env.json`**(세 단계 모두. 이번 범위는 전부 네이티브·리소스라 디버그
+  빌드로는 검증되지 않는다). 종료 코드는 `EXIT=$?`로 **따로 찍는다**.
+- `res/values/widget_resources.xml`은 **변경 없음**이 정상이다. 단계마다
+  `flutter test tool/generate_widget_resources.dart`를 돌려 **diff가 비어 있는지** 보고,
+  비어 있지 않으면 멈추고 보고한다(9.3).
+- **스키마 변경·새 패키지·새 권한·새 컴포넌트가 하나도 없다.** 필요해 보이면 멈추고 묻는다.
+- `design.md`·`redesign-options.md`는 **건드리지 않는다**(메인 세션이 따로 커밋한다). 커밋은
+  **경로를 명시해** 스테이징한다.
+- **커밋은 단계마다 하나**이고 제목은 13.3 표의 "커밋 제안"을 그대로 쓴다. **푸시하지 않는다.**
+
+## 착수 전 확인 (2026-11-19, 시안 C)
+- 기준선: `flutter analyze` 이슈 0, `flutter test` **879개 통과**.
+- `env.json`이 저장소 루트에 있다 → 릴리스 빌드를 돌릴 수 있다.
+- 추가 범위 2(9~13단계)는 커밋까지 끝났다(`a9a92c3`까지). 작업 트리에서 수정 중인 것은
+  `docs/specs/home-widget/design.md`와 새 파일 `redesign-options.md`뿐이고 **둘 다 건드리지 않는다**.
+- 필요한 색 넷(`widget_primary`·`widget_danger`·`widget_surface`·`widget_line`)과 `widget_sunken`이
+  `widget_resources.xml`에 **이미 있다** → 생성기를 돌릴 일이 없다.
+
+## CLAUDE.md·dev-standards와의 충돌 점검 (2026-11-19, 시안 C)
+**구현을 멈춰야 하는 충돌은 없다.** 이번 범위에서 새로 확인한 것만 적는다.
+- **"판정 로직은 DB/Edge"·"클라이언트에서 승패 계산 금지"** — 서버·DB·판정에 닿는 경로가 전혀
+  없다. 바뀌는 것은 drawable 넷·레이아웃 한 개·Kotlin 그리기 세 자리뿐이다.
+- **"테스트 없이 판정 로직 수정 금지"** — 판정 로직을 수정하지 않는다. 이번 범위에 **새 유닛
+  테스트가 없는 것이 정상**이고(12.5) 그 근거는 "순수 함수·상수·문구가 하나도 바뀌지 않는다"이다.
+- **"사용자에게 보이는 문자열은 `lib/core/strings.dart`"** — 새 문구가 없다.
+- **"새 화면 하나 = 새 커밋 하나"** — 새 화면이 없다. 커밋은 13.3의 세 단계다.
+- **에러 처리 규칙** — 에러를 다루는 코드를 건드리지 않는다(`showNote`에서 지우는 것은
+  `setTextColor` 두 줄뿐이고, 실패를 말하는 일은 **띠 면**이 물려받는다. 6.4.1).
+- `remoteviews_gotchas.md` 4번(`reapply()`)이 이번 범위의 **최대 위험**이다 — 칠하는 자리가
+  하나(띠) 늘어나므로 6.3.2 (4)의 전수 표를 체크리스트로 훑는다.
+
+---
+
+## 14단계 — 위젯 줄 사이를 구분선으로 바꾼다
+
+### 파일
+1. `android/app/src/main/res/drawable/widget_row_line.xml`(**신규**) — `<layer-list>` 한 층:
+   `gravity="bottom" height="1dp" left="8dp" right="8dp"` + `solid @color/widget_line`.
+   **면을 깔지 않는다**(판의 색이 보여야 한다).
+2. `android/app/src/main/res/drawable/widget_row_done_line.xml`(**신규**) — `<layer-list>` 한 층:
+   `left="8dp" right="8dp"` + `<shape>` `solid @color/widget_sunken` + `corners 8dp`.
+   **구분선 층을 넣지 않는다**(면 자체가 경계다).
+3. `android/app/src/main/res/layout/todo_widget.xml` — **줄 6개 전부**에서
+   `layout_marginBottom="2dp"` 제거 + `paddingLeft="8dp"` 추가 + `background`를 새 drawable로.
+   **하나라도 빠지면 그 줄만 2dp 내려가거나 8dp 왼쪽으로 붙는다**(9.3의 함정).
+4. `android/app/src/main/kotlin/.../TodoWidgetProvider.kt` — `showRow`의 drawable 이름 둘을
+   `widget_row_line`·`widget_row_done_line`으로. **`else` 가지를 지우지 않는다.**
+5. `android/app/src/main/res/drawable/widget_row.xml`·`widget_row_done.xml` — **삭제**
+   (9.3 권고: 지우면 참조가 컴파일 에러로 드러나 안전하다).
+
+### 검증
+`flutter analyze` 이슈 0 / `flutter test` 통과(`widgetRowCount` 포함) / **릴리스 APK 빌드** /
+생성기 diff 비어 있음.
+
+---
+
+## 15단계 — 위젯 머리 줄을 브랜드 띠로
+
+### 파일
+1. `android/app/src/main/res/drawable/widget_band.xml`(**신규**) — `solid @color/widget_primary` +
+   `<corners>` **위 16dp / 아래 0dp**(판 `widget_frame`의 16dp와 **같은 값**이어야 한다).
+2. `android/app/src/main/res/drawable/widget_band_danger.xml`(**신규**) — 같은 모양,
+   `solid @color/widget_danger`. 두 파일의 모서리 값이 **반드시 같다**.
+3. `android/app/src/main/res/layout/todo_widget.xml` — 루트 `paddingLeft/Right` 8dp → **0**,
+   `paddingTop` 4dp → **0**(`paddingBottom` 2dp 유지) / `widget_header_row`에
+   `background=@drawable/widget_band` + `paddingLeft/Right=10dp` + `paddingTop/Bottom=4dp`
+   (옛 `paddingBottom="2dp"`는 없앤다) / `widget_header` 색 → `@color/widget_surface`,
+   `paddingStart=0` / `widget_note` 색 → `@color/widget_surface`, `paddingEnd=0`(**id 유지**) /
+   `widget_more` `paddingStart` 2dp → **10dp** / `widget_center`에 `paddingLeft/Right=8dp`.
+4. `android/app/src/main/kotlin/.../TodoWidgetProvider.kt` — ① `render` **맨 앞**(캐시를 읽기 전,
+   `payload == null`로 돌아가기 **전**)에 띠 배경 `setInt`를 **if/else 양쪽** 분기로,
+   ② `showNote`의 `setTextColor` 두 줄 **삭제**, ③ 클래스 주석 한 줄.
+   `showCenter`의 색 분기는 **그대로 둔다**(가운데 안내는 띠가 아니라 판 위다).
+   판단 목록 "여섯"을 고치지 않는다(새 비교가 아니라 `isDanger()`를 그대로 쓴다).
+
+### 검증
+14단계와 같다. 더해서 6.3.2 (4)의 **전수 표를 훑어** 칠하는 자리마다 반대 분기가 있는지 본다.
+
+---
+
+## 16단계 — 위젯 판을 흰 면으로
+
+### 파일
+1. `android/app/src/main/res/drawable/widget_frame.xml` — `<solid>`를 `@color/widget_background` →
+   **`@color/widget_surface`** 한 줄 + 2026-11-04 주석("앱 화면 배경과 같은 면")을 고친다.
+   `<stroke>`·`<corners>`는 **그대로**(흰 판에서 1dp `widget_line`이 밝은 벽지에서 경계를 만드는
+   유일한 수단이 되어 더 중요해졌다. 6.4.1).
+
+### 검증
+14단계와 같다.
+
+---
+
+## 진행 기록 (2026-11-19 시안 C, 14~16단계)
+
+**세 단계 모두 구현·검증·커밋까지 끝났다. 푸시하지 않았다.** 순서는 계획대로 14 → 15 → 16이고
+바꾼 곳이 없다.
+
+| 단계 | 커밋 | analyze | test | 릴리스 APK |
+|---|---|---|---|---|
+| 기준선 | `a9a92c3` | 이슈 0 | 879개 통과 | — |
+| 14 | `242fe24` `feat: 위젯 줄 사이를 구분선으로 바꾼다` | 이슈 0 | 879개 통과 | `EXIT=0` |
+| 15 | `fefb6f7` `feat: 위젯 머리 줄을 브랜드 띠로` | 이슈 0 | 879개 통과 | `EXIT=0` |
+| 16 | `6fd7872` `feat: 위젯 판을 흰 면으로` | 이슈 0 | 879개 통과 | `EXIT=0` |
+
+- **`flutter test`는 879개가 세 번 다 그대로 통과했다**(12.5가 말한 "그대로 통과해야 하는" 쪽).
+  `widgetRowCount` 쪽이 한 번도 빨개지지 않았다 = 세로 예산 상수를 건드리지 않았다는 뜻이다.
+- **`flutter test tool/generate_widget_resources.dart`를 단계마다 돌려 `widget_resources.xml`의
+  diff가 비어 있음을 확인했다**(9.3의 확인 방법). 세 번 모두 비었다.
+- 줄 6개는 `grep`으로 **여섯 자리가 모두 같은 모양**임을 확인하고 커밋했다(9.3의 첫 함정).
+- `reapply()` 점검은 6.3.2 (4)의 전수 표를 `setInt`/`setTextColor`/`setViewVisibility`/
+  `setImageViewResource`/`setTextViewText` 호출 목록과 **한 줄씩 대조**해 끝냈다. 칠하는 자리마다
+  반대 분기가 있고, 띠는 `render` 맨 앞·`payload == null`보다 먼저 양쪽 분기로 칠한다.
+
+### 설계와 다르게 한 곳 (셋, 전부 주석·죽은 인자 수준)
+1. **`showNote(context, views, payload)` → `showNote(views, payload)`** — 9.3은 `setTextColor` 두
+   줄 삭제만 적었는데, 그러면 `context` 인자가 쓰이지 않게 되어 Kotlin 경고가 남는다. 쓰이지 않는
+   인자를 지우고 호출 한 자리를 같이 고쳤다. **동작은 한 자도 바뀌지 않는다.**
+2. **`todo_widget.xml` 머리 주석의 줄 수치**(옛 "줄 minHeight 40dp + 아래 여백 2dp(= 간격 42dp)")를
+   6.1.3·6.2.3 기준으로 고쳤다. 아래 여백을 없앤 커밋에서 그 설명이 **틀린 설명**이 되기 때문이고,
+   9.3이 `widget_frame.xml` 주석에 대해 요구한 것과 같은 성질이다.
+3. **머리 줄·헤더·note·showNote·클래스 주석**에 시안 C의 근거를 적었다(9.3이 요구한 클래스 주석 한
+   줄보다 길다). 네이티브는 유닛 테스트가 없어 주석이 유일한 안전장치라는 이 파일의 기존 태도를 따랐다.
+
+- 새 패키지·새 권한·새 컴포넌트·스키마 변경은 **하나도 없다**(확인함).
+- `design.md`·`redesign-options.md`는 **건드리지 않았다.** 이 `plan.md`의 변경은 커밋하지 않고
+  작업 트리에 남겨 둔다 — 문서 커밋(`docs: 시안 C 설계 반영`)은 메인 세션이 따로 한다.
+- **남은 일은 오너의 실기기 확인뿐이다**(12.6). 특히 설계가 스스로 확인할 수 없는 칸:
+  26·28번(줄 수가 줄지 않았는가), 3번(밝은 벽지에서 흰 판의 경계), 4번(판 모서리 밖으로 띠가
+  삐져나오지 않는가), 그리고 `체크하지 못했어요 · 앱에서 확인해요`가 띠에서 몇 글자나 잘리는가
+  (6.1.3 (4)의 경계 칸 — 보기 싫으면 미리 정해 둔 조정은 띠 안쪽 가로 패딩 10dp → 8dp다).

@@ -1,6 +1,6 @@
 ---
 name: remoteviews-gotchas
-description: RemoteViews(홈 화면 위젯)로 그릴 때의 함정 — 취소선은 StrikethroughSpan만 되고 setPaintFlags 반사는 위젯을 깨뜨리며, 항목을 걸러 그릴 때 줄 슬롯 번호와 항목 index를 겹쳐 쓰면 빈 줄이 남는다
+description: RemoteViews(홈 화면 위젯)로 그릴 때의 함정 — 취소선은 StrikethroughSpan만 되고 setPaintFlags 반사는 위젯을 깨뜨리며, 걸러 그릴 때 줄 슬롯과 index를 겹쳐 쓰면 빈 줄이 남고, 상태 색은 이른 return보다 먼저 양쪽 분기로 칠해야 하며, 둥근 모서리 안쪽 인셋은 layer-list로만 준다
 metadata:
   type: reference
 ---
@@ -34,3 +34,11 @@ metadata:
 6. 레이아웃 기본값으로 쓸 한국어는 생성기(`tool/generate_widget_resources.dart`)가 `AppStrings`에서
    뽑아 `widget_resources.xml`로 떨군다. **캐시로 전달할 수 없는 자리**(캐시가 없을 때·옛 캐시·위젯
    선택기 미리보기)만 그렇게 하고, 나머지 문구는 전부 캐시 JSON으로 간다.
+7. **`reapply()` 되돌려 칠하기는 "이른 return"보다 앞서야 한다.** 상태에 따라 색이 바뀌는 면
+   (머리 띠 등)을 캐시가 없을 때 돌아가는 `return` **뒤**에서 칠하면, 캐시를 못 읽는 갈래에서
+   직전의 실패 색이 그대로 남는다. 그 자리의 칠은 `if/else` 양쪽 + 모든 갈래보다 **먼저**다.
+8. 자식 면·선을 **부모의 둥근 모서리 안에** 두려면 `<layer-list>` `<item>`의
+   `android:left`/`right`(+`gravity`/`height`)로 인셋을 준다 — 배경은 뷰의 패딩을 무시하므로
+   패딩으로는 못 막는다. 전폭 사각형은 반지름 `r`인 모서리에서 `r − √(r² − (r−y)²)`만큼
+   밖으로 삐져나온다(16dp 모서리·바닥 2dp면 약 8.25dp). 예외는 **부모 윗변에 딱 붙는 띠**인데,
+   그때는 띠 drawable의 위 모서리를 **부모와 같은 반지름**으로 준다.

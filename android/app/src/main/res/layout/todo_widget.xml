@@ -16,27 +16,42 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_frame"
     android:orientation="vertical"
-    android:paddingLeft="8dp"
-    android:paddingRight="8dp"
-    android:paddingTop="4dp"
+    android:paddingLeft="0dp"
+    android:paddingRight="0dp"
+    android:paddingTop="0dp"
     android:paddingBottom="2dp">
 
-    <!-- 머리 줄(design 6.1.2). 헤더와 note가 한 줄을 나눠 쓴다 — 둘을 따로 두면 고정비가
-         24dp에서 40dp로 늘어 4x2 기본 크기에서 할 일이 1줄로 떨어진다(세로 예산, design 6.2.2).
+    <!-- 머리 줄(design 6.1.3, 2026-11-19 시안 C). 헤더와 note가 한 줄을 나눠 쓴다 — 둘을 따로
+         두면 고정비가 24dp에서 40dp로 늘어 4x2 기본 크기에서 할 일이 1줄로 떨어진다
+         (세로 예산, design 6.2.2).
          **줄 영역을 감싼 FrameLayout 밖, 루트의 첫 자식이어야 한다**: 안에 넣으면 가운데 안내
          (widget_center, match_parent)가 이 줄을 덮는다.
-         예산 18dp(13sp + paddingBottom 2dp)이고, 옛 아래 note(16dp)보다 2dp 두꺼운 것을 루트
-         아래 여백 4dp → 2dp로 상계해 **고정비 24dp가 그대로다**(줄 수가 바뀌지 않는다). -->
+         **이 줄은 위젯에서 유일한 전폭 요소다** — 그래서 루트의 가로 패딩 8dp와 위 패딩 4dp를
+         0으로 내리고, 그 8dp는 아래 자식들이 각자 갖는다(줄 6개·widget_more·widget_center).
+         띠 예산 23.2dp(13sp 글자 15.2dp + 위·아래 4dp)이고 루트 위 여백이 사라져 고정 자리는
+         25.2dp다. 줄마다 아래 여백 2dp가 없어진 것이 그 두께를 갚는다 — 고정비 상수 24dp를
+         **바꾸지 않는다**(design 6.2.3).
+         **안쪽 세로 패딩 4dp가 상한이다**: 5dp면 1줄 위젯에서, 6dp면 2줄에서 예산이 깨진다
+         (design 6.2.3의 민감도 표). 띠를 더 두껍게 하려면 FIXED_DP를 함께 올려야 한다. -->
     <LinearLayout
         android:id="@+id/widget_header_row"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/widget_band"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingBottom="2dp">
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp">
 
         <!-- 헤더. 제목(14sp)보다 작고 note(11sp)보다 크다 — 헤더가 할 일 제목보다 커지면 위젯이
-             "제목이 큰 판"이 되어 목록이 뒤로 밀린다. 위계는 굵기와 브랜드색으로 만든다.
+             "제목이 큰 판"이 되어 목록이 뒤로 밀린다. 띠 면이 이미 위계를 만들므로 글자를 키우지
+             않는다(키우면 띠가 두꺼워져 할 일이 덜 보인다).
+             **색은 띠 위의 흰 글자 하나뿐이고 네이티브가 칠하지 않는다**(흰 글자 / primary 면
+             대비 5.41. design 6.3.2 (2)의 전수 표) — 칠하는 자리가 없어야 reapply 함정이 걸리지
+             않는다. 가로 10dp는 띠가 가졌으므로 여기에 paddingStart를 두지 않는다(글자의 x가
+             옛 10dp와 같다).
              **android:text의 기본값을 둔다**: 캐시가 아예 없을 때·옛 캐시일 때·위젯 선택기
              미리보기에서도 왼쪽 위에 `할 일`이 보여야 하고, 그 자리들은 캐시가 쓰이지 않는다. -->
         <TextView
@@ -45,15 +60,16 @@
             android:layout_height="wrap_content"
             android:includeFontPadding="false"
             android:maxLines="1"
-            android:paddingStart="2dp"
             android:text="@string/todo_widget_header"
-            android:textColor="@color/widget_primary_deep"
+            android:textColor="@color/widget_surface"
             android:textSize="13sp"
             android:textStyle="bold" />
 
-        <!-- 기준 시각·낡음·실패 안내. 아래에서 **이사만 왔고 id는 그대로다** — 네이티브의
-             showNote가 자리만 바뀐 채 동작하고 옛 캐시 호환도 이 id 유지에 기댄다.
-             오른쪽 정렬이라 헤더와 붙지 않고, 좁아지면 꼬리부터 잘린다(문구가 사실로 시작한다). -->
+        <!-- 기준 시각·낡음·실패 안내. **id는 그대로다** — 네이티브의 showNote가 그 id로 동작하고
+             옛 캐시 호환도 여기에 기댄다.
+             오른쪽 정렬이라 헤더와 붙지 않고, 좁아지면 꼬리부터 잘린다(문구가 사실로 시작한다).
+             **색 분기가 글자에서 띠 면으로 옮겨 갔다**(design 6.4.1): 띠 위에서는 언제나 흰
+             글자이고, 실패는 widget_band_danger가 말한다. 그래서 네이티브는 이 색을 칠하지 않는다. -->
         <TextView
             android:id="@+id/widget_note"
             android:layout_width="0dp"
@@ -64,8 +80,7 @@
             android:includeFontPadding="false"
             android:maxLines="1"
             android:paddingStart="6dp"
-            android:paddingEnd="2dp"
-            android:textColor="@color/widget_ink_muted"
+            android:textColor="@color/widget_surface"
             android:textSize="11sp"
             android:visibility="gone" />
     </LinearLayout>
@@ -512,7 +527,7 @@
                 android:id="@+id/widget_more"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingStart="2dp"
+                android:paddingStart="10dp"
                 android:paddingTop="2dp"
                 android:textColor="@color/widget_ink_muted"
                 android:textSize="12sp"
@@ -526,6 +541,8 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center"
+            android:paddingLeft="8dp"
+            android:paddingRight="8dp"
             android:textColor="@color/widget_ink_muted"
             android:textSize="12sp"
             android:visibility="gone" />

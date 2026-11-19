@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 머리 줄의 띠(체크 실패). widget_band.xml과 **면 색만** 다르고 모서리 값은 반드시 같다
+     (다르면 실패 상태에서만 모서리가 달라진다. design 9.3).
+     실패를 글자색이 아니라 띠 면으로 말한다 — 흰 글자 / danger 면의 대비가 5.19로 통과하고,
+     note가 잘려도 색 면이 실패를 먼저 말한다(design 6.4.1 ①′).
+     붉은 띠가 뜨는 상태는 체크 실패 하나다(조회 실패·낡음은 톤이 muted라 띠가 파란 채다).
+     색은 res/values/widget_resources.xml(생성 파일)에서 온다. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_danger" />
+    <corners
+        android:topLeftRadius="16dp"
+        android:topRightRadius="16dp"
+        android:bottomLeftRadius="0dp"
+        android:bottomRightRadius="0dp" />
+</shape>

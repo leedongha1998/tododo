@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 머리 줄의 띠(평소). 2026-11-19 시안 C: 위젯이 "이 앱"을 말하는 유일한 자리라 면으로 쓰는
+     브랜드색 primary를 쓴다(글자용 primary_deep이 아니다. design 6.4.1 ①).
+     위 모서리 16dp는 **판(widget_frame)의 모서리와 같은 값이어야 한다** — LinearLayout은 자식을
+     배경의 둥근 모양으로 깎아 주지 않으므로 더 작으면 띠가 판 모서리 밖으로 삐져나온다
+     (design 6.1.3 (1)). 아래 모서리는 0이다(띠 아래는 바로 할 일 목록이다).
+     색은 res/values/widget_resources.xml(생성 파일)에서 온다. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_primary" />
+    <corners
+        android:topLeftRadius="16dp"
+        android:topRightRadius="16dp"
+        android:bottomLeftRadius="0dp"
+        android:bottomRightRadius="0dp" />
+</shape>

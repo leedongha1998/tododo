@@ -34,6 +34,8 @@ import org.json.JSONObject
  * 그 여섯 외의 규칙을 이 파일에 더하지 말 것, 특히 **문장을 만들지 말 것** — 네이티브는
  * 테스트하지 않으므로 판단이 늘어나면 검증되지 않는 코드가 늘어난다(design 원칙 2).
  * 머리 줄의 개수(`할 일 2/5`)도 **완성된 문장**으로 실려 오므로 여기서 숫자를 세지 않는다.
+ * 머리 띠의 면(평소 primary / 체크 실패 danger)도 **새 판단이 아니다** — showNote가 쓰던 그
+ * 톤 비교(`isDanger()`)를 그대로 쓰고, 색 신호가 글자에서 면으로 옮겨 갔을 뿐이다(design 6.4.1).
  *
  * 주기 갱신(30분, res/xml/todo_widget_info.xml)이 하는 일도 "캐시를 다시 읽어 그리기"뿐이다.
  * 서버를 부르지 않고 Dart를 깨우지 않는다.
@@ -86,6 +88,15 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     // 값이 남는다(`reapply`, showRow의 주석 참고) — 로그아웃 캐시에서 가운데가 `로그인이
     // 필요해요`인데 머리 줄만 **직전 사용자의 `할 일 2/5`**로 남는 사고가 난다.
     showHeader(context, views, payload)
+    // **띠 면도 같은 이유로 어떤 갈래에서든, payload == null로 일찍 돌아가기 전에 칠한다.**
+    // 한쪽만 칠하면 체크 실패로 붉어진 띠가 그 뒤 성공 갈래에서도 붉게 남고(`reapply`), 캐시를
+    // 못 읽는 갈래로 떨어질 때는 `앱을 한 번 열어 주세요` 위에 실패 색 띠가 뜬다(design 6.3.2 (1)).
+    // 쓰는 비교는 showNote가 쓰던 isDanger() 그대로다 — 새 판단이 아니다.
+    views.setInt(
+        R.id.widget_header_row,
+        "setBackgroundResource",
+        if (payload?.isDanger() == true) R.drawable.widget_band_danger else R.drawable.widget_band,
+    )
 
     if (payload == null) {
       // 캐시가 아직 없거나(설치 직후) 판 번호를 모를 때. 빈 사각형을 보여 주지 않는다.
@@ -109,7 +120,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
               rowCountFor(appWidgetManager.getAppWidgetOptions(appWidgetId)),
           )
     }
-    val note = showNote(context, views, payload)
+    val note = showNote(views, payload)
 
     // 마지막 방어선: 그릴 것이 하나도 없으면 반드시 대체 문구로 떨어진다(design 6.3). 어떤
     // 캐시를 읽어도 빈 사각형이 홈 화면에 남지 않게 한다.
@@ -378,8 +389,14 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     )
   }
 
-  /** note를 그렸는지 돌려준다. */
-  private fun showNote(context: Context, views: RemoteViews, payload: JSONObject): Boolean {
+  /**
+   * note를 그렸는지 돌려준다.
+   *
+   * **색을 칠하지 않는다**(2026-11-19 시안 C): note는 띠 위의 흰 글자 하나뿐이고, 실패·낡음의
+   * 색 신호는 글자에서 **띠 면**으로 옮겨 갔다(render 맨 앞의 widget_band_danger. design 6.3.2 (2)).
+   * 그래서 이 함수는 보이기/숨기기와 글자 넣기만 한다 — 칠하지 않으므로 reapply 함정도 없다.
+   */
+  private fun showNote(views: RemoteViews, payload: JSONObject): Boolean {
     val note = payload.text("note")
     if (note.isEmpty()) {
       views.setViewVisibility(R.id.widget_note, View.GONE)
@@ -387,8 +404,6 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     }
     views.setViewVisibility(R.id.widget_note, View.VISIBLE)
     views.setTextViewText(R.id.widget_note, note)
-    val color = if (payload.isDanger()) R.color.widget_danger else R.color.widget_ink_muted
-    views.setTextColor(R.id.widget_note, context.getColor(color))
     return true
   }
 

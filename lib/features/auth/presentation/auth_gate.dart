@@ -94,8 +94,26 @@ class _AuthGateState extends ConsumerState<AuthGate> {
       }
       // **`setDone` 앞에서** 적어 둔다. 그 뒤 `invalidate`가 일으키는 발행이 "방금 누른 줄"을
       // 알게 하는 유일한 길이다(이 자리만 id를 안다. design 7.2 (1)).
-      ref.read(todoWidgetServiceProvider).markJustChecked(todoId);
+      final widgetService = ref.read(todoWidgetServiceProvider);
+      widgetService.markJustChecked(todoId);
       await ref.read(todoRepositoryProvider).setDone(todoId, done);
+      // **결말을 여기서 끝낸다**(design 4.7 (2)의 경로 A). 서버 쓰기가 끝났으므로 목록을 다시
+      // 받지 않고 앱이 이미 든 목록에서 그 한 줄만 바꿔 발행한다 — 체크 한 번의 왕복이 둘에서
+      // 하나로 준다. 아래 `invalidate`가 일으키는 발행은 이제 결말이 아니라 **보정**이다.
+      //
+      // 목록을 아직 한 번도 못 받아왔으면 **건너뛴다**(그때는 지금까지의 경로 그대로 `invalidate`가
+      // 발행한다). `AsyncError`도 직전 값을 들고 있으므로 `value`를 그대로 쓴다 — 조회가 실패한
+      // 뒤의 그 목록은 위젯이 지금 보여 주고 있는 것과 같은 나이다(riverpod 3에 `valueOrNull`은
+      // 없다).
+      final todos = ref.read(todosProvider).value;
+      if (todos != null) {
+        await widgetService.publishChecked(
+          todos,
+          todoId: todoId,
+          done: done,
+          now: DateTime.now(),
+        );
+      }
       ref.invalidate(todosProvider);
       reply.send(todoWidgetCheckOk);
     } catch (error) {

@@ -95,6 +95,34 @@ class TodoWidgetService {
     );
   }
 
+  /// 위젯에서 누른 체크의 **결말**을 그 자리에서 발행한다(design 4.7 (2)의 경로 A).
+  ///
+  /// 서버 쓰기가 **끝난 뒤**에만 불린다 — 거짓 성공이 아니다. 목록을 다시 받지 않고 앱이 이미
+  /// 들고 있는 [todos]에서 그 한 줄만 바꿔 캐시를 만든다. 그래서 체크 한 번의 네트워크 왕복이
+  /// 둘에서 하나로 준다(K).
+  ///
+  /// 두 가지를 일부러 하지 않는다:
+  /// - **[markJustChecked]로 적어 둔 기억을 소비하지 않는다.** 그것은 뒤따르는 `invalidate` →
+  ///   `MainShell` 발행(= 보정)이 써야 한다. 여기서 소비하면 1~2초 뒤 **방금 누른 줄이 사라진다.**
+  ///   대신 [todoId]를 직접 넘겨 이 발행에도 같은 예외를 준다.
+  /// - **기준 시각을 앞당기지 않는다.** 직전 발행의 `updatedAtMs`를 그대로 물려준다 — 체크는
+  ///   목록을 새로 받아온 것이 아니다.
+  Future<void> publishChecked(
+    List<Todo> todos, {
+    required String todoId,
+    required bool done,
+    required DateTime now,
+  }) {
+    return publish(
+      TodoWidgetPayload.fromTodos(
+        todosWithDone(todos, todoId, done),
+        now: now,
+        justCheckedId: todoId,
+        basisAt: _lastPublished?.updatedAtMs,
+      ),
+    );
+  }
+
   String? _consumeJustChecked(DateTime now) {
     final id = _justCheckedId;
     final at = _justCheckedAt;

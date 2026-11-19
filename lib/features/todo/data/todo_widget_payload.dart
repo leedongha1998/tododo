@@ -175,6 +175,8 @@ class TodoWidgetPayload {
     required this.totalCount,
     required this.updatedAtMs,
     this.header = AppStrings.widgetHeader,
+    this.headerAfterCheck,
+    this.headerAfterUncheck,
     this.centerText,
     this.note = '',
     this.noteTone = TodoWidgetNoteTone.muted,
@@ -204,6 +206,19 @@ class TodoWidgetPayload {
   /// 손에 없거나 숫자가 전부 0이라 `0/0`은 허전한 거짓이 된다(design 2.3.1).
   final String header;
 
+  /// **이 캐시에서 아무 줄이나 하나를 완료로 바꿨을 때의 머리 줄 문장**(`할 일 3/5`).
+  ///
+  /// 탭 한 번은 완료 개수를 **정확히 +1** 하므로 줄마다 다른 문장이 필요하지 않다 — **문장 하나로
+  /// 모든 줄의 체크를 덮는다**(design 2.2.3). 네이티브는 낙관 그림을 그리는 동안 이 문장을
+  /// **고르기만** 하고, 없으면 머리 줄을 그대로 둔다(개수가 1~4초 늦게 맞는다). 숫자를 세거나
+  /// 분수를 조립하는 일은 여전히 네이티브에 없다(원칙 2).
+  ///
+  /// 더 완료할 것이 없으면(전부 완료) null이다 — `할 일 6/5`는 거짓이다.
+  final String? headerAfterCheck;
+
+  /// 같은 꼴의 **−1** 문장(`할 일 1/5`). 완료가 0이면 null이다(되돌릴 줄이 없다).
+  final String? headerAfterUncheck;
+
   /// 이 페이로드의 **기준 시각**(= 목록을 받아온 시각). note의 시각 문장과 뜻이 같아야 하므로,
   /// 목록을 그대로 물려받는 발행([fetchFailed]·[checkFailed]·[pending])은 이 값도 물려받는다.
   final int updatedAtMs;
@@ -226,6 +241,13 @@ class TodoWidgetPayload {
   /// 네이티브가 하는 유일한 문자열 조립. 숫자 하나를 끼운다.
   static const moreFormat = AppStrings.widgetMoreFormat;
 
+  /// 네이티브가 **자국이 지난 줄을 되돌릴 때** 머리 줄에 적는 한 줄(design 2.2.3, 조건 ①).
+  ///
+  /// `checkFailed`의 note와 **같은 문구**다 — 되돌림과 그 이유가 한 화면에 보여야 하고, 그 말을
+  /// 할 수 있는 자리가 Dart일 때도 네이티브일 때도 같은 문장이어야 하기 때문이다. 네이티브는
+  /// 고르기만 하고 문구의 출처는 여전히 `AppStrings` 하나다.
+  static const failNote = AppStrings.widgetCheckFailed;
+
   bool get hasItems => items.isNotEmpty;
 
   /// 상태 3 — 정상 / 상태 3b — 미완료가 없음(전부 완료) / 상태 6 — 할 일이 하나도 없음.
@@ -243,12 +265,21 @@ class TodoWidgetPayload {
   /// 2 F). 그 줄이 밀려 사라지면 "체크하면 사라진다"로 되돌아가 이번 요구가 무의미해진다. 그래서
   /// `rank 0`을 주고(어떤 줄 자리 수에서도 보이려면 0이어야 한다) 캐시 상한 안에 반드시 담는다.
   /// **그 항목이 목록에 있고 완료 상태일 때만** 쓴다 — 되돌린 줄은 미완료가 되어 어차피 앞 순위다.
+  /// [basisAt]은 **목록의 나이**다(epoch 밀리초). 주지 않으면 [now]다.
+  ///
+  /// 위젯 체크의 결말을 만들 때 쓴다(design 4.7 (2)): 체크는 목록을 **새로 받아온 것이 아니므로**
+  /// `updatedAtMs`와 `… 기준` 문장이 직전 발행의 값 그대로여야 한다. 재조회를 없앴으면
+  /// "지금 받아왔다"고 말하지 않는다 — 이것이 K가 치르는 정직성의 값이다.
+  ///
+  /// 기한 문장(`formatWidgetDue`)은 **[now]로 만든다.** 그것은 "오늘인가"를 가르는 기기 시계이지
+  /// 목록의 나이가 아니다.
   factory TodoWidgetPayload.fromTodos(
     List<Todo> todos, {
     required DateTime now,
     String? justCheckedId,
+    int? basisAt,
   }) {
-    final at = now.millisecondsSinceEpoch;
+    final at = basisAt ?? now.millisecondsSinceEpoch;
     if (todos.isEmpty) {
       return TodoWidgetPayload(
         items: const [],
@@ -286,10 +317,26 @@ class TodoWidgetPayload {
       totalCount: undone.length,
       updatedAtMs: at,
       header: header,
+      // 탭 한 번은 완료 개수를 정확히 ∓1 한다. 그래서 문장 **둘**이면 모든 줄의 탭을 덮는다
+      // (design 2.2.3). 더 체크할 것이 없거나 되돌릴 것이 없으면 그쪽을 싣지 않는다.
+      headerAfterCheck: undone.isEmpty
+          ? null
+          : AppStrings.widgetHeaderCount(
+              done: done.length + 1,
+              total: todos.length,
+            ),
+      headerAfterUncheck: done.isEmpty
+          ? null
+          : AppStrings.widgetHeaderCount(
+              done: done.length - 1,
+              total: todos.length,
+            ),
       // 전부 완료면 그 사실을 note로 말한다(문구는 그대로 재사용하고 자리만 옮겼다).
       note: undone.isEmpty
           ? AppStrings.widgetAllDone
-          : AppStrings.widgetNoteFresh(formatWidgetTime(now)),
+          : AppStrings.widgetNoteFresh(
+              formatWidgetTime(DateTime.fromMillisecondsSinceEpoch(at)),
+            ),
     );
   }
 
@@ -335,6 +382,9 @@ class TodoWidgetPayload {
       updatedAtMs: previous.updatedAtMs,
       // 개수도 **같은 시점의 값**이어야 화면과 어긋나지 않는다(새로 셀 목록이 손에 없다).
       header: previous.header,
+      // 줄이 그대로 보이는 상태이므로 그 줄을 누를 수 있다 → 대체 문장도 그대로 물려받는다.
+      headerAfterCheck: previous.headerAfterCheck,
+      headerAfterUncheck: previous.headerAfterUncheck,
       note: AppStrings.widgetNoteStale(formatWidgetTime(at)),
     );
   }
@@ -363,6 +413,8 @@ class TodoWidgetPayload {
       updatedAtMs: previous.updatedAtMs,
       // 서버 반영에 실패한 체크를 성공으로 센 숫자를 적지 않는다 — 직전 값을 그대로 쓴다.
       header: previous.header,
+      headerAfterCheck: previous.headerAfterCheck,
+      headerAfterUncheck: previous.headerAfterUncheck,
       note: AppStrings.widgetCheckFailed,
       noteTone: TodoWidgetNoteTone.danger,
       tapTarget: previous.tapTarget,
@@ -389,6 +441,100 @@ class TodoWidgetPayload {
     );
   }
 
+  /// 서버 쓰기가 **끝난 뒤**, 목록을 다시 받지 않고 **그 체크만큼만** 고친 캐시를 만든다
+  /// (design 4.7 (2)의 경로 B = 앱이 죽어 있을 때).
+  ///
+  /// **낙관적 반영(L)과 혼동하지 말 것.** 이 함수는 서버 쓰기가 끝난 뒤에만 불리므로 **거짓 성공
+  /// 위험이 없다.** 낙관 그림은 네이티브가 탭 순간에 그리는 것이고(캐시를 고치지 않는다) 이쪽은
+  /// 결말이다.
+  ///
+  /// 고치는 것은 표 그대로다:
+  /// - 그 항목의 `done`을 **목표 값**으로. 완료가 되면 **기한 키 셋이 빠진다**(완료 줄에는 기한을
+  ///   싣지 않는다는 규칙을 Dart가 캐시에서 끝낸다). 되돌릴 때 기한을 되살릴 재료는 캐시에 없다 —
+  ///   **받아들이는 한계**이고 1~2초 뒤 보정 발행이 돌려준다.
+  /// - `totalCount`(미완료 전체)를 완료면 −1, 되돌리기면 +1. **보이는 미완료도 같이 하나 줄므로
+  ///   `그 외 N개`는 그대로다** — 이것이 "그 체크만큼만"의 핵심이다.
+  /// - 머리 줄은 [headerAfterCheck]/[headerAfterUncheck]를 **고르기만** 한다(없으면 직전 그대로).
+  /// - `rank`를 2.2.2의 규칙으로 다시 매긴다(방금 누른 줄이 완료면 rank 0 → 반드시 보인다).
+  /// - **배열 순서는 손대지 않는다**(그리는 순서 = position. 체크한 줄이 제자리에 남는 근거다).
+  /// - `updatedAtMs`는 직전 값 그대로. 체크가 목록을 새것으로 만들지 않는다.
+  /// - 탭 자국은 **싣지 않는다**(결말이 자국을 걷는다 — 이 객체에 그 필드가 없는 것이 그 보장이다).
+  ///
+  /// 지름길이 성립하지 않으면 **null**을 준다(캐시 없음·줄 없는 안내 화면·목록에 없는 id·이미
+  /// 목표 값). 그때는 부르는 쪽이 느린 길(목록 재조회)로 되돌아간다.
+  static TodoWidgetPayload? applyCheck(
+    TodoWidgetPayload? cached, {
+    required String todoId,
+    required bool done,
+  }) {
+    if (cached == null || !cached.hasItems) return null;
+    final target = cached.items.where((item) => item.id == todoId).firstOrNull;
+    if (target == null || target.done == done) return null;
+
+    // 완료가 되는 줄에서는 기한 키 셋이 빠진다. 되돌아가는 줄에는 애초에 기한 키가 없었다.
+    final changed = TodoWidgetItem(
+      id: target.id,
+      title: target.title,
+      rank: target.rank,
+      done: done,
+    );
+    final items = [
+      for (final item in cached.items) item.id == todoId ? changed : item,
+    ];
+
+    final ranks = <String, int>{};
+    if (done) ranks[todoId] = ranks.length;
+    for (final item in items) {
+      if (!item.done) ranks.putIfAbsent(item.id, () => ranks.length);
+    }
+    for (final item in items) {
+      ranks.putIfAbsent(item.id, () => ranks.length);
+    }
+
+    final totalCount = done ? cached.totalCount - 1 : cached.totalCount + 1;
+    final basisAt = DateTime.fromMillisecondsSinceEpoch(cached.updatedAtMs);
+    return TodoWidgetPayload(
+      items: [
+        for (final item in items)
+          TodoWidgetItem(
+            id: item.id,
+            title: item.title,
+            rank: ranks[item.id] ?? item.rank,
+            done: item.done,
+            due: item.due,
+            dueOver: item.dueOver,
+            dueAtMs: item.dueAtMs,
+          ),
+      ],
+      totalCount: totalCount < 0 ? 0 : totalCount,
+      updatedAtMs: cached.updatedAtMs,
+      header: (done ? cached.headerAfterCheck : cached.headerAfterUncheck) ??
+          cached.header,
+      // 대체 문장은 셀 목록이 손에 없어 다시 만들 수 없다. 싣지 않으면 네이티브가 머리 줄을
+      // 그대로 두므로(2.2.3) 거짓이 생기지 않고, 1~2초 뒤 보정 발행이 채워 준다.
+      note: _noteAfterCheck(cached, totalCount, basisAt),
+      tapTarget: cached.tapTarget,
+    );
+  }
+
+  /// 체크가 성공한 뒤의 note. 상태 3 ↔ 3b 전이와 "앞선 실패가 지워진다"를 이 경로에서도 지킨다.
+  ///
+  /// `못 불러왔어요 · … 기준`은 **그대로 남긴다** — 체크가 성공했다고 목록이 새것이 되지는 않는다.
+  /// 반대로 직전이 `danger`(= 앞선 체크 실패)였으면 그 문장을 **지운다**: 성공한 화면에 `체크하지
+  /// 못했어요`를 색만 내려 남겨 두면 그것이 더 나쁜 거짓말이다(design 4.7 (2)의 근거 그대로).
+  static String _noteAfterCheck(
+    TodoWidgetPayload cached,
+    int totalCount,
+    DateTime basisAt,
+  ) {
+    if (totalCount <= 0) return AppStrings.widgetAllDone;
+    if (cached.note == AppStrings.widgetAllDone ||
+        cached.noteTone == TodoWidgetNoteTone.danger) {
+      return AppStrings.widgetNoteFresh(formatWidgetTime(basisAt));
+    }
+    return cached.note;
+  }
+
   /// **null인 키는 아예 넣지 않는다.** 안드로이드(AOSP)의 `org.json`은 upstream과 달라
   /// `optString(name, fallback)`이 **명시적 null에는 fallback이 아니라 `"null"` 네 글자**를
   /// 돌려준다(fallback은 키가 아예 없을 때만 쓰인다). 그래서 `centerText: null`을 그대로 실으면
@@ -397,6 +543,8 @@ class TodoWidgetPayload {
   Map<String, dynamic> toJson() => {
         'v': todoWidgetSchemaVersion,
         'header': header,
+        if (headerAfterCheck != null) 'headerAfterCheck': headerAfterCheck,
+        if (headerAfterUncheck != null) 'headerAfterUncheck': headerAfterUncheck,
         'items': items.map((item) => item.toJson()).toList(),
         'totalCount': totalCount,
         if (centerText != null) 'centerText': centerText,
@@ -406,6 +554,7 @@ class TodoWidgetPayload {
         // 따로 갖지 않게 하기 위함이다(문구의 출처는 언제나 AppStrings 하나다).
         'moreFormat': moreFormat,
         'pendingLabel': AppStrings.widgetPendingLabel,
+        'failNote': failNote,
         if (pendingId != null) 'pendingId': pendingId,
         if (pendingAtMs != null) 'pendingAtMs': pendingAtMs,
         'tapTarget': tapTarget.name,
@@ -443,6 +592,8 @@ class TodoWidgetPayload {
     final centerText = json['centerText'];
     final note = json['note'];
     final header = json['header'];
+    final headerAfterCheck = json['headerAfterCheck'];
+    final headerAfterUncheck = json['headerAfterUncheck'];
     final pendingId = json['pendingId'];
     final pendingAtMs = json['pendingAtMs'];
     return TodoWidgetPayload(
@@ -454,6 +605,13 @@ class TodoWidgetPayload {
       header: header is String && header.isNotEmpty
           ? header
           : AppStrings.widgetHeader,
+      headerAfterCheck: headerAfterCheck is String && headerAfterCheck.isNotEmpty
+          ? headerAfterCheck
+          : null,
+      headerAfterUncheck:
+          headerAfterUncheck is String && headerAfterUncheck.isNotEmpty
+          ? headerAfterUncheck
+          : null,
       centerText: centerText is String ? centerText : null,
       note: note is String ? note : '',
       noteTone: json['noteTone'] == TodoWidgetNoteTone.danger.name
@@ -548,6 +706,28 @@ class TodoWidgetPayload {
         ? trimmed
         : trimmed.substring(0, todoWidgetMaxTitleLength);
   }
+}
+
+/// [todos] 중 [id] 하나의 완료 여부만 [done]으로 바꾼 **새 목록**을 돌려준다(순서·나머지 필드는
+/// 그대로). 없는 id면 들어온 목록과 같다.
+///
+/// 위젯 체크의 결말을 **목록을 다시 받지 않고** 만들기 위한 것이다(design 4.7 (2)의 경로 A):
+/// 앱이 이미 들고 있는 목록에서 그 한 줄만 바꿔 `fromTodos`에 넣는다. `Todo`에 `copyWith`를
+/// 만들지 않는 이유는 위젯 때문에 모델을 건드리지 않기 위해서다.
+List<Todo> todosWithDone(List<Todo> todos, String id, bool done) {
+  return [
+    for (final todo in todos)
+      if (todo.id == id)
+        Todo(
+          id: todo.id,
+          title: todo.title,
+          isDone: done,
+          createdAt: todo.createdAt,
+          dueAt: todo.dueAt,
+        )
+      else
+        todo,
+  ];
 }
 
 /// 자리가 [rowCount]줄일 때 **어느 항목을 그리고 "그 외 N개"는 몇인가.**

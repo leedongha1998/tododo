@@ -1258,6 +1258,411 @@ void main() {
       expect(failed.updatedAtMs, previous.updatedAtMs);
     });
   });
+
+  // 2026-11-19(추가 범위 3 K): 체크의 결말을 **목록을 다시 받지 않고** 만든다. 서버 쓰기가 끝난
+  // 뒤에만 불리므로 거짓 성공이 아니고(낙관 반영과 다른 자리다), 거는 조건은 하나다 —
+  // **보이는 것이 "그 체크만큼만" 바뀐다.**
+  group('applyCheck', () {
+    TodoWidgetPayload cacheOf(List<Todo> todos, {String? justCheckedId}) =>
+        TodoWidgetPayload.fromTodos(
+          todos,
+          now: now,
+          justCheckedId: justCheckedId,
+        );
+
+    test('그 항목만 완료가 되고 배열 순서는 그대로다', () {
+      final cached = cacheOf([
+        _todo('1', '장보기'),
+        _todo('2', '운동하기'),
+        _todo('3', '책 반납'),
+      ]);
+
+      final next = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '2',
+        done: true,
+      )!;
+
+      // 그리는 순서(= position)가 바뀌면 체크한 줄이 목록 맨 아래로 뛰어내린다.
+      expect(next.items.map((item) => item.id), ['1', '2', '3']);
+      expect(next.items.map((item) => item.done), [false, true, false]);
+      expect(next.items.map((item) => item.title), ['장보기', '운동하기', '책 반납']);
+    });
+
+    test('되돌리면 그 반대다', () {
+      final cached = cacheOf([
+        _todo('1', '장보기'),
+        _todo('2', '운동하기', isDone: true),
+      ]);
+
+      final next = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '2',
+        done: false,
+      )!;
+
+      expect(next.items.map((item) => item.id), ['1', '2']);
+      expect(next.items.map((item) => item.done), [false, false]);
+    });
+
+    test('totalCount가 ∓1 되고 그 외 N개는 그대로다', () {
+      final cached = cacheOf([
+        for (var i = 0; i < 10; i++) _todo('$i', '할 일 $i'),
+      ]);
+      final before = visibleRows(cached.items, cached.totalCount, 3);
+
+      final next = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '0',
+        done: true,
+      )!;
+      final after = visibleRows(next.items, next.totalCount, 3);
+
+      expect(cached.totalCount, 10);
+      expect(next.totalCount, 9);
+      // 보이는 미완료도 하나 줄기 때문에 `그 외 N개`는 움직이지 않는다 — 이것이 "그 체크만큼만"의
+      // 핵심이다(헤더·다른 줄·그 외 N개가 그 체크와 어긋나게 바뀌면 안 된다).
+      expect(after.moreCount, before.moreCount);
+
+      final back = TodoWidgetPayload.applyCheck(
+        next,
+        todoId: '0',
+        done: false,
+      )!;
+      expect(back.totalCount, 10);
+    });
+
+    test('머리 줄은 미리 만들어 둔 대체 문장을 고르기만 한다', () {
+      final cached = cacheOf([
+        _todo('1', '장보기'),
+        _todo('2', '운동하기', isDone: true),
+        _todo('3', '책 반납'),
+      ]);
+
+      expect(cached.header, AppStrings.widgetHeaderCount(done: 1, total: 3));
+
+      final checked = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '1',
+        done: true,
+      )!;
+      final unchecked = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '2',
+        done: false,
+      )!;
+
+      expect(checked.header, cached.headerAfterCheck);
+      expect(checked.header, AppStrings.widgetHeaderCount(done: 2, total: 3));
+      expect(unchecked.header, cached.headerAfterUncheck);
+      expect(unchecked.header, AppStrings.widgetHeaderCount(done: 0, total: 3));
+    });
+
+    test('대체 문장이 없으면 직전 머리 줄을 그대로 둔다', () {
+      // 옛 캐시(대체 문장을 모르는 판)를 흉내 낸다. 개수가 1~2초 늦게 맞을 뿐 거짓이 아니다.
+      const cached = TodoWidgetPayload(
+        items: [TodoWidgetItem(id: '1', title: '장보기', rank: 0)],
+        totalCount: 1,
+        updatedAtMs: 100,
+        header: '할 일 0/1',
+      );
+
+      final next = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '1',
+        done: true,
+      )!;
+
+      expect(next.header, '할 일 0/1');
+    });
+
+    test('rank를 다시 매기고 방금 누른 완료 줄이 0을 받는다', () {
+      final cached = cacheOf([
+        _todo('1', '장보기'),
+        _todo('2', '운동하기'),
+        _todo('3', '책 반납'),
+      ]);
+
+      final next = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '2',
+        done: true,
+      )!;
+
+      // 방금 누른 줄은 어떤 줄 자리 수에서도 보여야 하므로 0이다(design 2.2.2).
+      expect(next.items.firstWhere((item) => item.id == '2').rank, 0);
+      expect(next.items.firstWhere((item) => item.id == '1').rank, 1);
+      expect(next.items.firstWhere((item) => item.id == '3').rank, 2);
+      // 한 줄짜리 위젯에서도 그 줄이 보인다.
+      expect(visibleRows(next.items, next.totalCount, 1).rows.single.id, '2');
+    });
+
+    test('완료가 되면 기한 키 셋이 빠진다', () {
+      final cached = cacheOf([
+        _todo('1', '장보기', dueAt: DateTime.utc(2026, 11, 4, 9)),
+      ]);
+      expect(cached.items.single.dueAtMs, isNotNull);
+
+      final next = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '1',
+        done: true,
+      )!;
+
+      // 완료 줄에는 기한을 보여 주지 않는다 — 그 규칙을 Dart가 캐시에서 끝낸다.
+      final item = next.items.single;
+      expect(item.due, isNull);
+      expect(item.dueOver, isNull);
+      expect(item.dueAtMs, isNull);
+      expect(item.toJson().containsKey('dueAtMs'), isFalse);
+    });
+
+    test('미완료가 0이 되면 다 끝냈다고 말하고 다시 생기면 기준 시각으로 돌아온다', () {
+      final cached = cacheOf([_todo('1', '장보기')]);
+
+      final allDone = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '1',
+        done: true,
+      )!;
+      expect(allDone.note, AppStrings.widgetAllDone);
+
+      final back = TodoWidgetPayload.applyCheck(
+        allDone,
+        todoId: '1',
+        done: false,
+      )!;
+      expect(back.note, AppStrings.widgetNoteFresh(formatWidgetTime(now)));
+    });
+
+    test('앞선 체크 실패는 이번 성공으로 지워진다', () {
+      final failed = TodoWidgetPayload.checkFailed(
+        cacheOf([_todo('1', '장보기'), _todo('2', '운동하기')]),
+        now: now,
+      );
+      expect(failed.noteTone, TodoWidgetNoteTone.danger);
+
+      final next = TodoWidgetPayload.applyCheck(
+        failed,
+        todoId: '1',
+        done: true,
+      )!;
+
+      // 성공한 화면에 `체크하지 못했어요`를 색만 내려 남겨 두면 그것이 더 나쁜 거짓말이다.
+      expect(next.noteTone, TodoWidgetNoteTone.muted);
+      expect(next.note, isNot(AppStrings.widgetCheckFailed));
+      expect(next.note, AppStrings.widgetNoteFresh(formatWidgetTime(now)));
+    });
+
+    test('못 불러왔다는 사실은 그대로 남는다', () {
+      final stale = TodoWidgetPayload.fetchFailed(
+        cacheOf([_todo('1', '장보기'), _todo('2', '운동하기')]),
+        now: now.add(const Duration(hours: 2)),
+      );
+
+      final next = TodoWidgetPayload.applyCheck(
+        stale,
+        todoId: '1',
+        done: true,
+      )!;
+
+      // 체크가 성공했다고 목록이 새것이 되지는 않는다.
+      expect(next.note, stale.note);
+      expect(next.note, AppStrings.widgetNoteStale(formatWidgetTime(now)));
+    });
+
+    test('기준 시각을 앞당기지 않는다', () {
+      final cached = cacheOf([_todo('1', '장보기'), _todo('2', '운동하기')]);
+
+      final next = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '1',
+        done: true,
+      )!;
+
+      // 재조회를 없앴으면 "지금 받아왔다"고 말하지 않는다.
+      expect(next.updatedAtMs, cached.updatedAtMs);
+      expect(next.note, AppStrings.widgetNoteFresh(formatWidgetTime(now)));
+    });
+
+    test('지름길이 성립하지 않으면 null이다(느린 길이 남는다)', () {
+      final cached = cacheOf([_todo('1', '장보기', isDone: true)]);
+
+      // 캐시가 없다.
+      expect(
+        TodoWidgetPayload.applyCheck(null, todoId: '1', done: true),
+        isNull,
+      );
+      // 줄이 없는 안내 화면(로그아웃·할 일 없음)에서 온 탭.
+      expect(
+        TodoWidgetPayload.applyCheck(
+          TodoWidgetPayload.loggedOut(now: now),
+          todoId: '1',
+          done: true,
+        ),
+        isNull,
+      );
+      // 목록에 아예 없는 id.
+      expect(
+        TodoWidgetPayload.applyCheck(cached, todoId: '9', done: true),
+        isNull,
+      );
+      // 이미 목표 값이다.
+      expect(
+        TodoWidgetPayload.applyCheck(cached, todoId: '1', done: true),
+        isNull,
+      );
+    });
+
+    test('캐시를 되읽은 뒤에도 같은 결말을 만든다', () {
+      final cached = TodoWidgetPayload.decode(
+        cacheOf([
+          _todo('11111111-1111-1111-1111-111111111111', '장보기'),
+          _todo('22222222-2222-2222-2222-222222222222', '운동하기'),
+        ]).encode(),
+      );
+
+      final next = TodoWidgetPayload.applyCheck(
+        cached,
+        todoId: '11111111-1111-1111-1111-111111111111',
+        done: true,
+      )!;
+
+      // 백그라운드 isolate가 실제로 쓰는 재료는 **되읽은 캐시**다. 대체 머리 줄이 왕복을
+      // 견디지 못하면 개수가 어긋난다.
+      expect(next.items.first.done, isTrue);
+      expect(next.header, AppStrings.widgetHeaderCount(done: 1, total: 2));
+      expect(next.totalCount, 1);
+    });
+  });
+
+  group('todosWithDone', () {
+    test('그 id만 바뀌고 순서와 나머지 필드는 그대로다', () {
+      final todos = [
+        _todo('1', '장보기', dueAt: DateTime.utc(2026, 11, 4, 9)),
+        _todo('2', '운동하기'),
+      ];
+
+      final next = todosWithDone(todos, '1', true);
+
+      expect(next.map((todo) => todo.id), ['1', '2']);
+      expect(next.map((todo) => todo.isDone), [true, false]);
+      expect(next.first.title, '장보기');
+      expect(next.first.dueAt, todos.first.dueAt);
+      expect(next.first.createdAt, todos.first.createdAt);
+      // 들어온 목록을 제자리에서 고치지 않는다(앱 화면이 들고 있는 목록이다).
+      expect(todos.first.isDone, isFalse);
+    });
+
+    test('없는 id면 목록이 그대로다', () {
+      final todos = [_todo('1', '장보기')];
+
+      final next = todosWithDone(todos, '9', true);
+
+      expect(next.map((todo) => todo.isDone), [false]);
+    });
+  });
+
+  group('기준 시각(basisAt)', () {
+    test('주면 그 시각이 기준이 되고, 주지 않으면 지금이다', () {
+      final todos = [_todo('1', '장보기')];
+      final later = now.add(const Duration(hours: 3));
+      final basis = now.millisecondsSinceEpoch;
+
+      final kept = TodoWidgetPayload.fromTodos(
+        todos,
+        now: later,
+        basisAt: basis,
+      );
+      final fresh = TodoWidgetPayload.fromTodos(todos, now: later);
+
+      // 체크는 목록을 새로 받아온 것이 아니다 — "지금 받아왔다"고 말하지 않는다.
+      expect(kept.updatedAtMs, basis);
+      expect(kept.note, AppStrings.widgetNoteFresh(formatWidgetTime(now)));
+      expect(fresh.updatedAtMs, later.millisecondsSinceEpoch);
+      expect(fresh.note, AppStrings.widgetNoteFresh(formatWidgetTime(later)));
+    });
+
+    test('기한 문장은 기준 시각이 아니라 기기 시계로 만든다', () {
+      final tomorrow = DateTime(2026, 11, 5, 9, 14);
+
+      final payload = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기', dueAt: DateTime(2026, 11, 5, 18).toUtc())],
+        now: tomorrow,
+        basisAt: now.millisecondsSinceEpoch,
+      );
+
+      // "오늘인가"를 가르는 것은 목록의 나이가 아니라 기기 시계다.
+      expect(payload.items.single.due, formatWidgetTime(DateTime(2026, 11, 5, 18)));
+    });
+  });
+
+  group('대체 머리 줄과 실패 한 줄', () {
+    test('줄이 보이는 상태에서만 대체 문장을 싣는다', () {
+      final normal = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기'), _todo('2', '운동하기', isDone: true)],
+        now: now,
+      );
+
+      expect(normal.toJson()['headerAfterCheck'], '할 일 2/2');
+      expect(normal.toJson()['headerAfterUncheck'], '할 일 0/2');
+      // 조회 실패·체크 실패는 목록을 그대로 들고 가므로 그 줄을 누를 수 있다 → 함께 물려받는다.
+      for (final payload in [
+        TodoWidgetPayload.fetchFailed(normal, now: now),
+        TodoWidgetPayload.checkFailed(normal, now: now),
+      ]) {
+        expect(payload.headerAfterCheck, normal.headerAfterCheck);
+        expect(payload.headerAfterUncheck, normal.headerAfterUncheck);
+      }
+      // 줄이 없는 상태에는 셀 목록도 누를 줄도 없다.
+      for (final payload in [
+        TodoWidgetPayload.loggedOut(now: now),
+        TodoWidgetPayload.loading(now: now),
+        TodoWidgetPayload.fromTodos(const [], now: now),
+        TodoWidgetPayload.fetchFailed(null, now: now),
+      ]) {
+        expect(payload.toJson().containsKey('headerAfterCheck'), isFalse);
+        expect(payload.toJson().containsKey('headerAfterUncheck'), isFalse);
+      }
+    });
+
+    test('완료가 0이면 되돌릴 문장이 없고 전부 완료면 체크할 문장이 없다', () {
+      final none = TodoWidgetPayload.fromTodos([_todo('1', '장보기')], now: now);
+      final all = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기', isDone: true)],
+        now: now,
+      );
+
+      expect(none.headerAfterCheck, '할 일 1/1');
+      expect(none.headerAfterUncheck, isNull);
+      // `할 일 2/1`은 거짓이다 — 더 체크할 것이 없으면 말하지 않는다.
+      expect(all.headerAfterCheck, isNull);
+      expect(all.headerAfterUncheck, '할 일 0/1');
+    });
+
+    test('되돌림을 설명할 한 줄은 어떤 상태에도 함께 실린다', () {
+      // 네이티브가 자국이 지난 줄을 되돌릴 때 그 자리에서 고를 수 있어야 한다(조건 ①).
+      for (final payload in [
+        TodoWidgetPayload.fromTodos([_todo('1', '장보기')], now: now),
+        TodoWidgetPayload.loggedOut(now: now),
+        TodoWidgetPayload.loading(now: now),
+      ]) {
+        expect(payload.toJson()['failNote'], AppStrings.widgetCheckFailed);
+      }
+    });
+
+    test('왕복에서 대체 문장이 보존된다', () {
+      final payload = TodoWidgetPayload.fromTodos(
+        [_todo('1', '장보기'), _todo('2', '운동하기', isDone: true)],
+        now: now,
+      );
+
+      final decoded = TodoWidgetPayload.decode(payload.encode())!;
+
+      expect(decoded.headerAfterCheck, payload.headerAfterCheck);
+      expect(decoded.headerAfterUncheck, payload.headerAfterUncheck);
+    });
+  });
 }
 
 Todo _todo(

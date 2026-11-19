@@ -200,6 +200,66 @@ void main() {
       expect(host.saved.last.items.firstWhere((i) => i.id == '1').rank, 1);
     });
   });
+
+  // 2026-11-19(추가 범위 3 K): 위젯에서 누른 체크의 **결말**을 그 자리에서 발행한다. 앱이 이미
+  // 든 목록을 쓰므로 왕복이 하나 준다.
+  group('publishChecked', () {
+    final todos = [_todo('1'), _todo('2')];
+
+    test('그 한 줄만 바꿔 발행하고 방금 누른 줄 예외를 쓴다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+
+      await service.publishChecked(
+        todos,
+        todoId: '1',
+        done: true,
+        now: now,
+      );
+
+      final published = host.saved.last;
+      expect(published.items.map((item) => item.id), ['1', '2']);
+      expect(published.items.map((item) => item.done), [true, false]);
+      // 방금 누른 줄은 어떤 줄 자리 수에서도 보인다.
+      expect(published.items.first.rank, 0);
+      expect(published.totalCount, 1);
+    });
+
+    test('기준 시각을 앞당기지 않는다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+      await service.publishTodos(todos, now: now);
+
+      await service.publishChecked(
+        todos,
+        todoId: '1',
+        done: true,
+        now: now.add(const Duration(hours: 3)),
+      );
+
+      // 체크는 목록을 새로 받아온 것이 아니다 — 직전 발행의 나이를 그대로 물려준다.
+      expect(host.saved.last.updatedAtMs, host.saved.first.updatedAtMs);
+    });
+
+    test('적어 둔 기억을 소비하지 않는다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+
+      service.markJustChecked('1', at: now);
+      await service.publishChecked(
+        todos,
+        todoId: '1',
+        done: true,
+        now: now,
+      );
+      // 뒤따르는 보정 발행(`invalidate` → MainShell)이 그 기억을 써야 한다. 여기서 소비하면
+      // 1~2초 뒤 **방금 누른 줄이 사라진다.**
+      await service.publishTodos(todosWithDone(todos, '1', true), now: now);
+
+      expect(host.saved.last.items.first.id, '1');
+      expect(host.saved.last.items.first.rank, 0);
+    });
+  });
 }
 
 Todo _todo(String id, {bool isDone = false}) {

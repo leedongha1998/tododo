@@ -37,7 +37,16 @@ const todoWidgetCheckLoggedOut = 'loggedOut';
 /// 앱의 답을 기다리는 상한. 넘기면 **직접 쓰지 않고 실패로 끝낸다** — 앱 프로세스가 얼어 있거나
 /// 바쁜 경우이고, 그때 클라이언트를 하나 더 만드는 것이 바로 W5가 피하려는 상황이다.
 /// 안전(design 원칙 5)을 UX보다 앞에 둔다.
-const todoWidgetHandOffTimeout = Duration(seconds: 8);
+///
+/// **2026-11-19에 8초에서 6초로 조였다**(design 4.7 (7)). spec이 8초를 "어떤 경우에도 그 안에 세
+/// 모양 중 하나로 끝난다"는 **사용자에게 보이는 약속**으로 올렸고, 네이티브의 쓸어내기(탭+7초)와
+/// Dart의 포기 시각이 그 안에서 만나야 하기 때문이다 — 둘이 **같은 시각에 같은 결론**(실패)에
+/// 닿게 하려는 것이다. 대가는 "앱이 6~8초 동안 바빠서 답을 못 하는 경우가 실패로 끝난다"인데,
+/// 그 경우는 어차피 사용자에게 끝나지 않는 탭으로 보인다.
+///
+/// **직접 쓰기(`_writeHere`)의 결말까지도 같은 상한을 쓴다.** 보정 재조회는 결말 뒤의 일이라
+/// 이 상한 밖이다.
+const todoWidgetHandOffTimeout = Duration(seconds: 6);
 
 /// 위젯의 체크 칸을 눌렀을 때 `home_widget`이 백그라운드 engine에서 실행한다.
 ///
@@ -81,7 +90,17 @@ Future<void> onTodoWidgetAction(Uri? uri) async {
     if (port != null && decision == TodoWidgetCheckDecision.handOff) {
       await _handOff(port, action, service, cached, now);
     } else {
-      await _writeHere(action, service, now);
+      // 결말까지에만 상한을 건다. 뒤따르는 보정 재조회는 사용자가 이미 결말을 본 뒤의 일이라
+      // 이 상한 밖이고, 실패해도 `checkFailed`로 새지 않는다(아래 `_refreshAfterCheck`).
+      final checked = await _writeHere(
+        action,
+        service,
+        cached,
+        now,
+      ).timeout(todoWidgetHandOffTimeout);
+      if (checked != null) {
+        await _refreshAfterCheck(checked, service, action.todoId!);
+      }
     }
   } catch (error) {
     // 네트워크가 없으면 여기로 온다 → 위젯에 `체크하지 못했어요`가 뜨고 그 할 일은 목록에
@@ -123,10 +142,20 @@ Future<void> _handOff(
   }
 }
 
+/// 결말을 발행한 뒤 **보정 재조회**에 필요한 것만 들고 나온다. null이면 보정할 것이 없다
+/// (로그아웃이었거나, 지름길이 성립하지 않아 이미 서버에서 받은 목록으로 발행했다).
+class _CheckedSession {
+  const _CheckedSession(this.repository, this.userId);
+
+  final TodoRepository repository;
+  final String userId;
+}
+
 /// 앱 프로세스가 죽어 있을 때. 이 isolate에 다른 클라이언트가 없으므로 세션 복구·갱신이 안전하다.
-Future<void> _writeHere(
+Future<_CheckedSession?> _writeHere(
   TodoWidgetAction action,
   TodoWidgetService service,
+  TodoWidgetPayload? cached,
   DateTime now,
 ) async {
   final todoId = action.todoId!;
@@ -135,7 +164,7 @@ Future<void> _writeHere(
   final session = supabase.auth.currentSession;
   if (session == null) {
     await service.publishLoggedOut(now: now);
-    return;
+    return null;
   }
   // `Supabase.initialize`는 저장된 세션을 메모리에 올리기만 하고 **갱신을 기다리지 않는다**
   // (recoverSession이 unawaited다). 그래서 액세스 토큰이 만료된 상태 — 하루에 한 번 앱을 여는
@@ -146,18 +175,64 @@ Future<void> _writeHere(
   final userId = supabase.auth.currentUser?.id;
   if (userId == null) {
     await service.publishLoggedOut(now: now);
-    return;
+    return null;
   }
 
   final repository = TodoRepository(supabase);
   // **목표 값**을 그대로 쓴다(뒤집지 않는다 — 낡은 그림을 누른 탭이 사용자가 본 것과 반대로
   // 쓰이지 않게 하는 장치다. design 4.6 (1)). 되돌리기도 이 한 줄을 지난다.
   await repository.setDone(todoId, action.done);
-  // 어차피 깨어난 기회에 목록을 다시 받아 캐시를 새로 만든다(design 3.1의 5번) — 위젯을 쓰는
-  // 사람은 그래서 자연히 최신 캐시를 갖는다.
+
+  // **결말을 여기서 끝낸다**(design 4.7 (2)의 경로 B). 여기에는 고칠 목록이 없고 캐시만 있으므로
+  // 그 캐시를 **그 체크만큼만** 고쳐 발행한다 — 목록 재조회(왕복 2)가 빠진다. 서버 쓰기가 끝난
+  // 뒤의 일이라 거짓 성공이 아니다(낙관 반영과 다른 자리다).
+  final checked = TodoWidgetPayload.applyCheck(
+    cached,
+    todoId: todoId,
+    done: action.done,
+  );
+  if (checked == null) {
+    // 지름길이 성립하지 않으면(캐시 없음·줄 없는 안내 화면·목록에 없는 id) 느린 길이 남는다.
+    // 이 isolate는 id를 직접 들고 있어 `markJustChecked`를 쓰지 않는다(그 기억은 앱 쪽 서비스의
+    // 것이고, 여기서 적어 두면 같은 isolate 안에서만 유효한 기억이 되어 번거로울 뿐이다).
+    await _publishFromServer(repository, service, userId, todoId);
+    return null;
+  }
+  await service.publish(checked);
+  return _CheckedSession(repository, userId);
+}
+
+/// 결말을 보여 준 **뒤** 서버 값으로 맞추는 보정 발행. 기한 키·다른 기기의 변경·개수를 되돌린다.
+///
+/// **자기 `try`를 갖는다**(design 4.7 (2)). 지금까지는 쓰기와 재조회가 한 `try` 안이라 **쓰기가
+/// 성공한 뒤 재조회가 실패하면 `체크하지 못했어요`가 떴다**(= 서버에는 반영됐는데 실패라고
+/// 말했다). 결말을 재조회에서 떼어 내면서 그 거짓 실패도 함께 사라진다 — 여기의 실패는 발행
+/// 실패와 같은 등급이라 `debugPrint`만 남긴다(design 원칙 4).
+Future<void> _refreshAfterCheck(
+  _CheckedSession checked,
+  TodoWidgetService service,
+  String todoId,
+) async {
+  try {
+    await _publishFromServer(
+      checked.repository,
+      service,
+      checked.userId,
+      todoId,
+    );
+  } catch (error) {
+    debugPrint('todoWidget refresh after check failed: $error');
+  }
+}
+
+/// 목록을 서버에서 받아 캐시를 통째로 새로 만든다.
+Future<void> _publishFromServer(
+  TodoRepository repository,
+  TodoWidgetService service,
+  String userId,
+  String todoId,
+) async {
   final todos = await repository.fetchTodos(userId);
-  // 이 isolate는 id를 직접 들고 있어 `markJustChecked`를 쓰지 않는다(그 기억은 앱 쪽 서비스의
-  // 것이고, 여기서 적어 두면 같은 isolate 안에서만 유효한 기억이 되어 번거로울 뿐이다).
   await service.publish(
     TodoWidgetPayload.fromTodos(
       todos,

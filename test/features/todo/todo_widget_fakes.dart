@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 // ProviderScope의 overrides 타입(`Override`)은 flutter_riverpod.dart가 아니라 misc.dart에 있다.
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -11,7 +12,13 @@ import 'package:todododo/features/todo/domain/todo_providers.dart';
 /// 테스트에서 실제 플러그인을 건드리면 MethodChannel이 없어 던지고, `TodoWidgetService`가 그
 /// 예외를 로그로 삼킨다 — 통과하지만 아무것도 검증되지 않는다(푸시 가짜와 같은 이유).
 class FakeTodoWidgetHost extends TodoWidgetHost {
-  FakeTodoWidgetHost({this.saveError, this.updateError, this.readError, this.stored});
+  FakeTodoWidgetHost({
+    this.saveError,
+    this.updateError,
+    this.readError,
+    this.stored,
+    this.storedMarks,
+  });
 
   /// 캐시 쓰기가 실패하는 상황을 만든다.
   final Object? saveError;
@@ -29,6 +36,12 @@ class FakeTodoWidgetHost extends TodoWidgetHost {
   /// 기기에 남아 있는 캐시. 앱을 다시 켠 상황을 만들 때 생성자로 넣는다.
   TodoWidgetPayload? stored;
 
+  /// 기기에 남아 있는 **탭 자국 레코드**(JSON 문자열). 네이티브가 쓰는 키의 값이고 Dart는
+  /// 읽기만 한다 — 그래서 이 가짜에도 **쓰는 메서드가 없다**(design 1.1의 소유권 표).
+  /// [marksJson]으로 만든다.
+  String? storedMarks;
+  int readMarksCount = 0;
+
   @override
   Future<void> save(TodoWidgetPayload payload) async {
     saved.add(payload);
@@ -43,6 +56,14 @@ class FakeTodoWidgetHost extends TodoWidgetHost {
     final error = readError;
     if (error != null) throw error;
     return stored;
+  }
+
+  @override
+  Future<TodoWidgetTapMarks?> readTapMarks() async {
+    readMarksCount++;
+    final error = readError;
+    if (error != null) throw error;
+    return todoWidgetMarksOf(storedMarks);
   }
 
   /// 체크 칸 탭을 받을 백그라운드 콜백이 등록됐는지. 가짜로 받지 않으면 실제 플러그인에 닿아
@@ -65,4 +86,46 @@ class FakeTodoWidgetHost extends TodoWidgetHost {
 /// 위젯 발행이 플러그인에 닿지 않게 하는 override. 위젯을 검증하지 않는 화면 테스트에도 넣는다.
 List<Override> todoWidgetOverrides({FakeTodoWidgetHost? host}) {
   return [todoWidgetHostProvider.overrideWithValue(host ?? FakeTodoWidgetHost())];
+}
+
+/// **네이티브가 자국 키(`todo_widget_tap_marks`)에 쓰는 레코드**를 흉내 낸다(design 1.2).
+///
+/// Dart에는 그 키를 **쓰는 코드가 없다**(읽기만 한다 — `TodoWidgetHost.readTapMarks`). 그래서
+/// JSON을 손으로 적어 넣는다 — 네이티브가 실제로 쓰는 것과 같은 모양이다. 시각 둘을 주지 않으면
+/// **순수 함수가 계산한 값**이 들어간다(= 네이티브가 쓰는 것과 같은 식).
+String marksJson({
+  required int gen,
+  required int batchAtMs,
+  required int lastAtMs,
+  int? leaveAtMs,
+  int? dueAtMs,
+  required List<Map<String, Object>> marks,
+}) {
+  final leave =
+      leaveAtMs ?? widgetTapLeaveAt(batchAtMs: batchAtMs, lastAtMs: lastAtMs);
+  return jsonEncode({
+    'gen': gen,
+    'batchAtMs': batchAtMs,
+    'lastAtMs': lastAtMs,
+    'leaveAtMs': leave,
+    'dueAtMs': dueAtMs ?? widgetTapDueAt(leave),
+    'marks': marks,
+  });
+}
+
+/// 자국 한 칸. 네이티브가 쓰는 키 이름(`g`·`id`·`done`·`at`·`w`)을 그대로 쓴다.
+Map<String, Object> mark({
+  required int gen,
+  required String id,
+  required bool done,
+  required DateTime at,
+  bool writing = false,
+}) {
+  return {
+    'g': gen,
+    'id': id,
+    'done': done,
+    'at': at.millisecondsSinceEpoch,
+    if (writing) 'w': true,
+  };
 }

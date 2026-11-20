@@ -9,6 +9,7 @@ import '../data/todo_widget_host.dart';
 import '../data/todo_widget_notice_store.dart';
 import 'due_alarm_service.dart';
 import 'todo_widget_service.dart';
+import 'todo_widget_tap_settler.dart';
 
 final todoRepositoryProvider = Provider<TodoRepository>((ref) {
   return TodoRepository(supabase);
@@ -33,6 +34,12 @@ final todoWidgetHostProvider = Provider<TodoWidgetHost>((ref) {
 /// 위젯 캐시 발행. 직전 발행을 기억해야 하므로 앱 수명 동안 하나만 산다.
 final todoWidgetServiceProvider = Provider<TodoWidgetService>((ref) {
   return TodoWidgetService(ref.watch(todoWidgetHostProvider));
+});
+
+/// 위젯에서 누른 체크 **묶음**을 앱의 세션으로 쓰고 결말을 발행하는 조립(design 9장).
+/// 앱 쪽 두 자리(`AuthGate`의 핸드오프, `MainShell`의 앱 열림 계기)가 **같은 규칙**을 지나게 한다.
+final todoWidgetTapSettlerProvider = Provider<TodoWidgetTapSettler>((ref) {
+  return TodoWidgetTapSettler(ref, ref.watch(todoWidgetHostProvider));
 });
 
 /// 홈 화면 노출 안내를 봤는지 기억하는 곳(기기 로컬·계정별). 테스트에서 가짜로 바꾸는 지점이다.

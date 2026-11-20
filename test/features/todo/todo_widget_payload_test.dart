@@ -5,6 +5,8 @@ import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/todo/data/todo.dart';
 import 'package:todododo/features/todo/data/todo_widget_payload.dart';
 
+import 'todo_widget_fakes.dart';
+
 /// 홈 화면 위젯 캐시의 판단 전부를 여기서 고정한다. 위젯은 네이티브가 그리지만 "무엇을 그릴지"는
 /// 이 순수 함수들이 정하므로(design 원칙 2), 위젯 동작의 유일한 자동 검증 지점이다.
 void main() {
@@ -2473,45 +2475,6 @@ TodoWidgetPayload? applyOne(
   );
 }
 
-/// **네이티브가 자국 키(`todo_widget_tap_marks`)에 쓰는 레코드**를 흉내 낸다(design 1.2).
-///
-/// Dart에는 그 키를 **쓰는 코드가 없다**(읽기만 한다 — `TodoWidgetHost.readTapMarks`). 그래서
-/// JSON을 손으로 적어 `todoWidgetMarksOf`에 넣는다 — 네이티브가 실제로 쓰는 것과 같은 모양이다.
-String marksJson({
-  required int gen,
-  required int batchAtMs,
-  required int lastAtMs,
-  int? leaveAtMs,
-  int? dueAtMs,
-  required List<Map<String, Object>> marks,
-}) {
-  final leave = leaveAtMs ?? widgetTapLeaveAt(batchAtMs: batchAtMs, lastAtMs: lastAtMs);
-  return jsonEncode({
-    'gen': gen,
-    'batchAtMs': batchAtMs,
-    'lastAtMs': lastAtMs,
-    'leaveAtMs': leave,
-    'dueAtMs': dueAtMs ?? widgetTapDueAt(leave),
-    'marks': marks,
-  });
-}
-
-/// 자국 한 칸. 네이티브가 쓰는 키 이름(`g`·`id`·`done`·`at`·`w`)을 그대로 쓴다.
-Map<String, Object> mark({
-  required int gen,
-  required String id,
-  required bool done,
-  required DateTime at,
-  bool writing = false,
-}) {
-  return {
-    'g': gen,
-    'id': id,
-    'done': done,
-    'at': at.millisecondsSinceEpoch,
-    if (writing) 'w': true,
-  };
-}
 
 Todo _todo(
   String id,

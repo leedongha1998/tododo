@@ -44,7 +44,11 @@ class _MainShellState extends ConsumerState<MainShell> {
   void initState() {
     super.initState();
     _lifecycle = AppLifecycleListener(
-      onResume: () => ref.invalidate(hasNewNotificationsProvider),
+      onResume: () {
+        ref.invalidate(hasNewNotificationsProvider);
+        // 위젯 묶음의 **떠나는 계기 ④**(앱이 열린다 — home-widget design 6.3).
+        unawaited(ref.read(todoWidgetTapSettlerProvider).settleLapsed());
+      },
     );
     unawaited(_startPush());
     // 이 화면은 세션이 있을 때만 떠 있으므로 여기가 "로그인 직후"다. 기기 캐시를 먼저 되읽어
@@ -53,7 +57,15 @@ class _MainShellState extends ConsumerState<MainShell> {
     unawaited(
       ref
           .read(todoWidgetServiceProvider)
-          .primeFromCache(now: DateTime.now()),
+          .primeFromCache(now: DateTime.now())
+          // **떠나는 계기 ④**(앱이 열린다 — home-widget design 6.3): 떠날 시각이 **이미 지난**
+          // 자국만 그 자리에서 마무리한다. 지나지 않았으면 건드리지 않는다 — 1초 안에 백그라운드
+          // 일꾼이 할 일이고 두 일꾼을 만들지 않는 쪽을 고른다(design 4.4의 11번).
+          //
+          // `primeFromCache` **뒤에** 거는 이유: 그 되읽기가 `settledGen`을 채우므로(앱이 죽어
+          // 있는 동안 백그라운드가 정산한 숫자), 먼저 하면 이미 끝난 묶음을 한 번 더 쓴다.
+          // 실패는 정산기가 `debugPrint`만 남긴다(위젯은 관문이 아니다).
+          .then((_) => ref.read(todoWidgetTapSettlerProvider).settleLapsed()),
     );
     unawaited(_startDueAlarms());
   }

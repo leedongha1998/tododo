@@ -7,10 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/main_shell.dart';
 import '../../../core/widgets/app_loader.dart';
-import '../../todo/data/todo_repository.dart';
 import '../../todo/data/todo_widget_callback.dart';
 import '../../todo/data/todo_widget_payload.dart';
 import '../../todo/domain/todo_providers.dart';
+import '../../todo/domain/todo_widget_tap_settler.dart';
 import '../domain/auth_providers.dart';
 import 'login_screen.dart';
 
@@ -99,83 +99,21 @@ class _AuthGateState extends ConsumerState<AuthGate> {
       targets.add(TodoWidgetCheckTarget(id: id, done: done));
     }
 
-    try {
-      final userId = ref.read(authRepositoryProvider).currentUser?.id;
-      if (userId == null) {
-        // 앱은 떠 있지만 로그인 화면이다. 백그라운드가 캐시를 로그아웃 상태로 덮는다.
-        reply.send(todoWidgetCheckLoggedOut);
-        return;
-      }
-      // **`setDone` 앞에서** 적어 둔다. 그 뒤 `invalidate`가 일으키는 발행이 "방금 누른 줄들"을
-      // 알게 하는 유일한 길이다(이 자리만 id를 안다. design 7.2 (1)).
-      final widgetService = ref.read(todoWidgetServiceProvider);
-      widgetService.markJustChecked([
-        for (final target in targets) target.id,
-      ]);
-      final repository = ref.read(todoRepositoryProvider);
-      // **줄마다 자기 `try`**를 갖는다(design 10.2): 한 줄이 실패해도 나머지는 그대로 쓰이고,
-      // 결말이 줄마다 다르게 그려진다(spec S). `Future.wait`의 `eagerError`를 쓰지 않는 이유가
-      // 그것이다.
-      final results = await Future.wait([
-        for (final target in targets) _writeOne(repository, target),
-      ]);
-      // **결말을 여기서 끝낸다**(design 4.7 (2)의 경로 A). 서버 쓰기가 끝났으므로 목록을 다시
-      // 받지 않고 앱이 이미 든 목록에서 그 한 줄만 바꿔 발행한다 — 체크 한 번의 왕복이 둘에서
-      // 하나로 준다. 아래 `invalidate`가 일으키는 발행은 이제 결말이 아니라 **보정**이다.
-      //
-      // 목록을 아직 한 번도 못 받아왔으면 **건너뛴다**(그때는 지금까지의 경로 그대로 `invalidate`가
-      // 발행한다). `AsyncError`도 직전 값을 들고 있으므로 `value`를 그대로 쓴다 — 조회가 실패한
-      // 뒤의 그 목록은 위젯이 지금 보여 주고 있는 것과 같은 나이다(riverpod 3에 `valueOrNull`은
-      // 없다).
-      final todos = ref.read(todosProvider).value;
-      if (todos != null) {
-        await widgetService.publishSettled(
-          todos,
-          results: results,
-          claimedGen: claimedGen,
-          now: DateTime.now(),
-        );
-      } else {
-        // 발행할 재료가 없어도 **세대는 올린다** — 올리지 않으면 쓰기가 끝난 줄의 낙관 그림이
-        // 되돌림 시각까지 남는다(design 4.2).
-        widgetService.noteSettledGen(claimedGen);
-      }
-      ref.invalidate(todosProvider);
-      // **한 줄이라도 실패했으면 실패로 답한다** — 백그라운드가 그 답으로 위젯 안 한 줄을 띄운다.
-      // 여기서 이미 발행한 결말에도 그 한 줄이 들어 있으므로(spec S) 두 자리가 같은 말을 한다.
-      reply.send(
-        results.every((result) => result.ok)
-            ? todoWidgetCheckOk
-            : todoWidgetCheckFailed,
-      );
-    } catch (error) {
-      // 삼키지 않는다 — 백그라운드가 이 답을 받아 위젯 안 한 줄로 말한다(spec).
-      debugPrint('todoWidget check (app) failed: $error');
-      reply.send(todoWidgetCheckFailed);
-    }
-  }
-
-  /// 한 줄을 쓰고 **결과로 돌려준다**(던지지 않는다 — 한 줄의 실패가 묶음 전체를 실패로 만들지
-  /// 않게 한다. design 10.2).
-  Future<TodoWidgetCheckResult> _writeOne(
-    TodoRepository repository,
-    TodoWidgetCheckTarget target,
-  ) async {
-    try {
-      await repository.setDone(target.id, target.done);
-      return TodoWidgetCheckResult(
-        id: target.id,
-        done: target.done,
-        ok: true,
-      );
-    } catch (error) {
-      debugPrint('todoWidget check (app) failed: $error');
-      return TodoWidgetCheckResult(
-        id: target.id,
-        done: target.done,
-        ok: false,
-      );
-    }
+    // **쓰기와 발행은 정산기가 한다**(design 9장): 앱 쪽에서 그 일을 하는 자리가 둘이고
+    // (이 포트, `MainShell`의 앱 열림 계기) 둘이 **같은 claim·발행 규칙**을 지나야 한다.
+    // 이 메서드에 남는 일은 메시지 모양 검사와 답 보내기뿐이다.
+    final outcome = await ref
+        .read(todoWidgetTapSettlerProvider)
+        .settle(targets, claimedGen: claimedGen);
+    // **답은 셋 그대로다.** `settled`는 "결말을 발행했다"는 뜻이고 **줄마다 성공·실패가 갈렸어도
+    // 그 사실이 이미 위젯에 그려져 있다**(spec S) — 그래서 백그라운드가 그 위에 실패 한 줄을
+    // 덮어쓰지 않는다. `fail`은 앱이 **아무것도 하지 못했다**는 뜻이고, 그때만 백그라운드가
+    // 되돌림+이유를 발행한다.
+    reply.send(switch (outcome) {
+      TodoWidgetSettleOutcome.settled => todoWidgetCheckOk,
+      TodoWidgetSettleOutcome.loggedOut => todoWidgetCheckLoggedOut,
+      TodoWidgetSettleOutcome.failed => todoWidgetCheckFailed,
+    });
   }
 
   @override

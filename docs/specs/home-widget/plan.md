@@ -1404,3 +1404,175 @@ analyze / test / **릴리스 APK 빌드**.
 - 계획에 없던 정리 하나: `todoWidgetCheckDecisionOf`의 **`now` 인자를 지웠다**(가드가 둘로 줄며
   쓰이지 않게 됐다). 18단계에서 `showNote`의 죽은 인자를 지운 것과 같은 성질이고, 덤으로 **자국의
   나이를 볼 수 없다는 사실이 시그니처에 남는다.** 호출하는 자리는 백그라운드 콜백 하나다.
+
+---
+
+# 추가 범위 4 (2026-11-20) — 체크의 지연 저장(묶음), 21~25단계
+
+입력: `spec.md`의 `## 2026-11-20 추가 범위 4 — 체크의 지연 저장(묶음)`(N~V) + `### 결정 필요 →
+2026-11-20 답: 1~3 확정`, `design.md`의 `## 2026-11-20 추가 범위 4 설계`(0~12장) + `### 결정 필요 —
+2026-11-20 추가 범위 4` + `### 2026-11-20 오너 답`. 순서는 **design 12장의 21~25단계 그대로**다
+(spec의 권고 작업 순서 R·Q → N·O → P·S·T → 문서를 design이 그대로 옮겼다).
+
+**번호가 겹친다 — 읽을 때 주의.** 이 문서에는 이미 `## 21단계 (2026-11-20) — 긴급 회귀 수정`이
+있는데 그것은 **추가 범위 3의 회귀를 고친 단독 커밋**(`b8bf769`)이고, 아래 21~25단계는 **design
+12장이 20단계 뒤에 이어 붙인 추가 범위 4**다. 번호를 바꾸지 않는 이유는 design 12장의 표가 그
+번호로 적혀 있어 문서 사이의 참조가 깨지기 때문이다. 아래 제목에는 전부 `(추가 범위 4)`를 달았다.
+
+## 공통 규칙 (앞 범위와 같다. 달라지는 것만 적는다)
+- 각 단계 끝: `flutter analyze` 이슈 0 + `flutter test` 전부 통과. **네이티브가 바뀌는 21·24단계는
+  `flutter build apk --release --dart-define-from-file=env.json`까지**(로그를 `tail`로 파이프하면
+  종료 코드가 가려지므로 `EXIT=$?`를 따로 찍는다 — CLAUDE.md "개발 환경").
+- **단계마다 커밋 하나**(design 12장의 커밋 제안 그대로). 푸시하지 않는다 — 원격 반영은 메인 세션이
+  오너 확인을 받아 한다.
+- `git add -A`를 쓰지 않는다. 같은 체크아웃에 **다른 세션의 `docs/specs/bot-battle/`**(미추적)이 있어
+  바꾼 파일을 **경로로 하나씩** 추가한다.
+- **스키마 변경·새 RPC·마이그레이션이 없다**(design 10장). 그래서 원격 적용 승인 지점이 **없다.**
+- **새 문구가 한 줄도 없다**(`lib/core/strings.dart`·생성기·`res/**`·매니페스트·Gradle 모두 불변).
+  단계마다 `flutter test tool/generate_widget_resources.dart`를 돌려 `widget_resources.xml`의 diff가
+  비어 있는지 확인한다 — 뜨면 무언가를 잘못 건드린 것이다.
+- **모양(색·배치·줄 수·세 모양)을 한 조각도 건드리지 않는다.** 바뀌는 것은 "탭이 서버에 닿는 시점과
+  그 사이에 몇 번 그리는가" 하나다.
+
+## CLAUDE.md·dev-standards와의 충돌 점검 (2026-11-20, 결과: **충돌 없음**)
+- **판정 로직**: 이 범위에 판정·승패·점수가 한 줄도 없다(`todos`만 읽고 `is_done`만 쓴다 — design
+  원칙 1). "판정 로직은 DB/Edge Function"·"테스트 없이 판정 로직 수정 금지"의 적용 지점이 없다.
+- **에러 삼키지 않기**: 캐시 발행 실패·"봤음" 기록 실패는 `debugPrint`만(CLAUDE.md의 기존 예외),
+  **위젯 체크 실패는 삼키지 않고 위젯 안 한 줄**(`체크하지 못했어요 · 앱에서 확인해요`)로 말한다.
+  이 범위가 그 규칙을 **여러 줄로 확장**하되 새 문구를 만들지 않으므로 예외 목록이 늘지 않는다.
+- **새 화면 하나 = 새 커밋 하나**: 새 화면이 없고 단계마다 커밋 하나다.
+- **문구는 `strings.dart` 하나**: 머리 줄 배열도 `AppStrings.widgetHeaderCount`로 만든다(네이티브는
+  **고르기만** 한다 — 원칙 2).
+- **RLS·RPC 권한·`auth.uid()` 가드**: 새 SQL이 없어 적용 지점이 없다.
+- dev-standards: `data/`(모델·순수 함수)·`domain/`(서비스·provider) 3분할, provider 이름
+  `<대상><역할>Provider`, 네이티브 경계는 얇은 래퍼 + provider로 감싸 테스트에서 가짜로 바꾸기,
+  테스트는 `test/features/todo/`에 미러링 — 그대로 따른다.
+
+## 21단계 (추가 범위 4) — `feat: 위젯 탭 자국을 여러 줄로` (R)
+
+### 파일
+| 파일 | 하는 일 |
+|---|---|
+| `lib/features/todo/data/todo_widget_payload.dart` | 자국 모델·순수 함수 신설(`TodoWidgetTapMark`·`TodoWidgetTapMarks`·`todoWidgetMarksOf`·`widgetTapLeaveAt`·`widgetTapDueAt`·`todoWidgetOverlayOf`·`todoWidgetBatchOf`) · payload에 `settledGen` 추가 · `headerAfterCheck/Uncheck` → **배열 둘** · `pendingId`/`pendingAtMs` 필드 삭제 · `applyCheck` → `applyChecks` · `todosWithDone` → `todosWithChecks` · `fromTodos(justCheckedId:)` → `frontIds:`+`settledGen:` · 상수 셋(7장) |
+| `lib/features/todo/data/todo_widget_host.dart` | `readTapMarks()` 추가(**읽기 전용**. 자국 키에 쓰는 메서드를 만들지 않는다 — 1.1의 소유권 표) |
+| `lib/features/todo/domain/todo_widget_service.dart` | `_settledGen` 보관·**단조 유지** · `markJustChecked(List)` · `publishChecked` → `publishSettled(todos, results, claimedGen, now)` · 모든 발행이 `settledGen`을 싣게 |
+| `lib/features/todo/data/todo_widget_callback.dart` | 자국 레코드를 읽어 **그 탭의 세대**를 claim해 결말에 싣는다(저장 시점은 그대로 — 탭마다) |
+| `lib/features/auth/presentation/auth_gate.dart` | 포트 메시지가 **목록 + claimedGen**을 싣게, `markJustChecked` 리스트 |
+| `.../TodoWidgetProvider.kt` | 자국을 **별도 키**로 읽기·쓰기(`TAP_MARKS_KEY`·`readMarks`·`markTap`·솎아내기·`MAX_MARKS`) · `TapMark` → **`overlay`**(1.5) · 머리 줄 **배열 첨자** · `lapsed` 되돌림 · 중복 탭은 "그 id의 가장 새 자국"과 비교 · 판단 목록 주석 |
+| 테스트 | 11.1의 칸 전부(순수 함수 다섯 + `applyChecks` 열하나 + `settledGen` 단조 + 새 키) |
+
+### 함정
+`effectiveDone`을 **`undoneShown`에도** 쓸 것 / `if/else` **양쪽을 다 칠할 것**(8.1) / 자국은
+`commit()` / `optString` 대신 `isNull`+`text()` / `settledGen`은 **어떤 팩토리도 내리지 않는다** /
+`frontIds`의 완료 줄이 캐시 상한 안에 반드시 담겨야 한다.
+
+### 검증
+`flutter analyze` · `flutter test` · 생성기 diff · **릴리스 APK**.
+
+## 22단계 (추가 범위 4) — `feat: 위젯이 같은 그림을 다시 그리지 않는다` (Q)
+
+- `TodoWidgetService.publish`의 중복 비교를 **"보이는 지문"**(`toJson() − updatedAtMs`)으로 바꾼다.
+  지문이 같으면 **`save`는 하고 `update()`는 건너뛴다**, 전체 JSON까지 같으면 둘 다 건너뛴다.
+  `settledGen`은 **지문에 포함한다**(자국을 걷는 발행은 보이는 변화를 들고 온다).
+- Dart만. 릴리스 빌드 불필요.
+
+## 23단계 (추가 범위 4) — `feat: 위젯 체크를 입력이 멎은 뒤 한 번에 보낸다` (N·O·P·S·T의 Dart 쪽)
+
+- `todo_widget_callback.dart`: **기다림 루프**(`leaveAtMs`까지, 상한·`writing` 예외) → **claim**
+  (`todoWidgetBatchOf`) → **여러 줄 병렬 쓰기**(줄마다 자기 `try`) → **결말 한 번** → **한 라운드
+  더**(4.5, 최대 3) → 자국이 없을 때의 **대비 경로**(Uri 한 줄 즉시). 상한 6초 → **5초**.
+- `lib/features/todo/domain/todo_widget_tap_settler.dart` **신설**: 앱 쪽 두 자리(`AuthGate` 핸드오프,
+  `MainShell` 앱 열림 계기)가 **같은 claim·발행 규칙**을 지나게 하는 조립.
+- `main_shell.dart`: 앱 열림 계기 ④ — `initState`와 기존 `AppLifecycleListener(onResume:)`에서
+  **`leaveAtMs`가 이미 지난 자국만** 정산(지나지 않았으면 건드리지 않는다 — 두 일꾼을 만들지 않는다).
+- Dart만. 릴리스 빌드 불필요.
+
+## 24단계 (추가 범위 4) — `feat: 위젯 묶음을 한 번만 깨운다` (N·O의 네이티브 쪽)
+
+- `onCheckTap`이 **새 묶음에서만** `home_widget` 브로드캐스트를 쏜다(살아 있는 묶음이 없다 /
+  `leaveAtMs`가 지났다 / 이 탭이 `writing`).
+- `writing` 모드 탭은 **묶지 않는다**(`leaveAtMs = 지금`).
+- 쓸어내기 알람을 **절대 시각 `dueAtMs`**로 건다(고정 지연 아님).
+- 중복 탭 창 상수 개명(`TAP_MARK_FRESH_MS` → `TAP_DUP_WINDOW_MS`), 판단 목록 아홉 → **열**.
+- 네이티브만. **릴리스 APK 필수.**
+
+## 25단계 (추가 범위 4) — `docs: 지연 저장 배포 준비`
+
+- `TODO_BACKLOG.md`의 **연타 손실 줄**에 "지연 저장(추가 범위 4)으로도 고쳐지지 않는다" 한 줄,
+  `MissingPluginException` 줄에 **"영향 범위가 탭 하나 → 묶음 하나로 커졌다"** 한 줄.
+  **두 줄 자체는 지우지 않는다.** 절전 모드 줄도 그대로 둔다.
+- `DEPLOY.md`의 위젯 실기기 확인에 **"여러 줄을 빠르게 눌러도 누른 줄 전부가 눌린 채 남는다"** 한 줄.
+- 이 `plan.md`의 21~25단계 기록도 같은 커밋에 넣는다.
+
+---
+
+## 진행 기록 (2026-11-20 추가 범위 4, 21~25단계)
+
+**다섯 단계 모두 구현·검증·커밋까지 끝냈다. 푸시하지 않았다.** 순서는 계획대로 21 → 22 → 23 →
+24 → 25이고 **순서를 바꾼 곳은 없다.**
+
+| 단계 | 커밋 | analyze | test | 릴리스 APK |
+|---|---|---|---|---|
+| 기준선 | `f8689a6` | 이슈 0 | 909개 통과 | — |
+| 21 (R) | `c504640` `feat: 위젯 탭 자국을 여러 줄로` | 이슈 0 | **946개**(+37) | `EXIT=0` (62.5MB) |
+| 22 (Q) | `0e2d625` `feat: 위젯이 같은 그림을 다시 그리지 않는다` | 이슈 0 | **952개**(+6) | 불필요(Dart만) |
+| 23 (N·O·P·S·T) | `9c4102b` `feat: 위젯 체크를 입력이 멎은 뒤 한 번에 보낸다` | 이슈 0 | **960개**(+8) | 불필요(Dart만) |
+| 24 (네이티브) | `eec3183` `feat: 위젯 묶음을 한 번만 깨운다` | 이슈 0 | 960개 통과 | `EXIT=0` (62.5MB) |
+| 25 (문서) | `docs: 지연 저장 배포 준비` | — | — | 불필요 |
+
+- **새 유닛 테스트는 51개다**(+37 +6 +8). 11.1의 칸을 전부 덮었다: `todoWidgetMarksOf` 넷,
+  `widgetTapLeaveAt`·`widgetTapDueAt` 둘(**상한이 이기는 경계 전수**), **`todoWidgetOverlayOf`
+  열하나**(①~⑨ + 자국 없음 + 캐시에 없는 줄), `todoWidgetBatchOf` 여덟, `applyChecks` 묶음 여덟
+  + 한 줄 판 열셋, `todosWithChecks` 셋, `settledGen` 단조 둘, 새 키 셋, **보이는 지문 다섯**,
+  앱 쪽 정산기 여덟(일부 실패·로그아웃·캐시 결말·계기 ④ 다섯).
+- **생성기(`flutter test tool/generate_widget_resources.dart`)를 돌려 `widget_resources.xml`의
+  diff가 비어 있음을 확인했다** — 이번 범위에 새 문구가 한 줄도 없다는 증거다.
+- **`reapply` 점검**: 새로 칠하는 뷰가 **하나도 없다**(8.1의 못 그대로). 상태에 따라 갈리는 칠은
+  전부 `if/else` **양쪽**에 있고(`showRow`의 면·제목 색·체크 그림, 머리 띠, `showHeader`),
+  `effectiveDone`을 부르는 자리는 **셋뿐**(`showRow`·`undoneShown`·`totalCount` 보정)이며
+  `isDone()`을 직접 부르는 자리는 그 헬퍼와 `overlayOf`의 재료 수집 둘뿐이다.
+- **상수 쌍을 양쪽 주석으로 묶었다**: `todoWidgetTapQuietMs`↔`TAP_QUIET_MS`(1,000),
+  `todoWidgetTapBatchCapMs`↔`TAP_BATCH_CAP_MS`(5,000), `todoWidgetWriteWindowMs`↔
+  `WRITE_WINDOW_MS`(5,000), `todoWidgetSettleGraceMs`↔`SETTLE_GRACE_MS`(1,000),
+  `todoWidgetTapDupWindowMs`↔`TAP_DUP_WINDOW_MS`(6,000), `todoWidgetMaxTapMarks`↔`MAX_MARKS`(12),
+  `todoWidgetPendingTimeoutSeconds`↔`PENDING_TIMEOUT_MS`(60초).
+
+### 설계와 다르게 한 곳 (일곱. 전부 설계의 근거를 따른 것이거나 단계 경계의 이동이다)
+
+1. **`applyChecks`는 "이미 목표 값인 줄"에 null을 돌려주지 않는다.** 옛 `applyCheck`의 null 조건
+   넷 중 그 하나가 없어졌다(design 6.2의 목록에도 그 조건이 없다). 이유: 그 경우에도 **발행이
+   필요하다** — 그림은 한 조각도 바뀌지 않지만 `settledGen`을 올려야 그 묶음의 자국이 효력을
+   잃는다(1.3의 조건 1). 올리지 않으면 낙관 그림이 되돌림 시각까지 7초쯤 남는다. 테스트로 그
+   차이를 박아 두었다(`이미 목표 값인 줄만 있으면 그림은 그대로이고 세대만 올라간다`).
+2. **상수 개명(`TAP_MARK_FRESH_MS` → `TAP_DUP_WINDOW_MS`)과 `writing` 자국의 "묶지 않음"을
+   24단계가 아니라 21단계에 넣었다.** 개명은 **양쪽(Dart·Kotlin)을 함께** 바꿔야 하는 쌍이고
+   (design 8.3), 자국 레코드의 `leaveAtMs`를 21단계에서 이미 쓰는데 그 식에 `writing` 예외가
+   들어 있다. 쪼개면 같은 줄을 두 번 고치게 되어 합쳤다. **24단계가 하는 일은 그만큼 줄었다**
+   (조건부 브로드캐스트 · 절대 시각 알람 · 각주).
+3. **핸드오프 상한 5초도 21단계에서 바뀌었다**(설계는 23단계). 상수 표(7장)를 한 번에 옮기면서
+   `todoWidgetWriteWindowMs`를 쓰게 했기 때문이고, 21단계만 들어간 상태에서도 틀리지 않는다
+   (저장이 탭마다라 쓰기 창이 5초든 6초든 결말은 그 안에 온다).
+4. **포트 메시지를 21단계에서 이미 목록으로 만들었다**(설계는 23단계의 "+포트 메시지"). 21단계에
+   `claimedGen`을 실어야 결말이 자국을 걷을 수 있고, 그때 `[id, done, gen, port]`로 두면
+   23단계에서 또 바꾸게 된다. 받는 쪽 검사(길이·타입)는 그대로 유지했다.
+5. **핸드오프 답 `ok`의 뜻을 "결말을 발행했다"로 못 박았다.** 설계는 답 셋(`ok`/`fail`/
+   `loggedOut`)을 그대로 두라고만 적었는데, **일부만 실패한 경우**에 앱은 이미 **줄마다 다른
+   결말**을 발행한 상태다(spec S). 그때 `fail`로 답하면 백그라운드가 그 위에 "전부 되돌림 +
+   실패 한 줄"을 덮어써 **성공한 줄까지 되돌아간다.** 그래서 `fail`은 **앱이 아무것도 하지 못한
+   경우**로 좁혔다. 답의 개수는 셋 그대로다.
+6. **정산기의 결말 발행이 목록이 없을 때 기기 캐시로 떨어진다.** 설계 9장은 앱 쪽 경로가
+   `todosProvider`를 쓴다고만 적었는데, 앱이 막 떠서 목록이 손에 없으면 **쓰기는 끝났는데 발행할
+   재료가 없다** — 세대만 올리면 성공한 줄이 되돌아 보인다. 그래서 `lastPublished`(없으면 기기
+   캐시)로 **경로 B와 같은 재료**를 쓴다. 규칙은 같은 `applyChecks` 하나다.
+7. **`lapsed`는 `쓰는 중` 자국도 함께 걷는다.** 설계 1.5의 의사코드는 `flips`만 비운다고 적었는데,
+   `writingIds`를 남기면 되돌림 시각이 지난 뒤에도 그 줄에 `쓰는 중`이 **박제된다**(추가 범위 3 J의
+   박제 금지 위반). 그래서 효력 있는 자국이 하나라도 있으면(= `쓰는 중` 포함) 되돌리고, 하나도
+   없으면 `lapsed`를 켜지 않는다(상쇄만 있던 묶음에 실패 한 줄을 띄우지 않는다 — spec P).
+
+- 그 밖에 **새 패키지·스키마 변경·새 문구·생성기 변경·새 권한·새 리시버는 하나도 없다**(확인함).
+  `spec.md`·`design.md`는 **건드리지 않았다**(오너 결정이 적힌 문서다).
+- **번호가 겹치는 것**(회귀 수정 21단계 vs 추가 범위 4의 21단계)은 이 문서 머리에 적어 두었다.
+- **남은 일은 오너의 실기기 확인뿐이다**(11.3의 49~62번). 네이티브 전부(자국 레코드·새 묶음
+  판정·조건부 브로드캐스트·알람의 절대 시각·`overlay`를 베낀 코드·머리 줄 첨자), **engine 기동이
+  1초 대기와 겹치는지**, 그리기 횟수, 런처의 `reapply`, 그리고 **백그라운드 콜백의 기다림 루프와
+  한 라운드 더**는 유닛 테스트로 덮이지 않는다(11.2가 적어 둔 그대로다).

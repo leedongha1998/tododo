@@ -34,3 +34,10 @@ TS 파일을 heredoc 하나로 쓰려 하면 두 가지 증상이 난다.
 `All tests passed!`가 떠서 성공으로 착각한다. append 전에 `grep -n '^}'`로 **main의 닫는 괄호 줄 번호**를
 찾아 그 앞에 끼워 넣고(`head -N` + 블록 + `tail -n +N`), append 뒤에는 **실행된 테스트 개수**가
 기대만큼 늘었는지 반드시 확인한다(`grep -c testWidgets`와 `flutter test`의 `+N`을 맞춰 본다).
+
+**한글이 든 여러 줄 치환에 `perl -0pi -e`를 쓰지 말 것**(2026-11-20, home-widget 추가 범위 4).
+`perl`이 스크립트의 UTF-8 바이트를 라틴1로 읽어 `Unrecognized character \xEC ... near column 11`로
+죽는다(`\Q...\E`로 감싸도 같다). `sed`는 **한 줄 치환이면** 한글이 섞여도 잘 된다 — 여러 줄 블록을
+바꿀 때는 **Edit 도구**를 쓰고(블록이 커도 한 번에 간다), 반복적인 한 줄 치환만 `sed -i`로 돌린다.
+`sed`로 블록을 지울 때는 줄 번호 범위(`sed -i '2476,2513d'`)가 가장 안전하지만 **지운 뒤 남는 빈
+줄·짝 안 맞는 `}`를 반드시 `dart analyze`로 확인한다**(이번에 두 번 다 남았다).

@@ -356,6 +356,97 @@ void main() {
       expect(host.saved.last.settledGen, 11);
     });
   });
+
+  // 2026-11-20(추가 범위 4, spec Q): **보이는 것이 달라지지 않는 발행은 화면을 다시 그리지
+  // 않는다.** 결말 뒤의 보정이 같은 그림을 한 번 더 그려 번쩍이던 것이 이 가드로 사라진다.
+  group('보이는 지문', () {
+    final todos = [_todo('1'), _todo('2')];
+
+    test('발행 시각만 다르면 다시 그리라고 하지 않는다(캐시는 최신으로 둔다)', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+
+      await service.publishTodos(todos, now: now);
+      expect(host.updateCount, 1);
+
+      // 보정 재조회가 같은 목록을 1초 뒤에 다시 발행한 경우다.
+      await service.publishTodos(todos, now: now.add(const Duration(seconds: 1)));
+
+      expect(host.updateCount, 1, reason: '같은 그림을 다시 그리지 않는다');
+      // 캐시는 최신이어야 한다 — 옛 `updatedAtMs`를 남기면 다음 `basisAt`이 틀린 시각을 쓴다.
+      expect(host.saved, hasLength(2));
+      expect(
+        host.saved.last.updatedAtMs,
+        now.add(const Duration(seconds: 1)).millisecondsSinceEpoch,
+      );
+    });
+
+    test('전부 같으면 저장도 하지 않는다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+
+      await service.publishTodos(todos, now: now);
+      await service.publishTodos(todos, now: now);
+
+      expect(host.saved, hasLength(1));
+      expect(host.updateCount, 1);
+    });
+
+    test('보이는 것이 달라지면 다시 그린다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+      await service.publishTodos(todos, now: now);
+
+      await service.publishTodos([...todos, _todo('3')], now: now);
+
+      expect(host.updateCount, 2);
+    });
+
+    test('settledGen만 달라도 다시 그린다', () async {
+      // 자국을 걷는 발행은 **보이는 변화**(실패한 줄의 되돌림)를 함께 들고 온다 — 그려야 한다.
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+      await service.publishTodos(todos, now: now);
+
+      await service.publish(
+        TodoWidgetPayload.fromTodos(todos, now: now, settledGen: 3),
+      );
+
+      expect(host.updateCount, 2);
+      expect(host.saved.last.settledGen, 3);
+    });
+
+    test('되읽은 캐시와 같은 그림이면 다시 그리지 않는다', () async {
+      // 앱을 다시 켠 경우다. 그 캐시는 이미 홈 화면에 그려져 있다.
+      final stored = TodoWidgetPayload.fromTodos(todos, now: now);
+      final host = FakeTodoWidgetHost(stored: stored);
+      final service = TodoWidgetService(host);
+
+      await service.primeFromCache(now: now);
+      // 같은 분 안에서 다시 발행한다 — `… 기준` 문장이 같으므로 보이는 것이 하나도 다르지 않다.
+      await service.publishTodos(
+        todos,
+        now: now.add(const Duration(seconds: 30)),
+      );
+
+      expect(host.updateCount, 0);
+      expect(host.saved, hasLength(1));
+    });
+
+    test('분이 바뀌면 기준 시각 문장이 달라져 한 번 더 그린다(받아들인 한계)', () async {
+      // design 5.2가 적어 둔 한계다(≈1/60). 그때는 **다른 그림**이므로 그리는 것이 옳다.
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+      await service.publishTodos(todos, now: now);
+
+      await service.publishTodos(
+        todos,
+        now: now.add(const Duration(minutes: 1)),
+      );
+
+      expect(host.updateCount, 2);
+    });
+  });
 }
 
 Todo _todo(String id, {bool isDone = false}) {

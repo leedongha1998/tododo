@@ -19,6 +19,10 @@ class TodoWidgetService {
 
   TodoWidgetPayload? _lastPublished;
   String? _lastJson;
+
+  /// 직전 발행의 **보이는 지문**(`updatedAtMs`를 뺀 JSON — design 5.2). 같으면 다시 그리라는
+  /// 브로드캐스트를 보내지 않는다.
+  String? _lastFingerprint;
   int _publishCount = 0;
 
   /// **다음 한 번의 [publishTodos]만** 쓰는 기억(design 7.2 (1)). 2026-11-20에 **여러 줄**이 됐다.
@@ -52,6 +56,8 @@ class TodoWidgetService {
     if (cached != null) {
       _lastPublished = cached;
       _lastJson = cached.encode();
+      // 그 캐시는 **이미 홈 화면에 그려져 있다** — 같은 그림을 다시 그리라고 하지 않는다.
+      _lastFingerprint = cached.fingerprint();
       // **결말 세대도 되읽는다**(design 4.2): 앱이 죽어 있는 동안 백그라운드가 정산한 숫자를
       // 모르면, 앱의 다음 발행이 그것을 내려 이미 끝난 자국이 되살아난다.
       noteSettledGen(cached.settledGen);
@@ -192,12 +198,21 @@ class TodoWidgetService {
     // 같은 값을 다시 쓰고 브로드캐스트를 또 보낼 이유가 없다(탭을 오갈 때마다 목록이 다시 와도
     // 내용이 같으면 조용하다).
     if (json == _lastJson) return;
+    // **보이는 것이 달라지지 않는 발행은 화면을 다시 그리지 않는다**(2026-11-20 추가 범위 4,
+    // spec Q · design 5.2). 지문은 `updatedAtMs`를 뺀 JSON이다 — 그 값은 화면에 나오지 않는데
+    // 발행마다 달라서, **결말 뒤의 보정이 같은 그림을 한 번 더 그려 번쩍이던 원인**이 그것이었다.
+    //
+    // 캐시는 **최신으로 두고**(`save`는 한다) 브로드캐스트만 아낀다: `updatedAtMs`를 옛 값으로
+    // 남기면 다음 발행의 `basisAt`이 틀린 시각을 물려받는다.
+    final fingerprint = payload.fingerprint();
+    final sameLook = fingerprint == _lastFingerprint;
     try {
       await _host.save(payload);
-      await _host.update();
+      if (!sameLook) await _host.update();
       // 성공한 발행만 "직전"으로 기억한다. 실패했으면 위젯에는 옛 내용이 남아 있으므로
       // 다음 발행이 같은 값이어도 다시 시도해야 한다.
       _lastJson = json;
+      _lastFingerprint = fingerprint;
       _lastPublished = payload;
     } catch (error) {
       debugPrint('todoWidget publish failed: $error');

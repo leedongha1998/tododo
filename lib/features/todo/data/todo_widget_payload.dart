@@ -713,6 +713,18 @@ class TodoWidgetPayload {
 
   String encode() => jsonEncode(toJson());
 
+  /// **보이는 지문**(2026-11-20 추가 범위 4, design 5.2). `toJson()`에서 [updatedAtMs]를 뺀 것이다.
+  ///
+  /// 지문이 같으면 **화면에 달라질 것이 없다** → 다시 그리라는 브로드캐스트를 보내지 않는다
+  /// (`TodoWidgetService.publish`). 발행 시각만 다른 보정 발행이 같은 그림을 한 번 더 그려
+  /// 번쩍이던 것이 그것 때문이었다 — `updatedAtMs`는 화면에 나오지 않고, 사람이 읽는 기준 시각은
+  /// [note] 문장이 들고 있다.
+  ///
+  /// **`settledGen`은 지문에 들어간다**(빼지 말 것): 자국을 걷는 발행은 **보이는 변화**(실패한
+  /// 줄의 되돌림)를 함께 들고 오므로 반드시 그려야 한다. 뒤따르는 보정은 같은 `settledGen`을
+  /// 실어 지문이 같아지므로 조용히 지나간다.
+  String fingerprint() => jsonEncode(toJson()..remove('updatedAtMs'));
+
   /// [settledGen]만 바꾼 사본. **올리는 데만 쓴다**(`TodoWidgetService.publish`가 발행마다
   /// `max`를 취하는 마지막 방어선 — design 4.2). 값이 같으면 자기 자신을 돌려준다.
   TodoWidgetPayload withSettledGen(int gen) {

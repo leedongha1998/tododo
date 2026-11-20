@@ -57,6 +57,14 @@ private class TapMarks(
 }
 
 /**
+ * 자국 하나를 쓴 결과. 부르는 쪽이 **깨울지와 언제 되돌릴지**를 아는 데 쓴다(design 2장의 5·6번).
+ *
+ * [newBatch]가 참이면 이 탭이 **새 묶음을 시작했다** → `home_widget` 브로드캐스트를 쏴 일꾼을
+ * 깨운다. 거짓이면 이미 깨어나 기다리는 일꾼이 이 탭을 집어 간다(= 탭 N번에 Dart 발행 한 번).
+ */
+private class TapWrite(val newBatch: Boolean, val dueAtMs: Long)
+
+/**
  * 자국들이 그리기에 주는 **겹침**(design 1.5). [render]에서 **한 번** 만들고 **네 자리**가 이것만
  * 본다 — 줄 그리기, `그 외 N개`의 기준(`undoneShown`), `totalCount` 보정, 머리 줄. **하나라도
  * 빠지면 숫자가 어긋난다**(design 6.3.3 (2) · 4.7 (5)).
@@ -84,7 +92,7 @@ private class Overlay(
  *
  * 이 파일은 **그리기만** 한다. 어떤 상태인지, 어떤 문구를 쓰는지, 몇 개까지 담는지, 기준 시각을
  * 어떻게 적는지는 전부 Dart가 정해 기기 캐시(JSON 한 개)에 적어 둔다
- * (lib/features/todo/data/todo_widget_payload.dart). 여기서 하는 판단은 **아홉**이고 거의 전부
+ * (lib/features/todo/data/todo_widget_payload.dart). 여기서 하는 판단은 **열**이고 거의 전부
  * "비교하고 Dart가 보내 준 것 중에서 고르기"다(design 원칙 2의 각주들):
  *   1. 이 높이에 몇 줄이 들어가나([rowCountFor])
  *   2. 캐시가 준 서식에 숫자 하나 끼우기("그 외 %d개")
@@ -101,7 +109,12 @@ private class Overlay(
  *      셋(같은 줄·같은 목표 값·창 안쪽). Dart에 있던 판단이 **옮겨 온** 것이다: 자국을 쓰는
  *      자리가 여기라서 Dart가 읽는 자국은 언제나 이번 탭의 것이었다(그래서 모든 탭이 버려졌다).
  *      규칙 자체는 Dart의 `isDuplicateWidgetTap`에 테스트와 함께 박혀 있고 여기는 그것을 따른다
- * 그 아홉 외의 규칙을 이 파일에 더하지 말 것, 특히 **문장을 만들지 말 것** — 네이티브는
+ *  10. (2026-11-20) 이 탭이 **새 묶음을 시작하는가**([markTap] → [TapWrite.newBatch]) →
+ *      **engine을 깨우나 마나**. 비교하는 것은 `now >= leaveAtMs`와 "레코드가 있나"·"이 탭이
+ *      writing인가" 셋뿐이고, 그 `leaveAtMs`를 **만드는 규칙은 Dart의 순수 함수**가 들고 있다
+ *      (`widgetTapLeaveAt` — 여기 [leaveAtOf]가 그것을 베낀다). 넓어지는 것은 여전히 "**언제**
+ *      그리고 언제 깨우나"이고 "**무엇이** 참이냐"가 아니다(design 8.4)
+ * 그 열 외의 규칙을 이 파일에 더하지 말 것, 특히 **문장을 만들지 말 것** — 네이티브는
  * 테스트하지 않으므로 판단이 늘어나면 검증되지 않는 코드가 늘어난다(design 원칙 2).
  * 머리 줄의 개수(`할 일 2/5`)도 **완성된 문장**으로 실려 오므로 여기서 숫자를 세지 않는다.
  * 머리 띠의 면(평소 primary / 체크 실패 danger)도 **새 판단이 아니다** — showNote가 쓰던 그
@@ -155,10 +168,14 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    *      중복을 가릴 수 없다(그 설계로 위젯 체크가 서버에 하나도 쓰이지 않는 회귀가 났다).
    *   1. 모드를 고른다([tapMode]) — 조건 ②(항상 실패하는 상태에서는 낙관 그림을 그리지 않는다).
    *   2. **자국을 먼저 쓰고** 3에서 그린다. 순서를 바꾸면 "그린 그림이 캐시에 없는" 순간이 생겨
-   *      그 사이의 `reapply`가 그림을 되돌린다.
-   *   4. 결말이 영영 오지 않아도 되돌아오게 쓸어내기 알람을 건다(탭+7초).
-   *   5. **브로드캐스트 발사는 맨 뒤다.** `home_widget`은 콜백을 WorkManager로 돌리므로 그
-   *      enqueue가 수십 ms를 쓸 수 있고, 그 비용이 그리기 앞에 오면 그만큼 늦게 보인다.
+   *      그 사이의 `reapply`가 그림을 되돌린다. 그 쓰기가 **이 탭이 새 묶음을 시작하는가**를
+   *      함께 돌려준다(판단 10).
+   *   4. 결말이 영영 오지 않아도 되돌아오게 쓸어내기 알람을 건다 — **절대 시각 `dueAtMs`**에
+   *      건다(2026-11-20: 고정 지연 "탭+7초"가 아니라 묶음 기준이다).
+   *   5. **브로드캐스트는 새 묶음에서만 쏜다**(2026-11-20 추가 범위 4의 핵심 변경). 묶음당 일꾼이
+   *      하나 → 결말이 하나 → **그리기 N+1**이 구조로 성립한다(spec Q). 발사가 맨 뒤인 것도
+   *      그대로다 — `home_widget`은 콜백을 WorkManager로 돌리므로 그 enqueue가 수십 ms를 쓸 수
+   *      있고, 그 비용이 그리기 앞에 오면 그만큼 늦게 보인다.
    *
    * 중복으로 판정한 탭은 **자국도 다시 쓰지 않고, 다시 그리지도 않고, 브로드캐스트도 쏘지 않는다**
    * — 첫 탭의 그림과 쓸어내기 시각을 흔들지 않는 것이 목적이다.
@@ -178,12 +195,22 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     val marks = readMarks(widgetData)
     if (isDuplicateTap(marks, todoId, done)) return
 
-    markTap(widgetData, payload, marks, todoId, done, tapMode(context))
+    val written = markTap(widgetData, payload, marks, todoId, done, tapMode(context))
     renderAll(context)
-    scheduleSweep(context)
+    // 되돌림은 **묶음 기준**이다 — 그 묶음의 마지막 탭이 시각을 미루고, 요청 코드가 고정이라
+    // 마지막 하나만 남는다.
+    if (written != null) scheduleSweep(context, written.dueAtMs)
+    // **새 묶음에서만 engine을 깨운다**(design 2장의 6번). 살아 있는 묶음에 더해지는 탭은 이미
+    // 깨어나 기다리고 있는 일꾼이 집어 간다 — 그래서 탭 N번에 Dart 발행이 **한 번**이다.
+    //
+    // 자국을 쓰지 못한 경우(payload 없음)에는 **쏜다** — 그때는 기다릴 근거가 캐시에 없고,
+    // 깨어난 Dart가 Uri 한 줄만 즉시 쓰는 대비 경로로 간다(design 4.4의 13번).
+    //
     // 패키지의 공개 API를 그대로 쓴다 — 리시버 클래스 이름·액션 문자열 같은 내부를 베껴 적으면
     // 패키지가 바뀔 때 조용히 어긋난다.
-    HomeWidgetBackgroundIntent.getBroadcast(context, data).send()
+    if (written == null || written.newBatch) {
+      HomeWidgetBackgroundIntent.getBroadcast(context, data).send()
+    }
   }
 
   /**
@@ -218,8 +245,10 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    *   4. `writing` 자국은 **묶지 않는다** — 그 상태의 사용자에게 이 기능이 주는 유일한 값이
    *      "빨리 분명해지는 실패"인데 1초를 기다리면 그마저 깎인다(spec U 조건 ②의 조임).
    *
-   * 캐시를 아예 읽지 못하면(설치 직후·판 번호 모름) 아무것도 적지 않는다. 그때는 그릴 줄도 없고,
-   * 깨어난 Dart가 Uri 한 줄만 쓰는 대비 경로로 간다(design 4.4의 13번).
+   * 캐시를 아예 읽지 못하면(설치 직후·판 번호 모름) 아무것도 적지 않고 **null**을 돌려준다.
+   * 그때는 그릴 줄도 없고, 깨어난 Dart가 Uri 한 줄만 쓰는 대비 경로로 간다(design 4.4의 13번).
+   *
+   * 돌려주는 [TapWrite]는 부르는 쪽이 **깨울지(새 묶음인가)와 언제 되돌릴지**를 알기 위한 것이다.
    */
   private fun markTap(
       widgetData: SharedPreferences,
@@ -228,8 +257,8 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       todoId: String,
       done: Boolean,
       mode: String,
-  ) {
-    if (payload == null) return
+  ): TapWrite? {
+    if (payload == null) return null
     val now = System.currentTimeMillis()
     val settledGen = payload.optInt("settledGen", 0)
     val writing = mode == MODE_WRITING
@@ -243,6 +272,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
           it.gen > settledGen && now - it.atMs < PENDING_TIMEOUT_MS
         }
     val next = (kept + TapMark(gen, todoId, done, now, writing)).takeLast(MAX_MARKS)
+    val dueAtMs = leaveAtMs + WRITE_WINDOW_MS + SETTLE_GRACE_MS
 
     val json = JSONObject()
     try {
@@ -250,7 +280,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       json.put("batchAtMs", batchAtMs)
       json.put("lastAtMs", now)
       json.put("leaveAtMs", leaveAtMs)
-      json.put("dueAtMs", leaveAtMs + WRITE_WINDOW_MS + SETTLE_GRACE_MS)
+      json.put("dueAtMs", dueAtMs)
       val array = JSONArray()
       for (mark in next) {
         val item = JSONObject()
@@ -263,9 +293,10 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       }
       json.put("marks", array)
     } catch (error: Exception) {
-      return
+      return null
     }
     widgetData.edit().putString(TAP_MARKS_KEY, json.toString()).commit()
+    return TapWrite(newBatch = newBatch, dueAtMs = dueAtMs)
   }
 
   /**
@@ -383,8 +414,12 @@ class TodoWidgetProvider : HomeWidgetProvider() {
   }
 
   /**
-   * 탭+7초에 한 번 더 그리게 한다. **결말이 영영 오지 않아도 그 줄이 되돌아오고 이유가 함께
+   * [dueAtMs]에 한 번 더 그리게 한다. **결말이 영영 오지 않아도 그 줄들이 되돌아오고 이유가 함께
    * 보이게** 하는 장치다(design 4.7 (3) 다).
+   *
+   * **2026-11-20: 고정 지연(탭+7초)이 아니라 절대 시각이다**(design 7장). 기준점이 "탭"에서
+   * **"묶음"**으로 바뀌었기 때문이다 — `dueAtMs` = 떠날 시각 + 쓰기 창(5초) + 여유(1초)이고,
+   * 값으로는 마지막 탭+7초쯤이다(묶음의 마지막 탭이 그 시각을 미룬다).
    *
    * **부정확 알람이다**(`set`은 API 19부터 inexact). `setExact`를 쓰면 `SCHEDULE_EXACT_ALARM`
    * 권한이 늘어나는데, 여기서 몇 초 늦는 것은 손해가 아니다 — 이미 끝났으면 무해한 다시 그리기이고,
@@ -392,7 +427,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    *
    * 요청 코드 고정 + `FLAG_UPDATE_CURRENT`라 **마지막 탭 하나만 남는다.**
    */
-  private fun scheduleSweep(context: Context) {
+  private fun scheduleSweep(context: Context, dueAtMs: Long) {
     val alarm = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
     val pending =
         PendingIntent.getBroadcast(
@@ -402,7 +437,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
     try {
-      alarm.set(AlarmManager.RTC, System.currentTimeMillis() + SWEEP_DELAY_MS, pending)
+      alarm.set(AlarmManager.RTC, dueAtMs, pending)
     } catch (error: Exception) {
       // 알람을 걸지 못해도 탭 자체는 그대로 간다 — 위젯은 관문이 아니다.
     }
@@ -984,9 +1019,6 @@ class TodoWidgetProvider : HomeWidgetProvider() {
      * 버려진 자국은 그 줄이 평소 모양으로 돌아가는 것이 전부다(거짓 성공이 아니다).
      */
     const val MAX_MARKS = 12
-
-    /** 쓸어내기 알람까지의 시간(탭+7초). 24단계에서 **절대 시각 `dueAtMs`**로 바뀐다. */
-    const val SWEEP_DELAY_MS = 7_000L
 
     /** 쓸어내기 PendingIntent의 요청 코드. 고정이라 **마지막 탭 하나만 남는다.** */
     const val SWEEP_REQUEST_CODE = 1

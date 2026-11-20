@@ -25,31 +25,57 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 탭 자국의 나이 셋(design 2.2.3 · 6.3.3 (1)). 판단 3("`쓰는 중`을 그릴지")의 두 갈래가 셋이 된
- * 것이고, 수명 상수 둘은 Dart에 같은 값으로 있다.
+ * **탭 자국 하나**(design 1.2). 이 파일이 `TAP_MARKS_KEY`에 적고 Dart는 **읽기만** 한다.
+ *
+ * [writing]이면 낙관 반영이 꺼진 탭이다(절전·비행기·데이터 세이버) — 그 줄은 완료 모양으로
+ * 뒤집지 않고 체크 칸 자리에 `쓰는 중`을 그린다. **모드를 묶음이 아니라 자국마다 드는 이유**는
+ * 모드가 바뀌는 순간에 모드가 다른 자국이 섞일 수 있고 그리기는 줄마다 결정되기 때문이다.
  */
-private enum class Mark {
-  /** 자국이 없거나 60초가 지나 잊었다. */
-  NONE,
+private class TapMark(
+    val gen: Int,
+    val id: String,
+    val done: Boolean,
+    val atMs: Long,
+    val writing: Boolean,
+)
 
-  /** 6초 안쪽. 결말을 기다리는 중이다. */
-  FRESH,
-
-  /** 6~60초. 결말이 오지 않았다 — 줄을 되돌리고 이유를 적는다. */
-  LAPSED,
+/**
+ * **탭 자국 레코드**(design 1.2). 지금 모으는 묶음의 시각 넷과 자국 배열이다. Dart의
+ * `TodoWidgetTapMarks`와 같은 모양이고, 그쪽 `todoWidgetMarksOf`가 같은 방어를 유닛 테스트로
+ * 고정해 두었다.
+ */
+private class TapMarks(
+    val gen: Int,
+    val batchAtMs: Long,
+    val lastAtMs: Long,
+    val leaveAtMs: Long,
+    val dueAtMs: Long,
+    val marks: List<TapMark>,
+) {
+  /** 그 줄의 **가장 새 자국**. 중복 탭 판정의 입력이다(design 8.2). */
+  fun latestFor(id: String): TapMark? = marks.filter { it.id == id }.maxByOrNull { it.gen }
 }
 
 /**
- * 그리기에 들어가는 **탭 자국**. 네이티브가 탭 순간에 캐시에 적어 둔 넷을 읽은 것이다.
+ * 자국들이 그리기에 주는 **겹침**(design 1.5). [render]에서 **한 번** 만들고 **네 자리**가 이것만
+ * 본다 — 줄 그리기, `그 외 N개`의 기준(`undoneShown`), `totalCount` 보정, 머리 줄. **하나라도
+ * 빠지면 숫자가 어긋난다**(design 6.3.3 (2) · 4.7 (5)).
  *
- * [optimistic]이 켜져 있으면 그 줄([id])의 `done`을 [done]으로 **뒤집어 그린다**(낙관적 반영).
- * 그 뒤집기를 읽는 자리는 **셋**이고 전부 `effectiveDone`을 지나야 한다 — 줄 그리기,
- * `그 외 N개`의 기준(`undoneShown`), 그리고 `totalCount` 보정. **셋 중 하나라도 빠지면 숫자가
- * 어긋난다**(design 6.3.3 (2) · 4.7 (5)).
+ * 규칙은 Dart의 순수 함수 `todoWidgetOverlayOf`에 테스트와 함께 박혀 있고(네이티브는 유닛 테스트가
+ * 없다) 여기는 그것을 베낀 것이다 — **바꿀 때는 양쪽을 함께** 바꾼다.
  */
-private class TapMark(val state: Mark, val id: String, val done: Boolean, val optimistic: Boolean) {
+private class Overlay(
+    /** 낙관으로 **뒤집어 그릴** 줄들(id → 목표 값). */
+    val flips: Map<String, Boolean>,
+    /** 체크 칸 자리에 `쓰는 중`을 그릴 줄들. **뒤집지 않는다.** */
+    val writingIds: Set<String>,
+    /** Σ(flips: 완료 +1 / 되돌리기 −1). `totalCount − doneDelta`가 보정된 미완료 개수다. */
+    val doneDelta: Int,
+    /** **되돌릴 시각이 지났다** — 전부 걷고 머리 줄에 이유를 적는다. */
+    val lapsed: Boolean,
+) {
   companion object {
-    val none = TapMark(Mark.NONE, "", done = true, optimistic = false)
+    val none = Overlay(emptyMap(), emptySet(), 0, lapsed = false)
   }
 }
 
@@ -62,18 +88,19 @@ private class TapMark(val state: Mark, val id: String, val done: Boolean, val op
  * "비교하고 Dart가 보내 준 것 중에서 고르기"다(design 원칙 2의 각주들):
  *   1. 이 높이에 몇 줄이 들어가나([rowCountFor])
  *   2. 캐시가 준 서식에 숫자 하나 끼우기("그 외 %d개")
- *   3. `now - pendingAtMs < 60초`인가(`쓰는 중`을 그릴지)
+ *   3. 그 자국이 아직 효력이 있나(60초 — `쓰는 중`을 그릴지)
  *   4. `now >= dueAtMs`인가(기한 줄의 문장·색 고르기 — [showDue])
  *   5. `rank < limit`인가(이 항목을 그릴지 — 줄 자리 수는 런처가 주는 높이에서 나와 Dart가
  *      모르므로, Dart가 **순서만 숫자로 굳혀** 보내고 여기서 비교 한 줄을 한다)
  *   6. `done`인가(줄 면·제목 색·취소선·체크 그림 고르기 — 사실은 Dart가 적어 보낸다)
  *   7. (2026-11-19) 탭 순간의 **기기 상태** → 낙관 모드인가 `쓰는 중` 모드인가([tapMode])
- *   8. (2026-11-19) 탭 **자국의 나이** → 신선(6초)/지남(60초)/잊음([markOf]). 판단 3의 두 갈래가
- *      셋이 된 것이다
- *   9. (2026-11-20) 이 탭이 **중복인가**([isDuplicateTap]) — 자국과 비교 셋(같은 줄·같은 목표
- *      값·신선함). Dart에 있던 판단이 **옮겨 온** 것이다: 자국을 쓰는 자리가 여기라서 Dart가
- *      읽는 자국은 언제나 이번 탭의 것이었다(그래서 모든 탭이 버려졌다). 규칙 자체는 Dart의
- *      순수 함수 `isDuplicateWidgetTap`에 테스트와 함께 박혀 있고 여기는 그것을 따른다
+ *   8. (2026-11-19 · 2026-11-20에 자랐다) **자국마다** 효력이 있나(세 조건) + 묶음의 되돌림
+ *      시각이 지났나([overlayOf]). 판단 3의 두 갈래가 **자국 배열 전체**로 넓어진 것이고, 규칙은
+ *      Dart의 `todoWidgetOverlayOf`에 테스트와 함께 박혀 있다
+ *   9. (2026-11-20) 이 탭이 **중복인가**([isDuplicateTap]) — **그 id의 가장 새 자국**과 비교
+ *      셋(같은 줄·같은 목표 값·창 안쪽). Dart에 있던 판단이 **옮겨 온** 것이다: 자국을 쓰는
+ *      자리가 여기라서 Dart가 읽는 자국은 언제나 이번 탭의 것이었다(그래서 모든 탭이 버려졌다).
+ *      규칙 자체는 Dart의 `isDuplicateWidgetTap`에 테스트와 함께 박혀 있고 여기는 그것을 따른다
  * 그 아홉 외의 규칙을 이 파일에 더하지 말 것, 특히 **문장을 만들지 말 것** — 네이티브는
  * 테스트하지 않으므로 판단이 늘어나면 검증되지 않는 코드가 늘어난다(design 원칙 2).
  * 머리 줄의 개수(`할 일 2/5`)도 **완성된 문장**으로 실려 오므로 여기서 숫자를 세지 않는다.
@@ -85,10 +112,13 @@ private class TapMark(val state: Mark, val id: String, val done: Boolean, val op
  *
  * **2026-11-19(추가 범위 3 J): 이 파일이 캐시를 쓰는 자리가 하나 생겼다.** 탭 순간에는 Dart가
  * 깨어 있지 않으므로(engine이 뜨는 데 1초 안쪽) 그 자리에서 즉시 그리려면 네이티브가 그려야 한다.
- * 범위는 **최상위 탭 자국 네 키(`pendingId`·`pendingAtMs`·`pendingDone`·`pendingMode`)뿐**이고,
- * `items`·`header`·`note`·`totalCount`는 **읽기만** 한다. **Dart는 그 넷을 쓰지 않으므로**
- * (todo_widget_payload.dart의 `toJson`) 모든 Dart 발행이 자국을 자동으로 지운다 — 즉 "결말이
- * 자국을 걷는다"가 코드 한 줄 없이 성립한다(design 2.2.3 · 4.7 (6)).
+ *
+ * **2026-11-20(추가 범위 4): 그 자리가 payload에서 떨어져 나와 별도 키가 됐다**(design 1.1).
+ * 이 파일이 쓰는 것은 **[TAP_MARKS_KEY] 하나뿐**이고 payload([PAYLOAD_KEY])는 **읽기만** 한다.
+ * 그래서 Dart의 발행이 자국을 건드리지 않고, **결말 하나가 아직 끝나지 않은 다른 줄의 자국을
+ * 걷어 가지 않는다** — "그 묶음에 들어간 것만 걷는다"는 **지우기가 아니라 세대 비교**
+ * (`g > settledGen`)로 성립한다(design 1.3·4.1). 이 소유권을 깨면(Dart가 자국 키를 쓰거나
+ * 네이티브가 `settledGen`을 쓰면) 이 설계의 경합 방지가 통째로 무너진다.
  */
 class TodoWidgetProvider : HomeWidgetProvider() {
 
@@ -140,12 +170,15 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     // Dart의 todoWidgetActionOf와 같은 규칙이다: `0`이 아니면 완료로 읽는다(옛 PendingIntent 호환).
     val done = data.getQueryParameter("done") != "0"
 
-    // 캐시는 **한 번만** 읽어 중복 판정과 자국 쓰기가 나눠 쓴다(읽기를 두 번 만들지 않는다).
+    // 캐시 **두 키를 한 번씩만** 읽어 중복 판정과 자국 쓰기가 나눠 쓴다(읽기를 두 번 만들지
+    // 않는다). 자국은 **별도 키**다(design 1.1) — payload와 섞지 않으므로 Dart의 발행이 자국을
+    // 건드리지 않고, 결말 하나가 아직 끝나지 않은 다른 줄의 그림을 걷어 가지 않는다.
     val widgetData = HomeWidgetPlugin.getData(context)
     val payload = readPayload(widgetData)
-    if (isDuplicateTap(markOf(payload), todoId, done)) return
+    val marks = readMarks(widgetData)
+    if (isDuplicateTap(marks, todoId, done)) return
 
-    markTap(widgetData, payload, todoId, done, tapMode(context))
+    markTap(widgetData, payload, marks, todoId, done, tapMode(context))
     renderAll(context)
     scheduleSweep(context)
     // 패키지의 공개 API를 그대로 쓴다 — 리시버 클래스 이름·액션 문자열 같은 내부를 베껴 적으면
@@ -156,41 +189,134 @@ class TodoWidgetProvider : HomeWidgetProvider() {
   /**
    * **중복 탭인가**(2026-11-20). 규칙은 Dart의 순수 함수 `isDuplicateWidgetTap`과 **같아야 한다**
    * (lib/features/todo/data/todo_widget_payload.dart). 네이티브는 유닛 테스트가 없으므로 규칙만
-   * 저쪽에 뽑아 테스트로 고정해 두었다 — `ROW_PITCH_DP`·[TAP_MARK_FRESH_MS]와 같은 방식이고,
+   * 저쪽에 뽑아 테스트로 고정해 두었다 — `ROW_PITCH_DP`·[TAP_DUP_WINDOW_MS]와 같은 방식이고,
    * **바꿀 때는 양쪽을 함께** 바꾼다.
    *
-   * 셋이 모두 맞을 때만 중복이다: 같은 줄 · **같은 목표 값** · 자국이 아직 [Mark.FRESH].
+   * 셋이 모두 맞을 때만 중복이다: 같은 줄 · **같은 목표 값** · 그 자국이 [TAP_DUP_WINDOW_MS]
+   * 안쪽. 보는 것은 **그 id의 가장 새 자국** 하나다(design 8.2).
    * **방향이 다른 탭(같은 줄, 다른 `done`)은 중복이 아니다** — 낙관적 반영 때문에 사용자는 이미
    * 바뀐 줄을 보고 있고, 그 줄을 다시 누르는 것은 "되돌리겠다"는 뜻이다(막으면 되돌리기가 6초
    * 동안 먹지 않는다).
    */
-  private fun isDuplicateTap(mark: TapMark, todoId: String, done: Boolean): Boolean =
-      mark.state == Mark.FRESH && mark.id == todoId && mark.done == done
+  private fun isDuplicateTap(marks: TapMarks?, todoId: String, done: Boolean): Boolean {
+    val mark = marks?.latestFor(todoId) ?: return false
+    return mark.done == done && System.currentTimeMillis() - mark.atMs < TAP_DUP_WINDOW_MS
+  }
 
   /**
-   * 탭 자국 네 키를 캐시에 적는다. **`apply()`가 아니라 `commit()`이다** — 뒤이어 깨어나는
-   * 백그라운드 engine이 **자국이 찍힌 캐시**를 보게 하려는 것이다(design 4.7 (6)의 첫 칸).
-   * 받는 자리가 `onReceive`(수 ms 작업)라 동기 쓰기의 비용이 문제 되지 않는다.
+   * 자국 레코드를 **별도 키**에 적는다(design 1.2). **`apply()`가 아니라 `commit()`이다** —
+   * 뒤이어 깨어나는 백그라운드 engine이 **자국이 찍힌 캐시**를 보게 하려는 것이다(design 4.7 (6)의
+   * 첫 칸). 받는 자리가 `onReceive`(수 ms 작업)라 동기 쓰기의 비용이 문제 되지 않는다.
    *
-   * 캐시를 아예 읽지 못하면(설치 직후·판 번호 모름) 아무것도 적지 않는다. 그때는 그릴 줄도 없다.
+   * 하는 일 넷:
+   *   1. **세대**를 올린다 — `max(지금 세대, payload.settledGen) + 1`. payload가 비워졌다
+   *      되살아난 경우에도 세대가 **뒤로 가지 않게** 하는 한 줄이다.
+   *   2. **묶음의 시각들**을 다시 계산한다(`batchAtMs`·`lastAtMs`·`leaveAtMs`·`dueAtMs`).
+   *      식은 Dart의 `widgetTapLeaveAt`·`widgetTapDueAt`과 같다(상수도 같다 — design 8.3).
+   *   3. **솎아낸다** — 결말이 난 세대(`g <= settledGen`), 잊을 나이([PENDING_TIMEOUT_MS]),
+   *      상한([MAX_MARKS]) 초과. 그래서 이 레코드는 자라지 않는다.
+   *   4. `writing` 자국은 **묶지 않는다** — 그 상태의 사용자에게 이 기능이 주는 유일한 값이
+   *      "빨리 분명해지는 실패"인데 1초를 기다리면 그마저 깎인다(spec U 조건 ②의 조임).
+   *
+   * 캐시를 아예 읽지 못하면(설치 직후·판 번호 모름) 아무것도 적지 않는다. 그때는 그릴 줄도 없고,
+   * 깨어난 Dart가 Uri 한 줄만 쓰는 대비 경로로 간다(design 4.4의 13번).
    */
   private fun markTap(
       widgetData: SharedPreferences,
       payload: JSONObject?,
+      marks: TapMarks?,
       todoId: String,
       done: Boolean,
       mode: String,
   ) {
     if (payload == null) return
+    val now = System.currentTimeMillis()
+    val settledGen = payload.optInt("settledGen", 0)
+    val writing = mode == MODE_WRITING
+    // 살아 있는 묶음이 없거나 떠날 시각이 지났으면(또는 이 탭이 writing이면) **새 묶음**이다.
+    val newBatch = marks == null || now >= marks.leaveAtMs || writing
+    val batchAtMs = if (newBatch) now else marks!!.batchAtMs
+    val leaveAtMs = if (writing) now else leaveAtOf(batchAtMs, now)
+    val gen = maxOf(marks?.gen ?: 0, settledGen) + 1
+    val kept =
+        (marks?.marks ?: emptyList()).filter {
+          it.gen > settledGen && now - it.atMs < PENDING_TIMEOUT_MS
+        }
+    val next = (kept + TapMark(gen, todoId, done, now, writing)).takeLast(MAX_MARKS)
+
+    val json = JSONObject()
     try {
-      payload.put("pendingId", todoId)
-      payload.put("pendingAtMs", System.currentTimeMillis())
-      payload.put("pendingDone", done)
-      payload.put("pendingMode", mode)
+      json.put("gen", gen)
+      json.put("batchAtMs", batchAtMs)
+      json.put("lastAtMs", now)
+      json.put("leaveAtMs", leaveAtMs)
+      json.put("dueAtMs", leaveAtMs + WRITE_WINDOW_MS + SETTLE_GRACE_MS)
+      val array = JSONArray()
+      for (mark in next) {
+        val item = JSONObject()
+        item.put("g", mark.gen)
+        item.put("id", mark.id)
+        item.put("done", mark.done)
+        item.put("at", mark.atMs)
+        if (mark.writing) item.put("w", true)
+        array.put(item)
+      }
+      json.put("marks", array)
     } catch (error: Exception) {
       return
     }
-    widgetData.edit().putString(PAYLOAD_KEY, payload.toString()).commit()
+    widgetData.edit().putString(TAP_MARKS_KEY, json.toString()).commit()
+  }
+
+  /**
+   * **묶음이 떠날 시각** = `min(마지막 탭 + 1초, 첫 탭 + 5초)`. Dart의 `widgetTapLeaveAt`과
+   * **같은 식·같은 상수**다(design 7·8.3) — 그쪽이 유닛 테스트로 고정돼 있으므로 수치를 바꿀 일이
+   * 있으면 Dart를 먼저 고친다. 상한이 식 안에 있는 것이 "어느 계기도 오지 않는 경로가 없다"는
+   * 보장이다.
+   */
+  private fun leaveAtOf(batchAtMs: Long, lastAtMs: Long): Long =
+      minOf(lastAtMs + TAP_QUIET_MS, batchAtMs + TAP_BATCH_CAP_MS)
+
+  /**
+   * 자국 레코드를 되읽는다. 키가 없거나 모양이 어긋나면 **null**이다(= 자국이 없는 것으로 본다 =
+   * 평소 그림). Dart의 `todoWidgetMarksOf`와 같은 방어를 하고, 그쪽이 테스트로 고정돼 있다.
+   *
+   * 문자열은 [text]로 읽는다 — AOSP `org.json`의 `optString`이 명시적 null에 `"null"` 네 글자를
+   * 돌려주는 함정 때문이다.
+   */
+  private fun readMarks(widgetData: SharedPreferences): TapMarks? {
+    val raw = widgetData.getString(TAP_MARKS_KEY, null) ?: return null
+    val json =
+        try {
+          JSONObject(raw)
+        } catch (error: Exception) {
+          return null
+        }
+    val array = json.optJSONArray("marks") ?: return null
+    val marks = ArrayList<TapMark>()
+    for (index in 0 until array.length()) {
+      val item = array.optJSONObject(index) ?: continue
+      val id = item.text("id")
+      if (id.isEmpty()) continue
+      marks.add(
+          TapMark(
+              gen = item.optInt("g", 0),
+              id = id,
+              // 없으면 완료로 읽는다(Dart의 `todoWidgetMarksOf`와 같은 기준).
+              done = item.optBoolean("done", true),
+              atMs = item.optLong("at", 0L),
+              writing = item.optBoolean("w", false),
+          )
+      )
+    }
+    return TapMarks(
+        gen = json.optInt("gen", 0),
+        batchAtMs = json.optLong("batchAtMs", 0L),
+        lastAtMs = json.optLong("lastAtMs", 0L),
+        leaveAtMs = json.optLong("leaveAtMs", 0L),
+        dueAtMs = json.optLong("dueAtMs", 0L),
+        marks = marks,
+    )
   }
 
   /**
@@ -315,16 +441,16 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     }
 
     val payload = readPayload(widgetData)
-    val mark = markOf(payload)
-    // **"지남"이 보이는 유일한 계기가 쓸어내기 알람이다.** 결말이 제때 오면 자국 자체가 사라지므로
-    // 이 갈래는 거의 그려지지 않는다 — 그려지는 순간은 "Dart가 끝내 답하지 못했다"는 뜻이고,
-    // 그때 **되돌림(줄이 평소 모양)과 이유(이 한 줄)가 한 화면에** 나온다(spec 조건 ①).
-    val failNote =
-        if (mark.state == Mark.LAPSED) payload?.text("failNote").orEmpty() else ""
+    val overlay = overlayOf(payload, readMarks(widgetData))
+    // **"되돌림"이 보이는 유일한 계기가 쓸어내기 알람이다.** 결말이 제때 오면 세대 비교로 자국의
+    // 효력이 사라지므로 이 갈래는 거의 그려지지 않는다 — 그려지는 순간은 "Dart가 끝내 답하지
+    // 못했다"는 뜻이고, 그때 **되돌림(줄이 평소 모양)과 이유(이 한 줄)가 한 화면에** 나온다
+    // (spec 조건 ①). 여러 줄이 함께 되돌아가도 **안내는 하나다**(spec S).
+    val failNote = if (overlay.lapsed) payload?.text("failNote").orEmpty() else ""
     // **머리 줄은 캐시를 읽기 전에, 어떤 갈래에서도 반드시 다시 쓴다.** 안 쓰고 넘어가면 앞서 쓴
     // 값이 남는다(`reapply`, showRow의 주석 참고) — 로그아웃 캐시에서 가운데가 `로그인이
     // 필요해요`인데 머리 줄만 **직전 사용자의 `할 일 2/5`**로 남는 사고가 난다.
-    showHeader(context, views, payload, mark)
+    showHeader(context, views, payload, overlay)
     // **띠 면도 같은 이유로 어떤 갈래에서든, payload == null로 일찍 돌아가기 전에 칠한다.**
     // 한쪽만 칠하면 체크 실패로 붉어진 띠가 그 뒤 성공 갈래에서도 붉게 남고(`reapply`), 캐시를
     // 못 읽는 갈래로 떨어질 때는 `앱을 한 번 열어 주세요` 위에 실패 색 띠가 뜬다(design 6.3.2 (1)).
@@ -356,7 +482,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
               views,
               payload,
               rowCountFor(appWidgetManager.getAppWidgetOptions(appWidgetId)),
-              mark,
+              overlay,
           )
     }
     val note = showNote(views, payload, failNote)
@@ -397,37 +523,64 @@ class TodoWidgetProvider : HomeWidgetProvider() {
   private fun JSONObject.isDanger(): Boolean = text("noteTone", "muted") == "danger"
 
   /**
-   * 탭 자국의 나이(판단 8). 기기 시계와 `pendingAtMs`만 본다.
+   * 자국 배열을 **한 번** 훑어 [Overlay]를 만든다(판단 8, design 1.3·1.5). 이번 범위에서 **가장
+   * 틀리기 쉬운 자리**라 규칙은 Dart의 `todoWidgetOverlayOf`에 테스트와 함께 있고 여기는 그것을
+   * 베낀다 — **바꿀 때는 양쪽을 함께** 바꾼다.
    *
-   * | 자국 | 뜻 | 그리는 것 |
-   * |---|---|---|
-   * | [Mark.NONE] | 자국이 없거나 60초가 지나 **잊었다** | 평소 그대로 |
-   * | [Mark.FRESH] | 6초 안쪽 — 아직 결말을 기다리는 중이다 | 모드대로(`쓰는 중` 또는 낙관) |
-   * | [Mark.LAPSED] | 6~60초 — **결말이 오지 않았다** | 줄은 평소대로 되돌리고 실패 한 줄 |
+   * 자국은 **셋을 모두 만족할 때만** 효력이 있다:
+   *   1. `g > settledGen` — 결말이 난 묶음의 자국은 효력이 없다(= 성공은 payload가 이미 그 값이고,
+   *      실패는 되돌아가야 한다). 이 비교 하나가 "그 묶음에 들어간 것만 걷는다"의 전부다.
+   *   2. [PENDING_TIMEOUT_MS]가 지나지 않았다 — 아무도 결말을 내지 못한 자국이 영원히 남지 않는다.
+   *   3. **목표 값이 캐시의 `done`과 다르다** — 값이 이미 맞은 자국은 아무 일도 하지 않는다.
+   *      이 조건이 **상쇄**를 그리기 쪽에서 공짜로 성립시킨다(같은 줄을 눌러 제자리로 돌려놓으면
+   *      그 자리에서 평소 모양이다).
    *
-   * 수명 상수 둘은 Dart에 같은 값으로 있다([TAP_MARK_FRESH_MS]·[PENDING_TIMEOUT_MS]의 주석).
-   *
-   * **낙관 모드는 신선할 때만 켜진다.** 모드를 모르면(`pendingMode`가 없는 옛 캐시) 보수적인
-   * 쪽 = `쓰는 중`으로 본다(거짓 성공을 그리지 않는 쪽).
+   * 같은 줄의 자국이 여럿이면 **가장 새 것 하나만** 본다. `dueAtMs`가 지났으면 효력 있던 자국
+   * **전부**를 걷고 [Overlay.lapsed]를 켠다(= 되돌림 + 머리 줄에 이유 한 줄). 효력 있는 자국이
+   * 하나도 없으면 `lapsed`도 **켜지 않는다** — 상쇄만 있었던 묶음에 실패 한 줄을 띄우지 않는다.
    */
-  private fun markOf(payload: JSONObject?): TapMark {
-    val id = payload?.text("pendingId").orEmpty()
-    if (payload == null || id.isEmpty()) return TapMark.none
-    val age = System.currentTimeMillis() - payload.optLong("pendingAtMs", 0L)
-    val state =
-        when {
-          age >= PENDING_TIMEOUT_MS -> Mark.NONE
-          age < TAP_MARK_FRESH_MS -> Mark.FRESH
-          else -> Mark.LAPSED
+  private fun overlayOf(payload: JSONObject?, marks: TapMarks?): Overlay {
+    if (payload == null || marks == null || marks.marks.isEmpty()) return Overlay.none
+    val now = System.currentTimeMillis()
+    val settledGen = payload.optInt("settledGen", 0)
+
+    val doneById = HashMap<String, Boolean>()
+    val items = payload.optJSONArray("items")
+    for (index in 0 until (items?.length() ?: 0)) {
+      val item = items?.optJSONObject(index) ?: continue
+      doneById[item.text("id")] = item.isDone()
+    }
+
+    val latest = LinkedHashMap<String, TapMark>()
+    for (mark in marks.marks) {
+      val found = latest[mark.id]
+      if (found == null || mark.gen >= found.gen) latest[mark.id] = mark
+    }
+    val effective =
+        latest.values.filter { mark ->
+          val done = doneById[mark.id]
+          mark.gen > settledGen &&
+              now - mark.atMs < PENDING_TIMEOUT_MS &&
+              done != null &&
+              done != mark.done
         }
-    if (state == Mark.NONE) return TapMark.none
-    return TapMark(
-        state = state,
-        id = id,
-        done = payload.optBoolean("pendingDone", true),
-        optimistic =
-            state == Mark.FRESH && payload.text("pendingMode") == MODE_OPTIMISTIC,
-    )
+    if (effective.isEmpty()) return Overlay.none
+    if (now >= marks.dueAtMs) {
+      return Overlay(emptyMap(), emptySet(), 0, lapsed = true)
+    }
+
+    val flips = HashMap<String, Boolean>()
+    val writingIds = HashSet<String>()
+    var doneDelta = 0
+    for (mark in effective) {
+      if (mark.writing) {
+        writingIds.add(mark.id)
+        continue
+      }
+      flips[mark.id] = mark.done
+      doneDelta += if (mark.done) 1 else -1
+    }
+    return Overlay(flips, writingIds, doneDelta, lapsed = false)
   }
 
   /**
@@ -437,8 +590,8 @@ class TodoWidgetProvider : HomeWidgetProvider() {
    * 특히 `undoneShown`에서 빠뜨리면 **보이는 미완료만 하나 줄어 `그 외 N개`가 1 늘고**, 숨겨진
    * 할 일이 생긴 것처럼 보인다(design 6.3.3 (2)가 "가장 틀리기 쉬운 한 줄"로 꼽은 자리다).
    */
-  private fun JSONObject.effectiveDone(mark: TapMark): Boolean =
-      if (mark.optimistic && text("id") == mark.id) mark.done else isDone()
+  private fun JSONObject.effectiveDone(overlay: Overlay): Boolean =
+      overlay.flips[text("id")] ?: isDone()
 
   private fun showCenter(
       context: Context,
@@ -461,18 +614,16 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       views: RemoteViews,
       payload: JSONObject,
       rowCount: Int,
-      mark: TapMark,
+      overlay: Overlay,
   ): Int {
     val items = payload.optJSONArray("items")
     val itemCount = items?.length() ?: 0
-    // **낙관 구간에는 미완료 전체 개수도 함께 ∓1 한다.** 보이는 미완료가 하나 줄 때 전체도 하나
-    // 줄어야 `그 외 N개`가 그대로다 — 안 하면 숨겨진 할 일이 생긴 것처럼 보인다(design 4.7 (5)).
+    // **낙관 구간에는 미완료 전체 개수도 함께 ∓N 한다.** 보이는 미완료가 N 줄 때 전체도 N 줄어야
+    // `그 외 N개`가 그대로다 — 안 하면 숨겨진 할 일이 생긴 것처럼 보인다(design 4.7 (5) · 1.5).
     // 산수는 여전히 하나뿐이다(moreCount = totalCount − undoneShown): 그 식에 들어가는 입력
-    // 하나를 옮기는 것이고 문장을 만드는 일이 아니다.
+    // 하나를 옮기는 것이고 문장을 만드는 일이 아니다. **∓1이 ∓N으로 자란 자리다.**
     val totalCount =
-        payload.optInt("totalCount", itemCount).let {
-          if (!mark.optimistic) it else if (mark.done) it - 1 else it + 1
-        }.coerceAtLeast(0)
+        (payload.optInt("totalCount", itemCount) - overlay.doneDelta).coerceAtLeast(0)
 
     views.setViewVisibility(R.id.widget_center, View.GONE)
     views.setViewVisibility(R.id.widget_rows, View.VISIBLE)
@@ -487,15 +638,14 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     var moreCount = 0
     if (itemCount > 0 &&
         rowCount > 1 &&
-        totalCount > undoneShown(items, itemCount, rowCount, mark)) {
+        totalCount > undoneShown(items, itemCount, rowCount, overlay)) {
       limit = rowCount - 1
-      moreCount = totalCount - undoneShown(items, itemCount, limit, mark)
+      moreCount = totalCount - undoneShown(items, itemCount, limit, overlay)
     }
 
-    // `쓰는 중`은 **낙관이 꺼진 신선한 자국**에서만 그린다(= 절전 모드 등. 조건 ②). 낙관이
-    // 켜져 있으면 그 줄은 이미 완료 모양이라 `쓰는 중`을 겹치지 않는다 — 모양은 셋뿐이고 네
-    // 번째를 만들지 않는다. "지남"이면 줄이 평소 모양으로 되돌아가고 이유는 머리 줄이 말한다.
-    val pendingId = if (mark.state == Mark.FRESH && !mark.optimistic) mark.id else ""
+    // `쓰는 중`은 **낙관이 꺼진 자국**의 줄에만 그린다(= 절전 모드 등. 조건 ②). 낙관이 켜져 있는
+    // 줄은 이미 완료 모양이라 `쓰는 중`을 겹치지 않는다 — 모양은 셋뿐이고 네 번째를 만들지
+    // 않는다. 되돌림이면 줄이 평소 모양으로 돌아가고 이유는 머리 줄이 말한다.
     val pendingLabel = payload.text("pendingLabel")
 
     // **줄 슬롯 번호(rowIndex)와 항목 index는 같지 않다.** rank로 걸러 내므로 "배열의 3번째
@@ -506,7 +656,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       if (rowIndex >= MAX_ROWS) break
       val item = items?.optJSONObject(index) ?: continue
       if (item.rankOf(index) >= limit) continue
-      showRow(context, views, rowIndex, item, pendingId, pendingLabel, mark)
+      showRow(context, views, rowIndex, item, pendingLabel, overlay)
       rowIndex++
     }
     for (slot in rowIndex until MAX_ROWS) {
@@ -547,12 +697,12 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       items: JSONArray?,
       itemCount: Int,
       limit: Int,
-      mark: TapMark,
+      overlay: Overlay,
   ): Int {
     var count = 0
     for (index in 0 until itemCount) {
       val item = items?.optJSONObject(index) ?: continue
-      if (item.rankOf(index) < limit && !item.effectiveDone(mark)) count++
+      if (item.rankOf(index) < limit && !item.effectiveDone(overlay)) count++
     }
     return count
   }
@@ -575,13 +725,12 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       views: RemoteViews,
       rowIndex: Int,
       item: JSONObject,
-      pendingId: String,
       pendingLabel: String,
-      mark: TapMark,
+      overlay: Overlay,
   ) {
     // 낙관 구간에는 **뒤집힌 값**으로 면·제목 색·취소선·체크 그림·기한·체크 Uri를 고른다.
     // 여섯 자리가 모두 이 한 값을 쓰므로 그림이 서로 어긋나지 않는다.
-    val done = item.effectiveDone(mark)
+    val done = item.effectiveDone(overlay)
     val title = item.text("title")
     views.setViewVisibility(ROW_IDS[rowIndex], View.VISIBLE)
     views.setTextViewText(TITLE_IDS[rowIndex], if (done) struckThrough(title) else title)
@@ -599,7 +748,7 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     showDue(context, views, rowIndex, item, done)
 
     val todoId = item.text("id")
-    val isPending = pendingId.isNotEmpty() && todoId == pendingId
+    val isPending = todoId.isNotEmpty() && overlay.writingIds.contains(todoId)
     views.setViewVisibility(CHECK_IDS[rowIndex], if (isPending) View.GONE else View.VISIBLE)
     views.setViewVisibility(PENDING_IDS[rowIndex], if (isPending) View.VISIBLE else View.GONE)
     if (isPending) {
@@ -716,15 +865,21 @@ class TodoWidgetProvider : HomeWidgetProvider() {
       context: Context,
       views: RemoteViews,
       payload: JSONObject?,
-      mark: TapMark,
+      overlay: Overlay,
   ) {
-    // 낙관 구간에는 **Dart가 미리 만들어 보낸 대체 문장 둘** 중에서 고른다(design 2.2.3). 탭 한
-    // 번은 완료 개수를 정확히 ∓1 하므로 문장 둘로 모든 줄의 탭을 덮는다 — 여기서 숫자를 세거나
-    // 분수를 조립하지 않는다. 그 키가 없으면(옛 캐시·전부 완료 등) 머리 줄을 그대로 두어 개수가
-    // 1~4초 늦게 맞는다("모르면 말하지 않는다").
+    // 낙관 구간에는 **Dart가 미리 만들어 보낸 대체 문장 배열**에서 **첨자로 고른다**(design 1.4).
+    // N줄이 동시에 눌리면 개수가 ∓N 움직이므로 문장 둘로는 덮지 못해 2026-11-20에 배열이 됐다.
+    // 여기서 숫자를 세거나 분수를 조립하지 않는다 — 첨자를 만드는 산수(Σ)는 `totalCount` 보정과
+    // 같은 종류다. 배열이 없거나 범위를 넘으면 머리 줄을 그대로 두어 개수가 결말까지 늦게
+    // 맞는다("모르면 말하지 않는다").
+    val delta = overlay.doneDelta
+    val sentences =
+        if (delta == 0) null
+        else payload?.optJSONArray(if (delta > 0) "headerAfterChecks" else "headerAfterUnchecks")
+    val index = (if (delta > 0) delta else -delta) - 1
     val alternate =
-        if (mark.optimistic) {
-          payload?.text(if (mark.done) "headerAfterCheck" else "headerAfterUncheck").orEmpty()
+        if (sentences != null && index >= 0 && index < sentences.length()) {
+          if (sentences.isNull(index)) "" else sentences.optString(index, "")
         } else {
           ""
         }
@@ -776,6 +931,13 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     /** Dart가 쓰고 네이티브가 읽는 캐시 키. 바꾸면 todo_widget_host.dart도 함께 바꿔야 한다. */
     const val PAYLOAD_KEY = "todo_widget_payload"
 
+    /**
+     * **네이티브만 쓰는** 탭 자국 키(2026-11-20 추가 범위 4, design 1.1). Dart는 **읽기만**
+     * 한다(`TodoWidgetHost.readTapMarks`). 이 소유권이 깨지면(Dart가 이 키를 쓰거나 네이티브가
+     * payload의 `settledGen`을 쓰면) 읽고-고쳐-쓰기 사이에 들어온 탭이 통째로 사라진다.
+     */
+    const val TAP_MARKS_KEY = "todo_widget_tap_marks"
+
     /** todoWidgetSchemaVersion과 같은 값이어야 한다. */
     const val SCHEMA_VERSION = 1
 
@@ -787,16 +949,43 @@ class TodoWidgetProvider : HomeWidgetProvider() {
     const val PENDING_TIMEOUT_MS = 60_000L
 
     /**
-     * 탭 자국이 **신선한** 동안. Dart의 `todoWidgetTapMarkFreshSeconds`(6초)와 **값이 같아야
-     * 한다**(위와 같은 규칙이고, Dart 쪽은 중복 탭 가드가 같은 창을 쓴다).
+     * **중복 탭 창.** Dart의 `todoWidgetTapDupWindowMs`(6초)와 **값이 같아야 한다**(위와 같은
+     * 규칙이고, 규칙 자체는 그쪽 `isDuplicateWidgetTap`이 테스트로 들고 있다).
      *
-     * 6초인 근거는 K의 약속이다 — 정상 2~4초, 어떤 경우에도 8초. 6초에서 끊고 탭+7초에 한 번 더
-     * 그리면([SWEEP_DELAY_MS]) 최악의 결말이 7초라 약속 안쪽이다. 같은 이유로 Dart의 핸드오프
-     * 상한도 6초다(todo_widget_callback.dart).
+     * 2026-11-20에 **이름만** 또렷해졌다(옛 `TAP_MARK_FRESH_MS`의 값·뜻 그대로다 — 자국의
+     * "신선함"이 그리기에서 떨어져 나가면서 이 창은 중복 판정에만 쓰인다). 0에 가까우면 런처의
+     * 중복 전달을 막지 못하고, 길면 **같은 목표 값**의 정당한 재시도까지 막는다.
      */
-    const val TAP_MARK_FRESH_MS = 6_000L
+    const val TAP_DUP_WINDOW_MS = 6_000L
 
-    /** 쓸어내기 알람까지의 시간(탭+7초). [TAP_MARK_FRESH_MS]보다 뒤여야 자국이 "지남"으로 읽힌다. */
+    /**
+     * **묶음의 기본 계기**(마지막 탭에서 1초)와 **상한**(첫 탭에서 5초). Dart의
+     * `todoWidgetTapQuietMs`·`todoWidgetTapBatchCapMs`와 **값이 같아야 한다** — 식은 Dart의
+     * `widgetTapLeaveAt`에 테스트와 함께 있고 여기 [leaveAtOf]가 그것을 베낀다(design 7·8.3).
+     *
+     * 어긋나면 증상이 "묶음이 떠나지 않는다"(Dart가 더 기다린다)로 나온다.
+     */
+    const val TAP_QUIET_MS = 1_000L
+    const val TAP_BATCH_CAP_MS = 5_000L
+
+    /**
+     * 묶음이 떠난 뒤의 **쓰기 창**(5초)과 결말 발행·그리기에 주는 **여유**(1초). 되돌릴 시각은
+     * `leaveAtMs + 이 둘` ≈ 마지막 탭+7초다. Dart의 `todoWidgetWriteWindowMs`·
+     * `todoWidgetSettleGraceMs`와 **값이 같아야 한다**(design 7).
+     *
+     * 여유가 0이면 Dart의 실패 발행과 쓸어내기가 **같은 순간**에 겹쳐 그림이 두 번 바뀐다.
+     */
+    const val WRITE_WINDOW_MS = 5_000L
+    const val SETTLE_GRACE_MS = 1_000L
+
+    /**
+     * 자국 레코드가 들고 있는 자국의 최대 개수(Dart의 `todoWidgetMaxTapMarks`와 같아야 한다).
+     * 보이는 줄이 최대 6이고 되돌림까지 두 번씩 눌러도 12다. 넘으면 **오래된 것부터 버린다** —
+     * 버려진 자국은 그 줄이 평소 모양으로 돌아가는 것이 전부다(거짓 성공이 아니다).
+     */
+    const val MAX_MARKS = 12
+
+    /** 쓸어내기 알람까지의 시간(탭+7초). 24단계에서 **절대 시각 `dueAtMs`**로 바뀐다. */
     const val SWEEP_DELAY_MS = 7_000L
 
     /** 쓸어내기 PendingIntent의 요청 코드. 고정이라 **마지막 탭 하나만 남는다.** */
@@ -810,7 +999,8 @@ class TodoWidgetProvider : HomeWidgetProvider() {
      * 탭 자국의 그리기 모드. `writing`이면 `쓰는 중`만 그리고(= 낙관 반영이 꺼진 상태),
      * `optimistic`이면 그 줄을 **완료 모양으로 미리** 그린다.
      *
-     * **Dart는 이 키를 모른다**(design 2.2.3) — 모르는 키는 다음 발행에서 자연히 빠진다.
+     * 2026-11-20부터 모드는 **자국마다** 들고 다니고(`marks[].w`), Dart도 그 한 칸을 읽는다
+     * (`TodoWidgetTapMark.writing`) — 묶음을 떠나는 시각을 그 자국이 바꾸기 때문이다(design 1.2).
      */
     const val MODE_WRITING = "writing"
     const val MODE_OPTIMISTIC = "optimistic"

@@ -7,7 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/main_shell.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../todo/data/todo_repository.dart';
 import '../../todo/data/todo_widget_callback.dart';
+import '../../todo/data/todo_widget_payload.dart';
 import '../../todo/domain/todo_providers.dart';
 import '../domain/auth_providers.dart';
 import 'login_screen.dart';
@@ -76,14 +78,26 @@ class _AuthGateState extends ConsumerState<AuthGate> {
   /// 캐시를 직접 쓰지 않는다. 사용자가 앱으로 돌아왔을 때 화면과 위젯이 어긋나지 않는 것도
   /// 그 `invalidate` 덕이다.
   Future<void> _onWidgetCheck(Object? message) async {
-    // [todoId, 목표 값, 답을 보낼 포트]. 모양이 어긋나면 아무 일도 하지 않는다(답할 곳도 모른다).
-    // **목표 값**을 받는 이유는 토글이 아니기 때문이다 — 낡은 그림을 누른 탭이 사용자가 본 것과
-    // 반대로 쓰이지 않게 한다(design 4.6 (1)).
-    if (message is! List || message.length != 3) return;
-    final todoId = message[0];
-    final done = message[1];
-    final reply = message[2];
-    if (todoId is! String || done is! bool || reply is! SendPort) return;
+    // [id 목록, 목표 값 목록, claimedGen, 답을 보낼 포트]. 모양이 어긋나면 아무 일도 하지 않는다
+    // (답할 곳도 모른다). **목표 값**을 받는 이유는 토글이 아니기 때문이다 — 낡은 그림을 누른 탭이
+    // 사용자가 본 것과 반대로 쓰이지 않게 한다(design 4.6 (1)). **목록**인 이유는 묶음이 여러 줄을
+    // 한 번에 맡기기 때문이고(2026-11-20 추가 범위 4), `claimedGen`은 **결말이 걷을 자국의
+    // 세대**다(design 4.2).
+    if (message is! List || message.length != 4) return;
+    final ids = message[0];
+    final dones = message[1];
+    final claimedGen = message[2];
+    final reply = message[3];
+    if (reply is! SendPort) return;
+    if (ids is! List || dones is! List || claimedGen is! int) return;
+    if (ids.isEmpty || ids.length != dones.length) return;
+    final targets = <TodoWidgetCheckTarget>[];
+    for (var index = 0; index < ids.length; index++) {
+      final id = ids[index];
+      final done = dones[index];
+      if (id is! String || done is! bool) return;
+      targets.add(TodoWidgetCheckTarget(id: id, done: done));
+    }
 
     try {
       final userId = ref.read(authRepositoryProvider).currentUser?.id;
@@ -92,11 +106,19 @@ class _AuthGateState extends ConsumerState<AuthGate> {
         reply.send(todoWidgetCheckLoggedOut);
         return;
       }
-      // **`setDone` 앞에서** 적어 둔다. 그 뒤 `invalidate`가 일으키는 발행이 "방금 누른 줄"을
+      // **`setDone` 앞에서** 적어 둔다. 그 뒤 `invalidate`가 일으키는 발행이 "방금 누른 줄들"을
       // 알게 하는 유일한 길이다(이 자리만 id를 안다. design 7.2 (1)).
       final widgetService = ref.read(todoWidgetServiceProvider);
-      widgetService.markJustChecked(todoId);
-      await ref.read(todoRepositoryProvider).setDone(todoId, done);
+      widgetService.markJustChecked([
+        for (final target in targets) target.id,
+      ]);
+      final repository = ref.read(todoRepositoryProvider);
+      // **줄마다 자기 `try`**를 갖는다(design 10.2): 한 줄이 실패해도 나머지는 그대로 쓰이고,
+      // 결말이 줄마다 다르게 그려진다(spec S). `Future.wait`의 `eagerError`를 쓰지 않는 이유가
+      // 그것이다.
+      final results = await Future.wait([
+        for (final target in targets) _writeOne(repository, target),
+      ]);
       // **결말을 여기서 끝낸다**(design 4.7 (2)의 경로 A). 서버 쓰기가 끝났으므로 목록을 다시
       // 받지 않고 앱이 이미 든 목록에서 그 한 줄만 바꿔 발행한다 — 체크 한 번의 왕복이 둘에서
       // 하나로 준다. 아래 `invalidate`가 일으키는 발행은 이제 결말이 아니라 **보정**이다.
@@ -107,19 +129,52 @@ class _AuthGateState extends ConsumerState<AuthGate> {
       // 없다).
       final todos = ref.read(todosProvider).value;
       if (todos != null) {
-        await widgetService.publishChecked(
+        await widgetService.publishSettled(
           todos,
-          todoId: todoId,
-          done: done,
+          results: results,
+          claimedGen: claimedGen,
           now: DateTime.now(),
         );
+      } else {
+        // 발행할 재료가 없어도 **세대는 올린다** — 올리지 않으면 쓰기가 끝난 줄의 낙관 그림이
+        // 되돌림 시각까지 남는다(design 4.2).
+        widgetService.noteSettledGen(claimedGen);
       }
       ref.invalidate(todosProvider);
-      reply.send(todoWidgetCheckOk);
+      // **한 줄이라도 실패했으면 실패로 답한다** — 백그라운드가 그 답으로 위젯 안 한 줄을 띄운다.
+      // 여기서 이미 발행한 결말에도 그 한 줄이 들어 있으므로(spec S) 두 자리가 같은 말을 한다.
+      reply.send(
+        results.every((result) => result.ok)
+            ? todoWidgetCheckOk
+            : todoWidgetCheckFailed,
+      );
     } catch (error) {
       // 삼키지 않는다 — 백그라운드가 이 답을 받아 위젯 안 한 줄로 말한다(spec).
       debugPrint('todoWidget check (app) failed: $error');
       reply.send(todoWidgetCheckFailed);
+    }
+  }
+
+  /// 한 줄을 쓰고 **결과로 돌려준다**(던지지 않는다 — 한 줄의 실패가 묶음 전체를 실패로 만들지
+  /// 않게 한다. design 10.2).
+  Future<TodoWidgetCheckResult> _writeOne(
+    TodoRepository repository,
+    TodoWidgetCheckTarget target,
+  ) async {
+    try {
+      await repository.setDone(target.id, target.done);
+      return TodoWidgetCheckResult(
+        id: target.id,
+        done: target.done,
+        ok: true,
+      );
+    } catch (error) {
+      debugPrint('todoWidget check (app) failed: $error');
+      return TodoWidgetCheckResult(
+        id: target.id,
+        done: target.done,
+        ok: false,
+      );
     }
   }
 

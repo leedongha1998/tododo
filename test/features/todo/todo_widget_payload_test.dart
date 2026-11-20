@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/todo/data/todo.dart';
@@ -192,11 +194,9 @@ void main() {
         TodoWidgetPayload.checkFailed(previous, now: later).header,
         previous.header,
       );
-      // 네이티브가 찍은 탭 자국도 머리 줄을 건드리지 않는다(자국은 그리기의 입력일 뿐이다).
-      expect(
-        _withTapMark(previous, todoId: '1', at: later).header,
-        previous.header,
-      );
+      // 네이티브가 찍은 탭 자국은 **다른 키**에 있어 머리 줄을 건드릴 수 없다(design 1.1 —
+      // 자국은 그리기의 겹침일 뿐이고 캐시의 문장을 고치지 않는다).
+      expect(previous.toJson().containsKey('marks'), isFalse);
     });
 
     test('왕복에서 header가 보존되고 옛 캐시는 할 일로 읽힌다', () {
@@ -438,10 +438,9 @@ void main() {
       );
 
       final failed = TodoWidgetPayload.fetchFailed(previous, now: now);
-      final marked = _withTapMark(previous, todoId: '1', at: now);
 
       expect(failed.items.single.due, '11/20 오후 6:00');
-      expect(marked.items.single.dueAtMs, previous.items.single.dueAtMs);
+      expect(failed.items.single.dueAtMs, previous.items.single.dueAtMs);
     });
   });
 
@@ -509,7 +508,6 @@ void main() {
       expect(failed.items.map((item) => item.id), ['1', '2']);
       expect(failed.note, AppStrings.widgetCheckFailed);
       expect(failed.noteTone, TodoWidgetNoteTone.danger);
-      expect(failed.pendingId, isNull);
     });
 
     test('체크 실패 안내는 다음 정상 발행에서 사라진다', () {
@@ -527,27 +525,24 @@ void main() {
 
     // 2026-11-19(추가 범위 3 J): `쓰는 중`을 발행하던 팩토리가 없어졌다. 그 그림은 네이티브가
     // 탭 순간에 그리고, Dart는 **결말 하나**만 발행한다.
-    test('어떤 Dart 발행도 탭 자국 네 키를 싣지 않는다', () {
+    //
+    // 2026-11-20(추가 범위 4): 자국이 **별도 키**로 떨어져 나가면서 payload에 자국 키가 아예
+    // 없어졌다(design 1.1). 대신 "어디까지 결말이 났는가"를 `settledGen` 하나로 싣는다.
+    test('어떤 Dart 발행도 탭 자국 키를 싣지 않고 settledGen을 내리지 않는다', () {
       final normal = TodoWidgetPayload.fromTodos(
         [_todo('1', '장보기'), _todo('2', '운동하기', isDone: true)],
         now: now,
+        settledGen: 7,
       );
-      // 네이티브가 찍은 자국이 든 캐시를 재료로 삼아도 마찬가지여야 한다 — 그래서 **모든 발행이
-      // 자국을 지운다**("결말이 자국을 걷는다"가 코드 한 줄 없이 성립하는 근거다).
-      final marked = _withTapMark(normal, todoId: '1', at: now);
-      expect(marked.pendingId, '1');
 
       for (final payload in [
         normal,
-        marked,
-        TodoWidgetPayload.loggedOut(now: now),
-        TodoWidgetPayload.loading(now: now),
-        TodoWidgetPayload.fromTodos(const [], now: now),
-        TodoWidgetPayload.fetchFailed(marked, now: now),
-        TodoWidgetPayload.fetchFailed(null, now: now),
-        TodoWidgetPayload.checkFailed(marked, now: now),
-        TodoWidgetPayload.checkFailed(null, now: now),
-        TodoWidgetPayload.applyCheck(marked, todoId: '1', done: true)!,
+        TodoWidgetPayload.loggedOut(now: now, settledGen: 7),
+        TodoWidgetPayload.loading(now: now, settledGen: 7),
+        TodoWidgetPayload.fromTodos(const [], now: now, settledGen: 7),
+        TodoWidgetPayload.fetchFailed(normal, now: now),
+        TodoWidgetPayload.checkFailed(normal, now: now),
+        applyOne(normal, '1', true, settledGen: 7)!,
       ]) {
         final json = payload.toJson();
         for (final key in [
@@ -555,28 +550,34 @@ void main() {
           'pendingAtMs',
           'pendingDone',
           'pendingMode',
+          'marks',
         ]) {
           expect(json.containsKey(key), isFalse, reason: '$key / $json');
         }
+        // **내려가면 이미 끝난 자국이 되살아나 눌린 그림이 다시 뜬다**(design 4.2).
+        expect(json['settledGen'], 7, reason: '$json');
+        expect(payload.settledGen, 7);
       }
+      // 직전 목록이 없는 갈래도 내리지 않는다(물려받을 것이 없으면 0이고, 서비스가 올린다).
+      expect(TodoWidgetPayload.fetchFailed(null, now: now).settledGen, 0);
+      expect(
+        TodoWidgetPayload.checkFailed(normal, now: now).settledGen,
+        normal.settledGen,
+      );
     });
 
-    test('자국은 fromJson이 읽고 toJson이 지운다', () {
-      final normal = TodoWidgetPayload.fromTodos(
+    test('settledGen은 왕복에서 보존되고 옛 캐시에서는 0이다', () {
+      final payload = TodoWidgetPayload.fromTodos(
         [_todo('1', '장보기')],
         now: now,
+        settledGen: 12,
       );
-      final tappedAt = now.add(const Duration(hours: 2));
 
-      final marked = _withTapMark(normal, todoId: '1', at: tappedAt);
-
-      // 읽는 쪽만 남는다 — 중복 탭 가드가 그 값을 쓴다.
-      expect(marked.pendingId, '1');
-      expect(marked.pendingAtMs, tappedAt.millisecondsSinceEpoch);
-      expect(marked.items, normal.items);
-      expect(marked.updatedAtMs, normal.updatedAtMs);
-      // 그 캐시를 다시 쓰면 자국이 사라진다.
-      expect(TodoWidgetPayload.decode(marked.encode())!.pendingId, isNull);
+      expect(TodoWidgetPayload.decode(payload.encode())!.settledGen, 12);
+      // 그 키를 모르는 옛 캐시는 0으로 읽힌다 — 모든 자국이 효력을 갖는 쪽이고, 업데이트 직후
+      // 한 번 자국이 늦게 걷히는 것이 전부다(design 1.2의 호환 서술).
+      final old = payload.toJson()..remove('settledGen');
+      expect(TodoWidgetPayload.fromJson(old)!.settledGen, 0);
     });
   });
 
@@ -643,7 +644,7 @@ void main() {
         TodoWidgetPayload.fetchFailed(normal, now: now),
         TodoWidgetPayload.fetchFailed(null, now: now),
         TodoWidgetPayload.checkFailed(normal, now: now),
-        TodoWidgetPayload.applyCheck(normal, todoId: '1', done: true)!,
+        applyOne(normal, '1', true)!,
       ]) {
         expect(
           payload.toJson().values.any((value) => value == null),
@@ -763,7 +764,7 @@ void main() {
           _todo('3', '책 반납'),
         ],
         now: now,
-        justCheckedId: '2',
+        frontIds: ['2'],
       );
 
       expect(ranksOf(payload), ['2', '1', '3']);
@@ -771,7 +772,7 @@ void main() {
       expect(payload.items.map((item) => item.id), ['1', '2', '3']);
     });
 
-    test('방금 누른 줄이 미완료거나 목록에 없으면 무시된다', () {
+    test('앞자리 예외에 목록에 없는 id가 섞여도 무해하다', () {
       final todos = [
         _todo('1', '장보기'),
         _todo('2', '운동하기', isDone: true),
@@ -780,13 +781,13 @@ void main() {
       // 되돌린 줄은 미완료가 되어 어차피 앞 순위다 — 방향마다 다른 길을 만들지 않는다.
       expect(
         ranksOf(
-          TodoWidgetPayload.fromTodos(todos, now: now, justCheckedId: '1'),
+          TodoWidgetPayload.fromTodos(todos, now: now, frontIds: ['1']),
         ),
         ['1', '2'],
       );
       expect(
         ranksOf(
-          TodoWidgetPayload.fromTodos(todos, now: now, justCheckedId: '없는id'),
+          TodoWidgetPayload.fromTodos(todos, now: now, frontIds: ['없는id']),
         ),
         ['1', '2'],
       );
@@ -820,7 +821,7 @@ void main() {
       final payload = TodoWidgetPayload.fromTodos(
         todos,
         now: now,
-        justCheckedId: 'd6',
+        frontIds: ['d6'],
       );
 
       // done.take(5) + [그것] — 그 줄은 앞 6개에 없었으므로 position이 그들보다 뒤다.
@@ -833,7 +834,7 @@ void main() {
   });
 
   group('visibleRows와 완료 줄', () {
-    TodoWidgetPayload payloadOf({String? justCheckedId}) {
+    TodoWidgetPayload payloadOf({List<String> frontIds = const []}) {
       return TodoWidgetPayload.fromTodos(
         [
           _todo('B', '책 반납', isDone: true),
@@ -844,7 +845,7 @@ void main() {
           _todo('F', '설거지', isDone: true),
         ],
         now: now,
-        justCheckedId: justCheckedId,
+        frontIds: frontIds,
       );
     }
 
@@ -883,7 +884,7 @@ void main() {
     });
 
     test('design 6.2.2의 보기를 그대로 둔다(방금 누른 줄이 제자리에 보인다)', () {
-      final payload = payloadOf(justCheckedId: 'B');
+      final payload = payloadOf(frontIds: ['B']);
       final result = visibleRows(payload.items, payload.totalCount, 4);
 
       // 방금 누른 줄이 보이고, 아래 줄이 올라오지 않았고, 미완료가 자리를 먼저 썼다.
@@ -894,7 +895,7 @@ void main() {
     });
 
     test('방금 누른 완료 줄은 한 줄짜리 위젯에서도 보인다', () {
-      final payload = payloadOf(justCheckedId: 'B');
+      final payload = payloadOf(frontIds: ['B']);
       final result = visibleRows(payload.items, payload.totalCount, 1);
 
       // spec이 "미완료 한 줄을 밀어낼 수 있다"로 허용한 경우다.
@@ -903,7 +904,7 @@ void main() {
     });
 
     test('완료 줄이 자리를 먹으면 그 외 N개가 그만큼 커진다', () {
-      final payload = payloadOf(justCheckedId: 'B');
+      final payload = payloadOf(frontIds: ['B']);
 
       for (var rowCount = 2; rowCount <= 6; rowCount++) {
         final result = visibleRows(payload.items, payload.totalCount, rowCount);
@@ -924,7 +925,7 @@ void main() {
       final payload = TodoWidgetPayload.fromTodos(
         [_todo('1', '장보기', isDone: true), _todo('2', '운동하기')],
         now: now,
-        justCheckedId: '1',
+        frontIds: ['1'],
       );
 
       final decoded = TodoWidgetPayload.decode(payload.encode())!;
@@ -1143,40 +1144,38 @@ void main() {
     });
 
     // 2026-11-20 회귀 수정(이 테스트가 그 버그를 잡는다). 자국 기반 중복 탭 가드는 **여기에
-    // 없다** — 네이티브로 옮겼다([isDuplicateWidgetTap]).
-    test('네이티브가 이번 탭의 자국을 찍은 캐시여도 쓰기로 간다', () {
+    // 없다** — 네이티브로 옮겼다([isDuplicateWidgetTap]). 추가 범위 4에서 자국이 **별도 키**로
+    // 떨어져 나가면서 payload에 자국 키 자체가 없어졌고, 그래서 이 함수가 자국을 볼 수 없다는
+    // 사실이 **캐시 모양으로도** 못 박혔다(design 1.1).
+    test('자국은 payload에 없고 이 함수는 자국을 보지 않는다', () {
       // 네이티브는 자국을 `commit()`한 **뒤에** 이 isolate를 깨운다(design 4.7 (6)의 첫 칸).
-      // 그래서 여기서 읽는 `pendingId`는 **언제나 이번 탭의 것**이고, 그것으로 중복을 가르면
+      // 그래서 깨어난 Dart가 읽는 자국은 **언제나 이번 탭의 것**이고, 그것으로 중복을 가르면
       // **모든 탭이 버려진다.** 2026-11-20 실기기 회귀가 정확히 그것이었다(백그라운드 워커가
       // 11ms 만에 SUCCESS → 7초 뒤 줄이 되돌아가고 `체크하지 못했어요`).
-      final marked = _withTapMark(cached, todoId: id, at: now);
-
-      expect(decide(payload: marked), TodoWidgetCheckDecision.writeHere);
+      expect(cached.toJson().containsKey('pendingId'), isFalse);
+      expect(decide(payload: cached), TodoWidgetCheckDecision.writeHere);
       expect(
-        decide(payload: marked, appAlive: true),
+        decide(payload: cached, appAlive: true),
         TodoWidgetCheckDecision.handOff,
       );
-      // 탭 직후든 몇 초 뒤든 같다 — 이 함수는 **기준 시각조차 받지 않아** 자국의 나이를 볼
-      // 방법이 없다(그 사실이 시그니처로 못 박혀 있다).
-      final oldMark = _withTapMark(
-        cached,
-        todoId: id,
-        at: now.subtract(const Duration(seconds: 59)),
+      // 이 함수는 **기준 시각조차 받지 않는다** — 자국의 나이를 볼 방법이 없다는 사실이
+      // 시그니처로 못 박혀 있다.
+      expect(
+        decide(payload: TodoWidgetPayload.decode(cached.encode())),
+        TodoWidgetCheckDecision.writeHere,
       );
-      expect(decide(payload: oldMark), TodoWidgetCheckDecision.writeHere);
     });
 
-    test('되돌리기 탭도 자국에 막히지 않는다', () {
+    test('되돌리기 탭도 막히지 않는다', () {
       final mixed = TodoWidgetPayload.fromTodos(
         [_todo(id, '장보기', isDone: true), _todo(other, '책 반납')],
         now: now,
       );
-      final marked = _withTapMark(mixed, todoId: id, at: now, done: false);
 
       expect(
         decide(
           action: const TodoWidgetAction.setDone(id, done: false),
-          payload: marked,
+          payload: mixed,
         ),
         TodoWidgetCheckDecision.writeHere,
       );
@@ -1340,7 +1339,7 @@ void main() {
 
   group('widgetTapMarkFresh', () {
     test('6초 창의 경계', () {
-      // 네이티브 `markOf`의 FRESH 판정과 같은 값이어야 한다(TAP_MARK_FRESH_MS = 6_000).
+      // 네이티브 `isDuplicateTap`과 같은 값이어야 한다(TAP_DUP_WINDOW_MS = 6_000).
       expect(
         widgetTapMarkFresh(
           markAtMs: now.millisecondsSinceEpoch,
@@ -1366,6 +1365,603 @@ void main() {
 
     test('자국이 없으면 신선하지 않다', () {
       expect(widgetTapMarkFresh(markAtMs: null, now: now), isFalse);
+    });
+  });
+
+  // 2026-11-20(추가 범위 4): 자국이 **별도 키의 레코드 + 배열**이 됐다(design 1.2). 네이티브가
+  // 쓰고 Dart는 읽기만 하므로, 읽는 규칙을 여기서 고정해 두는 것이 유일한 자동 방어선이다.
+  group('todoWidgetMarksOf', () {
+    test('자국 셋이 순서대로 읽히고 w가 없으면 낙관이다', () {
+      final raw = marksJson(
+        gen: 3,
+        batchAtMs: now.millisecondsSinceEpoch,
+        lastAtMs: now.millisecondsSinceEpoch + 400,
+        marks: [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'B', done: true, at: now),
+          mark(gen: 3, id: 'C', done: false, at: now, writing: true),
+        ],
+      );
+
+      final marks = todoWidgetMarksOf(raw)!;
+
+      expect(marks.gen, 3);
+      expect(marks.batchAtMs, now.millisecondsSinceEpoch);
+      expect(marks.lastAtMs, now.millisecondsSinceEpoch + 400);
+      expect(marks.leaveAtMs, now.millisecondsSinceEpoch + 1400);
+      expect(marks.dueAtMs, now.millisecondsSinceEpoch + 1400 + 6000);
+      expect(marks.marks.map((m) => m.id), ['A', 'B', 'C']);
+      expect(marks.marks.map((m) => m.writing), [false, false, true]);
+      expect(marks.marks.map((m) => m.done), [true, true, false]);
+    });
+
+    test('키가 없거나 빈 문자열이거나 모양이 어긋나면 null이다', () {
+      expect(todoWidgetMarksOf(null), isNull);
+      expect(todoWidgetMarksOf(''), isNull);
+      expect(todoWidgetMarksOf('그냥 글자'), isNull);
+      // marks가 배열이 아니다.
+      expect(
+        todoWidgetMarksOf(
+          '{"gen":1,"batchAtMs":1,"lastAtMs":1,"leaveAtMs":1,"dueAtMs":1,"marks":5}',
+        ),
+        isNull,
+      );
+      // 시각 키가 빠졌다.
+      expect(todoWidgetMarksOf('{"gen":1,"marks":[]}'), isNull);
+    });
+
+    test('모르는 키가 섞여도 깨지지 않고 망가진 칸만 버린다', () {
+      final raw = jsonEncode({
+        'gen': 2,
+        'batchAtMs': 1,
+        'lastAtMs': 2,
+        'leaveAtMs': 3,
+        'dueAtMs': 4,
+        '앞으로 생길 키': '무해하다',
+        'marks': [
+          {'g': 1, 'id': 'A', 'done': true, 'at': 1, '모르는 칸': 1},
+          {'id': '세대가 없다', 'done': true, 'at': 1},
+          {'g': 2, 'done': true, 'at': 1},
+          {'g': 2, 'id': 'B', 'at': 2},
+        ],
+      });
+
+      final marks = todoWidgetMarksOf(raw)!;
+
+      // id·at·g가 성립하는 칸만 남는다. `done`이 없으면 완료로 읽는다(네이티브와 같은 기준).
+      expect(marks.marks.map((m) => m.id), ['A', 'B']);
+      expect(marks.marks.last.done, isTrue);
+    });
+
+    test('그 id의 가장 새 자국을 고른다', () {
+      final marks = todoWidgetMarksOf(
+        marksJson(
+          gen: 2,
+          batchAtMs: now.millisecondsSinceEpoch,
+          lastAtMs: now.millisecondsSinceEpoch,
+          marks: [
+            mark(gen: 1, id: 'A', done: true, at: now),
+            mark(gen: 2, id: 'A', done: false, at: now),
+          ],
+        ),
+      )!;
+
+      expect(marks.latestFor('A')!.done, isFalse);
+      expect(marks.latestFor('없는id'), isNull);
+    });
+  });
+
+  group('widgetTapLeaveAt · widgetTapDueAt', () {
+    test('멎은 뒤 1초가 이기는 경우와 상한 5초가 이기는 경우', () {
+      // 마지막 탭이 첫 탭+4.1초 → 멎은 뒤 1초(= 5.1초)가 상한(5초)을 넘어 **상한이 이긴다**.
+      expect(
+        widgetTapLeaveAt(batchAtMs: 1000, lastAtMs: 1000 + 4100),
+        1000 + 5000,
+      );
+      // 마지막 탭이 첫 탭+3.9초 → 멎은 뒤 1초(= 4.9초)가 **이긴다**.
+      expect(
+        widgetTapLeaveAt(batchAtMs: 1000, lastAtMs: 1000 + 3900),
+        1000 + 4900,
+      );
+      // 경계: 정확히 첫 탭+4초면 둘이 같다.
+      expect(
+        widgetTapLeaveAt(batchAtMs: 1000, lastAtMs: 1000 + 4000),
+        1000 + 5000,
+      );
+      // 첫 탭 하나뿐이면 그 탭 +1초다.
+      expect(widgetTapLeaveAt(batchAtMs: 1000, lastAtMs: 1000), 2000);
+    });
+
+    test('되돌릴 시각은 떠날 시각 + 6초다', () {
+      // 쓰기 창 5초 + 여유 1초. 마지막 탭 기준으로는 7초이고 8초 약속 안쪽이다(design 7장).
+      expect(widgetTapDueAt(2000), 8000);
+      expect(
+        widgetTapDueAt(widgetTapLeaveAt(batchAtMs: 0, lastAtMs: 0)),
+        1000 + 6000,
+      );
+    });
+  });
+
+  // **이 범위에서 가장 틀리기 쉬운 자리다**(design 8.3). 네이티브가 이 규칙을 베껴 쓰고 그쪽은
+  // 유닛 테스트가 없으므로, 아래 아홉 칸이 "여러 줄이 각자 눌린 채 남는다"의 유일한 자동 검증이다.
+  group('todoWidgetOverlayOf', () {
+    const items = [
+      TodoWidgetItem(id: 'A', title: '장보기', rank: 0),
+      TodoWidgetItem(id: 'B', title: '운동하기', rank: 1),
+      TodoWidgetItem(id: 'C', title: '책 반납', rank: 2),
+      TodoWidgetItem(id: 'D', title: '설거지', rank: 3, done: true),
+    ];
+    final t0 = now.millisecondsSinceEpoch;
+
+    TodoWidgetOverlay overlayOf(
+      List<Map<String, Object>> marks, {
+      int gen = 1,
+      int settledGen = 0,
+      int? lastAtMs,
+      DateTime? at,
+    }) {
+      return todoWidgetOverlayOf(
+        items: items,
+        marks: todoWidgetMarksOf(
+          marksJson(
+            gen: gen,
+            batchAtMs: t0,
+            lastAtMs: lastAtMs ?? t0,
+            marks: marks,
+          ),
+        ),
+        settledGen: settledGen,
+        now: at ?? now.add(const Duration(milliseconds: 500)),
+      );
+    }
+
+    test('세 줄의 자국이 동시에 뒤집히고 개수도 셋만큼 움직인다', () {
+      final overlay = overlayOf(
+        gen: 3,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'B', done: true, at: now),
+          mark(gen: 3, id: 'C', done: true, at: now),
+        ],
+      );
+
+      // 오너 불만의 본체가 이 칸이다 — 뒤 탭이 앞 탭의 그림을 덮지 않는다(spec R).
+      expect(overlay.flips, {'A': true, 'B': true, 'C': true});
+      expect(overlay.doneDelta, 3);
+      expect(overlay.lapsed, isFalse);
+      expect(overlay.writingIds, isEmpty);
+      expect(overlay.doneOf(items[0]), isTrue);
+      expect(overlay.doneOf(items[3]), isTrue);
+    });
+
+    test('결말이 난 세대의 자국은 빠진다', () {
+      final overlay = overlayOf(
+        gen: 3,
+        settledGen: 2,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'B', done: true, at: now),
+          mark(gen: 3, id: 'C', done: true, at: now),
+        ],
+      );
+
+      // 이 비교 하나가 "그 묶음에 들어간 것만 걷는다"의 전부다(design 1.3의 조건 1).
+      expect(overlay.flips, {'C': true});
+      expect(overlay.doneDelta, 1);
+    });
+
+    test('60초가 지난 자국은 빠진다(박제 금지)', () {
+      final overlay = overlayOf(
+        [mark(gen: 1, id: 'A', done: true, at: now)],
+        at: now.add(const Duration(seconds: 61)),
+      );
+
+      expect(overlay.flips, isEmpty);
+      expect(overlay.lapsed, isFalse);
+    });
+
+    test('값이 이미 같은 자국은 아무 일도 하지 않는다(상쇄)', () {
+      // D는 이미 완료다 → 완료로 만드는 자국은 효력이 없다.
+      expect(overlayOf([mark(gen: 1, id: 'D', done: true, at: now)]).isEmpty, isTrue);
+      // 캐시에 없는 줄의 자국도 마찬가지다.
+      expect(overlayOf([mark(gen: 1, id: '없는id', done: true, at: now)]).isEmpty, isTrue);
+    });
+
+    test('같은 줄의 자국이 둘이면 마지막만 본다', () {
+      final overlay = overlayOf(
+        gen: 2,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'A', done: true, at: now),
+        ],
+      );
+
+      // 두 번 세면 개수가 2 움직여 머리 줄이 거짓이 된다.
+      expect(overlay.flips, {'A': true});
+      expect(overlay.doneDelta, 1);
+    });
+
+    test('완료 +1 되돌리기 −1로 합쳐진다', () {
+      final overlay = overlayOf(
+        gen: 2,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'D', done: false, at: now),
+        ],
+      );
+
+      expect(overlay.flips, {'A': true, 'D': false});
+      expect(overlay.doneDelta, 0);
+      expect(overlay.doneOf(items[3]), isFalse);
+    });
+
+    test('쓰는 중 자국은 뒤집지 않고 그 줄만 쓰는 중이 된다', () {
+      final overlay = overlayOf(
+        gen: 2,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now, writing: true),
+          mark(gen: 2, id: 'B', done: true, at: now),
+        ],
+      );
+
+      // 조건 ②: 항상 실패하는 상태에서는 낙관 그림을 그리지 않는다. 모양은 **줄마다** 갈린다.
+      expect(overlay.writingIds, {'A'});
+      expect(overlay.flips, {'B': true});
+      expect(overlay.doneDelta, 1);
+      expect(overlay.doneOf(items[0]), isFalse);
+    });
+
+    test('되돌릴 시각이 지나면 전부 걷고 이유를 적는다', () {
+      final overlay = overlayOf(
+        gen: 2,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'B', done: true, at: now, writing: true),
+        ],
+        at: now.add(const Duration(seconds: 8)),
+      );
+
+      expect(overlay.lapsed, isTrue);
+      expect(overlay.flips, isEmpty);
+      expect(overlay.writingIds, isEmpty);
+      expect(overlay.doneDelta, 0);
+    });
+
+    test('효력 있는 자국이 없으면 되돌릴 시각이 지나도 실패 한 줄을 띄우지 않는다', () {
+      // 상쇄만 있었던 묶음이다(spec P: 실패가 아니므로 안내를 띄우지 않는다).
+      final overlay = overlayOf(
+        [mark(gen: 1, id: 'D', done: true, at: now)],
+        at: now.add(const Duration(seconds: 8)),
+      );
+
+      expect(overlay.lapsed, isFalse);
+      expect(overlay.isEmpty, isTrue);
+    });
+
+    test('자국이 없으면 평소 그림이다', () {
+      expect(
+        todoWidgetOverlayOf(
+          items: items,
+          marks: null,
+          settledGen: 0,
+          now: now,
+        ).isEmpty,
+        isTrue,
+      );
+    });
+  });
+
+  // claim·상쇄·쓸 목록(design 4.1·6.1). **Dart만 쓰는 규칙**이라 네이티브가 베끼지 않는다.
+  group('todoWidgetBatchOf', () {
+    final payload = TodoWidgetPayload.fromTodos(
+      [
+        _todo('A', '장보기'),
+        _todo('B', '운동하기'),
+        _todo('D', '설거지', isDone: true),
+      ],
+      now: now,
+    );
+    final t0 = now.millisecondsSinceEpoch;
+
+    TodoWidgetBatch? batchOf(
+      List<Map<String, Object>> marks, {
+      int gen = 1,
+      TodoWidgetPayload? cached,
+      DateTime? at,
+    }) {
+      return todoWidgetBatchOf(
+        marks: todoWidgetMarksOf(
+          marksJson(gen: gen, batchAtMs: t0, lastAtMs: t0, marks: marks),
+        ),
+        payload: cached ?? payload,
+        now: at ?? now,
+      );
+    }
+
+    test('claimedGen은 그때의 마지막 세대이고 쓸 목록이 함께 온다', () {
+      final batch = batchOf(
+        gen: 2,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'B', done: true, at: now),
+        ],
+      )!;
+
+      expect(batch.claimedGen, 2);
+      expect(batch.writes.map((write) => write.id), ['A', 'B']);
+      expect(batch.writes.map((write) => write.done), [true, true]);
+      expect(batch.isEmpty, isFalse);
+      // 기다릴 시각은 레코드가 적어 둔 값 그대로다(= 마지막 탭 + 1초).
+      expect(batch.leaveAtMs, t0 + 1000);
+    });
+
+    test('id마다 마지막 값만 쓸 목록에 들어간다', () {
+      final batch = batchOf(
+        gen: 3,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'A', done: false, at: now),
+          mark(gen: 3, id: 'A', done: true, at: now),
+        ],
+      )!;
+
+      // "같은 줄을 세 번 눌러도 서버 쓰기는 한 번"이 claim에서 접힌다.
+      expect(batch.writes, [const TodoWidgetCheckTarget(id: 'A', done: true)]);
+    });
+
+    test('상쇄된 줄이 쓸 목록에서 빠진다', () {
+      final batch = batchOf(
+        gen: 2,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          // D는 이미 완료 → 같은 값을 다시 쓰지 않는다.
+          mark(gen: 2, id: 'D', done: true, at: now),
+        ],
+      )!;
+
+      expect(batch.writes.map((write) => write.id), ['A']);
+    });
+
+    test('전부 상쇄면 쓸 목록이 비고 서버 호출이 0번이다', () {
+      final batch = batchOf(
+        gen: 2,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'A', done: false, at: now),
+        ],
+      )!;
+
+      // 눌렀다 되돌려 제자리로 온 경우다(spec P). 보낼 것이 없다.
+      expect(batch.isEmpty, isTrue);
+      expect(batch.claimedGen, 2);
+    });
+
+    test('이미 결말이 난 세대는 가져가지 않는다', () {
+      final settled = TodoWidgetPayload.fromTodos(
+        [_todo('A', '장보기'), _todo('B', '운동하기')],
+        now: now,
+        settledGen: 1,
+      );
+
+      final batch = batchOf(
+        gen: 2,
+        cached: settled,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'B', done: true, at: now),
+        ],
+      )!;
+
+      // **한 라운드 더** 도는 일꾼이 자기가 방금 쓴 것을 또 쓰지 않게 하는 한 줄이다(design 4.5).
+      expect(batch.writes.map((write) => write.id), ['B']);
+    });
+
+    test('쓰는 중 자국이 섞이면 기다리지 않는다', () {
+      final batch = batchOf(
+        gen: 2,
+        [
+          mark(gen: 1, id: 'A', done: true, at: now),
+          mark(gen: 2, id: 'B', done: true, at: now, writing: true),
+        ],
+      )!;
+
+      // 그 사용자에게 이 기능이 주는 유일한 값이 "빨리 분명해지는 실패"다(spec U 조건 ②).
+      expect(batch.leaveAtMs, lessThanOrEqualTo(now.millisecondsSinceEpoch));
+    });
+
+    test('캐시가 없으면 아무 줄도 버리지 않는다', () {
+      final batch = batchOf(
+        cached: TodoWidgetPayload.loggedOut(now: now),
+        [mark(gen: 1, id: '어떤id', done: true, at: now)],
+      )!;
+
+      // 줄이 없는 안내 화면이면 비교할 재료가 없다 — 조용히 버리는 쪽이 더 나쁘고 쓰기는 멱등이다.
+      expect(batch.writes.map((write) => write.id), ['어떤id']);
+    });
+
+    test('자국이 없으면 null이다(대비 경로가 남는다)', () {
+      expect(
+        todoWidgetBatchOf(marks: null, payload: payload, now: now),
+        isNull,
+      );
+    });
+  });
+
+  // 묶음의 결말 하나가 **줄마다 다른 모양**을 그린다(spec S · design 6.2).
+  group('applyChecks (묶음)', () {
+    TodoWidgetPayload cacheOf(List<Todo> todos) =>
+        TodoWidgetPayload.fromTodos(todos, now: now);
+
+    final three = [
+      _todo('1', '장보기'),
+      _todo('2', '운동하기'),
+      _todo('3', '책 반납'),
+      _todo('4', '전화하기'),
+    ];
+
+    test('세 줄이 한 번에 반영되고 배열 순서는 그대로다', () {
+      final next = TodoWidgetPayload.applyChecks(
+        cacheOf(three),
+        results: const [
+          TodoWidgetCheckResult(id: '1', done: true, ok: true),
+          TodoWidgetCheckResult(id: '2', done: true, ok: true),
+          TodoWidgetCheckResult(id: '3', done: true, ok: true),
+        ],
+        settledGen: 5,
+      )!;
+
+      expect(next.items.map((item) => item.id), ['1', '2', '3', '4']);
+      expect(next.items.map((item) => item.done), [true, true, true, false]);
+      // 개수가 **세 줄만큼** 움직인다(spec R).
+      expect(next.totalCount, 1);
+      expect(next.header, AppStrings.widgetHeaderCount(done: 3, total: 4));
+      expect(next.settledGen, 5);
+      expect(next.noteTone, TodoWidgetNoteTone.muted);
+    });
+
+    test('일부만 실패하면 성공한 줄만 반영되고 실패한 줄이 앞자리를 받는다', () {
+      final next = TodoWidgetPayload.applyChecks(
+        cacheOf(three),
+        results: const [
+          TodoWidgetCheckResult(id: '1', done: true, ok: true),
+          TodoWidgetCheckResult(id: '2', done: true, ok: false),
+          TodoWidgetCheckResult(id: '3', done: true, ok: true),
+        ],
+        settledGen: 5,
+      )!;
+
+      // 성공한 줄은 선이 그어진 채 남고 실패한 줄만 원래 모양으로 되돌아간다.
+      expect(next.items.map((item) => item.done), [true, false, true, false]);
+      // 되돌아간 줄이 **보이는 자리를 먼저 받는다**(조건 ①: 되돌림과 이유가 같은 화면에).
+      expect(next.items.firstWhere((item) => item.id == '2').rank, 0);
+      expect(next.items.firstWhere((item) => item.id == '1').rank, 1);
+      expect(next.items.firstWhere((item) => item.id == '3').rank, 2);
+      expect(visibleRows(next.items, next.totalCount, 1).rows.single.id, '2');
+      // 안내는 **하나**이고 개수가 들어가지 않는다(오너 확정 2).
+      expect(next.note, AppStrings.widgetCheckFailed);
+      expect(next.noteTone, TodoWidgetNoteTone.danger);
+      // 실패한 체크를 성공으로 세지 않는다 — 순 델타는 둘이다.
+      expect(next.totalCount, 2);
+      expect(next.header, AppStrings.widgetHeaderCount(done: 2, total: 4));
+      // 실패한 자국도 **효력을 잃어야** 되돌아간다 → 같은 세대를 적는다.
+      expect(next.settledGen, 5);
+    });
+
+    test('전부 실패하면 한 줄도 바뀌지 않고 안내만 바뀐다', () {
+      final cached = cacheOf(three);
+
+      final next = TodoWidgetPayload.applyChecks(
+        cached,
+        results: const [
+          TodoWidgetCheckResult(id: '1', done: true, ok: false),
+          TodoWidgetCheckResult(id: '2', done: true, ok: false),
+        ],
+        settledGen: 9,
+      )!;
+
+      expect(next.items.map((item) => item.done), [false, false, false, false]);
+      expect(next.totalCount, cached.totalCount);
+      expect(next.header, cached.header);
+      expect(next.note, AppStrings.widgetCheckFailed);
+      expect(next.settledGen, 9);
+    });
+
+    test('되돌리기가 섞이면 머리 줄을 순 델타로 고른다', () {
+      final cached = cacheOf([
+        _todo('1', '장보기'),
+        _todo('2', '운동하기'),
+        _todo('3', '책 반납', isDone: true),
+      ]);
+
+      // 둘을 완료하고 하나를 되돌린다 → 순 델타 +1.
+      final next = TodoWidgetPayload.applyChecks(
+        cached,
+        results: const [
+          TodoWidgetCheckResult(id: '1', done: true, ok: true),
+          TodoWidgetCheckResult(id: '2', done: true, ok: true),
+          TodoWidgetCheckResult(id: '3', done: false, ok: true),
+        ],
+        settledGen: 1,
+      )!;
+
+      expect(next.header, AppStrings.widgetHeaderCount(done: 2, total: 3));
+      expect(next.totalCount, 1);
+
+      // 되돌리기만 있으면 반대쪽 배열에서 고른다.
+      final back = TodoWidgetPayload.applyChecks(
+        cached,
+        results: const [
+          TodoWidgetCheckResult(id: '3', done: false, ok: true),
+        ],
+        settledGen: 1,
+      )!;
+      expect(back.header, cached.headerAfterUnchecks.first);
+      expect(back.totalCount, 3);
+    });
+
+    test('배열이 짧으면 직전 머리 줄을 그대로 둔다', () {
+      // 대체 문장이 한 칸뿐인 캐시(= 미완료가 하나)인데 두 줄을 완료한 결과가 왔다.
+      final cached = cacheOf([_todo('1', '장보기'), _todo('2', '운동하기', isDone: true)]);
+      expect(cached.headerAfterChecks, hasLength(1));
+
+      final next = TodoWidgetPayload.applyChecks(
+        cached,
+        results: const [
+          TodoWidgetCheckResult(id: '1', done: true, ok: true),
+          TodoWidgetCheckResult(id: '2', done: true, ok: true),
+        ],
+        settledGen: 1,
+      )!;
+
+      // 2는 이미 완료라 순 델타는 1이다 — 그 칸이 있으므로 고른다.
+      expect(next.header, cached.headerAfterChecks.first);
+    });
+
+    test('완료가 된 줄의 기한 키가 빠지고 기준 시각은 앞당겨지지 않는다', () {
+      final cached = cacheOf([
+        _todo('1', '장보기', dueAt: DateTime.utc(2026, 11, 4, 9)),
+        _todo('2', '운동하기'),
+      ]);
+
+      final next = TodoWidgetPayload.applyChecks(
+        cached,
+        results: const [
+          TodoWidgetCheckResult(id: '1', done: true, ok: true),
+        ],
+        settledGen: 1,
+      )!;
+
+      final item = next.items.firstWhere((item) => item.id == '1');
+      expect(item.dueAtMs, isNull);
+      expect(item.toJson().containsKey('dueAtMs'), isFalse);
+      expect(next.updatedAtMs, cached.updatedAtMs);
+    });
+
+    test('빈 결과·줄 없는 캐시·캐시에 없는 id뿐이면 null이다', () {
+      final cached = cacheOf(three);
+
+      expect(
+        TodoWidgetPayload.applyChecks(cached, results: const [], settledGen: 1),
+        isNull,
+      );
+      expect(
+        TodoWidgetPayload.applyChecks(
+          TodoWidgetPayload.loggedOut(now: now),
+          results: const [TodoWidgetCheckResult(id: '1', done: true, ok: true)],
+          settledGen: 1,
+        ),
+        isNull,
+      );
+      expect(
+        TodoWidgetPayload.applyChecks(
+          cached,
+          results: const [
+            TodoWidgetCheckResult(id: '없는id', done: true, ok: true),
+          ],
+          settledGen: 1,
+        ),
+        isNull,
+      );
     });
   });
 
@@ -1400,12 +1996,12 @@ void main() {
   // 2026-11-19(추가 범위 3 K): 체크의 결말을 **목록을 다시 받지 않고** 만든다. 서버 쓰기가 끝난
   // 뒤에만 불리므로 거짓 성공이 아니고(낙관 반영과 다른 자리다), 거는 조건은 하나다 —
   // **보이는 것이 "그 체크만큼만" 바뀐다.**
-  group('applyCheck', () {
-    TodoWidgetPayload cacheOf(List<Todo> todos, {String? justCheckedId}) =>
+  group('applyChecks (한 줄)', () {
+    TodoWidgetPayload cacheOf(List<Todo> todos, {List<String> frontIds = const []}) =>
         TodoWidgetPayload.fromTodos(
           todos,
           now: now,
-          justCheckedId: justCheckedId,
+          frontIds: frontIds,
         );
 
     test('그 항목만 완료가 되고 배열 순서는 그대로다', () {
@@ -1415,10 +2011,10 @@ void main() {
         _todo('3', '책 반납'),
       ]);
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         cached,
-        todoId: '2',
-        done: true,
+        '2',
+        true,
       )!;
 
       // 그리는 순서(= position)가 바뀌면 체크한 줄이 목록 맨 아래로 뛰어내린다.
@@ -1433,10 +2029,10 @@ void main() {
         _todo('2', '운동하기', isDone: true),
       ]);
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         cached,
-        todoId: '2',
-        done: false,
+        '2',
+        false,
       )!;
 
       expect(next.items.map((item) => item.id), ['1', '2']);
@@ -1449,10 +2045,10 @@ void main() {
       ]);
       final before = visibleRows(cached.items, cached.totalCount, 3);
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         cached,
-        todoId: '0',
-        done: true,
+        '0',
+        true,
       )!;
       final after = visibleRows(next.items, next.totalCount, 3);
 
@@ -1462,10 +2058,10 @@ void main() {
       // 핵심이다(헤더·다른 줄·그 외 N개가 그 체크와 어긋나게 바뀌면 안 된다).
       expect(after.moreCount, before.moreCount);
 
-      final back = TodoWidgetPayload.applyCheck(
+      final back = applyOne(
         next,
-        todoId: '0',
-        done: false,
+        '0',
+        false,
       )!;
       expect(back.totalCount, 10);
     });
@@ -1479,20 +2075,20 @@ void main() {
 
       expect(cached.header, AppStrings.widgetHeaderCount(done: 1, total: 3));
 
-      final checked = TodoWidgetPayload.applyCheck(
+      final checked = applyOne(
         cached,
-        todoId: '1',
-        done: true,
+        '1',
+        true,
       )!;
-      final unchecked = TodoWidgetPayload.applyCheck(
+      final unchecked = applyOne(
         cached,
-        todoId: '2',
-        done: false,
+        '2',
+        false,
       )!;
 
-      expect(checked.header, cached.headerAfterCheck);
+      expect(checked.header, cached.headerAfterChecks.first);
       expect(checked.header, AppStrings.widgetHeaderCount(done: 2, total: 3));
-      expect(unchecked.header, cached.headerAfterUncheck);
+      expect(unchecked.header, cached.headerAfterUnchecks.first);
       expect(unchecked.header, AppStrings.widgetHeaderCount(done: 0, total: 3));
     });
 
@@ -1505,10 +2101,10 @@ void main() {
         header: '할 일 0/1',
       );
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         cached,
-        todoId: '1',
-        done: true,
+        '1',
+        true,
       )!;
 
       expect(next.header, '할 일 0/1');
@@ -1521,10 +2117,10 @@ void main() {
         _todo('3', '책 반납'),
       ]);
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         cached,
-        todoId: '2',
-        done: true,
+        '2',
+        true,
       )!;
 
       // 방금 누른 줄은 어떤 줄 자리 수에서도 보여야 하므로 0이다(design 2.2.2).
@@ -1541,10 +2137,10 @@ void main() {
       ]);
       expect(cached.items.single.dueAtMs, isNotNull);
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         cached,
-        todoId: '1',
-        done: true,
+        '1',
+        true,
       )!;
 
       // 완료 줄에는 기한을 보여 주지 않는다 — 그 규칙을 Dart가 캐시에서 끝낸다.
@@ -1558,17 +2154,17 @@ void main() {
     test('미완료가 0이 되면 다 끝냈다고 말하고 다시 생기면 기준 시각으로 돌아온다', () {
       final cached = cacheOf([_todo('1', '장보기')]);
 
-      final allDone = TodoWidgetPayload.applyCheck(
+      final allDone = applyOne(
         cached,
-        todoId: '1',
-        done: true,
+        '1',
+        true,
       )!;
       expect(allDone.note, AppStrings.widgetAllDone);
 
-      final back = TodoWidgetPayload.applyCheck(
+      final back = applyOne(
         allDone,
-        todoId: '1',
-        done: false,
+        '1',
+        false,
       )!;
       expect(back.note, AppStrings.widgetNoteFresh(formatWidgetTime(now)));
     });
@@ -1580,10 +2176,10 @@ void main() {
       );
       expect(failed.noteTone, TodoWidgetNoteTone.danger);
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         failed,
-        todoId: '1',
-        done: true,
+        '1',
+        true,
       )!;
 
       // 성공한 화면에 `체크하지 못했어요`를 색만 내려 남겨 두면 그것이 더 나쁜 거짓말이다.
@@ -1598,10 +2194,10 @@ void main() {
         now: now.add(const Duration(hours: 2)),
       );
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         stale,
-        todoId: '1',
-        done: true,
+        '1',
+        true,
       )!;
 
       // 체크가 성공했다고 목록이 새것이 되지는 않는다.
@@ -1612,10 +2208,10 @@ void main() {
     test('기준 시각을 앞당기지 않는다', () {
       final cached = cacheOf([_todo('1', '장보기'), _todo('2', '운동하기')]);
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         cached,
-        todoId: '1',
-        done: true,
+        '1',
+        true,
       )!;
 
       // 재조회를 없앴으면 "지금 받아왔다"고 말하지 않는다.
@@ -1628,28 +2224,39 @@ void main() {
 
       // 캐시가 없다.
       expect(
-        TodoWidgetPayload.applyCheck(null, todoId: '1', done: true),
+        applyOne(null, '1', true),
         isNull,
       );
       // 줄이 없는 안내 화면(로그아웃·할 일 없음)에서 온 탭.
       expect(
-        TodoWidgetPayload.applyCheck(
+        applyOne(
           TodoWidgetPayload.loggedOut(now: now),
-          todoId: '1',
-          done: true,
+          '1',
+          true,
         ),
         isNull,
       );
       // 목록에 아예 없는 id.
       expect(
-        TodoWidgetPayload.applyCheck(cached, todoId: '9', done: true),
+        applyOne(cached, '9', true),
         isNull,
       );
-      // 이미 목표 값이다.
-      expect(
-        TodoWidgetPayload.applyCheck(cached, todoId: '1', done: true),
-        isNull,
-      );
+    });
+
+    // 2026-11-20(추가 범위 4)에 **달라진 자리**: 옛 `applyCheck`는 "이미 목표 값"이면 null이었다.
+    // 묶음 판은 그 경우에도 발행을 만든다 — 그림은 한 조각도 바뀌지 않지만 `settledGen`을 올려야
+    // **그 묶음의 자국이 효력을 잃기** 때문이다(design 1.3의 조건 1·4.1). 올리지 않으면 낙관
+    // 그림이 되돌림 시각까지 7초쯤 남는다.
+    test('이미 목표 값인 줄만 있으면 그림은 그대로이고 세대만 올라간다', () {
+      final cached = cacheOf([_todo('1', '장보기', isDone: true)]);
+
+      final next = applyOne(cached, '1', true, settledGen: 3)!;
+
+      expect(next.items, cached.items);
+      expect(next.totalCount, cached.totalCount);
+      expect(next.header, cached.header);
+      expect(next.note, cached.note);
+      expect(next.settledGen, 3);
     });
 
     test('캐시를 되읽은 뒤에도 같은 결말을 만든다', () {
@@ -1660,10 +2267,10 @@ void main() {
         ]).encode(),
       );
 
-      final next = TodoWidgetPayload.applyCheck(
+      final next = applyOne(
         cached,
-        todoId: '11111111-1111-1111-1111-111111111111',
-        done: true,
+        '11111111-1111-1111-1111-111111111111',
+        true,
       )!;
 
       // 백그라운드 isolate가 실제로 쓰는 재료는 **되읽은 캐시**다. 대체 머리 줄이 왕복을
@@ -1674,14 +2281,16 @@ void main() {
     });
   });
 
-  group('todosWithDone', () {
+  group('todosWithChecks', () {
     test('그 id만 바뀌고 순서와 나머지 필드는 그대로다', () {
       final todos = [
         _todo('1', '장보기', dueAt: DateTime.utc(2026, 11, 4, 9)),
         _todo('2', '운동하기'),
       ];
 
-      final next = todosWithDone(todos, '1', true);
+      final next = todosWithChecks(todos, [
+        const TodoWidgetCheckResult(id: '1', done: true, ok: true),
+      ]);
 
       expect(next.map((todo) => todo.id), ['1', '2']);
       expect(next.map((todo) => todo.isDone), [true, false]);
@@ -1695,9 +2304,29 @@ void main() {
     test('없는 id면 목록이 그대로다', () {
       final todos = [_todo('1', '장보기')];
 
-      final next = todosWithDone(todos, '9', true);
+      final next = todosWithChecks(todos, [
+        const TodoWidgetCheckResult(id: '9', done: true, ok: true),
+      ]);
 
       expect(next.map((todo) => todo.isDone), [false]);
+    });
+
+    // 2026-11-20(추가 범위 4): 여러 줄이 한 번에 바뀌고, **실패한 줄은 바뀌지 않는다**.
+    test('성공한 줄만 여러 개 함께 바뀐다', () {
+      final todos = [
+        _todo('1', '장보기'),
+        _todo('2', '운동하기'),
+        _todo('3', '책 반납', isDone: true),
+      ];
+
+      final next = todosWithChecks(todos, const [
+        TodoWidgetCheckResult(id: '1', done: true, ok: true),
+        TodoWidgetCheckResult(id: '2', done: true, ok: false),
+        TodoWidgetCheckResult(id: '3', done: false, ok: true),
+      ]);
+
+      expect(next.map((todo) => todo.id), ['1', '2', '3']);
+      expect(next.map((todo) => todo.isDone), [true, false, false]);
     });
   });
 
@@ -1742,15 +2371,15 @@ void main() {
         now: now,
       );
 
-      expect(normal.toJson()['headerAfterCheck'], '할 일 2/2');
-      expect(normal.toJson()['headerAfterUncheck'], '할 일 0/2');
+      expect(normal.toJson()['headerAfterChecks'], ['할 일 2/2']);
+      expect(normal.toJson()['headerAfterUnchecks'], ['할 일 0/2']);
       // 조회 실패·체크 실패는 목록을 그대로 들고 가므로 그 줄을 누를 수 있다 → 함께 물려받는다.
       for (final payload in [
         TodoWidgetPayload.fetchFailed(normal, now: now),
         TodoWidgetPayload.checkFailed(normal, now: now),
       ]) {
-        expect(payload.headerAfterCheck, normal.headerAfterCheck);
-        expect(payload.headerAfterUncheck, normal.headerAfterUncheck);
+        expect(payload.headerAfterChecks, normal.headerAfterChecks);
+        expect(payload.headerAfterUnchecks, normal.headerAfterUnchecks);
       }
       // 줄이 없는 상태에는 셀 목록도 누를 줄도 없다.
       for (final payload in [
@@ -1759,8 +2388,8 @@ void main() {
         TodoWidgetPayload.fromTodos(const [], now: now),
         TodoWidgetPayload.fetchFailed(null, now: now),
       ]) {
-        expect(payload.toJson().containsKey('headerAfterCheck'), isFalse);
-        expect(payload.toJson().containsKey('headerAfterUncheck'), isFalse);
+        expect(payload.toJson().containsKey('headerAfterChecks'), isFalse);
+        expect(payload.toJson().containsKey('headerAfterUnchecks'), isFalse);
       }
     });
 
@@ -1771,11 +2400,37 @@ void main() {
         now: now,
       );
 
-      expect(none.headerAfterCheck, '할 일 1/1');
-      expect(none.headerAfterUncheck, isNull);
+      expect(none.headerAfterChecks, ['할 일 1/1']);
+      expect(none.headerAfterUnchecks, isEmpty);
       // `할 일 2/1`은 거짓이다 — 더 체크할 것이 없으면 말하지 않는다.
-      expect(all.headerAfterCheck, isNull);
-      expect(all.headerAfterUncheck, '할 일 0/1');
+      expect(all.headerAfterChecks, isEmpty);
+      expect(all.headerAfterUnchecks, ['할 일 0/1']);
+    });
+
+    // 2026-11-20(추가 범위 4): N줄이 동시에 눌리면 개수가 ∓N 움직이므로 문장이 **배열**이 됐다.
+    test('N줄 분량의 대체 문장이 배열로 실리고 상한이 6이다', () {
+      final many = TodoWidgetPayload.fromTodos([
+        for (var i = 0; i < 9; i++) _todo('u$i', '미완료 $i'),
+        for (var i = 0; i < 8; i++) _todo('d$i', '완료 $i', isDone: true),
+      ], now: now);
+
+      // 길이는 min(6, 그 방향으로 움직일 수 있는 개수)다 — 자국은 **보이는 줄**에만 생기고
+      // 줄 상한이 6이라 한 묶음이 그보다 많이 움직일 수 없다.
+      expect(many.headerAfterChecks, hasLength(6));
+      expect(many.headerAfterUnchecks, hasLength(6));
+      expect(many.headerAfterChecks.first, AppStrings.widgetHeaderCount(done: 9, total: 17));
+      expect(many.headerAfterChecks.last, AppStrings.widgetHeaderCount(done: 14, total: 17));
+      expect(many.headerAfterUnchecks.first, AppStrings.widgetHeaderCount(done: 7, total: 17));
+      expect(many.headerAfterUnchecks.last, AppStrings.widgetHeaderCount(done: 2, total: 17));
+
+      // 움직일 수 있는 개수가 6보다 적으면 그만큼만 싣는다(거짓 문장을 만들지 않는다).
+      final few = TodoWidgetPayload.fromTodos([
+        _todo('1', '장보기'),
+        _todo('2', '운동하기'),
+        _todo('3', '책 반납', isDone: true),
+      ], now: now);
+      expect(few.headerAfterChecks, hasLength(2));
+      expect(few.headerAfterUnchecks, hasLength(1));
     });
 
     test('되돌림을 설명할 한 줄은 어떤 상태에도 함께 실린다', () {
@@ -1797,30 +2452,65 @@ void main() {
 
       final decoded = TodoWidgetPayload.decode(payload.encode())!;
 
-      expect(decoded.headerAfterCheck, payload.headerAfterCheck);
-      expect(decoded.headerAfterUncheck, payload.headerAfterUncheck);
+      expect(decoded.headerAfterChecks, payload.headerAfterChecks);
+      expect(decoded.headerAfterUnchecks, payload.headerAfterUnchecks);
     });
   });
 }
 
-/// **네이티브가 캐시에 찍는 탭 자국**을 흉내 낸다(design 2.2.3).
-///
-/// Dart에는 그 넷을 **쓰는 코드가 없다**(`toJson`이 싣지 않는다 — 그것이 "결말이 자국을 걷는다"의
-/// 구현이다). 그래서 캐시 JSON에 직접 얹어 되읽는다 — 백그라운드 콜백이 실제로 읽는 재료와 같은
-/// 모양이다.
-TodoWidgetPayload _withTapMark(
-  TodoWidgetPayload payload, {
-  required String todoId,
-  required DateTime at,
-  bool done = true,
-  String mode = 'writing',
+/// 옛 `applyCheck`(한 줄)를 흉내 내는 **테스트용 지름길**. 묶음 판(`applyChecks`)이 한 줄짜리
+/// 입력에도 같은 결말을 내는지가 이 호출들이 보는 것이다.
+TodoWidgetPayload? applyOne(
+  TodoWidgetPayload? cached,
+  String id,
+  bool done, {
+  int settledGen = 1,
 }) {
-  final json = payload.toJson();
-  json['pendingId'] = todoId;
-  json['pendingAtMs'] = at.millisecondsSinceEpoch;
-  json['pendingDone'] = done;
-  json['pendingMode'] = mode;
-  return TodoWidgetPayload.fromJson(json)!;
+  return TodoWidgetPayload.applyChecks(
+    cached,
+    results: [TodoWidgetCheckResult(id: id, done: done, ok: true)],
+    settledGen: settledGen,
+  );
+}
+
+/// **네이티브가 자국 키(`todo_widget_tap_marks`)에 쓰는 레코드**를 흉내 낸다(design 1.2).
+///
+/// Dart에는 그 키를 **쓰는 코드가 없다**(읽기만 한다 — `TodoWidgetHost.readTapMarks`). 그래서
+/// JSON을 손으로 적어 `todoWidgetMarksOf`에 넣는다 — 네이티브가 실제로 쓰는 것과 같은 모양이다.
+String marksJson({
+  required int gen,
+  required int batchAtMs,
+  required int lastAtMs,
+  int? leaveAtMs,
+  int? dueAtMs,
+  required List<Map<String, Object>> marks,
+}) {
+  final leave = leaveAtMs ?? widgetTapLeaveAt(batchAtMs: batchAtMs, lastAtMs: lastAtMs);
+  return jsonEncode({
+    'gen': gen,
+    'batchAtMs': batchAtMs,
+    'lastAtMs': lastAtMs,
+    'leaveAtMs': leave,
+    'dueAtMs': dueAtMs ?? widgetTapDueAt(leave),
+    'marks': marks,
+  });
+}
+
+/// 자국 한 칸. 네이티브가 쓰는 키 이름(`g`·`id`·`done`·`at`·`w`)을 그대로 쓴다.
+Map<String, Object> mark({
+  required int gen,
+  required String id,
+  required bool done,
+  required DateTime at,
+  bool writing = false,
+}) {
+  return {
+    'g': gen,
+    'id': id,
+    'done': done,
+    'at': at.millisecondsSinceEpoch,
+    if (writing) 'w': true,
+  };
 }
 
 Todo _todo(

@@ -15,13 +15,27 @@ class TodoWidgetHost {
   /// Dart가 쓰고 Kotlin이 읽는 캐시 키. `TodoWidgetProvider.PAYLOAD_KEY`와 같아야 한다.
   static const payloadKey = 'todo_widget_payload';
 
+  /// **Kotlin이 쓰고 Dart가 읽기만 하는** 탭 자국 키. `TodoWidgetProvider.TAP_MARKS_KEY`와 같아야
+  /// 한다(design 1.1의 소유권 표).
+  static const tapMarksKey = 'todo_widget_tap_marks';
+
   /// 다시 그릴 위젯. manifest의 `<receiver android:name=".TodoWidgetProvider">`와 같아야 한다.
   static const providerName = 'com.todododo.todododo.TodoWidgetProvider';
 
-  /// 캐시를 덮어쓴다. 키 하나에 JSON 하나만 쓴다 — 여러 키로 쪼개면 네이티브가 반쯤 갱신된
-  /// 상태를 읽을 수 있다.
+  /// 캐시를 덮어쓴다. **[payloadKey] 하나만 쓴다** — 그 안의 값들은 서로 맞아야 하므로 여러 키로
+  /// 쪼개면 네이티브가 반쯤 갱신된 상태를 읽을 수 있다.
+  ///
+  /// **자국 키([tapMarksKey])에 쓰는 메서드를 만들지 말 것**(design 1.1): 그 키의 writer는 네이티브
+  /// 하나다. Dart가 쓰기 시작하면 읽고-고쳐-쓰기 사이에 들어온 탭이 통째로 사라진다.
   Future<void> save(TodoWidgetPayload payload) async {
     await HomeWidget.saveWidgetData<String>(payloadKey, payload.encode());
+  }
+
+  /// 지금 캐시에 있는 **탭 자국 레코드**. 모양이 어긋나거나 키가 없으면 null이다(= 자국이 없는
+  /// 것으로 본다 — 평소 그림).
+  Future<TodoWidgetTapMarks?> readTapMarks() async {
+    final raw = await HomeWidget.getWidgetData<String>(tapMarksKey);
+    return todoWidgetMarksOf(raw);
   }
 
   /// 지금 캐시에 있는 것. 판 번호를 모르거나 모양이 어긋나면 null이다.

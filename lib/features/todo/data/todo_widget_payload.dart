@@ -6,24 +6,30 @@
 // 이고 거의 전부 "비교하고 Dart가 보낸 것 중에서 고르기"다(design 원칙 2의 각주들):
 //   1. 높이 → 줄 수(widgetRowCount와 같은 식)
 //   2. moreFormat에 숫자 하나 끼우기
-//   3. now - pendingAtMs < 60초 → `쓰는 중`을 그릴지
+//   3. 자국이 아직 효력이 있나(60초) → `쓰는 중`을 그릴지
 //   4. now >= dueAtMs → 기한 줄의 문장(due/dueOver)과 색 고르기
 //   5. rank < limit → 이 항목을 그릴지(줄 자리 수는 네이티브만 아는 값이라 Dart가 순서만 굳혀
 //      보낸다 — 정책은 여기, 비교 한 줄은 거기)
 //   6. done → 줄 면·제목 색·취소선·체크 그림 고르기(사실은 Dart가 적어 보낸다)
 //   7. (2026-11-19) 탭 순간의 기기 상태 → 낙관 모드인가 `쓰는 중` 모드인가
-//   8. (2026-11-19) 탭 자국의 나이 → 신선(6초)/지남(60초)/잊음. 3의 두 갈래가 셋이 된 것이다
-//   9. (2026-11-20) 이 탭이 중복인가 → 자국과 비교 셋(같은 줄·같은 목표 값·신선함). **Dart에
-//      있던 판단이 네이티브로 옮겨 간 것**이고, 규칙 자체는 이 파일의 isDuplicateWidgetTap에
-//      테스트와 함께 남아 있다(네이티브는 그 규칙을 따른다)
+//   8. (2026-11-19 · 2026-11-20 추가 범위 4에서 자람) **자국마다** 효력이 있나(세 조건) +
+//      묶음의 되돌림 시각(dueAtMs)이 지났나. 3의 두 갈래가 자국 배열 전체로 넓어진 것이고,
+//      규칙은 이 파일의 [todoWidgetOverlayOf]에 테스트와 함께 있다
+//   9. (2026-11-20) 이 탭이 중복인가 → **그 id의 가장 새 자국**과 비교 셋(같은 줄·같은 목표 값·
+//      창 안쪽). **Dart에 있던 판단이 네이티브로 옮겨 간 것**이고, 규칙 자체는 이 파일의
+//      isDuplicateWidgetTap에 테스트와 함께 남아 있다(네이티브는 그 규칙을 따른다)
 // 문장을 **만드는** 일은 한 자도 네이티브에 두지 않는다. 개수 문구(`할 일 2/5`)도 완성된 문장으로
 // 실려 가고, 네이티브는 숫자를 세거나 분수를 조립하지 않는다.
 //
-// **캐시를 쓰는 사람은 둘이다(2026-11-19).** Dart가 쓰는 것은 아래 `toJson`이 싣는 키 전부이고,
-// 네이티브는 **탭 자국 네 키**(`pendingId`·`pendingAtMs`·`pendingDone`·`pendingMode`)만 쓴다.
-// 그래서 `toJson`은 자국 키를 **한 자도 싣지 않는다** — 그 덕에 모든 Dart 발행이 자국을 지우고
-// "결말이 자국을 걷는다"가 코드 한 줄 없이 성립한다(design 2.2.3 · 4.7 (6)). 이 비대칭을 깨고
-// 자국을 다시 실으면 이 설계의 경합 방지가 통째로 무너진다.
+// **캐시 키는 둘이고 각 키의 writer는 하나다(2026-11-20 추가 범위 4, design 1.1).**
+//   - `todo_widget_payload` — writer는 **Dart 하나**(아래 `toJson`). 통째로 덮어쓴다.
+//   - `todo_widget_tap_marks` — writer는 **네이티브 하나**(탭 자국 레코드). **Dart는 읽기만 한다**
+//     ([TodoWidgetHost.readTapMarks]) — 쓰는 메서드를 만드는 순간 두 writer가 같은 키를 다투고
+//     읽고-고쳐-쓰기 사이에 들어온 탭이 통째로 사라진다(= 이 범위에서 가장 잃기 쉬운 것).
+// 그래서 **Dart는 자국을 지우지 않는다.** 대신 "어디까지 결말이 났는지"를 숫자 하나로 적고
+// ([settledGen]) 네이티브가 `g > settledGen`인 자국만 효력 있는 것으로 본다 — "그 묶음에 들어간
+// 것만 걷는다"가 **지우기가 아니라 비교**로 성립한다(design 1.3 · 4.1). 지우는 코드가 없으므로
+// 지우다가 잃는 일도 없다.
 //
 // 플랫폼 타입이 섞이지 않아 전부 유닛 테스트로 고정할 수 있다
 // (test/features/todo/todo_widget_payload_test.dart).
@@ -63,14 +69,43 @@ const todoWidgetMaxTitleLength = 80;
 /// 증상이 "그림이 영영 안 걷힌다"거나 "너무 일찍 걷힌다"로 나온다.
 const todoWidgetPendingTimeoutSeconds = 60;
 
-/// 탭 자국이 **신선한** 시간(초). 그 안에서는 네이티브가 모드대로 그리고(`쓰는 중` 또는 낙관),
-/// 지나면 줄을 되돌리고 실패 한 줄을 적는다. **네이티브의 중복 탭 가드도 이 창을 쓴다**
+/// **중복 탭 창**(ms). 그 안에 같은 줄·같은 목표 값이 또 들어오면 네이티브가 그 탭을 버린다
 /// ([isDuplicateWidgetTap] · [widgetTapMarkFresh]).
 ///
-/// **네이티브의 `TAP_MARK_FRESH_MS`와 값이 같아야 한다**(위와 같은 규칙).
-/// 6초인 근거는 결말의 약속이다 — 정상 2~4초, 어떤 경우에도 8초. 6초에서 끊고 탭+7초에 한 번 더
-/// 그리면 최악의 결말이 7초라 약속 안쪽이고, 같은 이유로 핸드오프 상한도 6초다(design 2.2.3).
-const todoWidgetTapMarkFreshSeconds = 6;
+/// 2026-11-20(추가 범위 4)에 **이름만** 또렷해졌다(옛 `todoWidgetTapMarkFreshSeconds`의 값·뜻
+/// 그대로다 — 자국의 "신선함"이 그리기에서 떨어져 나가면서 이 창은 중복 판정에만 쓰인다).
+/// **네이티브의 `TAP_DUP_WINDOW_MS`와 값이 같아야 한다**(design 7장).
+///
+/// 0에 가까우면 런처의 중복 전달을 막지 못하고, 길면 **같은 목표 값**의 정당한 재시도까지 막는다.
+const todoWidgetTapDupWindowMs = 6000;
+
+/// **묶음의 기본 계기** — 마지막 탭에서 이만큼 멎으면 묶음이 떠난다(design 7장, spec O).
+///
+/// **네이티브의 `TAP_QUIET_MS`와 값이 같아야 한다.** 0.5초 아래면 "한 줄 누르고 다음 줄 찾기"라는
+/// 흔한 리듬이 묶이지 않아 지금과 같아지고, 2초 위면 실패를 그만큼 늦게 안다.
+const todoWidgetTapQuietMs = 1000;
+
+/// **묶음의 상한** — 첫 탭에서 이만큼 지나면 멎지 않아도 떠난다(spec O).
+///
+/// **네이티브의 `TAP_BATCH_CAP_MS`와 값이 같아야 한다.** 늘리면 "아직 안 보낸 체크가 기기에만
+/// 있는 시간"이 늘고 **마지막 탭에서 8초** 약속이 깨진다.
+const todoWidgetTapBatchCapMs = 5000;
+
+/// 묶음이 떠난 뒤 **쓰기에 주는 창**(ms). 핸드오프·직접 쓰기의 상한이고, 네이티브의 되돌림 시각
+/// 계산에도 들어간다(`dueAtMs = leaveAtMs + 이 값 + [todoWidgetSettleGraceMs]`).
+///
+/// 2026-11-20에 **6초에서 5초로 조였다**(design 7장): 앞에 대기 1초가 붙었으므로 8초 약속을
+/// 지키려면 그만큼 줄여야 한다. **네이티브의 `WRITE_WINDOW_MS`와 값이 같아야 한다.**
+const todoWidgetWriteWindowMs = 5000;
+
+/// 쓰기 창이 끝난 뒤 **결말 발행·그리기에 주는 여유**(ms). 0이면 Dart의 실패 발행과 네이티브의
+/// 쓸어내기가 같은 순간에 겹쳐 그림이 두 번 바뀐다. **네이티브의 `SETTLE_GRACE_MS`와 같아야 한다.**
+const todoWidgetSettleGraceMs = 1000;
+
+/// 자국 레코드가 들고 있는 자국의 최대 개수. 보이는 줄이 최대 6이고 되돌림까지 두 번씩 눌러도
+/// 12다. 넘으면 **오래된 것부터 버린다**(버려진 자국은 그 줄이 평소 모양으로 돌아가는 것이
+/// 전부다 — 거짓 성공이 아니다). **네이티브의 `MAX_MARKS`와 같아야 한다.**
+const todoWidgetMaxTapMarks = 12;
 
 /// 위젯이 쓰는 Uri의 스킴·호스트. OAuth 콜백(`com.todododo.todododo://login-callback`)과 다르고,
 /// `supabase_flutter`의 딥링크 관찰자는 인증 파라미터가 없는 Uri를 무시한다(design 5장).
@@ -199,13 +234,12 @@ class TodoWidgetPayload {
     required this.totalCount,
     required this.updatedAtMs,
     this.header = AppStrings.widgetHeader,
-    this.headerAfterCheck,
-    this.headerAfterUncheck,
+    this.headerAfterChecks = const [],
+    this.headerAfterUnchecks = const [],
     this.centerText,
     this.note = '',
     this.noteTone = TodoWidgetNoteTone.muted,
-    this.pendingId,
-    this.pendingAtMs,
+    this.settledGen = 0,
     this.tapTarget = TodoWidgetTapTarget.todo,
   });
 
@@ -230,18 +264,22 @@ class TodoWidgetPayload {
   /// 손에 없거나 숫자가 전부 0이라 `0/0`은 허전한 거짓이 된다(design 2.3.1).
   final String header;
 
-  /// **이 캐시에서 아무 줄이나 하나를 완료로 바꿨을 때의 머리 줄 문장**(`할 일 3/5`).
+  /// **이 캐시에서 완료 개수가 +1, +2, … 됐을 때의 머리 줄 문장들**(`[할 일 3/5, 할 일 4/5, …]`).
   ///
-  /// 탭 한 번은 완료 개수를 **정확히 +1** 하므로 줄마다 다른 문장이 필요하지 않다 — **문장 하나로
-  /// 모든 줄의 체크를 덮는다**(design 2.2.3). 네이티브는 낙관 그림을 그리는 동안 이 문장을
-  /// **고르기만** 하고, 없으면 머리 줄을 그대로 둔다(개수가 1~4초 늦게 맞는다). 숫자를 세거나
-  /// 분수를 조립하는 일은 여전히 네이티브에 없다(원칙 2).
+  /// 2026-11-20(추가 범위 4)에 **문장 하나에서 배열로 자랐다**(design 1.4): N줄이 **동시에** 눌릴
+  /// 수 있으므로 ∓1 문장 하나로는 개수를 덮지 못한다. 네이티브는 효력 있는 자국들의 순 델타로
+  /// **첨자를 골라 쓰기만** 하고(`headerAfterChecks[delta-1]`), 범위를 넘거나 키가 없으면 머리 줄을
+  /// **그대로 둔다**("모르면 말하지 않는다"). 숫자를 세거나 분수를 조립하는 일은 여전히 네이티브에
+  /// 없다(원칙 2).
   ///
-  /// 더 완료할 것이 없으면(전부 완료) null이다 — `할 일 6/5`는 거짓이다.
-  final String? headerAfterCheck;
+  /// 길이는 `min(6, 미완료 개수)`다 — 자국은 **보이는 줄**에만 생기고 줄 상한이 6이므로 한 묶음이
+  /// 움직일 수 있는 개수가 6을 넘지 못한다. 더 완료할 것이 없으면(전부 완료) **빈 배열**이고 캐시에
+  /// 키째로 실리지 않는다 — `할 일 6/5`는 거짓이다.
+  final List<String> headerAfterChecks;
 
-  /// 같은 꼴의 **−1** 문장(`할 일 1/5`). 완료가 0이면 null이다(되돌릴 줄이 없다).
-  final String? headerAfterUncheck;
+  /// 같은 꼴의 **−1, −2, …** 문장들(`[할 일 1/5, 할 일 0/5]`). 길이는 `min(6, 완료 개수)`이고
+  /// 완료가 0이면 빈 배열이다(되돌릴 줄이 없다).
+  final List<String> headerAfterUnchecks;
 
   /// 이 페이로드의 **기준 시각**(= 목록을 받아온 시각). note의 시각 문장과 뜻이 같아야 하므로,
   /// 목록을 그대로 물려받는 발행([fetchFailed]·[checkFailed]·[pending])은 이 값도 물려받는다.
@@ -255,18 +293,18 @@ class TodoWidgetPayload {
 
   final TodoWidgetNoteTone noteTone;
 
-  /// **네이티브가 찍은 탭 자국**(어느 줄을 언제 눌렀는가). 2026-11-19부터 이 둘은 **순수
-  /// 입력**이다 — [fromJson]이 읽고 [toJson]은 싣지 않는다(design 2.2.3).
+  /// **어디까지 결말이 났는가**(2026-11-20 추가 범위 4, design 1.1·4.1).
   ///
-  /// **이 둘로 판단하는 Dart 코드는 없다**(2026-11-20). 중복 탭 가드가 네이티브로 옮겨 갔기
-  /// 때문이다([isDuplicateWidgetTap]) — 백그라운드 Dart가 읽는 자국은 언제나 **이번 탭의
-  /// 것**이라 중복을 가릴 수 없다. 두 필드가 모델에 남아 있는 이유는 **"자국이 섞여 들어와도
-  /// 다음 발행이 지운다"는 비대칭을 드러내 두는 것**이고, 테스트가 그 비대칭을 고정한다.
+  /// 탭 자국은 세대(`g`)를 하나씩 올려 가며 **별도 키**에 쌓이고, 결말 발행이 이 숫자를 그
+  /// 묶음의 마지막 세대(`claimedGen`)로 올린다. 네이티브는 `g > settledGen`인 자국만 효력 있는
+  /// 것으로 보므로 **"그 묶음에 들어간 것만 걷고 나머지는 남긴다"가 지우기가 아니라 비교로**
+  /// 성립한다 — 결말 하나가 아직 끝나지 않은 다른 줄의 그림을 걷어 가지 않는다(spec R).
   ///
-  /// 자국의 나머지 둘(`pendingDone`·`pendingMode`)은 **Dart가 아예 모른다.** 모르는 키는 다음
-  /// 발행에서 자연히 빠지므로 그 사실 자체가 "결말이 자국을 지운다"의 구현이다.
-  final String? pendingId;
-  final int? pendingAtMs;
+  /// **어떤 발행도 이 값을 내리지 않는다.** 내리면 이미 끝난 자국이 되살아나 눌린 그림이 다시
+  /// 뜬다. 그래서 목록을 물려받는 팩토리는 직전 값을 물려받고([fetchFailed]·[checkFailed]),
+  /// 목록이 없는 팩토리는 서비스가 들고 있는 값을 받는다([loggedOut]·[loading]) — 마지막
+  /// 방어선은 `TodoWidgetService.publish`가 발행마다 `max`를 취하는 것이다(design 4.2).
+  final int settledGen;
 
   final TodoWidgetTapTarget tapTarget;
 
@@ -293,10 +331,19 @@ class TodoWidgetPayload {
   /// 목록 순서)를 그대로 보존한다. 자리를 **고르는** 순서는 따로 매긴 [TodoWidgetItem.rank]가
   /// 들고 간다.
   ///
-  /// [justCheckedId]는 **"방금 누른 줄은 반드시 보인다"는 예외 하나**를 위해 있다(spec 추가 범위
-  /// 2 F). 그 줄이 밀려 사라지면 "체크하면 사라진다"로 되돌아가 이번 요구가 무의미해진다. 그래서
-  /// `rank 0`을 주고(어떤 줄 자리 수에서도 보이려면 0이어야 한다) 캐시 상한 안에 반드시 담는다.
-  /// **그 항목이 목록에 있고 완료 상태일 때만** 쓴다 — 되돌린 줄은 미완료가 되어 어차피 앞 순위다.
+  /// [frontIds]는 **"방금 누른 줄들은 반드시 보인다"는 예외**를 위해 있다(spec 추가 범위 2 F,
+  /// 2026-11-20에 **하나에서 순서 있는 목록으로** 자랐다 — design 6.2). 그 줄이 밀려 사라지면
+  /// "체크하면 사라진다"로 되돌아가 요구가 무의미해진다. 그래서 들어온 **순서대로 rank 0,1,…**을
+  /// 주고(어떤 줄 자리 수에서도 보이려면 앞 번호여야 한다) 완료 줄이면 캐시 상한 안에 반드시
+  /// 담는다. **목록에 없는 id가 섞여 있어도 무해하다**(그냥 건너뛴다).
+  ///
+  /// 앞자리를 **실패한 줄 → 이번에 성공한 줄** 순서로 채우는 것이 spec S의 요구다("되돌아간 줄이
+  /// 보이는 자리를 먼저 받는다"). 그 순서를 만드는 것은 부르는 쪽이고 여기서는 받은 순서를 쓴다.
+  ///
+  /// [failedCheck]가 참이면 note가 **실패 한 줄**(`체크하지 못했어요 · 앱에서 확인해요`)이 되고
+  /// 톤이 `danger`가 된다. 개수를 넣지 않는다(오너 확정 2) — 몇 개가 실패했는지는 되돌아간 줄이
+  /// 이미 화면에서 말한다.
+  ///
   /// [basisAt]은 **목록의 나이**다(epoch 밀리초). 주지 않으면 [now]다.
   ///
   /// 위젯 체크의 결말을 만들 때 쓴다(design 4.7 (2)): 체크는 목록을 **새로 받아온 것이 아니므로**
@@ -308,7 +355,9 @@ class TodoWidgetPayload {
   factory TodoWidgetPayload.fromTodos(
     List<Todo> todos, {
     required DateTime now,
-    String? justCheckedId,
+    List<String> frontIds = const [],
+    bool failedCheck = false,
+    int settledGen = 0,
     int? basisAt,
   }) {
     final at = basisAt ?? now.millisecondsSinceEpoch;
@@ -318,6 +367,7 @@ class TodoWidgetPayload {
         totalCount: 0,
         updatedAtMs: at,
         centerText: AppStrings.widgetEmpty,
+        settledGen: settledGen,
       );
     }
     final undone = <Todo>[];
@@ -333,11 +383,12 @@ class TodoWidgetPayload {
     );
 
     // 캐시 상한을 **둘로 나눠** 담는다(완료가 미완료를 밀어내지 않는다).
-    final keptDone = _keepDone(done, justCheckedId);
+    final keptDone = _keepDone(done, frontIds);
+    final keptUndone = undone.take(todoWidgetMaxItems).toList();
     final ranks = _ranksOf(
-      undone: undone.take(todoWidgetMaxItems),
+      undone: keptUndone,
       keptDone: keptDone,
-      justCheckedId: justCheckedId,
+      frontIds: frontIds,
     );
     final items = [
       for (final todo in todos)
@@ -349,47 +400,72 @@ class TodoWidgetPayload {
       totalCount: undone.length,
       updatedAtMs: at,
       header: header,
-      // 탭 한 번은 완료 개수를 정확히 ∓1 한다. 그래서 문장 **둘**이면 모든 줄의 탭을 덮는다
-      // (design 2.2.3). 더 체크할 것이 없거나 되돌릴 것이 없으면 그쪽을 싣지 않는다.
-      headerAfterCheck: undone.isEmpty
-          ? null
-          : AppStrings.widgetHeaderCount(
-              done: done.length + 1,
-              total: todos.length,
-            ),
-      headerAfterUncheck: done.isEmpty
-          ? null
-          : AppStrings.widgetHeaderCount(
-              done: done.length - 1,
-              total: todos.length,
-            ),
+      settledGen: settledGen,
+      // N줄이 **동시에** 눌릴 수 있으므로 ∓1 문장 하나로는 개수를 덮지 못한다(design 1.4).
+      // 상한이 6인 근거: 자국은 보이는 줄에만 생기고 줄 상한이 6이다. 움직일 것이 없는 쪽은
+      // **빈 배열**이고 캐시에 키째로 실리지 않는다.
+      headerAfterChecks: [
+        for (var k = 1; k <= _headerStepsOf(undone.length); k++)
+          AppStrings.widgetHeaderCount(
+            done: done.length + k,
+            total: todos.length,
+          ),
+      ],
+      headerAfterUnchecks: [
+        for (var k = 1; k <= _headerStepsOf(done.length); k++)
+          AppStrings.widgetHeaderCount(
+            done: done.length - k,
+            total: todos.length,
+          ),
+      ],
+      // 하나라도 실패했으면 **실패 한 줄**이 모든 것을 덮는다(개수를 넣지 않는다 — spec S).
       // 전부 완료면 그 사실을 note로 말한다(문구는 그대로 재사용하고 자리만 옮겼다).
-      note: undone.isEmpty
-          ? AppStrings.widgetAllDone
-          : AppStrings.widgetNoteFresh(
-              formatWidgetTime(DateTime.fromMillisecondsSinceEpoch(at)),
-            ),
+      note: failedCheck
+          ? AppStrings.widgetCheckFailed
+          : undone.isEmpty
+              ? AppStrings.widgetAllDone
+              : AppStrings.widgetNoteFresh(
+                  formatWidgetTime(DateTime.fromMillisecondsSinceEpoch(at)),
+                ),
+      noteTone: failedCheck
+          ? TodoWidgetNoteTone.danger
+          : TodoWidgetNoteTone.muted,
     );
   }
 
+  /// 대체 머리 줄 배열의 길이. 한 묶음이 움직일 수 있는 개수는 **보이는 줄 수**를 넘지 못한다
+  /// (자국은 보이는 줄에만 생긴다 — design 1.4).
+  static int _headerStepsOf(int count) =>
+      count < todoWidgetMaxRows ? count : todoWidgetMaxRows;
+
   /// 상태 1 — 로그인하지 않음. 이전 사용자의 내용을 **즉시 지운다**(키를 지우지 않고 덮어쓴다).
-  factory TodoWidgetPayload.loggedOut({required DateTime now}) {
+  /// [settledGen]은 **내리지 않기 위해** 받는다(design 4.2) — 목록이 없는 갈래라 물려받을 직전이
+  /// 없으므로 서비스가 들고 있는 값을 넘겨 준다.
+  factory TodoWidgetPayload.loggedOut({
+    required DateTime now,
+    int settledGen = 0,
+  }) {
     return TodoWidgetPayload(
       items: const [],
       totalCount: 0,
       updatedAtMs: now.millisecondsSinceEpoch,
       centerText: AppStrings.widgetLoggedOut,
+      settledGen: settledGen,
       tapTarget: TodoWidgetTapTarget.login,
     );
   }
 
   /// 상태 2 — 로그인 직후 첫 조회 중. 로그아웃 캐시가 로그인한 사용자에게 잠깐 보이는 것을 막는다.
-  factory TodoWidgetPayload.loading({required DateTime now}) {
+  factory TodoWidgetPayload.loading({
+    required DateTime now,
+    int settledGen = 0,
+  }) {
     return TodoWidgetPayload(
       items: const [],
       totalCount: 0,
       updatedAtMs: now.millisecondsSinceEpoch,
       centerText: AppStrings.widgetLoading,
+      settledGen: settledGen,
     );
   }
 
@@ -415,8 +491,10 @@ class TodoWidgetPayload {
       // 개수도 **같은 시점의 값**이어야 화면과 어긋나지 않는다(새로 셀 목록이 손에 없다).
       header: previous.header,
       // 줄이 그대로 보이는 상태이므로 그 줄을 누를 수 있다 → 대체 문장도 그대로 물려받는다.
-      headerAfterCheck: previous.headerAfterCheck,
-      headerAfterUncheck: previous.headerAfterUncheck,
+      headerAfterChecks: previous.headerAfterChecks,
+      headerAfterUnchecks: previous.headerAfterUnchecks,
+      // **내리지 않는다**(design 4.2) — 내리면 이미 끝난 자국이 되살아난다.
+      settledGen: previous.settledGen,
       note: AppStrings.widgetNoteStale(formatWidgetTime(at)),
     );
   }
@@ -437,6 +515,7 @@ class TodoWidgetPayload {
         updatedAtMs: previous?.updatedAtMs ?? now.millisecondsSinceEpoch,
         centerText: AppStrings.widgetCheckFailed,
         noteTone: TodoWidgetNoteTone.danger,
+        settledGen: previous?.settledGen ?? 0,
       );
     }
     return TodoWidgetPayload(
@@ -445,8 +524,9 @@ class TodoWidgetPayload {
       updatedAtMs: previous.updatedAtMs,
       // 서버 반영에 실패한 체크를 성공으로 센 숫자를 적지 않는다 — 직전 값을 그대로 쓴다.
       header: previous.header,
-      headerAfterCheck: previous.headerAfterCheck,
-      headerAfterUncheck: previous.headerAfterUncheck,
+      headerAfterChecks: previous.headerAfterChecks,
+      headerAfterUnchecks: previous.headerAfterUnchecks,
+      settledGen: previous.settledGen,
       note: AppStrings.widgetCheckFailed,
       noteTone: TodoWidgetNoteTone.danger,
       tapTarget: previous.tapTarget,
@@ -460,42 +540,81 @@ class TodoWidgetPayload {
   /// 위험이 없다.** 낙관 그림은 네이티브가 탭 순간에 그리는 것이고(캐시를 고치지 않는다) 이쪽은
   /// 결말이다.
   ///
+  /// **2026-11-20(추가 범위 4): 한 줄에서 묶음으로 자랐다**(design 6.2). 한 번의 저장 계기에
+  /// 여러 줄이 들어오고 그중 일부만 성공할 수 있으므로, 이 함수가 **줄마다 다른 결말**을 한
+  /// 발행으로 그린다 — 성공한 줄은 선이 그어진 채 남고 실패한 줄만 원래 모양으로 되돌아간다
+  /// (spec S). 안내는 **한 줄뿐이고 개수를 넣지 않는다**(오너 확정 2).
+  ///
   /// 고치는 것은 표 그대로다:
-  /// - 그 항목의 `done`을 **목표 값**으로. 완료가 되면 **기한 키 셋이 빠진다**(완료 줄에는 기한을
-  ///   싣지 않는다는 규칙을 Dart가 캐시에서 끝낸다). 되돌릴 때 기한을 되살릴 재료는 캐시에 없다 —
-  ///   **받아들이는 한계**이고 1~2초 뒤 보정 발행이 돌려준다.
-  /// - `totalCount`(미완료 전체)를 완료면 −1, 되돌리기면 +1. **보이는 미완료도 같이 하나 줄므로
-  ///   `그 외 N개`는 그대로다** — 이것이 "그 체크만큼만"의 핵심이다.
-  /// - 머리 줄은 [headerAfterCheck]/[headerAfterUncheck]를 **고르기만** 한다(없으면 직전 그대로).
-  /// - `rank`를 2.2.2의 규칙으로 다시 매긴다(방금 누른 줄이 완료면 rank 0 → 반드시 보인다).
+  /// - **성공한** 줄의 `done`을 목표 값으로. 완료가 되면 **기한 키 셋이 빠진다**(완료 줄에는
+  ///   기한을 싣지 않는다는 규칙을 Dart가 캐시에서 끝낸다). 되돌릴 때 기한을 되살릴 재료는 캐시에
+  ///   없다 — **받아들이는 한계**이고 1~2초 뒤 보정 발행이 돌려준다.
+  /// - **실패한** 줄은 손대지 않는다(= 낙관 그림이 걷히며 되돌아간다. [settledGen]이 그 자국의
+  ///   효력을 없애는 것이 되돌림의 실제 수단이다).
+  /// - `totalCount`(미완료 전체)를 **순 델타만큼** 움직인다(완료 −1, 되돌리기 +1씩). **보이는
+  ///   미완료도 같은 수만큼 줄므로 `그 외 N개`는 그대로다** — "그 체크들만큼만"의 핵심이다.
+  /// - 머리 줄은 [headerAfterChecks]/[headerAfterUnchecks]에서 **첨자로 고르기만** 한다(범위를
+  ///   넘거나 배열이 없으면 직전 그대로 — "모르면 말하지 않는다").
+  /// - `rank`를 다시 매긴다: **실패한 줄 → 이번에 성공한 줄 → 나머지 미완료 → 나머지 완료.**
+  ///   실패한 줄이 앞자리를 먼저 받는 것이 spec S의 요구다(되돌림과 이유가 같은 화면에).
   /// - **배열 순서는 손대지 않는다**(그리는 순서 = position. 체크한 줄이 제자리에 남는 근거다).
   /// - `updatedAtMs`는 직전 값 그대로. 체크가 목록을 새것으로 만들지 않는다.
-  /// - 탭 자국은 **싣지 않는다**(결말이 자국을 걷는다 — 이 객체에 그 필드가 없는 것이 그 보장이다).
+  /// - `settledGen`을 [settledGen](= `claimedGen`)으로 올린다. **실패한 자국도 효력을 잃어야**
+  ///   되돌아가므로 성공·실패를 가리지 않고 같은 숫자를 적는다.
   ///
-  /// 지름길이 성립하지 않으면 **null**을 준다(캐시 없음·줄 없는 안내 화면·목록에 없는 id·이미
-  /// 목표 값). 그때는 부르는 쪽이 느린 길(목록 재조회)로 되돌아간다.
-  static TodoWidgetPayload? applyCheck(
+  /// 지름길이 성립하지 않으면 **null**을 준다(캐시 없음·줄 없는 안내 화면·결과가 빈 목록·캐시에
+  /// 없는 id뿐). 그때는 부르는 쪽이 느린 길(목록 재조회)로 되돌아간다.
+  static TodoWidgetPayload? applyChecks(
     TodoWidgetPayload? cached, {
-    required String todoId,
-    required bool done,
+    required List<TodoWidgetCheckResult> results,
+    required int settledGen,
   }) {
-    if (cached == null || !cached.hasItems) return null;
-    final target = cached.items.where((item) => item.id == todoId).firstOrNull;
-    if (target == null || target.done == done) return null;
+    if (cached == null || !cached.hasItems || results.isEmpty) return null;
+    final byId = {for (final item in cached.items) item.id: item};
+    final applied = [
+      for (final result in results)
+        if (byId.containsKey(result.id)) result,
+    ];
+    if (applied.isEmpty) return null;
 
-    // 완료가 되는 줄에서는 기한 키 셋이 빠진다. 되돌아가는 줄에는 애초에 기한 키가 없었다.
-    final changed = TodoWidgetItem(
-      id: target.id,
-      title: target.title,
-      rank: target.rank,
-      done: done,
-    );
-    final items = [
-      for (final item in cached.items) item.id == todoId ? changed : item,
+    final targets = <String, bool>{
+      for (final result in applied)
+        if (result.ok) result.id: result.done,
+    };
+    final failedIds = [
+      for (final result in applied)
+        if (!result.ok) result.id,
+    ];
+    final checkedIds = [
+      for (final result in applied)
+        if (result.ok) result.id,
     ];
 
+    var delta = 0;
+    final items = [
+      for (final item in cached.items)
+        if (targets[item.id] case final done? when done != item.done)
+          // 완료가 되는 줄에서는 기한 키 셋이 빠진다(되돌아가는 줄에는 애초에 없었다).
+          TodoWidgetItem(
+            id: item.id,
+            title: item.title,
+            rank: item.rank,
+            done: done,
+          )
+        else
+          item,
+    ];
+    for (final item in cached.items) {
+      if (targets[item.id] case final done? when done != item.done) {
+        delta += done ? 1 : -1;
+      }
+    }
+
+    // 실패한 줄이 보이는 자리를 **먼저** 받는다(spec S). 그 뒤가 이번에 성공한 줄이다.
     final ranks = <String, int>{};
-    if (done) ranks[todoId] = ranks.length;
+    for (final id in [...failedIds, ...checkedIds]) {
+      ranks.putIfAbsent(id, () => ranks.length);
+    }
     for (final item in items) {
       if (!item.done) ranks.putIfAbsent(item.id, () => ranks.length);
     }
@@ -503,8 +622,9 @@ class TodoWidgetPayload {
       ranks.putIfAbsent(item.id, () => ranks.length);
     }
 
-    final totalCount = done ? cached.totalCount - 1 : cached.totalCount + 1;
+    final totalCount = cached.totalCount - delta;
     final basisAt = DateTime.fromMillisecondsSinceEpoch(cached.updatedAtMs);
+    final failed = failedIds.isNotEmpty;
     return TodoWidgetPayload(
       items: [
         for (final item in items)
@@ -520,13 +640,26 @@ class TodoWidgetPayload {
       ],
       totalCount: totalCount < 0 ? 0 : totalCount,
       updatedAtMs: cached.updatedAtMs,
-      header: (done ? cached.headerAfterCheck : cached.headerAfterUncheck) ??
-          cached.header,
-      // 대체 문장은 셀 목록이 손에 없어 다시 만들 수 없다. 싣지 않으면 네이티브가 머리 줄을
-      // 그대로 두므로(2.2.3) 거짓이 생기지 않고, 1~2초 뒤 보정 발행이 채워 준다.
-      note: _noteAfterCheck(cached, totalCount, basisAt),
+      header: _headerAfter(cached, delta),
+      // 대체 문장 배열은 셀 목록이 손에 없어 다시 만들 수 없다. 싣지 않으면 네이티브가 머리 줄을
+      // 그대로 두므로(design 1.4) 거짓이 생기지 않고, 1~2초 뒤 보정 발행이 채워 준다.
+      note: failed
+          ? AppStrings.widgetCheckFailed
+          : _noteAfterCheck(cached, totalCount, basisAt),
+      noteTone: failed ? TodoWidgetNoteTone.danger : TodoWidgetNoteTone.muted,
+      settledGen: settledGen,
       tapTarget: cached.tapTarget,
     );
+  }
+
+  /// 순 델타로 대체 머리 줄을 **고른다**(design 1.4). 범위를 넘거나 배열이 없으면 직전 그대로다.
+  static String _headerAfter(TodoWidgetPayload cached, int delta) {
+    final sentences = delta > 0
+        ? cached.headerAfterChecks
+        : cached.headerAfterUnchecks;
+    final index = (delta > 0 ? delta : -delta) - 1;
+    if (delta == 0 || index >= sentences.length) return cached.header;
+    return sentences[index];
   }
 
   /// 체크가 성공한 뒤의 note. 상태 3 ↔ 3b 전이와 "앞선 실패가 지워진다"를 이 경로에서도 지킨다.
@@ -555,8 +688,10 @@ class TodoWidgetPayload {
   Map<String, dynamic> toJson() => {
         'v': todoWidgetSchemaVersion,
         'header': header,
-        if (headerAfterCheck != null) 'headerAfterCheck': headerAfterCheck,
-        if (headerAfterUncheck != null) 'headerAfterUncheck': headerAfterUncheck,
+        // **빈 배열이면 키째로 싣지 않는다**(없으면 네이티브가 머리 줄을 그대로 둔다 — design 1.4).
+        if (headerAfterChecks.isNotEmpty) 'headerAfterChecks': headerAfterChecks,
+        if (headerAfterUnchecks.isNotEmpty)
+          'headerAfterUnchecks': headerAfterUnchecks,
         'items': items.map((item) => item.toJson()).toList(),
         'totalCount': totalCount,
         if (centerText != null) 'centerText': centerText,
@@ -567,15 +702,44 @@ class TodoWidgetPayload {
         'moreFormat': moreFormat,
         'pendingLabel': AppStrings.widgetPendingLabel,
         'failNote': failNote,
-        // **탭 자국 네 키를 싣지 않는다**(2026-11-19). 그 키 공간의 writer는 네이티브 하나이고
-        // (design 2.2.3), 그래서 **모든 Dart 발행이 자국을 지운다** — "결말이 자국을 걷는다"가
-        // 여기에 아무것도 적지 않음으로써 성립한다. 다시 실으면 두 writer가 같은 키를 다투고
-        // 이 설계의 경합 방지가 무너진다. `fromJson`은 계속 **읽기만** 한다.
+        // **탭 자국은 이 JSON에 한 자도 없다**(2026-11-20 추가 범위 4). 자국은 **별도 키**
+        // (`todo_widget_tap_marks`)에 있고 그 키의 writer는 네이티브 하나다(design 1.1). Dart가
+        // 자국을 지우는 대신 "어디까지 결말이 났는지"를 아래 숫자로 적어 **그 묶음에 들어간
+        // 자국만** 효력을 잃게 한다 — 결말 하나가 아직 끝나지 않은 다른 줄을 걷어 가지 않는다.
+        'settledGen': settledGen,
         'tapTarget': tapTarget.name,
         'updatedAtMs': updatedAtMs,
       };
 
   String encode() => jsonEncode(toJson());
+
+  /// [settledGen]만 바꾼 사본. **올리는 데만 쓴다**(`TodoWidgetService.publish`가 발행마다
+  /// `max`를 취하는 마지막 방어선 — design 4.2). 값이 같으면 자기 자신을 돌려준다.
+  TodoWidgetPayload withSettledGen(int gen) {
+    if (gen == settledGen) return this;
+    return TodoWidgetPayload(
+      items: items,
+      totalCount: totalCount,
+      updatedAtMs: updatedAtMs,
+      header: header,
+      headerAfterChecks: headerAfterChecks,
+      headerAfterUnchecks: headerAfterUnchecks,
+      centerText: centerText,
+      note: note,
+      noteTone: noteTone,
+      settledGen: gen,
+      tapTarget: tapTarget,
+    );
+  }
+
+  /// 대체 머리 줄 배열을 되읽는다. 배열이 아니거나 문자열이 아닌 것이 섞이면 **그 칸만** 버린다.
+  static List<String> _sentencesOf(Object? raw) {
+    if (raw is! List) return const [];
+    return [
+      for (final value in raw)
+        if (value is String && value.isNotEmpty) value,
+    ];
+  }
 
   /// 네이티브가 쓰는 것과 같은 규칙으로 되읽는다. 판 번호를 모르거나 모양이 어긋나면 null이다 —
   /// 그 경우 호출자는 "직전 캐시가 없다"로 다루면 된다.
@@ -606,10 +770,7 @@ class TodoWidgetPayload {
     final centerText = json['centerText'];
     final note = json['note'];
     final header = json['header'];
-    final headerAfterCheck = json['headerAfterCheck'];
-    final headerAfterUncheck = json['headerAfterUncheck'];
-    final pendingId = json['pendingId'];
-    final pendingAtMs = json['pendingAtMs'];
+    final settledGen = json['settledGen'];
     return TodoWidgetPayload(
       items: items,
       totalCount: totalCount,
@@ -619,20 +780,16 @@ class TodoWidgetPayload {
       header: header is String && header.isNotEmpty
           ? header
           : AppStrings.widgetHeader,
-      headerAfterCheck: headerAfterCheck is String && headerAfterCheck.isNotEmpty
-          ? headerAfterCheck
-          : null,
-      headerAfterUncheck:
-          headerAfterUncheck is String && headerAfterUncheck.isNotEmpty
-          ? headerAfterUncheck
-          : null,
+      // 옛 캐시에는 배열이 없다 → 빈 배열로 읽히고 네이티브는 머리 줄을 그대로 둔다(거짓이
+      // 아니다 — design 1.4의 호환 서술).
+      headerAfterChecks: _sentencesOf(json['headerAfterChecks']),
+      headerAfterUnchecks: _sentencesOf(json['headerAfterUnchecks']),
       centerText: centerText is String ? centerText : null,
       note: note is String ? note : '',
       noteTone: json['noteTone'] == TodoWidgetNoteTone.danger.name
           ? TodoWidgetNoteTone.danger
           : TodoWidgetNoteTone.muted,
-      pendingId: pendingId is String ? pendingId : null,
-      pendingAtMs: pendingAtMs is int ? pendingAtMs : null,
+      settledGen: settledGen is int ? settledGen : 0,
       tapTarget: json['tapTarget'] == TodoWidgetTapTarget.login.name
           ? TodoWidgetTapTarget.login
           : TodoWidgetTapTarget.todo,
@@ -670,25 +827,31 @@ class TodoWidgetPayload {
 
   /// 캐시에 담을 **완료한** 할 일을 고른다(최대 [todoWidgetMaxDoneItems]개, position 순서).
   ///
-  /// **방금 누른 줄은 반드시 담는다**: 완료가 7개 이상이고 그것이 앞 6개에 없으면
-  /// `앞 5개 + 그것`으로 담는다. 그 줄은 앞 6개에 없었으므로 position이 그들보다 뒤이고, 그래서
-  /// 이렇게 담아도 **배열이 position 순서를 유지한다**(design 2.2.2).
-  static List<Todo> _keepDone(List<Todo> done, String? justCheckedId) {
-    final kept = done.take(todoWidgetMaxDoneItems).toList();
-    if (justCheckedId == null) return kept;
-    if (kept.any((todo) => todo.id == justCheckedId)) return kept;
+  /// **방금 누른 줄들은 반드시 담는다**(design 1.4·6.2): [frontIds]의 완료 줄에게 상한을 먼저
+  /// 나눠 주고 남은 자리를 position 순서로 채운다. 담는 것은 **집합**이고, 돌려주는 리스트는
+  /// 다시 [done]의 순서(= position)로 걸러 내므로 **배열이 position 순서를 유지한다.**
+  static List<Todo> _keepDone(List<Todo> done, List<String> frontIds) {
+    if (done.length <= todoWidgetMaxDoneItems) return done;
+    final keptIds = <String>{};
     for (final todo in done) {
-      if (todo.id != justCheckedId) continue;
-      return [...done.take(todoWidgetMaxDoneItems - 1), todo];
+      if (keptIds.length >= todoWidgetMaxDoneItems) break;
+      if (frontIds.contains(todo.id)) keptIds.add(todo.id);
     }
-    return kept;
+    for (final todo in done) {
+      if (keptIds.length >= todoWidgetMaxDoneItems) break;
+      keptIds.add(todo.id);
+    }
+    return [
+      for (final todo in done)
+        if (keptIds.contains(todo.id)) todo,
+    ];
   }
 
   /// 항목마다 **줄 자리 우선순위**를 매긴다(design 2.2.2):
   ///
   /// ```
-  /// 0        : justCheckedId (그 항목이 목록에 있고 완료 상태일 때만)
-  /// 1, 2, ...: 미완료, position 순서
+  /// 0, 1, …  : frontIds (들어온 순서. 캐시에 담긴 줄만)
+  /// 그 뒤    : 미완료, position 순서
   /// 그 뒤    : 나머지 완료, position 순서
   /// ```
   ///
@@ -696,14 +859,20 @@ class TodoWidgetPayload {
   /// 선택을 끝낼 수 없고, 대신 순서를 숫자로 굳혀 보내 네이티브가 `rank < limit` 하나만 비교하게
   /// 한다 — 정책은 여기 남고 네이티브에는 비교 한 줄이 간다.
   static Map<String, int> _ranksOf({
-    required Iterable<Todo> undone,
+    required List<Todo> undone,
     required List<Todo> keptDone,
-    required String? justCheckedId,
+    required List<String> frontIds,
   }) {
     final ranks = <String, int>{};
-    if (justCheckedId != null &&
-        keptDone.any((todo) => todo.id == justCheckedId)) {
-      ranks[justCheckedId] = ranks.length;
+    if (frontIds.isNotEmpty) {
+      // 캐시에 담기는 줄만 앞자리를 받는다 — 담기지도 않는 id에 rank를 주면 그 자리가 빈다.
+      final kept = {
+        for (final todo in undone) todo.id,
+        for (final todo in keptDone) todo.id,
+      };
+      for (final id in frontIds) {
+        if (kept.contains(id)) ranks.putIfAbsent(id, () => ranks.length);
+      }
     }
     for (final todo in undone) {
       ranks.putIfAbsent(todo.id, () => ranks.length);
@@ -722,16 +891,79 @@ class TodoWidgetPayload {
   }
 }
 
-/// [todos] 중 [id] 하나의 완료 여부만 [done]으로 바꾼 **새 목록**을 돌려준다(순서·나머지 필드는
-/// 그대로). 없는 id면 들어온 목록과 같다.
+/// 묶음이 **서버에 쓸 줄 하나**(design 4.1). 결과는 아직 없다 — 쓰고 나서 [TodoWidgetCheckResult]가
+/// 된다.
+class TodoWidgetCheckTarget {
+  const TodoWidgetCheckTarget({required this.id, required this.done});
+
+  final String id;
+
+  /// **목표 값**(토글이 아니다 — design 4.6 (1)).
+  final bool done;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TodoWidgetCheckTarget && other.id == id && other.done == done;
+
+  @override
+  int get hashCode => Object.hash(id, done);
+
+  @override
+  String toString() => 'TodoWidgetCheckTarget($id, done: $done)';
+}
+
+/// 위젯에서 누른 체크 **한 줄의 결과**(design 6.2). [ok]가 거짓이면 서버에 닿지 못한 줄이고,
+/// 그 줄은 결말에서 **원래 모양으로 되돌아간다**(목표 값을 적용하지 않는다).
+class TodoWidgetCheckResult {
+  const TodoWidgetCheckResult({
+    required this.id,
+    required this.done,
+    required this.ok,
+  });
+
+  final String id;
+
+  /// **목표 값**(토글이 아니다 — design 4.6 (1)).
+  final bool done;
+
+  /// 서버 쓰기가 끝났는가.
+  final bool ok;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TodoWidgetCheckResult &&
+      other.id == id &&
+      other.done == done &&
+      other.ok == ok;
+
+  @override
+  int get hashCode => Object.hash(id, done, ok);
+
+  @override
+  String toString() =>
+      'TodoWidgetCheckResult($id, done: $done, ${ok ? 'ok' : 'fail'})';
+}
+
+/// [todos]에서 [results] 중 **성공한 줄들**의 완료 여부만 목표 값으로 바꾼 **새 목록**을 돌려준다
+/// (순서·나머지 필드는 그대로). 목록에 없는 id는 그냥 건너뛴다.
 ///
 /// 위젯 체크의 결말을 **목록을 다시 받지 않고** 만들기 위한 것이다(design 4.7 (2)의 경로 A):
-/// 앱이 이미 들고 있는 목록에서 그 한 줄만 바꿔 `fromTodos`에 넣는다. `Todo`에 `copyWith`를
+/// 앱이 이미 들고 있는 목록에서 그 줄들만 바꿔 `fromTodos`에 넣는다. `Todo`에 `copyWith`를
 /// 만들지 않는 이유는 위젯 때문에 모델을 건드리지 않기 위해서다.
-List<Todo> todosWithDone(List<Todo> todos, String id, bool done) {
+///
+/// 2026-11-20(추가 범위 4)에 **한 줄에서 여러 줄로** 자랐다(옛 `todosWithDone`).
+List<Todo> todosWithChecks(
+  List<Todo> todos,
+  List<TodoWidgetCheckResult> results,
+) {
+  final targets = <String, bool>{
+    for (final result in results)
+      if (result.ok) result.id: result.done,
+  };
+  if (targets.isEmpty) return todos;
   return [
     for (final todo in todos)
-      if (todo.id == id)
+      if (targets[todo.id] case final done?)
         Todo(
           id: todo.id,
           title: todo.title,
@@ -1000,16 +1232,325 @@ bool isDuplicateWidgetTap({
   return markId == tapId && markDone == tapDone;
 }
 
-/// 탭 자국이 아직 **신선한지**. 네이티브가 그 줄을 모드대로 그리는 창과 같은 값을 쓴다
-/// (쓰기 도중에 프로세스가 죽은 경우 다음 탭이 막히지 않아야 한다).
+/// 자국이 아직 **중복 탭 창 안쪽인지**. 쓰기 도중에 프로세스가 죽어 자국만 남은 경우 다음 탭이
+/// 영영 막히지 않아야 하므로 창에 상한을 둔다.
 ///
-/// 2026-11-19에 창이 60초에서 **6초**로 좁아졌다(design 2.2.3): 결말이 정상 2~4초에 오므로
-/// 60초짜리 창은 "결말을 보고 다시 누른 탭"까지 막는다. 네이티브의 `TAP_MARK_FRESH_MS`와
-/// 같은 값이어야 하고, 그 값으로 `Mark.FRESH`를 정하는 자리가 `markOf`다.
+/// 2026-11-19에 창이 60초에서 **6초**로 좁아졌고(결말이 정상 2~4초에 오므로 60초짜리 창은
+/// "결말을 보고 다시 누른 탭"까지 막는다), 2026-11-20에 그 창이 **중복 판정 전용**이 되면서
+/// 이름이 [todoWidgetTapDupWindowMs]로 또렷해졌다. 네이티브의 `TAP_DUP_WINDOW_MS`와 같은 값이고,
+/// 그 비교를 하는 자리가 `isDuplicateTap`이다.
 bool widgetTapMarkFresh({required int? markAtMs, required DateTime now}) {
   if (markAtMs == null) return false;
-  return now.millisecondsSinceEpoch - markAtMs <
-      todoWidgetTapMarkFreshSeconds * 1000;
+  return now.millisecondsSinceEpoch - markAtMs < todoWidgetTapDupWindowMs;
+}
+
+/// **탭 자국 하나**(design 1.2). 네이티브가 `todo_widget_tap_marks` 키에 적고 Dart는 읽기만 한다.
+class TodoWidgetTapMark {
+  const TodoWidgetTapMark({
+    required this.gen,
+    required this.id,
+    required this.done,
+    required this.atMs,
+    this.writing = false,
+  });
+
+  /// 그 자국의 **세대**. 단조 증가하고, `gen <= payload.settledGen`이면 효력이 없다(결말이 났다).
+  final int gen;
+
+  final String id;
+
+  /// **목표 값**.
+  final bool done;
+
+  /// 찍힌 시각(epoch 밀리초).
+  final int atMs;
+
+  /// `writing` 모드 자국 = **낙관 반영이 꺼진 탭**(절전·비행기·데이터 세이버). 그 줄은 완료 모양으로
+  /// 뒤집지 않고 체크 칸 자리에 `쓰는 중`을 그린다.
+  ///
+  /// **모드를 묶음이 아니라 자국마다 드는 이유**: 모드가 바뀌는 순간에는 모드가 다른 자국이 섞여
+  /// 있을 수 있고, 그리기는 **줄마다** 결정된다(design 1.2).
+  final bool writing;
+
+  @override
+  String toString() =>
+      'TodoWidgetTapMark(g$gen, $id, done: $done, '
+      '${writing ? 'writing' : 'optimistic'})';
+}
+
+/// **탭 자국 레코드 하나**(design 1.2). 지금 모으는 묶음의 시각들과 자국 배열이다.
+class TodoWidgetTapMarks {
+  const TodoWidgetTapMarks({
+    required this.gen,
+    required this.batchAtMs,
+    required this.lastAtMs,
+    required this.leaveAtMs,
+    required this.dueAtMs,
+    required this.marks,
+  });
+
+  /// 마지막 자국의 세대.
+  final int gen;
+
+  /// 지금 모으는 묶음의 **첫 탭** 시각.
+  final int batchAtMs;
+
+  /// **마지막 탭** 시각.
+  final int lastAtMs;
+
+  /// **떠날 시각**([widgetTapLeaveAt]). Dart 일꾼이 그때까지 기다린다.
+  final int leaveAtMs;
+
+  /// **되돌릴 시각**([widgetTapDueAt]). 그때까지 결말이 오지 않으면 효력 있는 자국 전부가
+  /// 되돌아가고 실패 한 줄이 뜬다.
+  final int dueAtMs;
+
+  /// 오래된 것이 앞인 자국 배열.
+  final List<TodoWidgetTapMark> marks;
+
+  /// 그 줄의 **가장 새 자국**. 중복 탭 판정([isDuplicateWidgetTap])의 입력이다.
+  TodoWidgetTapMark? latestFor(String id) {
+    TodoWidgetTapMark? found;
+    for (final mark in marks) {
+      if (mark.id != id) continue;
+      if (found == null || mark.gen >= found.gen) found = mark;
+    }
+    return found;
+  }
+}
+
+/// 자국 레코드 JSON을 되읽는다. **네이티브의 `readMarks`와 같은 방어를 한다**(키 없음·빈 문자열·
+/// 모양 어긋남 → null). 모르는 키가 섞여 있어도 깨지지 않는다.
+TodoWidgetTapMarks? todoWidgetMarksOf(String? raw) {
+  if (raw == null || raw.isEmpty) return null;
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(raw);
+  } on FormatException {
+    return null;
+  }
+  if (decoded is! Map) return null;
+  final gen = decoded['gen'];
+  final batchAtMs = decoded['batchAtMs'];
+  final lastAtMs = decoded['lastAtMs'];
+  final leaveAtMs = decoded['leaveAtMs'];
+  final dueAtMs = decoded['dueAtMs'];
+  final rawMarks = decoded['marks'];
+  if (gen is! int ||
+      batchAtMs is! int ||
+      lastAtMs is! int ||
+      leaveAtMs is! int ||
+      dueAtMs is! int ||
+      rawMarks is! List) {
+    return null;
+  }
+  final marks = <TodoWidgetTapMark>[];
+  for (final entry in rawMarks) {
+    if (entry is! Map) continue;
+    final id = entry['id'];
+    final at = entry['at'];
+    final markGen = entry['g'];
+    if (id is! String || id.isEmpty || at is! int || markGen is! int) continue;
+    marks.add(
+      TodoWidgetTapMark(
+        gen: markGen,
+        id: id,
+        // 없으면 완료로 읽는다(네이티브의 `optBoolean("done", true)`와 같은 기준).
+        done: entry['done'] != false,
+        atMs: at,
+        writing: entry['w'] == true,
+      ),
+    );
+  }
+  return TodoWidgetTapMarks(
+    gen: gen,
+    batchAtMs: batchAtMs,
+    lastAtMs: lastAtMs,
+    leaveAtMs: leaveAtMs,
+    dueAtMs: dueAtMs,
+    marks: marks,
+  );
+}
+
+/// **묶음이 떠날 시각** = `min(마지막 탭 + 1초, 첫 탭 + 5초)`(design 7장, spec O).
+///
+/// 네이티브의 `markTap`이 탭마다 이 식으로 다시 계산하고, Dart 일꾼은 그 값까지 기다린다.
+/// **상한이 식 안에 있는 것이 "어느 계기도 오지 않는 경로가 없다"는 보장이다** — 기기 시간만
+/// 재므로 외부 신호가 필요 없다. 네이티브와 **같은 상수**를 쓴다
+/// ([todoWidgetTapQuietMs]·[todoWidgetTapBatchCapMs]).
+int widgetTapLeaveAt({required int batchAtMs, required int lastAtMs}) {
+  final quiet = lastAtMs + todoWidgetTapQuietMs;
+  final cap = batchAtMs + todoWidgetTapBatchCapMs;
+  return quiet < cap ? quiet : cap;
+}
+
+/// **되돌릴 시각** = 떠날 시각 + 쓰기 창 + 여유 ≈ 마지막 탭 + 7초(design 7장).
+///
+/// 네이티브가 쓸어내기 알람을 **이 절대 시각**에 걸고, 그 시각이 지나면 효력 있는 자국 전부를
+/// 되돌리며 실패 한 줄을 적는다.
+int widgetTapDueAt(int leaveAtMs) =>
+    leaveAtMs + todoWidgetWriteWindowMs + todoWidgetSettleGraceMs;
+
+/// 자국들이 그리기에 주는 **겹침**(design 1.5). 네이티브가 `render`에서 한 번 만들고 **네 자리**가
+/// 이것만 본다 — 줄 그리기, `그 외 N개`의 기준(`undoneShown`), `totalCount` 보정, 머리 줄.
+/// **하나라도 빠지면 숫자가 어긋난다.**
+class TodoWidgetOverlay {
+  const TodoWidgetOverlay({
+    this.flips = const {},
+    this.writingIds = const {},
+    this.doneDelta = 0,
+    this.lapsed = false,
+  });
+
+  /// 낙관으로 **뒤집어 그릴** 줄들(id → 목표 값).
+  final Map<String, bool> flips;
+
+  /// 체크 칸 자리에 `쓰는 중`을 그릴 줄들. **뒤집지 않는다**(낙관이 꺼진 탭이다).
+  final Set<String> writingIds;
+
+  /// Σ(flips: 완료 +1 / 되돌리기 −1). `totalCount − doneDelta`가 보정된 미완료 전체 개수이고,
+  /// 머리 줄은 이 숫자로 문장을 고른다.
+  final int doneDelta;
+
+  /// **되돌릴 시각이 지났다** — 효력 있던 자국 전부를 걷고 실패 한 줄을 적는다. 효력 있는 자국이
+  /// 하나도 없으면 **거짓이다**(상쇄만 있었던 묶음에 실패 한 줄을 띄우지 않는다 — spec P).
+  final bool lapsed;
+
+  bool get isEmpty => flips.isEmpty && writingIds.isEmpty && !lapsed;
+
+  /// 그 줄을 **어느 쪽으로 그릴지**. 네이티브의 `effectiveDone`과 같은 규칙이다.
+  bool doneOf(TodoWidgetItem item) => flips[item.id] ?? item.done;
+}
+
+/// 자국 배열을 한 번 훑어 [TodoWidgetOverlay]를 만든다. **이 범위에서 가장 틀리기 쉬운 자리**라
+/// 규칙을 여기 두고 유닛 테스트로 고정하며, 네이티브(`overlayOf`)가 그것을 베낀다(design 8.3).
+///
+/// 자국은 **셋을 모두 만족할 때만** 효력이 있다(design 1.3):
+///   1. `gen > settledGen` — **결말이 난 묶음의 자국은 효력이 없다.** 이 비교 하나가 "그 묶음에
+///      들어간 것만 걷는다"의 전부다.
+///   2. 아직 [todoWidgetPendingTimeoutSeconds]가 지나지 않았다 — 아무도 결말을 내지 못한 자국이
+///      영원히 남지 않는다(박제 금지).
+///   3. **목표 값이 캐시의 `done`과 다르다** — 값이 이미 맞은 자국은 아무 일도 하지 않는다.
+///      이 조건이 **상쇄**(spec P)를 그리기 쪽에서 공짜로 성립시킨다.
+///
+/// 같은 줄의 자국이 여럿이면 **가장 새 것 하나만** 본다.
+TodoWidgetOverlay todoWidgetOverlayOf({
+  required List<TodoWidgetItem> items,
+  required TodoWidgetTapMarks? marks,
+  required int settledGen,
+  required DateTime now,
+}) {
+  if (marks == null || marks.marks.isEmpty) return const TodoWidgetOverlay();
+  final nowMs = now.millisecondsSinceEpoch;
+  final doneById = {for (final item in items) item.id: item.done};
+
+  final latest = <String, TodoWidgetTapMark>{};
+  for (final mark in marks.marks) {
+    final found = latest[mark.id];
+    if (found == null || mark.gen >= found.gen) latest[mark.id] = mark;
+  }
+
+  final effective = <TodoWidgetTapMark>[];
+  for (final mark in latest.values) {
+    if (mark.gen <= settledGen) continue;
+    if (nowMs - mark.atMs >= todoWidgetPendingTimeoutSeconds * 1000) continue;
+    final done = doneById[mark.id];
+    if (done == null || done == mark.done) continue;
+    effective.add(mark);
+  }
+  if (effective.isEmpty) return const TodoWidgetOverlay();
+  // 되돌릴 시각이 지났다 → 전부 걷고 이유를 적는다. `쓰는 중` 자국도 함께 걷는다(그 줄도
+  // 결말을 받지 못한 것이고, 남겨 두면 `쓰는 중`이 박제된다).
+  if (nowMs >= marks.dueAtMs) return const TodoWidgetOverlay(lapsed: true);
+
+  final flips = <String, bool>{};
+  final writingIds = <String>{};
+  var doneDelta = 0;
+  for (final mark in effective) {
+    if (mark.writing) {
+      writingIds.add(mark.id);
+      continue;
+    }
+    flips[mark.id] = mark.done;
+    doneDelta += mark.done ? 1 : -1;
+  }
+  return TodoWidgetOverlay(
+    flips: flips,
+    writingIds: writingIds,
+    doneDelta: doneDelta,
+    lapsed: false,
+  );
+}
+
+/// 일꾼이 **claim한 묶음 하나**(design 4.1). `writes`가 비면 서버 호출이 0번이다(상쇄).
+class TodoWidgetBatch {
+  const TodoWidgetBatch({
+    required this.claimedGen,
+    required this.leaveAtMs,
+    required this.writes,
+  });
+
+  /// 이 묶음이 가져간 **마지막 세대.** 결말 발행이 `settledGen`을 이 값으로 올리고, 그보다 **큰**
+  /// 세대의 자국(= 읽은 뒤에 들어온 탭)은 **건드리지 않는다.**
+  final int claimedGen;
+
+  /// 기다릴 시각. `writing` 자국이 섞여 있으면 **기다리지 않는다**(spec U 조건 ②의 조임).
+  final int leaveAtMs;
+
+  /// 실제로 서버에 쓸 줄들(id마다 마지막 값, 상쇄된 줄 제외).
+  final List<TodoWidgetCheckTarget> writes;
+
+  bool get isEmpty => writes.isEmpty;
+}
+
+/// 자국 레코드와 캐시로 **묶음을 확정한다**(claim·상쇄·쓸 목록 — design 4.1·6.1).
+///
+/// - `claimedGen`은 **그때의 마지막 세대**다. 그보다 큰 세대의 자국은 다음 묶음의 것이다.
+/// - id마다 **마지막 값만** 남긴다("같은 줄을 두 번 눌러도 서버 쓰기는 한 번").
+/// - 그 값이 캐시의 `done`과 같으면 **쓸 목록에서 뺀다**(상쇄). 전부 상쇄면 [TodoWidgetBatch.isEmpty]다.
+/// - 캐시에 **아예 없는 id**도 뺀다(아주 낡은 그림이나 로그아웃 뒤 남은 그림을 누른 경우).
+///   캐시를 읽지 못했으면(payload가 null) **빼지 않는다** — 사용자가 누른 것을 조용히 버리는 쪽이
+///   더 나쁘고 서버 쓰기는 멱등이다.
+/// - 이미 결말이 난 세대(`gen <= payload.settledGen`)는 가져가지 않는다 — **한 라운드 더**
+///   도는 일꾼이 자기가 방금 쓴 것을 또 쓰지 않게 하는 한 줄이다(design 4.5).
+///
+/// 자국이 없으면 **null**이다(그때는 부르는 쪽이 Uri 한 줄만 쓰는 대비 경로로 간다).
+TodoWidgetBatch? todoWidgetBatchOf({
+  required TodoWidgetTapMarks? marks,
+  required TodoWidgetPayload? payload,
+  required DateTime now,
+}) {
+  if (marks == null) return null;
+  final nowMs = now.millisecondsSinceEpoch;
+  final claimedGen = marks.gen;
+  final settledGen = payload?.settledGen ?? 0;
+
+  final targets = <String, TodoWidgetTapMark>{};
+  for (final mark in marks.marks) {
+    if (mark.gen > claimedGen || mark.gen <= settledGen) continue;
+    final found = targets[mark.id];
+    if (found == null || mark.gen >= found.gen) targets[mark.id] = mark;
+  }
+
+  final doneById = payload != null && payload.hasItems
+      ? {for (final item in payload.items) item.id: item.done}
+      : null;
+  final writes = <TodoWidgetCheckTarget>[];
+  var writing = false;
+  for (final mark in targets.values) {
+    if (mark.writing) writing = true;
+    if (doneById != null) {
+      final done = doneById[mark.id];
+      if (done == null || done == mark.done) continue;
+    }
+    writes.add(TodoWidgetCheckTarget(id: mark.id, done: mark.done));
+  }
+
+  return TodoWidgetBatch(
+    claimedGen: claimedGen,
+    leaveAtMs: writing && marks.leaveAtMs > nowMs ? nowMs : marks.leaveAtMs,
+    writes: writes,
+  );
 }
 
 /// 위젯 탭으로 앱이 열렸을 때 어디로 보낼 것인가. 해석할 수 없으면 아무것도 하지 않는다

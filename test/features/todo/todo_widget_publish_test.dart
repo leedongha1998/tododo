@@ -162,7 +162,7 @@ void main() {
       final host = FakeTodoWidgetHost();
       final service = TodoWidgetService(host);
 
-      service.markJustChecked('1', at: now);
+      service.markJustChecked(['1'], at: now);
       await service.publishTodos(todos, now: now);
       // 첫 발행에서는 그 완료 줄이 rank 0을 받아 어떤 줄 자리 수에서도 보인다.
       expect(host.saved.last.items.first.rank, 0);
@@ -180,7 +180,7 @@ void main() {
       final service = TodoWidgetService(host);
 
       // 쓰기는 성공했는데 목록 재조회가 한참 늦어진 경우다 — 엉뚱한 발행이 예외를 쓰지 않는다.
-      service.markJustChecked('1', at: now);
+      service.markJustChecked(['1'], at: now);
       await service.publishTodos(
         todos,
         now: now.add(const Duration(seconds: 60)),
@@ -203,26 +203,59 @@ void main() {
 
   // 2026-11-19(추가 범위 3 K): 위젯에서 누른 체크의 **결말**을 그 자리에서 발행한다. 앱이 이미
   // 든 목록을 쓰므로 왕복이 하나 준다.
-  group('publishChecked', () {
-    final todos = [_todo('1'), _todo('2')];
+  // 2026-11-20(추가 범위 4): 그 결말이 **묶음 하나**가 됐다. 발행은 한 번이고, 줄마다 모양이
+  // 다를 수 있으며, `settledGen`이 그 묶음의 자국만 걷는다.
+  group('publishSettled', () {
+    final todos = [_todo('1'), _todo('2'), _todo('3')];
 
-    test('그 한 줄만 바꿔 발행하고 방금 누른 줄 예외를 쓴다', () async {
+    test('여러 줄을 한 번에 바꿔 발행하고 누른 줄 전부가 앞자리를 받는다', () async {
       final host = FakeTodoWidgetHost();
       final service = TodoWidgetService(host);
 
-      await service.publishChecked(
+      await service.publishSettled(
         todos,
-        todoId: '1',
-        done: true,
+        results: const [
+          TodoWidgetCheckResult(id: '1', done: true, ok: true),
+          TodoWidgetCheckResult(id: '3', done: true, ok: true),
+        ],
+        claimedGen: 4,
+        now: now,
+      );
+
+      expect(host.saved, hasLength(1));
+      final published = host.saved.last;
+      expect(published.items.map((item) => item.id), ['1', '2', '3']);
+      expect(published.items.map((item) => item.done), [true, false, true]);
+      // 누른 두 줄은 어떤 줄 자리 수에서도 보인다(spec R).
+      expect(published.items.firstWhere((item) => item.id == '1').rank, 0);
+      expect(published.items.firstWhere((item) => item.id == '3').rank, 1);
+      expect(published.totalCount, 1);
+      expect(published.settledGen, 4);
+      expect(service.settledGen, 4);
+    });
+
+    test('일부만 실패하면 실패한 줄이 앞자리를 받고 안내가 한 줄 뜬다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+
+      await service.publishSettled(
+        todos,
+        results: const [
+          TodoWidgetCheckResult(id: '1', done: true, ok: true),
+          TodoWidgetCheckResult(id: '2', done: true, ok: false),
+        ],
+        claimedGen: 2,
         now: now,
       );
 
       final published = host.saved.last;
-      expect(published.items.map((item) => item.id), ['1', '2']);
-      expect(published.items.map((item) => item.done), [true, false]);
-      // 방금 누른 줄은 어떤 줄 자리 수에서도 보인다.
-      expect(published.items.first.rank, 0);
-      expect(published.totalCount, 1);
+      expect(host.saved, hasLength(1));
+      expect(published.items.map((item) => item.done), [true, false, false]);
+      // 되돌아간 줄이 보이는 자리를 **먼저** 받는다(spec S).
+      expect(published.items.firstWhere((item) => item.id == '2').rank, 0);
+      expect(published.items.firstWhere((item) => item.id == '1').rank, 1);
+      expect(published.note, AppStrings.widgetCheckFailed);
+      expect(published.noteTone, TodoWidgetNoteTone.danger);
     });
 
     test('기준 시각을 앞당기지 않는다', () async {
@@ -230,10 +263,10 @@ void main() {
       final service = TodoWidgetService(host);
       await service.publishTodos(todos, now: now);
 
-      await service.publishChecked(
+      await service.publishSettled(
         todos,
-        todoId: '1',
-        done: true,
+        results: const [TodoWidgetCheckResult(id: '1', done: true, ok: true)],
+        claimedGen: 1,
         now: now.add(const Duration(hours: 3)),
       );
 
@@ -245,19 +278,82 @@ void main() {
       final host = FakeTodoWidgetHost();
       final service = TodoWidgetService(host);
 
-      service.markJustChecked('1', at: now);
-      await service.publishChecked(
+      service.markJustChecked(['1'], at: now);
+      await service.publishSettled(
         todos,
-        todoId: '1',
-        done: true,
+        results: const [TodoWidgetCheckResult(id: '1', done: true, ok: true)],
+        claimedGen: 1,
         now: now,
       );
       // 뒤따르는 보정 발행(`invalidate` → MainShell)이 그 기억을 써야 한다. 여기서 소비하면
       // 1~2초 뒤 **방금 누른 줄이 사라진다.**
-      await service.publishTodos(todosWithDone(todos, '1', true), now: now);
+      await service.publishTodos(
+        todosWithChecks(todos, const [
+          TodoWidgetCheckResult(id: '1', done: true, ok: true),
+        ]),
+        now: now,
+      );
 
       expect(host.saved.last.items.first.id, '1');
       expect(host.saved.last.items.first.rank, 0);
+    });
+  });
+
+  // 2026-11-20(추가 범위 4): "어디까지 결말이 났는가"는 **내려가면 안 된다** — 내려가면 이미
+  // 끝난 자국이 되살아나 눌린 그림이 다시 뜬다(design 4.2).
+  group('settledGen', () {
+    test('어떤 발행도 내리지 않는다', () async {
+      final host = FakeTodoWidgetHost();
+      final service = TodoWidgetService(host);
+      final todos = [_todo('1'), _todo('2')];
+
+      await service.publishSettled(
+        todos,
+        results: const [TodoWidgetCheckResult(id: '1', done: true, ok: true)],
+        claimedGen: 6,
+        now: now,
+      );
+      expect(service.settledGen, 6);
+
+      // 목록 발행·조회 실패·체크 실패·로그아웃·불러오는 중 — 전부 물려받는다.
+      await service.publishTodos(todos, now: now);
+      expect(host.saved.last.settledGen, 6);
+      await service.publish(
+        TodoWidgetPayload.fetchFailed(service.lastPublished, now: now),
+      );
+      expect(host.saved.last.settledGen, 6);
+      await service.publish(
+        TodoWidgetPayload.checkFailed(service.lastPublished, now: now),
+      );
+      expect(host.saved.last.settledGen, 6);
+      await service.publishLoggedOut(now: now);
+      expect(host.saved.last.settledGen, 6);
+      await service.publish(TodoWidgetPayload.loading(now: now));
+      expect(host.saved.last.settledGen, 6);
+      // 더 큰 값은 올라간다.
+      await service.publish(
+        TodoWidgetPayload.fromTodos(todos, now: now, settledGen: 9),
+      );
+      expect(service.settledGen, 9);
+    });
+
+    test('앱을 다시 켜면 캐시에서 되읽는다', () async {
+      // 앱이 죽어 있는 동안 백그라운드가 정산한 숫자를 모르면, 앱의 다음 발행이 그것을 내려
+      // 이미 끝난 자국이 되살아난다.
+      final host = FakeTodoWidgetHost(
+        stored: TodoWidgetPayload.fromTodos(
+          [_todo('1')],
+          now: now,
+          settledGen: 11,
+        ),
+      );
+      final service = TodoWidgetService(host);
+
+      await service.primeFromCache(now: now);
+
+      expect(service.settledGen, 11);
+      await service.publishTodos([_todo('1'), _todo('2')], now: now);
+      expect(host.saved.last.settledGen, 11);
     });
   });
 }

@@ -51,7 +51,9 @@ const todoWidgetCheckLoggedOut = 'loggedOut';
 ///
 /// **직접 쓰기(`_writeHere`)의 결말까지도 같은 상한을 쓴다.** 보정 재조회는 결말 뒤의 일이라
 /// 이 상한 밖이다.
-const todoWidgetHandOffTimeout = Duration(seconds: 6);
+const todoWidgetHandOffTimeout = Duration(
+  milliseconds: todoWidgetWriteWindowMs,
+);
 
 /// 위젯의 체크 칸을 눌렀을 때 `home_widget`이 백그라운드 engine에서 실행한다.
 ///
@@ -68,12 +70,17 @@ Future<void> onTodoWidgetAction(Uri? uri) async {
   final now = DateTime.now();
 
   TodoWidgetPayload? cached;
+  TodoWidgetTapMarks? marks;
   try {
     cached = await host.read();
+    // **자국 레코드는 읽기만 한다**(design 1.1의 소유권 표). 여기서 필요한 것은 이 탭이 속한
+    // 세대 하나다 — 결말이 그 숫자를 `settledGen`으로 올려 **그 묶음에 들어간 자국만** 걷는다.
+    marks = await host.readTapMarks();
   } catch (error) {
     // 되읽기 실패는 막지 않는다("이미 목표 값인가"를 못 보게 될 뿐이다). 서버 쓰기는 멱등이다.
     debugPrint('todoWidget read failed: $error');
   }
+  final claimedGen = marks?.gen ?? 0;
 
   final port = IsolateNameServer.lookupPortByName(todoWidgetWritePortName);
   // **중복 탭은 여기서 가르지 않는다**(2026-11-20): 네이티브가 탭 자국을 `commit()`한 뒤에 이
@@ -93,12 +100,13 @@ Future<void> onTodoWidgetAction(Uri? uri) async {
   // 없기 때문이다.
   try {
     if (port != null && decision == TodoWidgetCheckDecision.handOff) {
-      await _handOff(port, action, service, cached, now);
+      await _handOff(port, action, claimedGen, service, cached, now);
     } else {
       // 결말까지에만 상한을 건다. 뒤따르는 보정 재조회는 사용자가 이미 결말을 본 뒤의 일이라
       // 이 상한 밖이고, 실패해도 `checkFailed`로 새지 않는다(아래 `_refreshAfterCheck`).
       final checked = await _writeHere(
         action,
+        claimedGen,
         service,
         cached,
         now,
@@ -111,8 +119,32 @@ Future<void> onTodoWidgetAction(Uri? uri) async {
     // 네트워크가 없으면 여기로 온다 → 위젯에 `체크하지 못했어요`가 뜨고 그 할 일은 목록에
     // 그대로 있다(지운 적이 없으므로 저절로 되살아난다).
     debugPrint('todoWidget check failed: $error');
-    await service.publish(TodoWidgetPayload.checkFailed(cached, now: now));
+    await _publishFailed(service, cached, action, claimedGen, now);
   }
+}
+
+/// 실패의 결말. **`settledGen`을 함께 올린다**(design 6.2의 표): 실패한 자국도 **효력을 잃어야**
+/// 그 줄이 되돌아간다. 올리지 않으면 낙관 그림이 `dueAtMs`까지(7초쯤) 남아 "실패했다는 한 줄"과
+/// "눌린 줄"이 같은 화면에 함께 보인다.
+Future<void> _publishFailed(
+  TodoWidgetService service,
+  TodoWidgetPayload? cached,
+  TodoWidgetAction action,
+  int claimedGen,
+  DateTime now,
+) async {
+  // 지름길이 성립하지 않는 갈래(아래 `??`)에서도 세대가 올라가게 서비스에 먼저 적어 둔다.
+  service.noteSettledGen(claimedGen);
+  final failed = TodoWidgetPayload.applyChecks(
+    cached,
+    results: [
+      TodoWidgetCheckResult(id: action.todoId!, done: action.done, ok: false),
+    ],
+    settledGen: claimedGen,
+  );
+  await service.publish(
+    failed ?? TodoWidgetPayload.checkFailed(cached, now: now),
+  );
 }
 
 /// 앱의 main isolate에 쓰기를 맡긴다. 답만 받고 끝낸다 — **Supabase 클라이언트를 만들지 않는다.**
@@ -122,15 +154,24 @@ Future<void> onTodoWidgetAction(Uri? uri) async {
 Future<void> _handOff(
   SendPort port,
   TodoWidgetAction action,
+  int claimedGen,
   TodoWidgetService service,
   TodoWidgetPayload? cached,
   DateTime now,
 ) async {
   final reply = ReceivePort();
   try {
-    // 메시지는 **셋**이다(2026-11-18 추가 범위 2): 할 일 id, **목표 값**, 답을 보낼 포트.
-    // 받는 쪽(`AuthGate`)이 길이와 타입 셋을 검사하고 어긋나면 아무 일도 하지 않는다.
-    port.send([action.todoId, action.done, reply.sendPort]);
+    // 메시지는 **넷**이다(2026-11-20 추가 범위 4): 할 일 id **목록**, **목표 값** 목록,
+    // **claimedGen**, 답을 보낼 포트. 받는 쪽(`AuthGate`)이 길이와 타입을 검사하고 어긋나면
+    // 아무 일도 하지 않는다. 목록으로 보내는 이유는 묶음이 여러 줄을 한 번에 맡기기 때문이고,
+    // `claimedGen`을 함께 보내는 이유는 **발행하는 쪽이 자국을 걷을 숫자를 알아야** 하기
+    // 때문이다(design 4.2).
+    port.send([
+      [action.todoId],
+      [action.done],
+      claimedGen,
+      reply.sendPort,
+    ]);
     final answer = await reply.first.timeout(todoWidgetHandOffTimeout);
     if (answer == todoWidgetCheckOk) return;
     if (answer == todoWidgetCheckLoggedOut) {
@@ -138,10 +179,10 @@ Future<void> _handOff(
       await service.publishLoggedOut(now: now);
       return;
     }
-    await service.publish(TodoWidgetPayload.checkFailed(cached, now: now));
+    await _publishFailed(service, cached, action, claimedGen, now);
   } on TimeoutException {
     debugPrint('todoWidget check hand-off timed out');
-    await service.publish(TodoWidgetPayload.checkFailed(cached, now: now));
+    await _publishFailed(service, cached, action, claimedGen, now);
   } finally {
     reply.close();
   }
@@ -159,6 +200,7 @@ class _CheckedSession {
 /// 앱 프로세스가 죽어 있을 때. 이 isolate에 다른 클라이언트가 없으므로 세션 복구·갱신이 안전하다.
 Future<_CheckedSession?> _writeHere(
   TodoWidgetAction action,
+  int claimedGen,
   TodoWidgetService service,
   TodoWidgetPayload? cached,
   DateTime now,
@@ -187,14 +229,19 @@ Future<_CheckedSession?> _writeHere(
   // **목표 값**을 그대로 쓴다(뒤집지 않는다 — 낡은 그림을 누른 탭이 사용자가 본 것과 반대로
   // 쓰이지 않게 하는 장치다. design 4.6 (1)). 되돌리기도 이 한 줄을 지난다.
   await repository.setDone(todoId, action.done);
+  // 쓰기가 끝났다 → 이 묶음의 자국은 **효력을 잃어야** 한다(design 4.1). 아래 지름길이
+  // 성립하지 않는 갈래에서도 세대가 올라가게 서비스에 먼저 적어 둔다.
+  service.noteSettledGen(claimedGen);
 
   // **결말을 여기서 끝낸다**(design 4.7 (2)의 경로 B). 여기에는 고칠 목록이 없고 캐시만 있으므로
   // 그 캐시를 **그 체크만큼만** 고쳐 발행한다 — 목록 재조회(왕복 2)가 빠진다. 서버 쓰기가 끝난
   // 뒤의 일이라 거짓 성공이 아니다(낙관 반영과 다른 자리다).
-  final checked = TodoWidgetPayload.applyCheck(
+  final checked = TodoWidgetPayload.applyChecks(
     cached,
-    todoId: todoId,
-    done: action.done,
+    results: [
+      TodoWidgetCheckResult(id: todoId, done: action.done, ok: true),
+    ],
+    settledGen: claimedGen,
   );
   if (checked == null) {
     // 지름길이 성립하지 않으면(캐시 없음·줄 없는 안내 화면·목록에 없는 id) 느린 길이 남는다.
@@ -242,7 +289,9 @@ Future<void> _publishFromServer(
     TodoWidgetPayload.fromTodos(
       todos,
       now: DateTime.now(),
-      justCheckedId: todoId,
+      frontIds: [todoId],
+      // 이 isolate의 서비스가 들고 있는 값을 그대로 물려준다 — **내리지 않는다**(design 4.2).
+      settledGen: service.settledGen,
     ),
   );
 }

@@ -311,7 +311,13 @@ class AppStrings {
 
   // AI 데이터 제공 동의(제3자 제공·국외 이전). 항목 문구는 decisions.md 48·69번 기준.
   static const aiConsentTitle = 'AI 데이터 제공 동의';
-  static const aiConsentIntro = '대결 결과는 AI 심판이 판정해요. 이를 위해 아래 정보를 해외 AI 사업자에게 제공해요.';
+  // 첫 문장은 **현행 판정 구조**를 말한다(1차 참가자 상호 판정 + 2차 AI 재판정). 2026-11-20에
+  // bot-battle이 고쳤다 — 그전 문장("대결 결과는 AI 심판이 판정해요")은 2026-09-18에 되돌려진
+  // 옛 구조였다. 아래 네 문장(intro·refusal·required·withdrawAfter)은 **같은 사실을 말해야 하고**,
+  // 앱 밖 두 자리(`privacy.html`, 별도 저장소 `todododo-legal`)도 함께 맞춘다. 법적 고지라
+  // 문구는 오너 승인 사항이다(2026-11-20 승인, `docs/specs/bot-battle/design.md` §12).
+  static const aiConsentIntro =
+      '대결 결과는 먼저 참가자끼리 판정하고, 결론이 나지 않으면 AI가 판정해요. 이를 위해 아래 정보를 해외 AI 사업자에게 제공해요.';
   static const aiConsentDetailsTitle = '제공 내용';
   static const aiConsentRecipientLabel = '받는 자';
   static const aiConsentRecipient = 'Google LLC (미국)';
@@ -322,12 +328,15 @@ class AppStrings {
   static const aiConsentRetentionLabel = '보유 기간';
   static const aiConsentRetention = 'Google 정책에 따름';
   static const aiConsentRefusalLabel = '거부할 권리';
+  // 거부 시 불이익이 "대결 전체"에서 **"사람과의 대결"로 좁아졌다**(2026-11-20, bot-battle).
+  // 봇전에서는 Google로 나가는 데이터가 하나도 없어 동의 없이 할 수 있다.
   static const aiConsentRefusal =
-      '동의하지 않을 수 있어요. 동의하지 않으면 대결을 만들거나 참가할 수 없고, 할 일 기능은 그대로 쓸 수 있어요.';
+      '동의하지 않을 수 있어요. 동의하지 않으면 사람과의 대결(기준 만들기·대결 만들기·참가)을 할 수 없고, '
+      '연습 봇과의 대결과 할 일 기능은 그대로 쓸 수 있어요.';
   static const aiConsentPrivacyPolicy = '개인정보처리방침';
   static const aiConsentAgree = '동의하고 계속';
   static const aiConsentDisagree = '동의하지 않음';
-  static const aiConsentRequired = '동의해야 대결에 참여할 수 있어요.';
+  static const aiConsentRequired = '사람과 대결하려면 동의가 필요해요. 연습 봇과의 대결은 동의 없이 할 수 있어요.';
   static const aiConsentGiveFailed = '동의를 저장하지 못했습니다. 다시 시도해주세요.';
   static const aiConsentLoadFailed = '동의 상태를 불러오지 못했습니다.';
   static const aiConsentSection = 'AI 데이터 제공 동의';
@@ -338,7 +347,8 @@ class AppStrings {
   static const aiConsentWithdrawConfirmTitle = '동의를 철회할까요?';
   static String aiConsentWithdrawImpact(int active, int pending) =>
       '진행 중인 대결 $active개는 모두 포기(패배, -3점) 처리되고 모집 중인 대결 $pending개는 취소돼요.';
-  static const aiConsentWithdrawAfter = '다시 동의하기 전까지 대결을 만들거나 참가할 수 없어요.';
+  // 철회는 봇전을 포기 처리하지 않는다(서버 `withdraw_ai_consent`가 `and not is_bot`으로 좁힌다).
+  static const aiConsentWithdrawAfter = '다시 동의하기 전까지 사람과 대결할 수 없어요. 진행 중인 연습 대결은 그대로 이어져요.';
   static const aiConsentWithdrawImpactFailed = '진행 중인 대결을 확인하지 못했어요. 잠시 후 다시 시도해주세요.';
   static const aiConsentWithdrawConfirm = '철회하기';
   static const aiConsentWithdrawDone = '동의를 철회했습니다.';

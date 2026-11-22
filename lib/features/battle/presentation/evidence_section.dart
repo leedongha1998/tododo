@@ -88,8 +88,10 @@ class _MyEvidenceSectionState extends ConsumerState<MyEvidenceSection> {
       debugPrint('submitEvidence failed: $error');
       if (!mounted) return;
       setState(() => _stage = _Stage.idle);
-      // 거부(촬영 시각·마감·잠금)는 코드별 문구로 알린다.
-      _showSnackBar(submissionErrorMessage(error));
+      // 거부(촬영 시각·마감·잠금)는 코드별 문구로 알린다. 봇전에서 교체가 잠겼으면 그 이유가
+      // "봇이 완료했다"이고, 그 순간 결과도 정해져 있다 — 다시 읽으면 상세 provider가 정산을
+      // 깨워 결과를 보여 준다.
+      _showSnackBar(submissionErrorMessage(error, isBot: widget.detail.isBot));
       ref.invalidate(battleDetailProvider(battleId));
     }
   }
@@ -319,6 +321,22 @@ class OpponentEvidenceSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
+    // 연습 봇은 사진을 내지 않는다. **빈 칸으로 두지도, 가짜 이미지로 채우지도 않고** 그 사실과
+    // "기간 안 어느 시각에 완료한다"를 적는다. 그 시각은 적지 않는다(미리 알면 계산 문제가 된다).
+    if (detail.isBot) {
+      return AppPanel.flat(
+        title: AppStrings.battleEvidenceOpponentTitle,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            KeepWordsText(AppStrings.botBattleNoEvidence, style: textTheme.bodyMedium),
+            const SizedBox(height: 4),
+            KeepWordsText(AppStrings.botBattleOpponentWaiting, style: textTheme.bodyMedium),
+          ],
+        ),
+      );
+    }
+
     return AppPanel.flat(
       title: AppStrings.battleEvidenceOpponentTitle,
       child: KeepWordsText(
@@ -347,12 +365,28 @@ class RevealedEvidenceSection extends StatelessWidget {
       children: [
         AppPanel.flat(
           title: AppStrings.battleEvidenceSectionTitle,
-          child: _submissionOrEmpty(detail.mySubmission),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _submissionOrEmpty(detail.mySubmission),
+              // 봇전에서 `verdict_source = 'auto'`는 "판정 기한이 지나 자동 승인"이 아니라
+              // "봇은 판정하지 않아 그대로 인정됐다"다. 값을 새로 만들지 않고 문구만 달리 읽는다.
+              if (detail.wasMySubmissionAutoApproved) ...[
+                const SizedBox(height: 8),
+                KeepWordsText(
+                  AppStrings.botBattleAutoApproved,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ],
+          ),
         ),
         const SizedBox(height: 24),
         AppPanel.flat(
           title: AppStrings.battleEvidenceOpponentTitle,
-          child: _submissionOrEmpty(detail.opponentSubmission),
+          child: detail.isBot
+              ? _BotDoneTile(doneAt: detail.botDoneAt)
+              : _submissionOrEmpty(detail.opponentSubmission),
         ),
       ],
     );
@@ -362,6 +396,34 @@ class RevealedEvidenceSection extends StatelessWidget {
   Widget _submissionOrEmpty(BattleSubmission? submission) {
     if (submission == null) return const KeepWordsText(AppStrings.battleEvidenceNoSubmission);
     return _SubmissionTile(submission: submission);
+  }
+}
+
+/// 종결 뒤의 봇 칸. 사진 자리를 비우지 않고 **봇의 완료 시각 + 사진을 내지 않는다는 사실**을 둔다.
+/// 시각은 서버가 그 제출 행을 내준 뒤에만 있다(그전에는 조회 자체가 비어 온다).
+class _BotDoneTile extends StatelessWidget {
+  const _BotDoneTile({required this.doneAt});
+
+  final DateTime? doneAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final doneAt = this.doneAt;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (doneAt != null) ...[
+          KeepWordsText(
+            '${AppStrings.botBattleDoneAtLabel} ${formatEvidenceTime(doneAt)}',
+            style: AppText.numberSmall,
+          ),
+          const SizedBox(height: 8),
+        ],
+        KeepWordsText(AppStrings.botBattleNoEvidence, style: textTheme.bodyMedium),
+      ],
+    );
   }
 }
 

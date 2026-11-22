@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -9,6 +11,8 @@ import '../../../core/theme/app_text.dart';
 import '../../../core/widgets/app_button_styles.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/app_tag.dart';
+import '../../../core/widgets/initial_badge.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../../core/widgets/status_message.dart';
 import '../../../core/widgets/time_ticker.dart';
@@ -16,6 +20,7 @@ import '../data/player_card.dart';
 import '../domain/battle_detail.dart';
 import '../domain/battle_outcome.dart';
 import '../domain/battle_providers.dart';
+import '../domain/bot_battle_rules.dart';
 import 'battle_chips.dart';
 import 'evidence_section.dart';
 import 'judgment_section.dart';
@@ -87,12 +92,22 @@ class BattleDetailScreen extends ConsumerWidget {
               children: [
                 // 화면에 보이지 않는 판단 전용 조각. 배치는 바뀌지 않는다.
                 _VsIntroOnFirstEntry(detail: detail),
+                // 화면에 보이지 않는 판단 전용 조각. 봇전에서만 주기 재조회를 건다.
+                _BotSettlePoll(detail: detail),
                 _BattleHeader(detail: detail, now: now),
                 const SizedBox(height: 24),
                 _ResultBanner(detail: detail),
+                // 연습 대결은 판정 창에 머물지 않는다(창이 열리는 순간 서버가 같은 트랜잭션에서
+                // 종결한다). 사고로 창이 남은 드문 경우에만 이 한 줄이 보인다 — 묻는 것은 없다.
+                if (detail.isJudging && detail.isBot)
+                  const AppPanel.tone(
+                    tone: AppTone.neutral,
+                    icon: AppIcons.info,
+                    child: KeepWordsText(AppStrings.botBattleNoJudgment),
+                  )
                 // 상호 판정 창. 내 차례면 판정 섹션이 상대 사진을 크게 보여 주므로 양쪽 증거
                 // 블록을 겹쳐 그리지 않는다. 판정을 보낸 뒤에는 두 사진을 함께 보여 준다.
-                if (detail.isJudging) ...[
+                else if (detail.showsJudgmentQuestions) ...[
                   JudgmentSection(detail: detail),
                   if (!detail.isMyJudgmentTurn && detail.submissions.isNotEmpty) ...[
                     const SizedBox(height: 24),
@@ -177,6 +192,10 @@ class _BattleHeader extends StatelessWidget {
           children: [
             BattleTypeBadge(type: detail.battle.type),
             BattleStatusChip(status: detail.battle.status),
+            // 봇임을 숨기지 않는다. 상대 이름(`연습 봇`)과 함께 두 번 말한다.
+            // 새 팔레트 값을 만들지 않고 기존 중립 태그 모양을 쓴다.
+            if (detail.isBot)
+              const AppTag(label: AppStrings.botBattleBadge, style: neutralTagStyle),
           ],
         ),
         if (submitDeadline != null) ...[
@@ -203,6 +222,12 @@ class _OpponentCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 연습 봇에게는 전적이 없다. **조회 자체를 하지 않는다** — 모든 사용자의 봇전이 한 마리에
+    // 쌓여 숫자에 뜻이 없고, 서버도 `get_player_card(봇)`을 거부한다(`BOT_NO_STATS`).
+    if (!detail.showsOpponentStats) {
+      return AppPanel.raised(child: _BotOpponentRow(name: detail.opponentName));
+    }
+
     final cardAsync = ref.watch(playerCardProvider(detail.opponent.userId));
 
     return AppPanel.raised(
@@ -221,6 +246,41 @@ class _OpponentCard extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// 연습 봇 자리. 전적 숫자가 **한 자도 없다**(점수·승패를 보여 주지 않는다) — 자리 이름이
+/// `연습 상대`라는 사실만 말한다. `PlayerCardView`를 쓰지 않는 이유는 그 위젯이 전적 없는 카드를
+/// "탈퇴한 사용자"로 설명하기 때문이다(봇은 묘비가 아니다).
+class _BotOpponentRow extends StatelessWidget {
+  const _BotOpponentRow({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Row(
+      children: [
+        // 상대는 앰버(VS 인트로와 같은 규칙).
+        InitialBadge(name: name, fill: AppPalette.secondary),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              KeepWordsText(AppStrings.botBattleOpponentLabel, style: textTheme.bodySmall),
+              KeepWordsText(
+                name,
+                style: textTheme.titleMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -344,6 +404,8 @@ class _ResultBanner extends StatelessWidget {
 String? _subtitleOf(BattleDetail detail) {
   if (detail.didIForfeit) return AppStrings.battleLostByForfeit;
   if (detail.didOpponentForfeit) return AppStrings.battleWonByForfeit;
+  // 연습 대결은 완료한 패배와 미착수가 같은 점수(-1)라 점수로는 구분되지 않는다. 문장이 가른다.
+  if (detail.isBot) return botResultSubtitle(detail.me.outcome);
   // 속도전에서 졌지만 기준은 통과한 경우. 감점이 -3이 아니라 -1인 이유를 말해 준다.
   if (detail.didICompleteButLose) return AppStrings.battleCompletedLoss;
   // 품질전에서 상대가 끝내 내지 않아 AI 판정 없이 이긴 경우.
@@ -390,6 +452,53 @@ class _VsIntroOnFirstEntryState extends ConsumerState<_VsIntroOnFirstEntry> {
 
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+/// 봇의 목표 시각이 지난 뒤 서버가 기록을 쓰기까지의 구간(cron 주기로 최대 60초)을 줄이려고,
+/// **봇전을 보고 있는 동안에만** 주기적으로 상세를 다시 읽는다.
+///
+/// 정확한 시각에 한 번만 깨울 수 없다 — **클라이언트는 그 시각을 모른다**(그게 규칙이다).
+/// 그래서 주기 재조회가 유일한 수단이고, 조건을 좁혀(내 사진을 이미 낸 진행 중 봇전) 비용을
+/// 20초에 요청 하나로 묶는다. 조건 판단은 [BattleDetail.needsBotSettlePolling]이 한다.
+///
+/// 다시 읽는 것이 결과를 바꾸지 않는다 — 승부는 두 제출 시각의 비교로 이미 정해져 있고
+/// 이 재조회는 **아는 시점만** 당긴다(`docs/specs/bot-battle/design.md` §1.7).
+class _BotSettlePoll extends ConsumerStatefulWidget {
+  const _BotSettlePoll({required this.detail});
+
+  final BattleDetail detail;
+
+  static const interval = Duration(seconds: 20);
+
+  @override
+  ConsumerState<_BotSettlePoll> createState() => _BotSettlePollState();
+}
+
+class _BotSettlePollState extends ConsumerState<_BotSettlePoll> {
+  Timer? _tick;
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  /// `TimeTicker`와 같은 모양으로 **build에서 멱등하게** 한 번짜리 타이머를 다시 건다.
+  /// 종결되면 조건이 꺼져 타이머가 더 걸리지 않는다.
+  void _arm() {
+    _tick?.cancel();
+    _tick = null;
+    if (!widget.detail.needsBotSettlePolling) return;
+    _tick = Timer(_BotSettlePoll.interval, () {
+      if (mounted) ref.invalidate(battleDetailProvider(widget.detail.battle.id));
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _arm();
+    return const SizedBox.shrink();
+  }
 }
 
 /// 이 화면이 **다음에 다시 그려져야 할 때**까지의 간격(없으면 null — 타이머를 두지 않는다).

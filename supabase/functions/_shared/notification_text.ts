@@ -71,8 +71,15 @@ function finishedText(payload: NotificationPayload): NotificationText {
 
   // "완료한 패배"는 속도전에서 기준을 통과하고도 늦은 경우다. 점수가 실제로 덜 깎였을 때만
   // 그렇게 말한다 - 하한에 걸려 변화가 0이면 "감점이 줄었다"가 사실과 어긋난다.
+  //
+  // **연습 대결(봇전)에서는 붙이지 않는다**: 봇전은 완료한 패배와 미착수가 둘 다 -1이라
+  // 줄어든 것이 없다(bot-battle 오너 결정 5). `is_bot`은 종결 알림 payload에만 들어오고,
+  // 그 키가 없는 옛 행·사람 대결 행은 `!== true`로 같은 식에 걸린다.
   const softened =
-    outcome === 'completed_loss' && typeof delta === 'number' && delta < 0
+    outcome === 'completed_loss' &&
+    typeof delta === 'number' &&
+    delta < 0 &&
+    payload.is_bot !== true
       ? ' · 기준을 통과해서 감점이 줄었어요.'
       : '';
 

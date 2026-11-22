@@ -71,6 +71,36 @@ Deno.test('N2 종결: 완료한 패배는 감점이 실제로 줄었을 때만 �
   );
 });
 
+Deno.test('N2 종결: 연습 대결(봇전)은 완료한 패배에 감면 꼬리를 붙이지 않는다', () => {
+  // 봇전은 완료한 패배와 미착수가 둘 다 -1이라 "감점이 줄었다"가 거짓이다.
+  assertEquals(
+    notificationText(
+      'finished',
+      { title: '설거지하기', outcome: 'completed_loss', score_delta: -1, is_bot: true },
+      now,
+    )?.body,
+    '「설거지하기」 · -1점',
+  );
+  // 같은 payload에 is_bot=false(사람 대결)면 그대로 붙는다. 키가 없는 옛 행도 같다.
+  assertEquals(
+    notificationText(
+      'finished',
+      { title: '방 청소', outcome: 'completed_loss', score_delta: -1, is_bot: false },
+      now,
+    )?.body,
+    '「방 청소」 · -1점 · 기준을 통과해서 감점이 줄었어요.',
+  );
+  // 봇전 승리는 꼬리가 애초에 없으므로 사람 대결과 같은 문장이다.
+  assertEquals(
+    notificationText(
+      'finished',
+      { title: '설거지하기', outcome: 'win', score_delta: 1, is_bot: true },
+      now,
+    ),
+    { title: '이겼어요!', body: '「설거지하기」 · +1점' },
+  );
+});
+
 Deno.test('N2 종결: 점수 변화 0은 하한을 함께 말한다', () => {
   assertEquals(
     notificationText('finished', { title: '방 청소', outcome: 'loss', score_delta: 0 }, now)?.body,

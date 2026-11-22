@@ -163,4 +163,35 @@ class BattleDetail {
   /// 품질전에서 상대가 끝내 제출하지 않아 상호 판정도 AI 판정도 없이 이긴 경우.
   bool get didIWinByOpponentNoShow =>
       didIWin && isQuality && !didOpponentForfeit && !opponent.hasSubmitted;
+
+  // ---------------------------------------------------------------------------
+  // 연습 대결(봇전). 서버가 기록한 `is_bot` 하나에서 갈린다 — 봇의 uuid는 앱에 들어오지 않는다.
+  // ---------------------------------------------------------------------------
+
+  /// 연습 봇과의 대결. 판정 창에서 사용자에게 묻는 것이 없고 상대 전적도 없다.
+  bool get isBot => battle.isBot;
+
+  /// 판정 섹션(통과/불복·우열 버튼)을 그릴지. **봇전에서는 그리지 않는다** — 봇은 사진을 내지
+  /// 않아 판정할 증거가 없고, 불복이라는 입력이 서버 어디에도 들어올 수 없어야 AI 재판정 경로가
+  /// 닫힌다(봇전 1판의 AI 호출 0회가 그 기능의 합격선이다).
+  bool get showsJudgmentQuestions => isJudging && !isBot;
+
+  /// 상대의 전적 카드를 조회할지. 봇은 모든 사용자의 봇전이 한 마리에 쌓여 숫자에 뜻이 없고,
+  /// 서버도 `get_player_card(봇)`을 거부한다(`BOT_NO_STATS`).
+  bool get showsOpponentStats => !isBot;
+
+  /// 봇의 완료 시각(종결 뒤에만 서버가 내준다). 그전에는 null이다 — 미리 보여 주면
+  /// "그 1초 전에 내면 항상 이긴다"가 되어 대결이 계산 문제가 된다.
+  DateTime? get botDoneAt => isBot ? opponentSubmission?.submittedAt : null;
+
+  /// 내 사진이 "봇이 판정하지 않아 그대로 인정됐다"로 설명되는 상태.
+  /// `verdict_source`를 새로 만들지 않고 기존 `auto`를 봇전 문구로 읽는다.
+  bool get wasMySubmissionAutoApproved => isBot && mySubmission?.verdictSource == 'auto';
+
+  /// 상세를 보고 있는 동안 주기적으로 다시 읽어야 하는 상태.
+  ///
+  /// 봇의 목표 시각이 지나면 승부는 이미 정해져 있지만 기록은 cron(최대 60초)이 쓴다. 그 구간을
+  /// 줄이려면 다시 읽는 수밖에 없다 — **클라이언트는 그 시각을 모르므로**(그게 규칙이다)
+  /// "그 시각에 한 번"이 불가능하다. 조건을 좁혀 내 사진을 이미 낸 봇전에서만 돈다.
+  bool get needsBotSettlePolling => isBot && battle.status == 'active' && me.hasSubmitted;
 }

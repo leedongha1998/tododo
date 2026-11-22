@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'battle.dart';
 import 'battle_participant.dart';
 import 'battle_submission.dart';
+import 'bot_battle_topic.dart';
 import 'criteria_check_result.dart';
 import 'open_recruit_page.dart';
 import 'player_card.dart';
@@ -118,6 +119,30 @@ class BattleRepository {
 
   Future<void> cancelBattle(String battleId) {
     return _client.rpc('cancel_battle', params: {'p_battle_id': battleId});
+  }
+
+  /// 연습 대결(봇전) 주제 목록 + 오늘 남은 횟수. `bot_battle_topics`를 읽는 유일한 경로다
+  /// (그 테이블은 RLS 정책이 0개라 직접 select로는 한 행도 오지 않는다).
+  Future<BotBattleTopics> listBotBattleTopics() async {
+    final row = await _client.rpc('list_bot_battle_topics');
+    return BotBattleTopics.fromMap(Map<String, dynamic>.from(row as Map));
+  }
+
+  /// 연습 대결을 시작한다. 보내는 값은 **주제 id 하나**이고, 기간·기준·봇의 목표 시각은 전부
+  /// 서버가 정한다. 모집을 거치지 않고 바로 `active`가 되므로 반환된 대결은 이미 진행 중이다.
+  Future<String> startBotBattle(String topicId) async {
+    final id = await _client.rpc('start_bot_battle', params: {'p_topic_id': topicId});
+    return id as String;
+  }
+
+  /// 내 연습 대결 중 끝날 때가 된 것을 서버가 지금 정산하게 한다. **인자가 없는 멱등한 깨우기**다 —
+  /// 어느 대결인지도, 승패도 서버가 정하고(`now()` 기준), 봇의 목표 시각 전에는 아무 일도 하지
+  /// 않는다. cron이 1분마다 같은 일을 하므로 이 호출은 결과를 바꾸지 않고 **아는 시점만** 당긴다.
+  ///
+  /// 돌려주는 값은 이 호출로 종결된 대결 수다(0이면 아직 때가 아니라는 뜻이다).
+  Future<int> settleMyBotBattles() async {
+    final settled = await _client.rpc('settle_my_bot_battles');
+    return (settled as num).toInt();
   }
 
   // 진행 중인 대결만 돌려준다. 끝난 대결(finished/draw/voided)은 프로필 전적에서 본다 —

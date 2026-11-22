@@ -9,7 +9,7 @@ class BattleSubmission {
     required this.battleId,
     required this.userId,
     this.objectPath,
-    required this.capturedAt,
+    this.capturedAt,
     required this.submittedAt,
     this.meetsCriteria,
     this.verdictSource,
@@ -24,7 +24,11 @@ class BattleSubmission {
   final String? objectPath;
 
   /// 앱이 보낸 촬영 시각. 서버가 수신 시각과 대조하는 데만 쓴다.
-  final DateTime capturedAt;
+  ///
+  /// **봇의 제출만 null이다**(연습 대결의 봇은 사진을 찍지 않으므로 촬영 시각이 없다). 사람 제출은
+  /// 서버가 빈 값을 거부하므로 항상 값이 있다. 봇 행은 종결 뒤 공개되므로 이 칸이 null을 받지
+  /// 못하면 그 순간 상세가 오류 화면이 된다(`docs/specs/bot-battle/design.md` §2.4).
+  final DateTime? capturedAt;
 
   /// 서버 수신 시각. 속도전 승부 기준 시각이다. 교체하면 갱신된다.
   final DateTime submittedAt;
@@ -44,7 +48,9 @@ class BattleSubmission {
         battleId: map['battle_id'] as String,
         userId: map['user_id'] as String,
         objectPath: map['object_path'] as String?,
-        capturedAt: DateTime.parse(map['captured_at'] as String),
+        capturedAt: map['captured_at'] == null
+            ? null
+            : DateTime.parse(map['captured_at'] as String),
         submittedAt: DateTime.parse(map['submitted_at'] as String),
         meetsCriteria: map['meets_criteria'] as bool?,
         verdictSource: map['verdict_source'] as String?,

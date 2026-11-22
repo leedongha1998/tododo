@@ -277,6 +277,38 @@ class AppStrings {
   static const battleLostByForfeit = '내가 기권해서 졌어요.';
   static const battleWonByForfeit = '상대가 기권해서 이겼어요.';
 
+  // 연습 대결(봇전). 봇은 등장인물이 아니라 시계다 — 성격·말투·전적이 없고, 하는 일은
+  // "기간 안의 한 시각에 완료한 척" 하나뿐이다. 그래서 봇임을 숨기지 않고 모든 자리에서 말한다.
+  // **봇의 목표 시각은 어디에도 적지 않는다**(비율도 숫자도). 미리 알면 그 1초 전에 내면 되는
+  // 계산 문제가 되어 대결이 아니게 된다.
+  static const botBattleEntryTitle = '연습 봇과 대결';
+  static const botBattleEntryHint = '상대를 기다리지 않고 바로 시작해요. 하루 3번까지.';
+  static const botBattleTopicsTitle = '연습 대결 주제';
+  static const botBattleTopicsIntro = '운영자가 미리 준비한 주제예요. 기간과 기준은 주제마다 정해져 있어요.';
+  static String botBattleDailyLeft(int left, int limit) => '오늘 $left번 남았어요 (하루 $limit번)';
+  static const botBattleDailyNone = '오늘 연습 대결을 다 썼어요. 자정이 지나면 다시 할 수 있어요.';
+  static const botBattleTopicsEmpty = '지금은 준비된 주제가 없어요.';
+  static const botBattleLoadTopicsFailed = '연습 대결 주제를 불러오지 못했어요.';
+  static const botBattleStart = '이 주제로 시작';
+  static const botBattleStartConfirmTitle = '바로 시작할까요?';
+  static const botBattleStartNoticeBot =
+      '상대는 사람이 아니라 연습 봇이에요. 봇은 기간 안 어느 시각에 완료하고, 그보다 먼저 사진을 내면 이겨요.';
+  static const botBattleStartNoticeScore = '이기면 +1점이에요(사람과의 대결은 +3점). 하루 3번까지 할 수 있어요.';
+  static const botBattleStartFailed = '연습 대결을 시작하지 못했어요. 다시 시도해주세요.';
+  static const botBattleErrorDailyLimit = '오늘 연습 대결 3번을 다 썼어요.';
+  static const botBattleErrorTopicInvalid = '지금은 쓸 수 없는 주제예요. 목록을 새로 불러왔어요.';
+  static const botBattleBadge = '연습';
+  static const botBattleOpponentLabel = '연습 상대';
+  static const botBattleNoEvidence = '봇은 증거 사진을 내지 않아요.';
+  static const botBattleOpponentWaiting = '봇은 기간 안 어느 시각에 완료해요.';
+  static const botBattleDoneAtLabel = '봇 완료 시각';
+  static const botBattleAutoApproved = '봇은 판정하지 않아 내 사진이 그대로 인정됐어요.';
+  static const botBattleNoJudgment = '연습 대결에는 판정이 없어요. 봇은 사진을 내지 않고, 내 사진은 그대로 인정돼요.';
+  static const botBattleWon = '봇보다 먼저 완료했어요.';
+  static const botBattleCompletedLoss = '기준은 통과했지만 봇이 먼저 완료했어요.';
+  static const botBattleLossNoSubmission = '사진을 내지 않아 봇이 이겼어요.';
+  static const botBattleErrorSubmissionLocked = '봇이 완료해서 사진을 바꿀 수 없어요.';
+
   // AI 데이터 제공 동의(제3자 제공·국외 이전). 항목 문구는 decisions.md 48·69번 기준.
   static const aiConsentTitle = 'AI 데이터 제공 동의';
   static const aiConsentIntro = '대결 결과는 AI 심판이 판정해요. 이를 위해 아래 정보를 해외 AI 사업자에게 제공해요.';

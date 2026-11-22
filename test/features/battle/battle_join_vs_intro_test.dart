@@ -12,6 +12,7 @@ import 'package:todododo/features/battle/data/ai_consent.dart';
 import 'package:todododo/features/battle/data/battle.dart';
 import 'package:todododo/features/battle/data/battle_participant.dart';
 import 'package:todododo/features/battle/data/battle_submission.dart';
+import 'package:todododo/features/battle/data/bot_battle_topic.dart';
 import 'package:todododo/features/battle/data/submission_result.dart';
 import 'package:todododo/features/battle/data/battle_repository.dart';
 import 'package:todododo/features/battle/data/criteria_check_result.dart';
@@ -81,6 +82,18 @@ class _JoinOnlyBattleRepository implements BattleRepository {
 
   @override
   Future<void> cancelBattle(String battleId) async {}
+
+  // 봇전은 이 테스트의 사정권이 아니다. 화면이 부르더라도 아무 일도 일어나지 않게 둔다 —
+  // settleMyBotBattles는 내 대결 목록·상세가 목록을 읽기 전에 부르는 멱등한 깨우기다.
+  @override
+  Future<BotBattleTopics> listBotBattleTopics() async =>
+      const BotBattleTopics(dailyLimit: 3, dailyLeft: 3, topics: []);
+
+  @override
+  Future<String> startBotBattle(String topicId) async => 'bot-battle';
+
+  @override
+  Future<int> settleMyBotBattles() async => 0;
 
   @override
   Future<void> forfeitBattle(String battleId) async {}

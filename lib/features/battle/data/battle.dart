@@ -19,6 +19,8 @@ class Battle {
     this.superiorityCriteria,
     this.criteriaVersion = 1,
     this.verdictReason,
+    this.isBot = false,
+    this.botTopicId,
   });
 
   final String id;
@@ -61,6 +63,16 @@ class Battle {
   /// 한쪽만 통과했으면 미달 쪽 사진의 사유다. 판정과 동시에 종결되므로 종결 뒤에만 값이 있다.
   final String? verdictReason;
 
+  /// 연습 봇과의 대결(`bot-battle`). 화면은 이 값 하나로 배지·분기를 고른다 —
+  /// 봇의 uuid는 서버에만 있고 앱에 들어오지 않는다.
+  ///
+  /// 봇전은 모집(`pending`)을 거치지 않고 `active`로 시작하며 `judging`에 머물지 않는다.
+  final bool isBot;
+
+  /// 어느 운영자 주제(`bot_battle_topics`)로 시작했는지. 봇전이 아니면 null이다.
+  /// 제목만으로는 교체된 옛 주제와 구분되지 않아 서버가 함께 남긴다.
+  final String? botTopicId;
+
   bool get hasSuperiorityCriteria => (superiorityCriteria ?? const []).isNotEmpty;
 
   static List<String>? _criteriaOf(Object? value) {
@@ -94,5 +106,7 @@ class Battle {
         superiorityCriteria: _criteriaOf(map['superiority_criteria']),
         criteriaVersion: (map['criteria_version'] as int?) ?? 1,
         verdictReason: map['verdict_reason'] as String?,
+        isBot: (map['is_bot'] as bool?) ?? false,
+        botTopicId: map['bot_topic_id'] as String?,
       );
 }

@@ -33,12 +33,18 @@ class BattleDetailScreen extends ConsumerWidget {
   final String battleId;
 
   // 포기는 곧 패배라 되돌릴 수 없다. 반드시 한 번 확인받는다.
-  Future<void> _forfeit(BuildContext context, WidgetRef ref) async {
+  //
+  // 봇전은 깎이는 점수가 다르고(1점), 서버가 "그 사이에 결과가 나왔다"며 거부할 수 있다 —
+  // 봇의 목표 시각이 지난 판을 포기로 덮어쓰지 않으려고 forfeit_battle이 먼저 정산한 경우다
+  // (reviewer W1). 그 거부는 실패가 아니라 사실이므로 화면을 다시 읽어 결과를 보여 준다.
+  Future<void> _forfeit(BuildContext context, WidgetRef ref, {required bool isBot}) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const KeepWordsText(AppStrings.battleForfeitConfirmTitle),
-        content: const KeepWordsText(AppStrings.battleForfeitConfirm),
+        content: KeepWordsText(
+          isBot ? AppStrings.botBattleForfeitConfirm : AppStrings.battleForfeitConfirm,
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -61,7 +67,17 @@ class BattleDetailScreen extends ConsumerWidget {
       if (context.mounted) _showSnackBar(context, AppStrings.battleForfeitDone);
     } catch (e) {
       debugPrint('forfeitBattle failed: $e');
-      if (context.mounted) _showSnackBar(context, AppStrings.battleForfeitFailed);
+      // 그 사이에 결과가 확정됐다면 화면이 옛 상태를 들고 있다. 다시 읽어 결과를 보여 준다.
+      if (isBot && isBotAlreadySettled(e)) {
+        ref.invalidate(battleDetailProvider(battleId));
+        ref.invalidate(myBattlesProvider);
+      }
+      if (context.mounted) {
+        _showSnackBar(
+          context,
+          isBot ? botBattleForfeitErrorMessage(e) : AppStrings.battleForfeitFailed,
+        );
+      }
     }
   }
 
@@ -126,7 +142,7 @@ class BattleDetailScreen extends ConsumerWidget {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
-                      onPressed: () => _forfeit(context, ref),
+                      onPressed: () => _forfeit(context, ref, isBot: detail.isBot),
                       // 위험 낮음: 위험 텍스트(투명 면 + danger, 누르는 동안 dangerPale + dangerDeep —
                       // design-judging-buttons 2.6 #13). 확인 대화상자가 따로 있다.
                       style: AppButtonStyles.dangerText,

@@ -17,7 +17,7 @@
 --   - **Gemini 호출 0회.** 이 파일에는 begin_criteria_call·lookup_criteria_cache·put_criteria_cache·
 --     ensure_ai_judgment_job 호출이 하나도 없다. 봇전에 들어가는 판정은 approve + auto 두 행뿐이라
 --     resolve_battle의 잡 생성 조건(min_verdict='reject')에 도달할 식이 없다.
---   - **사람 대결이 한 줄도 달라지지 않는다.** 아래 여섯 함수는 전부 분기를 **더하는** 모양이고,
+--   - **사람 대결이 한 줄도 달라지지 않는다.** 아래 일곱 함수는 전부 분기를 **더하는** 모양이고,
 --     사람 대결 경로의 조건·점수·문구는 그대로다.
 --
 -- 함수 본문은 전부 **가장 늦은 정의를 그대로 복사한 뒤** 봇전 분기만 끼워 넣었다. 기준이 된 파일:
@@ -25,6 +25,7 @@
 --   open_judging_window·accept_submission·finalize_battle = 20261103120000
 --   get_player_card = 20260917120000
 --   withdraw_ai_consent·get_consent_withdrawal_impact = 20260916120000
+--   forfeit_battle = 20261029120000 (2026-11-22 reviewer W1으로 추가)
 -- 전부 create or replace이고 시그니처를 유지하므로 GRANT는 그대로 남고, 배포된
 -- submit-evidence Edge Function도 **재배포가 필요 없다**(accept_submission의 인자가 그대로다).
 --
@@ -1104,6 +1105,106 @@ comment on function public.withdraw_ai_consent is
   '동의 철회. 진행 중인 사람 대결은 모두 내 포기로, 모집 중인 대결은 취소로 끝낸다. '
   '봇전은 동의를 근거로 성립한 대결이 아니므로 철회가 건드리지 않는다.';
 
+
+-- ---------------------------------------------------------------------------
+-- 고치는 기존 함수 7/7 — forfeit_battle: 봇전은 포기 전에 먼저 정산한다
+-- ---------------------------------------------------------------------------
+-- 기준: 20261029120000_ai_rejudgment.sql. 시그니처 유지(create or replace)이므로
+-- GRANT(authenticated)는 그대로 남는다. 사람 대결 경로는 한 글자도 바뀌지 않았다.
+--
+-- ** 왜 필요한가 (reviewer W1, 2026-11-22). ** 봇전에는 "t_bot은 지났는데 아직 정산되지 않은"
+-- 어긋남 구간이 있다(cron 1분 + 화면의 깨우기). 그 구간에서 status는 아직 'active'이고 포기
+-- 버튼이 살아 있다. 그런데 ** 그 구간에 들어올 수 있는 봇전은 사용자가 t_bot 전에 제출한 판뿐이다 **
+-- (t_bot 뒤의 첫 제출은 그 트랜잭션에서 바로 종결된다). 즉 그 구간의 결과는 ** 언제나 승리 ** 이고,
+-- 포기가 먼저 커밋되면 그 승리(+1)가 포기 패배(-1)로 뒤집히며 전적 라벨도 승 -> 패로 바뀐다.
+-- design §1.6은 이 경우를 "봇전은 손해가 다 -1이라 어느 쪽이든 같다"로 넘겼는데, 비교 대상이
+-- -1 대 -1이 아니라 ** +1 대 -1 ** 이어서 그 근거가 성립하지 않는다.
+--
+-- 고치는 방법: 행을 잠근 뒤 ** 먼저 정산하고 상태를 다시 읽는다. ** 같은 트랜잭션·같은 잠금이라
+-- 그 사이에 끼어들 수 없다(앱에서 포기 직전에 깨우는 방식은 두 호출 사이에 cron이 들어온다).
+-- 정산으로 끝난 대결에는 전용 힌트(BOT_ALREADY_SETTLED)를 준다 - 아래 공용 상태 검사에 맡기면
+-- "포기할 수 있는 상태가 아닙니다"만 보여 사용자가 자기가 이겼다는 것을 모른다.
+--
+-- ** 거부가 정산까지 되돌린다 — 그것이 맞다. ** 예외가 함수 밖으로 나가면 같은 트랜잭션에서
+-- 방금 한 정산도 함께 롤백된다. 즉 거부 직후 대결은 아직 'active'이고, 결과는 cron이 1분 안에
+-- 쓴다. 중요한 것은 "포기가 커밋되지 않는다"이고 그것은 지켜진다 - 확정된 승리가 포기 패배로
+-- 뒤집히는 일이 없다. 반대로 예외 없이 조용히 정산만 하고 돌아오면 앱이 "포기했습니다"를
+-- 띄워 거짓을 말하게 된다(이 함수는 returns void라 "포기하지 않았다"를 돌려줄 길이 없다).
+-- 그래서 앱 문구도 "이미 결과가 나왔다"가 아니라 "곧 결과가 나온다"로 적는다.
+--
+-- settle_bot_battle은 멱등이고 t_bot 전에는 아무 일도 하지 않으므로, 어긋남 구간이 아니면 이
+-- 분기는 상태를 바꾸지 않고 그대로 포기로 내려간다(t_bot 전 포기·미제출 포기는 그대로 -1이다).
+create or replace function public.forfeit_battle(p_battle_id uuid)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_battle public.battles%rowtype;
+  v_opponent uuid;
+begin
+  if auth.uid() is null then
+    raise exception '로그인이 필요합니다.';
+  end if;
+
+  select * into v_battle from public.battles where id = p_battle_id for update;
+
+  if v_battle is null then
+    raise exception '대결을 찾을 수 없습니다.';
+  end if;
+
+  -- null에 안전한 형태. opponent_id가 null이어도 그대로 쓸 수 있다.
+  if auth.uid() is distinct from v_battle.creator_id
+     and auth.uid() is distinct from v_battle.opponent_id then
+    raise exception '이 대결의 참가자가 아닙니다.';
+  end if;
+
+  -- ** 봇전만: 이미 확정된 결과를 포기로 덮어쓰지 않는다(위 머리 주석). **
+  if v_battle.is_bot then
+    perform public.settle_bot_battle(p_battle_id);
+    select * into v_battle from public.battles where id = p_battle_id for update;
+
+    if v_battle.status not in ('active', 'judging') then
+      raise exception using
+        message = '이미 결과가 나왔습니다.', hint = 'BOT_ALREADY_SETTLED';
+    end if;
+  end if;
+
+  if v_battle.status not in ('active', 'judging') then
+    raise exception '포기할 수 있는 상태가 아닙니다.';
+  end if;
+
+  v_opponent := case
+    when auth.uid() = v_battle.creator_id then v_battle.opponent_id
+    else v_battle.creator_id
+  end;
+
+  -- 상대가 없는 모집은 포기가 아니라 취소다.
+  if v_opponent is null then
+    raise exception '아직 상대가 없는 대결입니다.';
+  end if;
+
+  update public.battles
+  set forfeited_by = auth.uid()
+  where id = p_battle_id;
+
+  -- 진행 중이던 AI 재판정은 여기서 끝난다. 늦게 도착한 판정은 claim/record가 종결 상태를 보고 버린다.
+  delete from public.ai_judgment_jobs where battle_id = p_battle_id;
+
+  perform public.finalize_battle(
+    p_battle_id,
+    'finished',
+    v_opponent,
+    case when auth.uid() = v_battle.creator_id then 'forfeit' else 'win' end,
+    case when auth.uid() = v_battle.creator_id then 'win' else 'forfeit' end
+  );
+end;
+$$;
+
+comment on function public.forfeit_battle is
+  '포기(기권). 포기한 쪽이 지고 상대가 승자로 기록되며 finished로 끝난다. ** 봇전은 포기 전에 '
+  'settle_bot_battle로 먼저 정산해, 봇의 목표 시각이 이미 지난 판(결과가 확정된 판)을 포기로 '
+  '덮어쓰지 않는다 ** - 그 경우 BOT_ALREADY_SETTLED로 거부한다. 사람 대결 경로는 그대로다.';
 -- ---------------------------------------------------------------------------
 -- cron: settle-bot-battles (1분)
 -- ---------------------------------------------------------------------------

@@ -23,3 +23,18 @@ String botBattleStartErrorMessage(Object error) {
     _ => AppStrings.botBattleStartFailed,
   };
 }
+
+/// 서버가 포기를 거부한 이유가 "그 사이에 결과가 확정됐다"인가.
+///
+/// 봇전에는 "봇의 목표 시각은 지났는데 아직 정산되지 않은" 어긋남 구간이 있고(cron 1분 +
+/// 화면의 깨우기), 그 구간에 들어올 수 있는 판은 **사용자가 그 시각 전에 제출한 판뿐이라
+/// 결과가 언제나 승리다.** 그래서 `forfeit_battle`이 포기 전에 먼저 정산하고 이 힌트로 거부한다 —
+/// 거부가 없으면 확정된 승리(+1)가 포기 패배(-1)로 뒤집힌다(reviewer W1).
+bool isBotAlreadySettled(Object error) => errorCodeOf(error) == 'BOT_ALREADY_SETTLED';
+
+/// 봇전 포기 실패의 사용자 문구. 위 거부는 실패가 아니라 사실이므로 다른 문장을 쓴다.
+String botBattleForfeitErrorMessage(Object error) {
+  return isBotAlreadySettled(error)
+      ? AppStrings.botBattleAlreadySettled
+      : AppStrings.battleForfeitFailed;
+}

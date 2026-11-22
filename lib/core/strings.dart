@@ -308,6 +308,13 @@ class AppStrings {
   static const botBattleCompletedLoss = '기준은 통과했지만 봇이 먼저 완료했어요.';
   static const botBattleLossNoSubmission = '사진을 내지 않아 봇이 이겼어요.';
   static const botBattleErrorSubmissionLocked = '봇이 완료해서 사진을 바꿀 수 없어요.';
+  // 포기 확인 문구는 사람 대결과 갈린다 — 봇전은 1점만 깎인다(battleForfeitConfirm은 3점을 말한다).
+  static const botBattleForfeitConfirm = '포기하면 패배로 끝나고 1점이 깎여요. 봇이 승리해요.';
+  // 포기를 누르기 직전에 봇의 목표 시각이 지나, 서버가 포기를 거부한 경우(BOT_ALREADY_SETTLED).
+  // ** "이미 결과가 나왔다"고 말하지 않는다 ** — 거부 예외가 그 정산까지 되돌리므로 그 순간
+  // 대결은 아직 진행 중이고 결과는 cron이 1분 안에 쓴다. 실패가 아니라 사실이라 "다시 시도"도
+  // 권하지 않는다(근거는 20261120120100_bot_battle_rpc.sql의 forfeit_battle 머리 주석).
+  static const botBattleAlreadySettled = '봇이 이미 완료해서 포기할 수 없어요. 곧 결과가 나와요.';
 
   // AI 데이터 제공 동의(제3자 제공·국외 이전). 항목 문구는 decisions.md 48·69번 기준.
   static const aiConsentTitle = 'AI 데이터 제공 동의';

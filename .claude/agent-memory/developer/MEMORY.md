@@ -1,5 +1,5 @@
 - [편집 훅 동작](workflow_edit_hooks.md) — dart format 실패는 거의 항상 거짓 경보. analyze만 믿고, 기존 파일에 dart format을 돌리지 마라(diff가 폭발한다).
-- [SQL 스모크 테스트의 now() 고정](sql_smoke_test_now_frozen.md) — do $$ 블록 안에서 now()는 트랜잭션 내내 고정이다. pg_sleep으로 시각 차이를 만들 수 없다.
+- [SQL 스모크 테스트의 깨지는 전제](sql_smoke_test_now_frozen.md) — now()는 do $$ 블록 내내 고정이고, 거부를 감싼 exception 블록은 그 호출의 부수 효과까지 되돌린다.
 - [위젯 테스트 함정](flutter_widget_test_gotchas.md) — NetworkImage 400, 화면 밖 버튼, now() getter, 재시도 타이머, finder 모호성, 정사각 글꼴, 끌기·FAB pump, 공용 앱바 위젯의 파급.
 - [riverpod 비동기 함정](riverpod_async_pitfalls.md) — AsyncError는 직전 값을 들고 valueOrNull은 없다. listen에 fireImmediately가 없고 Override 타입은 export 안 된다.
 - [Bash heredoc 길이 한계·append 함정](workflow_bash_heredoc_limit.md) — 큰 파일은 한 호출로 못 쓴다. 테스트 파일 끝 append는 main 밖으로 떨어져 조용히 안 돈다. python은 없다.

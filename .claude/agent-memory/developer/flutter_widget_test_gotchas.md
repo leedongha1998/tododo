@@ -1,6 +1,6 @@
 ---
 name: flutter-widget-test-gotchas
-description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump, PopScope는 maybePop으로만, 남은 시간 내림 픽스처, Cupertino delegate 누락, 공용 앱바 위젯이 기존 테스트 전부에 override를 요구함
+description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump, PopScope는 maybePop으로만, 남은 시간 내림 픽스처, Cupertino delegate 누락, 공용 앱바 위젯이 기존 테스트 전부에 override를 요구함, 목록 첫 칸 삽입·Repository 메서드 추가의 파급
 metadata:
   type: feedback
 ---
@@ -85,6 +85,15 @@ metadata:
     `ProviderScope(overrides: [...])`에 한 줄씩 끼운다(2026-11-13 notification-inbox, 10개 파일 31곳).
     앱바에 `IconButton`이 하나 늘어나므로 `find.byType(IconButton)`을 쓰던 테스트도 함께 모호해진다
     (→ 4번).
+
+14. **목록 맨 앞에 카드 한 장을 끼우거나 Repository에 메서드를 더하면 기존 테스트가 깨진다.**
+    ① `ListView.builder`의 **첫 칸**에 입구 카드를 넣으면 뒤의 항목이 밀려 기본 800x600에서
+    **마지막 항목이 빌드되지 않는다** — 그 항목을 보던 기존 단정이 조용히 0을 받는다(→ 2번).
+    목록 맨 위 항목으로 단정을 옮기거나(의도가 같다면) `ensureVisible`을 쓴다.
+    ② Repository에 메서드를 더하면 `implements <Repository>`인데 **`noSuchMethod`가 없는** 가짜들이
+    전부 "Missing concrete implementations"로 컴파일 실패한다(2026-11-21 bot-battle에서 7개 파일).
+    `analyze`가 먼저 잡아 주므로 위험하진 않지만 **파일 수를 미리 세어 두면 작업량 예측이 맞는다.**
+    새 가짜를 쓸 때는 `noSuchMethod`를 함께 두는 쪽이 앞으로를 산다.
 
 **Why:** 1~3번은 mutual-judge 판정 화면(4단계), 4~5번은 recruit-browse의 찾기 탭(검색·필터·무한 스크롤),
 6~7번은 retro-theme 가독성 개정(2026-10-29, 글꼴 표를 바꾸고 배율 1.3 넘침 테스트를 쓸 때),

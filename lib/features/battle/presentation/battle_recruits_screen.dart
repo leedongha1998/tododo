@@ -23,6 +23,7 @@ import '../domain/open_recruit_feed.dart';
 import '../domain/recruit_query.dart';
 import 'ai_consent_screen.dart';
 import 'battle_chips.dart';
+import 'bot_battle_topics_screen.dart';
 import 'create_battle_screen.dart';
 import 'recruit_detail_sheet.dart';
 import 'vs_intro.dart';
@@ -376,6 +377,10 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
     // 목록이 아니라 안내 한 칸을 그리고 있으면 꼬리(이어 불러오기 상태)는 뜻이 없다.
     final tail = body == null ? _buildTail(feed) : null;
     final tailCount = tail != null ? 1 : 0;
+    // 연습 대결 입구는 **목록의 첫 카드**다(고정 조작 영역을 더 늘리지 않는다). 모집이 실제로
+    // 있으면 스크롤로 밀려나고, 모집 0건·조회 실패에서도 그린다 — 봇전은 "상대를 찾다 막혔을
+    // 때"의 선택지라 그 자리에 있어야 한다.
+    const headerCount = 1;
 
     return RefreshIndicator(
       // 새로고침하면 목록은 처음 묶음부터 다시 시작한다. 배너·FAB 분기가 보는 한도도 함께 읽는다.
@@ -396,9 +401,19 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         // 아래 여백은 만들기 버튼(FAB)이 마지막 카드를 가리지 않게 하려는 것이다.
         padding: const EdgeInsets.fromLTRB(20, 16, 20, AppTheme.fabClearance),
-        itemCount: bodyCount + tailCount,
+        itemCount: headerCount + bodyCount + tailCount,
         itemBuilder: (context, index) {
-          final slot = index;
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _BotBattleEntryCard(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const BotBattleTopicsScreen()),
+                ),
+              ),
+            );
+          }
+          final slot = index - headerCount;
           if (slot < bodyCount) {
             if (body != null) return body;
             _maybeLoadMore(feed!, slot, items.length);
@@ -446,6 +461,45 @@ class _BattleRecruitsScreenState extends ConsumerState<BattleRecruitsScreen> {
       if (!mounted) return;
       ref.read(openRecruitFeedProvider.notifier).loadMore();
     });
+  }
+}
+
+/// 연습 대결 입구 카드. 목록과 함께 스크롤된다 — 실제 모집이 있으면 밀려나고, 아무 모집도 없을
+/// 때는 화면 맨 위에서 "지금 해 볼 수 있는 것"을 가리킨다.
+class _BotBattleEntryCard extends StatelessWidget {
+  const _BotBattleEntryCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return AppPanel.flat(
+      onTap: onTap,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                KeepWordsText(
+                  AppStrings.botBattleEntryTitle,
+                  style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                KeepWordsText(
+                  AppStrings.botBattleEntryHint,
+                  style: textTheme.bodySmall?.copyWith(color: AppPalette.inkMuted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Icon(AppIcons.chevronRight, color: AppPalette.inkMuted),
+        ],
+      ),
+    );
   }
 }
 

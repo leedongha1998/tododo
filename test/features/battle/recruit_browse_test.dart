@@ -196,7 +196,9 @@ void main() {
 
     expect(container.read(recruitFilterProvider).query, '');
     expect(repository.calls.last['query'], isNull);
-    expect(findText('모집 2'), findsOneWidget);
+    // 검색으로 걸러졌던 카드가 돌아왔는지를 본다. 목록 맨 위의 카드로 확인한다 —
+    // 첫 칸이 연습 대결 입구(bot-battle)로 바뀌어 세 번째 카드는 기본 시험 화면에서 화면 밖이다.
+    expect(findText('모집 0'), findsOneWidget);
   });
 
   testWidgets('유형·기간대 필터는 서버에 그 키로 요청하고 지금 걸린 조건이 계속 보인다', (tester) async {
@@ -246,7 +248,8 @@ void main() {
     expect(findText(AppStrings.battleFilterClear), findsNothing);
     expect(repository.calls.last['query'], isNull);
     expect(repository.calls.last['type'], isNull);
-    expect(findText('모집 2'), findsOneWidget);
+    // 위 테스트와 같은 이유로 맨 위 카드로 확인한다(첫 칸은 연습 대결 입구다).
+    expect(findText('모집 0'), findsOneWidget);
   });
 
   testWidgets('모집이 하나도 없으면 내가 먼저 걸어 보라고 권한다', (tester) async {

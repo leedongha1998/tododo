@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/strings.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
+import '../../../core/widgets/app_tag.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../battle/presentation/battle_chips.dart';
 import '../../battle/presentation/battle_detail_screen.dart';
@@ -86,6 +87,12 @@ class BattleRecordTile extends StatelessWidget {
                   children: [
                     BattleTypeBadge(type: record.battle.type),
                     const SizedBox(width: 8),
+                    // 연습 대결은 상대 이름(`연습 봇`)과 함께 두 번 말한다 — 지난 기록에서
+                    // 사람과의 승패와 섞여 보이면 그 목록을 믿을 수 없게 된다.
+                    if (record.battle.isBot) ...[
+                      const AppTag(label: AppStrings.botBattleBadge, style: neutralTagStyle),
+                      const SizedBox(width: 8),
+                    ],
                     Flexible(
                       child: KeepWordsText(
                         '${AppStrings.battleVersus} ${record.otherPartyName}',

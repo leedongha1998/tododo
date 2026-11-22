@@ -16,6 +16,7 @@ import '../domain/battle_providers.dart';
 import '../domain/battle_summary.dart';
 import 'battle_chips.dart';
 import 'battle_summary_list.dart';
+import 'bot_battle_topics_screen.dart';
 import 'edit_recruit_criteria_screen.dart';
 
 /// `내 대결` 탭. "내가 지금 걸어 둔 것 전부"가 모이는 자리다.
@@ -234,10 +235,22 @@ class MyBattlesScreen extends ConsumerWidget {
               StatusMessage.empty(
                 message: AppStrings.battleMyBattlesEmpty,
                 detail: AppStrings.battleFinishedInProfile,
-                action: FilledButton(
-                  onPressed: () =>
-                      ref.read(selectedTabProvider.notifier).select(AppTab.find),
-                  child: const KeepWordsText(AppStrings.battleFind),
+                // 로그인 직후 첫 탭이고, 이 기능이 겨냥한 사용자가 있는 자리다.
+                // 상대를 찾는 것이 먼저이므로 연습 대결은 **보조 버튼**으로 둔다.
+                action: Column(
+                  children: [
+                    FilledButton(
+                      onPressed: () =>
+                          ref.read(selectedTabProvider.notifier).select(AppTab.find),
+                      child: const KeepWordsText(AppStrings.battleFind),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const BotBattleTopicsScreen()),
+                      ),
+                      child: const KeepWordsText(AppStrings.botBattleEntryTitle),
+                    ),
+                  ],
                 ),
               ),
             ],

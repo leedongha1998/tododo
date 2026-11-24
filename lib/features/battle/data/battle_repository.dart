@@ -8,6 +8,7 @@ import 'battle_participant.dart';
 import 'battle_submission.dart';
 import 'bot_battle_topic.dart';
 import 'criteria_check_result.dart';
+import 'jpeg_metadata.dart';
 import 'open_recruit_page.dart';
 import 'player_card.dart';
 import 'submission_result.dart';
@@ -204,9 +205,10 @@ class BattleRepository {
   }) async {
     final userId = _client.auth.currentUser!.id;
     final path = '$battleId/$userId/${_randomObjectName()}.jpg';
+    // 사진은 모르는 상대에게 그대로 내려가므로 GPS 등 메타데이터를 걷어 낸 뒤 올린다.
     await _client.storage.from(_evidenceBucket).uploadBinary(
           path,
-          bytes,
+          stripJpegMetadata(bytes),
           fileOptions: const FileOptions(contentType: 'image/jpeg'),
         );
     return path;

@@ -454,6 +454,17 @@ SQL을 **한 번도 실행하지 못했다**(로컬 Docker 없음, 원격 금지
 
 ## 오너가 손수 해야 할 일 (design §15 그대로)
 
+**2026-11-24 진행 상황** — 1·2·3번이 끝났다.
+- **1번**: 1단계(`20261120120000`)·2단계(`20261120120100`) 둘 다 원격에 적용됐고 스모크가 전부
+  통과한다 — 봇전 흐름 120개 키, 회귀 스모크 17개, 표 테스트 2개(`bot_battle_rules` 35 +
+  `mutual_judge_rules` 40). cron은 5개이고 전부 1분이다.
+- **2번**: 그랜트는 service_role 쪽으로 두었고 적용 후 `bot_battle_rules` 50~55번으로 확인했다.
+- **3번**: `supabase functions deploy send-notifications` **완료**(버전 6 → 7). `verify_jwt`는
+  `false`로 유지됐고(`config.toml`이 그렇게 박아 둔다), 비밀값 없는 호출은 401로 거부된다.
+  배포된 묶음을 내려받아 로컬 소스 6개 파일과 **바이트 단위로 같음**을 확인했다
+  (`notification_text.ts`의 `payload.is_bot !== true` 가드 포함). 다른 세 함수는 건드리지 않았다.
+- **남은 것**: 4·6번(별도 저장소 `todododo-legal`의 `privacy.html` — **배포 관문**)과 7번(실기기).
+
 1. 1단계 원격 적용 승인 → 스모크 확인 → 2단계 원격 적용 승인(**순서를 지킨다**).
 2. 2단계 적용 **전에** 위 "다르게 한 것" 1번(service_role 그랜트)을 어느 쪽으로 할지 한 번 보기.
 3. 3단계 뒤 `supabase functions deploy send-notifications` **1회**(문구 변경 때문. 이게 전부다).

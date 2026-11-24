@@ -240,3 +240,91 @@
   - `main_shell.dart`의 찾기 탭 invalidate 주석이 한도 제거 뒤로 사실과 달랐다. 고쳤다.
 - 남은 확인(실기기): 백그라운드·종료 상태에서 알림 탭 → 상세 진입, 취소된 대결 알림 탭 시 오류 화면
   없음, 포그라운드 수신 시 목록 갱신. 위젯 테스트가 같은 분기를 전부 덮지만 실제 탭은 기기에서 본다.
+
+### 6단계 (구현 완료, 원격 적용·스모크 대기, 2026-11-24)
+
+#### 작업 순서 (구현 전에 적은 것)
+1. 현재 정의 대조: `claim_notifications`의 `deadline_soon` 폐기 분기(`20261103120000_notification_events.sql`의
+   재정의가 최신 — 그 뒤 `claim_notifications`를 고친 마이그레이션은 없다), `enqueue_notification`의 봇 가드
+   (`20261120120100_bot_battle_rpc.sql`), `notify-tick`의 현재 명령(`20261104120000_notification_dispatch.sql`),
+   cron 작업 5개(`settle-expired-battles`·`ai-judge-tick`·`close-judging-windows`·`notify-tick`·`settle-bot-battles`,
+   전부 `* * * * *`), `battle_submissions`가 참가자당 한 행(`battle_submissions_battle_user_unique`)인 것.
+2. 마이그레이션 `20261124120000_deadline_reminders.sql` — `enqueue_deadline_reminders()` + `notify-tick` 갱신.
+3. 스모크 `supabase/tests/deadline_reminder_smoke.sql`.
+4. 문서: design N6 절 추기, 이 진행 기록, bot-battle design §9 N6 인계에 한 줄.
+5. `flutter analyze`·`flutter test`(Dart·TS 변경 없음 — 숫자가 바뀌지 않는 것이 정상). 커밋·원격 적용은 하지 않는다.
+
+순서는 바꾸지 않았다.
+
+#### 오늘 확정된 것 (2026-11-24 오너 결정, 메인 세션 전달)
+design N6 절은 ai-judge 시절(기간 최소 24시간, 속도전 passed/failed·5회 제한)에 쓰였다. 지금은
+기간이 분 단위(하한 1분)이고 마감 전 판정이 없다. 그래서:
+- **문턱 = min(6시간, 기간의 절반).** `now() >= deadline_at - least(6시간, duration_minutes/2)`이고
+  `now() < deadline_at`. 1일 이상은 종전대로 6시간 전, 1시간 대결은 30분 전, 봇전 5분 주제는 2분 30초 전.
+- **대상 = `active`이고 마감 전인 대결에서 `battle_submissions` 행이 아직 없는 사람 참가자.** 두 유형 같은 조건.
+  제출했으면(교체 가능 여부와 무관) 대상이 아니다.
+- **봇전 포함.** 수신자는 사람 참가자뿐이고, 문턱은 기간에만 기대며 봇의 목표 시각(t_bot)을 읽지 않는다.
+
+#### 구현
+- `enqueue_deadline_reminders()` returns integer — **집합 insert 한 문장**으로 원장에 넣고
+  `get diagnostics row_count`로 새로 쌓은 수를 돌려준다. `on conflict (recipient_id, dedup_key) do nothing`이
+  "한 사람당 한 번"을 지킨다. 문장 전체를 `begin … exception when others then raise warning …; return 0`으로
+  감싸 이 함수의 예외가 같은 cron 명령의 `dispatch_notifications()`를 막지 못하게 했다(pg_cron의 한 명령 문자열은
+  한 트랜잭션이라 첫 문장이 던지면 둘째 문장이 돌지 않는다 — design 원칙 2).
+- 권한: cron 전용이라 `auth.uid()` 가드 없음. `revoke execute ... from public, anon, authenticated`
+  + `grant execute ... to service_role`(지시 그대로. `service_role`은 어차피 Supabase 기본 권한으로 갖는다 — 4단계 함정 메모).
+- `notify-tick`을 같은 이름·같은 주기로 다시 `cron.schedule` — 명령
+  `select public.enqueue_deadline_reminders(); select public.dispatch_notifications();`. 작업 수 5개 그대로.
+- **인덱스를 새로 만들지 않는다.** 선별의 바깥 조건 `status = 'active' and deadline_at > now()`는
+  `battles_deadline_at_idx (deadline_at) where status = 'active'`(20260921120100)가 그대로 받고,
+  "제출 없음"은 `battle_submissions_battle_user_unique (battle_id, user_id)`, 중복 방지는 원장의
+  `unique (recipient_id, dedup_key)`가 받는다. 대상 집합이 진행 중 대결뿐이라 작다.
+
+#### 설계와 달라진 점
+- **문턱이 고정 6시간에서 min(6시간, 기간/2)로 바뀌었다**(위 오너 결정). design의 "기간 최소값이 24시간이라
+  6시간 문턱이 매칭보다 앞서지 않는다"는 전제가 custom-duration(분 단위, 하한 1분)으로 깨졌기 때문이다.
+  6시간 고정이면 6시간 이하 대결은 매칭 직후에 "마감이 다가와요"가 온다.
+- **대상 조건에서 속도전의 "통과 못 함"·"5회 소진 제외"가 사라졌다.** mutual-judge에서 마감 전 판정이 없으므로
+  두 유형 모두 "아직 제출 행이 없다" 하나다. design이 남긴 "판정 중인 속도전 제출이 있는 참가자도 대상"
+  문단은 더 성립하지 않는다(제출했으면 대상이 아니다).
+- **`enqueue_notification`을 행마다 부르지 않고 같은 방식(on conflict do nothing + 예외를 warning으로)을
+  집합 insert 한 문장에 옮겼다.** `enqueue_notification`은 void라 행마다 부르면 "새로 쌓은 수"를 셀 수 없고,
+  그 함수의 봇 가드에 기대는 대신 선별 질의에 `p.user_id <> public.bot_user_id()`를 직접 두었다.
+  대가: 한 행이 실패하면 그 tick의 묶음 전체가 warning 하나로 버려지고 다음 tick(1분 뒤)에 다시 시도된다
+  (실패할 만한 원인 — kind CHECK·FK — 이 상수이거나 진행 중 참가자라 사실상 없다).
+- **아주 짧은 대결을 따로 막지 않았다.** 1분 대결은 문턱이 마감 30초 전이라 1분 tick이 거의 놓치고,
+  잡혀도 1분 뒤 발송 tick이 집을 때 마감이 지나 `claim_notifications`가 `dropped`로 내린다. 같은 tick 안의
+  `dispatch_notifications`가 Edge를 깨우는 경우엔 그 안에서 마감 전이면 나갈 수 있는데 그것은 사실이다
+  (Edge 문구는 남은 시간이 1분 미만이면 시간 문장을 뺀다).
+
+#### t_bot이 새지 않는 근거
+- 선별 질의는 `battle_submissions`를 **"이 사람의 행이 있는가"로만** 읽고, 봇 참가자는 수신자에서 빠진다.
+  봇의 제출 행(`submitted_at` = t_bot)은 어떤 조건에도 들어가지 않는다 — 스모크가 t_bot을 바꿔도 결과가 같은지 본다.
+- 도착 여부가 알려 주는 것은 "그 tick에 대결이 아직 `active`였다"뿐이고, 그건 앱이 이미 보여 주는 상태다.
+  지금 봇 주제(5·15분)는 문턱이 기간의 50% 지점이고 t_bot은 50~85%라, 알림은 늘 봇 제출 공개 이전 구간에 온다.
+- 대가: t_bot이 지났지만 정산 cron이 아직 돌지 않은 몇십 초 사이에 문턱을 지나면 사실상 진 판에도 임박 알림이
+  갈 수 있다(남은 시간은 사실이고, 봇전은 완료한 패배·미완료 패배가 같은 -1이라 손해가 없다). 막으려면 t_bot을
+  읽어야 해서 받아들였다 — 스모크의 `bot_tbot_past_user`가 이 동작을 고정한다.
+
+#### 함정 메모
+- 스모크에서 `enqueue_deadline_reminders()`·`claim_notifications()`는 **변수로 먼저 받고** 다음 statement에서
+  원장을 읽는다. 한 `jsonb_build_object` 안에서 호출과 읽기를 함께 하면 읽기가 statement 시작 스냅샷을 본다
+  (봇전 스모크에서 실제로 났다).
+- 두 함수 다 **전역을 훑는다.** 원격에 다른 사용자의 진행 중 대결이 있으면 첫 실행 반환값이 스모크의
+  기대보다 크다. 그래서 첫 반환값은 "스모크 대상 수 이상"으로, 두 번째 실행은 "정확히 0"으로 본다
+  (같은 트랜잭션에서 `now()`가 고정이라 둘째 실행의 후보는 전부 이미 원장에 있다).
+
+#### 로컬 검증 (원격 적용 전)
+- `flutter analyze` 이슈 0, `flutter test` **989개 통과**. Dart·TypeScript 변경이 없어 `deno test`는 돌리지 않았다.
+- 원격은 **읽기만** 했다: `migration list --linked`(새 파일 하나만 미적용), cron 작업 5개 전부 `* * * * *`·active,
+  `notify-tick` 현재 명령이 `select public.dispatch_notifications();`, `claim_notifications`에 `deadline_soon` 분기 있음,
+  봇 주제 8행, `battles`·`battle_submissions` CHECK 제약 목록. 선별 질의는 순수 SELECT로 돌려 문법·컬럼을 확인했다
+  (후보 0행). 함수 본문(예외 블록·`get diagnostics`)과 스모크는 원격 적용 뒤에야 돈다.
+- 원격 적용(오너 확인 뒤 메인 세션): `db push --dry-run`(1개) → `db push` → `migration list --linked` 38개 일치 →
+  `deadline_reminder_smoke.sql` `ok=t` → 회귀 `notification_dispatch_smoke.sql`(notify-tick 명령에 dispatch가 남았는지)·
+  `notification_events_smoke.sql`·`bot_battle_flow_smoke.sql`.
+
+#### 6단계 원격 적용 (2026-11-24)
+- 적용 전에 `begin;` + 마이그레이션 + 스모크를 한 파일로 원격에서 돌려 `ok=t`를 보고 롤백됐음(함수 0개, `notify-tick` 명령 그대로)을 확인했다.
+- `db push --dry-run`(1개) → `db push` 적용. 스모크 6개 전부 `ok=t`: `deadline_reminder`·`notification_dispatch`·`notification_events`·`bot_battle_flow`·`push_token`·`settle_expired_battles`.
+- cron 5개·전부 1분, `notify-tick` 명령이 적재 → 발송 순서. 적용 뒤 `notify-tick` 실행 5회 전부 `succeeded`.

@@ -76,7 +76,7 @@
 
 ## N6 마감 임박 — spec이 design에 넘긴 두 지점
 
-**(1) 언제 보내는가: 마감 6시간 전 고정.** `deadline_at - interval '6 hours' <= now() < deadline_at`.
+**(1) 언제 보내는가: 마감 6시간 전 고정.** _(2026-11-24 아래 "6단계 추기"로 **대체됨** — 문턱은 min(6시간, 기간의 절반))_ `deadline_at - interval '6 hours' <= now() < deadline_at`.
 
 | 안 | 1일 | 3일 | 7일 | 평가 |
 |---|---|---|---|---|
@@ -88,7 +88,7 @@
 
 **(2) 어느 주기 작업에 붙이는가: 신규 cron `notify-tick`(1분)의 첫 문장.** `settle-expired-battles`(5분)에 붙이지 않는 이유는 위 표의 트랜잭션 공유 문제와 같다 — 알림 판단에서 예외가 나면 그 tick의 마감 정산이 롤백된다. `ai-judge-tick`도 같은 이유로 제외한다. 1분 주기를 쓰는 이유는 6시간 문턱의 정확도를 ±1분으로 묶고, 발송(`dispatch_notifications`)과 같은 작업에 두어 임박 알림이 쌓인 즉시 나가게 하기 위함이다.
 
-**대상 선별**(`enqueue_deadline_reminders`, spec "N6의 제약"을 SQL 조건으로 옮긴 것):
+**대상 선별** _(2026-11-24 아래 "6단계 추기"로 **대체됨** — 두 유형 모두 "제출 행 없음" 하나)_(`enqueue_deadline_reminders`, spec "N6의 제약"을 SQL 조건으로 옮긴 것):
 
 | 제약 | 조건 |
 |---|---|
@@ -102,6 +102,41 @@
 | 재촉하지 않는다 | 문구는 "마감까지 N시간 남았어요"까지만(아래 문구 표) |
 
 판정 중(`judging`)인 속도전 제출이 있는 참가자는 **대상이다**. 그 제출이 불합격일 수 있고, 그러면 그대로 마감되면 손해를 본다. 발송 시각과 제출 시각이 겹쳐 "이미 냈는데 왔다"고 느낄 수 있지만, 속도전은 통과해야 완료이므로 사실과 어긋나지 않는다.
+
+### 6단계 추기 — 문턱과 대상 조건 (2026-11-24 오너 결정)
+
+위 (1)의 문턱과 "대상 선별" 표는 ai-judge 시절(기간 최소 24시간, 속도전은 제출 즉시 AI가 passed/failed를
+정하고 5회까지 다시 낼 수 있음)에 쓰였다. 6단계 착수 시점에 두 전제가 모두 깨져 있었다.
+- custom-duration으로 기간이 **분 단위(하한 1분)**가 됐다. 6시간 고정이면 6시간 이하 대결은 매칭 직후에
+  "마감이 다가와요"가 오고, 위 "6시간 문턱이 매칭보다 앞서는 경우는 없다"가 거짓이 된다.
+- mutual-judge로 **마감 전 판정이 없다.** 제출은 참가자당 한 행(교체는 덮어쓰기)이고 통과/불합격은 판정 창에서야
+  정해진다. "아직 통과 못 함"·"5회 소진"이라는 상태 자체가 없다.
+
+그래서 아래로 **대체한다**(원 표는 이력으로 남긴다).
+
+| 항목 | 조건 |
+|---|---|
+| 진행 중 | `b.status = 'active'`, `b.deadline_at > now()` |
+| 문턱 | `now() >= b.deadline_at - least(interval '6 hours', b.duration_minutes * interval '30 seconds')` — **min(6시간, 기간의 절반)**. 1일 이상은 종전대로 6시간 전, 1시간 대결은 30분 전, 봇전 5분 주제는 2분 30초 전 |
+| 대상 | 그 대결의 **사람 참가자**(`p.user_id <> bot_user_id()`) 중 `battle_submissions` 행이 **아직 없는** 사람. 두 유형 같은 조건이고, 제출했으면 교체할 수 있든 없든 대상이 아니다 |
+| 한 사람당 한 번 | 그대로 `dedup_key = 'deadline:<battle_id>'` + `on conflict do nothing` |
+| 마감 뒤 도착 금지 | 그대로 `claim_notifications`의 `dropped` 분기 |
+
+- **봇전도 대상이다**(bot-battle spec — 일률 -1로 약해진 벌점을 메우는 장치가 N6이다). 문턱은 기간에만 기대고
+  **봇의 목표 시각(t_bot)을 읽지 않는다**: `battle_submissions`는 "이 사람의 행이 있는가"로만 읽고 봇 참가자는
+  수신자에서 빠진다. 알림이 오는지가 알려 주는 것은 "그 tick에 대결이 아직 `active`였다"뿐이고 그건 앱이 이미
+  보여 주는 상태다. 대가로, t_bot이 지났지만 아직 정산 cron이 돌지 않은 몇십 초 사이에 문턱을 지나면 사실상 진
+  판에도 임박 알림이 갈 수 있다(남은 시간은 사실이고, 봇전은 완료한 패배와 미완료 패배가 같은 -1이라 잘못
+  안내하는 손해는 없다). 막으려면 t_bot을 읽어야 해서 받아들였다.
+- **아주 짧은 대결은 따로 막지 않는다.** 1분 대결은 문턱이 마감 30초 전이라 1분 주기 tick이 대개 지나치고, 잡혀도
+  발송 시점에 마감이 지났으면 `dropped`다. 마감 전에 나가면 그 말은 사실이다(남은 시간이 1분 미만이면 Edge 문구가
+  시간 문장을 뺀다).
+- 위의 "판정 중인 속도전 제출이 있는 참가자는 대상이다" 문단은 **더 성립하지 않는다**(마감 전 판정이 없다).
+- 구현: `supabase/migrations/20261124120000_deadline_reminders.sql`. `enqueue_notification`을 행마다 부르지 않고
+  같은 방식(on conflict do nothing + 예외를 `raise warning`으로 삼킴)을 집합 insert 한 문장에 옮겼다 — 그 함수는
+  void라 "새로 쌓은 수"를 셀 수 없다. 예외를 삼키는 이유는 원칙 2와 같다(같은 cron 명령의 `dispatch_notifications`가
+  막히면 N1~N5까지 그 tick에 못 나간다). 새 인덱스는 없다(`battles_deadline_at_idx`가 `where status = 'active'`
+  부분 인덱스로 이미 있다).
 
 ## 알림 문구
 
@@ -440,7 +475,7 @@ cron `notify-tick`(1분) → `enqueue_deadline_reminders()`(N6) → `dispatch_no
 | N3 | 상대가 사진을 냈다(**두 유형 공통**) | 상대 | `accept_submission` | **그 제출로 판정 창이 열린 경우**(N4'가 담는다), 교체 제출(dedup로 자동) |
 | N4' | **판정할 차례다** | 상대가 제출한 쪽 | `open_judging_window` | 판정할 증거가 없는 쪽(상대 미제출) |
 | N5 | 상대 탈퇴로 취소 | 남은 사람 | `delete_account` | 상대가 없는 `pending` 모집 |
-| N6 | 마감 임박 | 해당 참가자 | cron `notify-tick`(6단계) | 위 "N6" 절 그대로 |
+| N6 | 마감 임박 | 해당 참가자 | cron `notify-tick`(6단계) | 위 "N6" 절의 "6단계 추기"(2026-11-24에 문턱·대상 조건이 바뀌었다) |
 
 `record_speed_verdict`는 삭제된 함수라 더 부르지 않는다. 판정 창을 여는 지점은
 `open_judging_window` **하나뿐**이고(`accept_submission`의 양쪽 제출, `settle_expired_battles`의

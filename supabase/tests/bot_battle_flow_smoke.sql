@@ -104,6 +104,7 @@ declare
   v_limit_after_settle text := '(거부되지 않음)';
   v_lock_err text := '(거부되지 않음)';
   v_forfeit_err text := '(거부되지 않음)';
+  v_consent_settle text;
   v_ev_captured_null text := '(거부되지 않음)';
   v_ev_path_empty text := '(거부되지 않음)';
   v_ev_before_start text := '(거부되지 않음)';
@@ -509,8 +510,14 @@ begin
   update public.battle_submissions set submitted_at = now() - interval '1 minute'
   where battle_id = v_b_nc and user_id = v_bot;
 
+  -- ** 정산 호출을 jsonb_build_object 밖으로 뺀다. ** 같은 statement 안에 두면 아래 읽기들이
+  -- statement 시작 시점 스냅샷을 보아 정산 **전** 상태(outcome null, 점수 0)를 읽는다.
+  -- 2026-11-24 원격 첫 실행에서 consent_outcome·consent_stats 두 키가 정확히 그렇게 어긋났다 —
+  -- 제품이 아니라 테스트 버그였고(consent_settle은 'finished'로 통과했다) 이 파일에서 이 한 자리만
+  -- 그 모양이었다(나머지는 전부 변수로 먼저 받는다).
+  v_consent_settle := public.settle_bot_battle(v_b_nc);
   v_actual := v_actual || jsonb_build_object(
-    'consent_settle', public.settle_bot_battle(v_b_nc),
+    'consent_settle', v_consent_settle,
     'consent_rows', (select count(*)::text from public.ai_consents where user_id = v_b),
     'consent_outcome', (select concat_ws('/', outcome, score_delta_applied::text)
                         from public.battle_participants where battle_id = v_b_nc and user_id = v_b),

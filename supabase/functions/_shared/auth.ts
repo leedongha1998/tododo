@@ -27,3 +27,12 @@ export async function getUserId(req: Request): Promise<string | null> {
 export function serviceClient(): SupabaseClient {
   return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 }
+
+/// 호출자의 JWT 그대로 DB를 부르는 클라이언트. `auth.uid()`가 호출자가 되어야 하는 RPC
+/// (예: delete_account)를 Edge에서 대신 부를 때 쓴다 — service 롤로 부르면 uid가 null이다.
+export function userClient(authorization: string): SupabaseClient {
+  return createClient(SUPABASE_URL, ANON_KEY, {
+    global: { headers: { Authorization: authorization } },
+    auth: { persistSession: false },
+  });
+}

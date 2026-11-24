@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/push/push_service.dart';
@@ -66,34 +65,17 @@ class AuthRepository {
 
   /// 계정 삭제(탈퇴). 되돌릴 수 없다.
   ///
-  /// 증거 사진은 Storage API로 먼저 지운다 — storage.objects 행만 지우면 실제 파일이 버킷에
-  /// 남기 때문이다. 나머지 삭제는 delete_account RPC가 하고, 끝나면 로컬 세션을 정리한다.
+  /// Edge Function `delete-account`가 delete_account RPC와 증거 사진 정리를 함께 한다. 앱은
+  /// 증거 사진을 지울 수 없다 — "내 사진은 언제든 지울 수 있다"는 권한이 판정 중 사진 삭제로
+  /// 대결을 무효로 만드는 길을 열어 두었기 때문이다(2026-11-24 보안 점검 높음 2). 끝나면 로컬
+  /// 세션을 정리한다.
   Future<void> deleteAccount() async {
-    final userId = _client.auth.currentUser?.id;
-    if (userId == null) {
+    if (_client.auth.currentUser == null) {
       throw StateError('로그인 상태가 아닙니다.');
     }
 
-    try {
-      // 내 제출 행만 읽힌다(RLS). 경로가 null인 행은 이미 정리된 것이다.
-      final rows = await _client
-          .from('battle_submissions')
-          .select('object_path')
-          .eq('user_id', userId);
-      final paths = rows
-          .map((row) => row['object_path'] as String?)
-          .whereType<String>()
-          .toSet()
-          .toList();
-      if (paths.isNotEmpty) {
-        await _client.storage.from('battle_evidence').remove(paths);
-      }
-    } catch (error) {
-      // 사진 정리에 실패해도 계정 삭제까지 막지는 않는다. 참조는 RPC가 지운다.
-      debugPrint('evidence photo cleanup failed: $error');
-    }
+    await _client.functions.invoke('delete-account');
 
-    await _client.rpc('delete_account');
     // 탈퇴한 뒤 이 기기에 내 할 일 제목이 알림으로 뜨거나 홈 화면 위젯에 남아 있으면 안 된다
     // (signOut과 같은 이유). **이 경로는 signOut()을 거치지 않고** auth.signOut()을 직접 부르므로
     // 두 정리를 여기에 따로 적어야 한다.

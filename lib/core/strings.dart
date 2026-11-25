@@ -498,6 +498,9 @@ class AppStrings {
   }) =>
       '$month월 $day일 ${isAm ? '오전' : '오후'} $hour12:${minute.toString().padLeft(2, '0')}';
 
+  // 프로필 이름 아래, 이 계정의 로그인 수단(kakao-login design §1.2). 본인에게만 보인다.
+  static const loginMethodGoogle = '구글 계정으로 로그인했어요';
+  static const loginMethodKakao = '카카오 계정으로 로그인했어요';
   static const accountSection = '계정';
   static const openSourceLicenses = '오픈소스 라이선스';
   static const accountDelete = '계정 삭제';

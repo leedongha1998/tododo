@@ -10,6 +10,7 @@ import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../../auth/data/account_deletion_result.dart';
 import '../../auth/domain/auth_providers.dart';
+import '../../auth/domain/login_method.dart';
 import '../../battle/domain/battle_outcome.dart';
 import '../../notification/presentation/notification_bell.dart';
 import '../data/player_stats.dart';
@@ -33,6 +34,8 @@ class ProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(myProfileProvider);
     final statsAsync = ref.watch(myPlayerStatsProvider);
+    // 세션에서 읽으므로 프로필 조회가 로딩·실패여도 이 줄은 그대로다. 알 수 없으면 줄을 그리지 않는다.
+    final loginMethod = ref.watch(myLoginMethodProvider);
     // 무효는 점수에도 승/패/무에도 들어가지 않는다. 목록에 무효가 있을 때만 그 이유를 적는다.
     // 목록 자체는 지난 대결 화면으로 갔지만, 숫자가 어긋나 보이는 자리는 여전히 이 화면이다.
     final hasVoidedRecord =
@@ -63,6 +66,20 @@ class ProfileScreen extends ConsumerWidget {
               return const KeepWordsText(AppStrings.profileLoadFailed);
             },
           ),
+          // 계정을 잘못 골라 빈 목록을 보고 놀란 사람이 가장 먼저 읽는 곳이 이름이라 그 바로 아래에 둔다
+          // (kakao-login design §1.2, spec 사용자 스토리 4). 식별값(이메일·회원번호)은 보여 주지 않는다.
+          if (loginMethod != null) ...[
+            const SizedBox(height: 4),
+            KeepWordsText(
+              switch (loginMethod) {
+                LoginMethod.google => AppStrings.loginMethodGoogle,
+                LoginMethod.kakao => AppStrings.loginMethodKakao,
+              },
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           // 점수와 승/패/무는 서버 player_stats가 정답이다. 목록을 세어 만들지 않는다
           // (무효·취소는 서버가 애초에 세지 않고, 완료한 패배도 전적에서는 그냥 패다).

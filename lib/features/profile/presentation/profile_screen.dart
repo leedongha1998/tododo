@@ -8,6 +8,7 @@ import '../../../core/widgets/app_button_styles.dart';
 import '../../../core/widgets/app_loader.dart';
 import '../../../core/widgets/app_panel.dart';
 import '../../../core/widgets/keep_words_text.dart';
+import '../../auth/data/account_deletion_result.dart';
 import '../../auth/domain/auth_providers.dart';
 import '../../battle/domain/battle_outcome.dart';
 import '../../notification/presentation/notification_bell.dart';
@@ -194,10 +195,23 @@ class _DeleteAccountButtonState extends ConsumerState<_DeleteAccountButton> {
 
     setState(() => _isDeleting = true);
     try {
-      await ref.read(authRepositoryProvider).deleteAccount();
+      final result = await ref.read(authRepositoryProvider).deleteAccount();
       // AuthGate가 로그인 화면으로 바뀌므로 그 위에 쌓여 있던 화면을 걷어낸다.
       navigator.popUntil((route) => route.isFirst);
-      messenger.showSnackBar(const SnackBar(content: KeepWordsText(AppStrings.accountDeleteDone)));
+      // 카카오 연결 끊기 실패는 탈퇴 실패가 아니다 — 완료 토스트의 다른 판으로 직접 끊는 곳을 알린다.
+      // 실패 사유와 회원번호는 서버(delete-account) 로그에 남는다.
+      if (result == AccountDeletionResult.doneKakaoUnlinkFailed) {
+        debugPrint('deleteAccount: kakao unlink failed (account deleted)');
+      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: KeepWordsText(switch (result) {
+            AccountDeletionResult.done => AppStrings.accountDeleteDone,
+            AccountDeletionResult.doneKakaoUnlinkFailed =>
+              AppStrings.accountDeleteDoneKakaoUnlinkFailed,
+          }),
+        ),
+      );
     } catch (error) {
       debugPrint('deleteAccount error: $error');
       if (mounted) setState(() => _isDeleting = false);

@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_theme.dart';
 import 'package:todododo/core/widgets/app_button_styles.dart';
+import 'package:todododo/features/auth/data/account_deletion_result.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/battle/data/ai_consent.dart';
@@ -196,7 +197,7 @@ class _SignedInAuthRepository implements AuthRepository {
   Future<void> signOut() async {}
 
   @override
-  Future<void> deleteAccount() async {}
+  Future<AccountDeletionResult> deleteAccount() async => AccountDeletionResult.done;
 }
 
 /// VS 인트로가 참가 흐름 검증에 끼어들지 않게 이미 봤다고 답한다.

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show AuthState, User;
 
+import 'package:todododo/features/auth/data/account_deletion_result.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/battle/domain/battle_providers.dart';
@@ -244,5 +245,5 @@ class _SignedInAuthRepository implements AuthRepository {
   Future<void> signOut() async {}
 
   @override
-  Future<void> deleteAccount() async {}
+  Future<AccountDeletionResult> deleteAccount() async => AccountDeletionResult.done;
 }

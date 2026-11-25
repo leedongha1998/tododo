@@ -506,6 +506,10 @@ class AppStrings {
       '진행 중인 대결은 승자 없이 취소되고, 이미 끝난 대결 기록에는 "탈퇴한 사용자"로 남습니다.';
   static const accountDeleteConfirm = '삭제하기';
   static const accountDeleteDone = '계정을 삭제했습니다.';
+  // 탈퇴는 성공했고 카카오 연결 끊기만 실패한 경우(kakao-login design 흐름 5). 실패 토스트가 아니라
+  // 완료 토스트의 다른 판이다 — 사용자가 할 수 있는 일(직접 끊기)을 알린다.
+  static const accountDeleteDoneKakaoUnlinkFailed =
+      '계정을 삭제했습니다. 카카오 연결은 끊지 못했어요. 카카오 계정 설정의 연결된 서비스에서 직접 끊을 수 있어요.';
   static const accountDeleteFailed = '계정 삭제에 실패했습니다. 다시 시도해주세요.';
 
   // 홈 화면 위젯

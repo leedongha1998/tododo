@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/push/push_service.dart';
+import 'account_deletion_result.dart';
 
 /// AndroidManifest.xml의 login-callback intent-filter와 반드시 일치해야 한다.
 const _googleRedirectUrl = 'com.todododo.todododo://login-callback/';
@@ -69,12 +70,15 @@ class AuthRepository {
   /// 증거 사진을 지울 수 없다 — "내 사진은 언제든 지울 수 있다"는 권한이 판정 중 사진 삭제로
   /// 대결을 무효로 만드는 길을 열어 두었기 때문이다(2026-11-24 보안 점검 높음 2). 끝나면 로컬
   /// 세션을 정리한다.
-  Future<void> deleteAccount() async {
+  ///
+  /// 카카오 가입자면 Edge가 탈퇴 뒤 카카오 연결 끊기를 한 번 시도하고 그 결과를 응답에 싣는다
+  /// (kakao-login design 흐름 5). 끊기 실패는 탈퇴 실패가 아니므로 던지지 않고 결과로 돌려준다.
+  Future<AccountDeletionResult> deleteAccount() async {
     if (_client.auth.currentUser == null) {
       throw StateError('로그인 상태가 아닙니다.');
     }
 
-    await _client.functions.invoke('delete-account');
+    final response = await _client.functions.invoke('delete-account');
 
     // 탈퇴한 뒤 이 기기에 내 할 일 제목이 알림으로 뜨거나 홈 화면 위젯에 남아 있으면 안 된다
     // (signOut과 같은 이유). **이 경로는 signOut()을 거치지 않고** auth.signOut()을 직접 부르므로
@@ -82,5 +86,6 @@ class AuthRepository {
     await _cancelDeviceAlarms();
     await _clearWidgetCache();
     await _client.auth.signOut();
+    return accountDeletionResultFrom(response.data);
   }
 }

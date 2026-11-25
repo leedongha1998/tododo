@@ -10,6 +10,7 @@ import 'package:todododo/core/strings.dart';
 import 'package:todododo/core/theme/app_icons.dart';
 import 'package:todododo/core/theme/app_palette.dart';
 import 'package:todododo/core/theme/app_theme.dart';
+import 'package:todododo/features/auth/data/account_deletion_result.dart';
 import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/auth/presentation/login_screen.dart';
@@ -174,6 +175,10 @@ class _FakeBattleRepository implements BattleRepository {
 }
 
 class _FakeAuthRepository implements AuthRepository {
+  _FakeAuthRepository({this.deleteResult = AccountDeletionResult.done});
+
+  /// 탈퇴 응답에서 읽은 결과. 카카오 연결 끊기 실패를 흉내 낼 때 바꾼다.
+  final AccountDeletionResult deleteResult;
   int deleteAccountCount = 0;
 
   @override
@@ -189,8 +194,9 @@ class _FakeAuthRepository implements AuthRepository {
   Future<void> signOut() async {}
 
   @override
-  Future<void> deleteAccount() async {
+  Future<AccountDeletionResult> deleteAccount() async {
     deleteAccountCount++;
+    return deleteResult;
   }
 }
 
@@ -1033,6 +1039,44 @@ void main() {
     expect(authRepository.deleteAccountCount, 1);
     expect(findText(AppStrings.accountDeleteDone), findsOneWidget);
     await tester.pump(const Duration(seconds: 5)); // 스낵바 타이머 소진
+  });
+
+  testWidgets('카카오 연결 끊기만 실패하면 완료 토스트가 직접 끊는 곳을 알린다', (WidgetTester tester) async {
+    final authRepository = _FakeAuthRepository(
+      deleteResult: AccountDeletionResult.doneKakaoUnlinkFailed,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...notificationOverrides,
+          authRepositoryProvider.overrideWithValue(authRepository),
+          myAiConsentProvider.overrideWith((ref) async => null),
+          myProfileProvider.overrideWith((ref) async => const Profile(id: 'me', displayName: '나')),
+          myPlayerStatsProvider.overrideWith((ref) async => _testStats),
+          battleRecordsProvider.overrideWith((ref) async => <BattleRecord>[]),
+          ...pushOverrides(),
+        ],
+        child: const MaterialApp(home: ProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final button = findText(AppStrings.accountDelete);
+    await tester.scrollUntilVisible(button, 200);
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    await tester.tap(findText(AppStrings.accountDeleteConfirm));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500)); // 스낵바 등장
+
+    // 탈퇴 자체는 성공이므로 실패 토스트가 아니다.
+    expect(authRepository.deleteAccountCount, 1);
+    expect(findText(AppStrings.accountDeleteDoneKakaoUnlinkFailed), findsOneWidget);
+    expect(findText(AppStrings.accountDeleteFailed), findsNothing);
+    await tester.pump(const Duration(seconds: 10)); // 스낵바 타이머 소진
   });
   testWidgets('매칭된 대결에 처음 들어가면 VS 인트로가 뜨고, 다시 들어가면 뜨지 않는다', (WidgetTester tester) async {
     final store = _MemorySeenStore();

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show AuthState;
 
 import '../../../core/strings.dart';
 import '../../../core/theme/app_mark.dart';
@@ -7,6 +8,7 @@ import '../../../core/theme/app_palette.dart';
 import '../../../core/theme/depth_border.dart';
 import '../../../core/widgets/keep_words_text.dart';
 import '../domain/auth_providers.dart';
+import '../domain/sign_in_failure.dart';
 
 /// 로그인(redesign design 9.4). 구성(마크 + 앱 이름 + 구글 로그인)과 동작은 그대로다.
 /// 반복 움직임이 없다(옛 ▶ 깜빡이는 커서는 오너 결정 4로 없앴다).
@@ -26,9 +28,32 @@ class LoginScreen extends ConsumerWidget {
     }
   }
 
+  /// 브라우저에서 돌아온 **뒤의** 실패(kakao-login design 흐름 2, 오너 확정 1번 — 구글·카카오 공통).
+  ///
+  /// 위 `_signIn`의 토스트는 브라우저를 띄우지 못했을 때만 뜬다. 돌아온 딥링크의 오류(코드 교환 실패·
+  /// 네트워크 등)는 `authStateProvider`에 오류로 들어오고, 예전에는 `AuthGate`가 `debugPrint`만 남겨
+  /// 사용자는 아무 말 없이 로그인 화면에 남았다. 취소·동의 거부는 사용자가 한 일이라 알리지 않는다.
+  ///
+  /// 이 화면은 `AuthGate`의 data(세션 없음)·error 두 갈래에서 같은 자리·같은 타입이라 같은 element로
+  /// 남으므로, 여기서 듣는 리스너가 오류 전이를 받는다.
+  void _onAuthStateChanged(BuildContext context, AsyncValue<AuthState> next) {
+    if (next.isLoading) return;
+    final error = next.error;
+    if (error == null) return;
+    if (isOAuthCancellation(error)) {
+      debugPrint('signIn cancelled by user: $error');
+      return;
+    }
+    debugPrint('signIn callback failed: $error');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: KeepWordsText(AppStrings.signInFailed)),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final title = Theme.of(context).textTheme.displayMedium!;
+    ref.listen(authStateProvider, (previous, next) => _onAuthStateChanged(context, next));
 
     return Scaffold(
       body: SafeArea(

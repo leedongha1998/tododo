@@ -136,21 +136,28 @@ class _AuthGateState extends ConsumerState<AuthGate> {
     // 비우면 홈 화면에서 지난 목록이 사라진다(그게 네트워크가 없을 때 유일하게 보여 줄 것이다).
     ref.listen(authStateProvider, (previous, next) {
       if (next.isLoading) return;
+      // 아래 `when`이 `skipError`로 직전 화면을 지키므로 오류가 화면에 드러나지 않을 수 있다 — 로그는
+      // 여기서 남긴다(로그아웃 상태에서 돌아온 로그인 오류는 LoginScreen이 토스트로도 알린다).
+      if (next.hasError) debugPrint('authStateProvider error: ${next.error}');
       // AsyncError는 직전 값을 들고 있다. 스트림 자체가 실패한 것은 로그아웃이 아니므로, 직전에
       // 세션이 있었으면 그대로 둔다(세션이 없었던 경우만 아래로 떨어진다).
       if (next.value?.session != null) return;
       unawaited(ref.read(todoWidgetServiceProvider).publishLoggedOut());
     });
 
+    // `skipError: true` — 오류가 와도 **직전 상태가 있으면 그 화면을 지킨다**(kakao-login design 흐름 2).
+    // 로그인한 사용자의 토큰 갱신이 네트워크 때문에 실패해도(gotrue가 스트림에 오류를 흘린다) 세션은
+    // 그대로이므로 본 화면에서 쫓아내지 않는다(위 리스너의 "스트림 실패는 로그아웃이 아니다"와 같은 판단).
+    // 로그아웃 상태에서 돌아온 로그인 오류(카카오 취소 등)는 직전 상태의 세션이 없으므로 그대로
+    // LoginScreen이고, 같은 element라 그 화면의 리스너가 오류 전이를 받는다. 직전 상태가 없는 첫 오류만
+    // error 갈래로 간다.
     return authState.when(
+      skipError: true,
       data: (state) {
         return state.session == null ? const LoginScreen() : const MainShell();
       },
       loading: () => const Scaffold(body: Center(child: AppLoader.medium())),
-      error: (error, stackTrace) {
-        debugPrint('authStateProvider error: $error');
-        return const LoginScreen();
-      },
+      error: (error, stackTrace) => const LoginScreen(),
     );
   }
 }

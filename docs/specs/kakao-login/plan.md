@@ -40,8 +40,34 @@ CLAUDE.md 도메인 규칙·코딩 규칙, dev-standards, spec.md, design.md를 
 | 3 | **표시 이름 마이그레이션**: `kakao_display_name(jsonb, text)`, `is_kakao_signup(jsonb, jsonb)`(둘 다 immutable SQL, EXECUTE 전부 회수), `handle_new_user()` 교체(Google 식 그대로, 카카오면 헬퍼, 결과가 null이면 기본 이름 `이름 없는 도전자`). 기본 이름 문자열은 헬퍼 한 자리에만 둔다(트리거는 `kakao_display_name(null, null)`로 받는다). 예약 이름(`연습 봇`·`탈퇴한 사용자`)과 같으면 기본 이름(오너 확정 2번, 카카오에만). 스모크 SQL(design §8.1의 H1~H10, K1~K4, T1~T8) | `supabase/migrations/20261125120000_kakao_login.sql`, `supabase/tests/kakao_signup_smoke.sql` | feat |
 | 4 | **Edge `delete-account` 카카오 연결 끊기**: 순수 함수 `kakaoTargetId`/`buildUnlinkRequest`/`interpretUnlinkResponse`/`unlinkKakaoUser` + deno 테스트, `_shared/auth.ts`에 사용자 레코드를 받는 `getUser` 추가(기존 `getUserId` 불변), `delete_account` **전에** 회원번호 추출·**뒤에** 끊기 1회(5초), 응답에 `kakaoUnlink` | `supabase/functions/_shared/kakao_unlink.ts`, `kakao_unlink_test.ts`, `_shared/auth.ts`, `delete-account/index.ts` | feat |
 | 5 | **앱의 탈퇴 응답 처리**: `accountDeletionResultFrom(data)` → `done`/`doneKakaoUnlinkFailed`(모양이 다르면 `done` — 구버전 Edge와도 맞는다), `AuthRepository.deleteAccount()`가 그 결과를 돌려줌, 프로필이 `accountDeleteDoneKakaoUnlinkFailed` 토스트 | `lib/features/auth/data/account_deletion_result.dart`, `auth_repository.dart`, `profile_screen.dart`, `strings.dart`, 테스트 | feat |
-| 6 | **로그인 실패 분류**(오너 확정 1번 — 두 공급자 공통): `isOAuthCancellation(error)` 순수 함수, `LoginScreen`이 `authStateProvider`의 오류 전이를 듣고 취소면 `debugPrint`만, 그 밖은 `signInFailed` 토스트. 구글 버튼·호출(`prompt=select_account`)은 한 글자도 안 바꿈 | `lib/features/auth/domain/sign_in_failure.dart`, `login_screen.dart`, 테스트 | feat |
+| 6 | **로그인 실패 분류**(오너 확정 1번 — 두 공급자 공통): `isOAuthCancellation(error)` 순수 함수, `LoginScreen`이 `authStateProvider`의 오류 전이를 듣고 취소면 `debugPrint`만, 그 밖은 `signInFailed` 토스트. 구글 버튼·호출(`prompt=select_account`)은 한 글자도 안 바꿈. **+ `authStateProvider` 자동 재시도 끔, `AuthGate`의 `when(skipError: true)`** — 아래 "구현 중 바꾼 것" 참고 | `lib/features/auth/domain/sign_in_failure.dart`, `auth_providers.dart`, `auth_gate.dart`, `login_screen.dart`, 테스트 | feat |
 | 7 | **프로필 로그인 수단 한 줄**: `loginMethodFrom(appMetadata)` 순수 함수, `myLoginMethodProvider`(세션의 `app_metadata`를 `authStateProvider`에서 읽는다 — 서버 왕복 없음), 이름 바로 아래 `bodySmall`·`onSurfaceVariant`, 알 수 없으면 줄 없음 | `lib/features/auth/domain/login_method.dart`, `auth_providers.dart`, `profile_screen.dart`, `strings.dart`, 테스트 | feat |
+
+### 구현 중 바꾼 것 — design 흐름 2의 전제가 지금 코드에서 성립하지 않았다 (6번)
+
+design 흐름 2는 "돌아온 로그인 오류 → `authStateProvider` = `AsyncError` → `AuthGate` error 갈래 → 같은 element의
+`LoginScreen`"을 전제했다(그래서 "AuthGate는 지금 그대로"). 패키지 소스(riverpod 3.4.2, gotrue 2.27.2)를 읽어 보니
+그렇게 흐르지 않는다.
+
+1. gotrue의 `onAuthStateChange`는 **ReplaySubject**라 새로 듣는 쪽에 지난 이벤트·오류를 전부 다시 내준다.
+2. Riverpod 3은 provider 오류를 **기본으로 재시도**한다(Exception이면 200ms부터 최대 10번). 스트림 오류도 같은 경로다.
+   재시도 중 상태는 `AsyncError`가 아니라 **오류를 든 `AsyncLoading`**이고, `when`은 그것을 로딩으로 그린다.
+3. 합치면: 카카오 취소 한 번에 `AuthGate`가 로딩 화면 ↔ (재생된 과거 이벤트로) 로그인 화면을 번갈아 그리며 같은 오류를
+   10번 재생한다(약 40초). 로그인 화면이 그때마다 새로 붙어 리스너가 오류를 받지도 못한다. 구글도 같다(지금은 브라우저를
+   닫으면 오류가 오지 않아 드러나지 않았을 뿐). 로그인한 사용자의 토큰 갱신이 네트워크로 실패해도(gotrue가 스트림에 오류를
+   흘린다) 본 화면이 같은 식으로 로딩에 갇힌다.
+
+그래서 두 줄을 더했다.
+- `authStateProvider`에 `retry: (_, _) => null` — 재시도가 같은 오류를 다시 재생할 뿐이라 얻는 것이 없다. 오류 뒤에도 스트림
+  구독은 이어지므로 다음 로그인 이벤트는 그대로 들어온다.
+- `AuthGate`의 `when(skipError: true)` — 오류가 와도 **직전 값이 있으면 그 화면을 지킨다.** 로그아웃 상태의 오류는 직전 값의
+  세션이 없어 그대로 `LoginScreen`(같은 element라 리스너가 받는다), 로그인 상태의 토큰 갱신 오류는 `MainShell`을 지킨다(기존
+  `AuthGate` 리스너 주석의 "스트림 실패는 로그아웃이 아니다"와 같은 판단). 직전 값이 없는 첫 오류만 error 갈래(`LoginScreen`).
+  오류 로그는 `AuthGate`의 리스너로 옮겼다(화면에 드러나지 않는 오류도 남게).
+
+reviewer가 봐 줄 것: 이 둘은 Google 로그인의 **로그인 흐름**(계정 선택·이름 규칙·버튼)을 바꾸지 않지만, 인증 스트림 오류 때의
+**화면 전이**를 바꾼다(로딩 반복 → 직전 화면 유지). 합격선 4("Google 로그인 동작이 한 글자도 바뀌지 않는다")의 대상은 로그인
+흐름이라고 읽었다. 오너 확정 1번(오류 토스트를 두 공급자에 똑같이)이 이 변경 없이는 동작하지 않는다.
 
 ### 1차분에서 design과 표현이 다른 곳 (판단 근거)
 - **로그인 수단을 `authStateProvider`의 세션에서 읽는다**(design 흐름 3은 `ref.read(authRepositoryProvider).currentUser`).
@@ -120,18 +146,31 @@ design §6을 그대로 옮긴다. 문구는 오너 승인 사항.
 
 ---
 
-## 검증 기록 (1차분)
+## 검증 기록 (1차분, 2026-11-25)
 
-이 컨테이너에는 Flutter·Supabase CLI·Postgres가 없다. Deno는 npm 패키지(`deno` 2.9.6)로 설치했다.
+이 컨테이너에는 Flutter·Supabase CLI·Postgres가 없다. Deno는 npm 패키지(`deno` 2.9.6 — 이 프로젝트 Windows 머신과 같은
+판)로 설치했다. 이 컨테이너의 프록시가 `deno.land`·`esm.sh`를 막아, **저장소 밖 임시 import map**으로 같은 판을 대신
+불러왔다(`deno.land/std@0.224.0/assert` → `jsr:@std/assert@1`, `deno.land/std@0.224.0/encoding/base64` →
+`jsr:@std/encoding@1/base64`, `esm.sh/@supabase/supabase-js@2.45.4` → `npm:@supabase/supabase-js@2.45.4`). 저장소의 import는
+바꾸지 않았다 — Windows 머신에서는 원래 명령 그대로 돈다.
 
 | 검사 | 결과 |
 |---|---|
-| `deno test supabase/functions/_shared/` | 아래 "실행 결과" 참고 |
-| `deno check supabase/functions/delete-account/index.ts` | 아래 참고 |
-| 마이그레이션·스모크 SQL | 아래 참고 |
-| `flutter analyze` / `flutter test` | **미실행**(Flutter 없음). 오너/다음 세션이 돌린다 |
+| `deno test supabase/functions/_shared/` (import map) | 변경 전 71 passed → 변경 후 **88 passed / 0 failed** (새 `kakao_unlink_test.ts` 17개) |
+| `deno check supabase/functions/*/index.ts` (import map) | 다섯 함수 모두 통과(`_shared/auth.ts`의 `getUserId`를 `getUser` 위로 옮긴 영향 포함) |
+| `deno lint` (새·바뀐 TS 4개) | 문제 없음 |
+| 마이그레이션 + `kakao_signup_smoke.sql` | **PGlite(PostgreSQL 19 wasm)**에 최소 스키마(auth.users·profiles·player_stats·anon/authenticated 롤 + 기존 `handle_new_user` 트리거)를 만들고 돌렸다. 기존 함수로 "이름·이메일 없는 카카오 가입"이 `display_name` not null 위반으로 **실패하는 것을 재현** → 마이그레이션 적용 → 스모크 `SMOKE RESULT ok=t`(H·K·T·권한 39항목) → 마이그레이션 재적용 성공. 기대값 하나를 일부러 틀리게 바꾸면 `ok=f FAILURES: T1 ...`로 잡힌다. **Supabase 원격(PG 15·실제 auth 스키마)에서는 미실행** — 오너가 2차분 2번에서 돌린다 |
+| `flutter analyze` / `flutter test` | **미실행**(Flutter 없음). 새·바뀐 Dart 테스트: `test/features/todo/todos_account_switch_test.dart`(신규), `test/features/auth/{login_screen_test,domain/sign_in_failure_test,domain/login_method_test,data/account_deletion_result_test}.dart`(신규), `test/widget_test.dart`(카카오 끊기 실패 토스트 1개 추가, 재로그인 보정 테스트 구독 보정, 가짜 `deleteAccount` 반환형), `test/features/todo/todo_widget_settler_test.dart`(구독 보정), 가짜 `AuthRepository.deleteAccount` 반환형 7곳 |
+| P0-5 회귀 테스트가 **수정 전 코드에서 실패**하는지 | **미실행.** 확인 방법: `todo_providers.dart`에서 `FutureProvider.autoDispose`를 `FutureProvider`로만 되돌리고 `flutter test test/features/todo/todos_account_switch_test.dart` → 첫 테스트가 `seen.first.isLoading` 기대에서 실패해야 한다 |
 
-실행 결과는 1차분 마지막 커밋에서 채운다.
+### 실행하지 못한 검사와 그 위험
+- Dart 코드는 컴파일·분석을 한 번도 거치지 않았다. 패키지 소스(riverpod 3.4.2·gotrue 2.27.2·supabase_flutter 2.17.2)를 직접
+  읽어 API 모양(`FutureProvider.autoDispose`가 같은 `FutureProvider` 타입이라 기존 `overrideWith`가 그대로 맞음, `StreamProvider`의
+  `retry` 인자, `AsyncValue.when`의 `skipError`, `Session`·`User` 생성자, `AuthException.code`)은 맞춰 두었다.
+- 기존 위젯 테스트 중 `authRepositoryProvider`를 덮어쓰지 않고 `LoginScreen`·`ProfileScreen`·`MainShell`을 띄우는 것들은 이제
+  `authStateProvider`를 듣는다. Supabase 미초기화로 레포지토리 생성이 `AssertionError`를 던지면 `StreamProvider`가
+  `AsyncError`로 담고(Error는 재시도 대상이 아니다) 리스너는 첫 상태에 불리지 않으므로 화면·토스트에 영향이 없다고 판단했다.
+  `flutter test`가 이 판단을 확인해야 한다.
 
 ---
 

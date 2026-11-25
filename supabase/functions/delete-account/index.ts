@@ -26,7 +26,7 @@
 import { getUser, serviceClient, userClient } from '../_shared/auth.ts';
 import { errorResponse, jsonResponse } from '../_shared/errors.ts';
 import { removeUserEvidence, supabaseEvidenceStore } from '../_shared/evidence_storage.ts';
-import { unlinkAfterDeletion } from '../_shared/kakao_unlink.ts';
+import { type KakaoUnlinkStatus, unlinkAfterDeletion } from '../_shared/kakao_unlink.ts';
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') {
@@ -69,11 +69,19 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   // 관문이 아니다 — 무엇이 돌아오든 탈퇴는 이미 끝났다. 실패 로그는 unlinkAfterDeletion이 남긴다.
-  const kakaoUnlink = await unlinkAfterDeletion(
-    user,
-    fetch,
-    Deno.env.get('KAKAO_ADMIN_KEY') ?? '',
-  );
+  // 뜻밖의 예외도 여기서 막는다: 500이 나가면 앱이 이미 끝난 탈퇴를 실패로 읽고 로그아웃을 건너뛴다.
+  let kakaoUnlink: KakaoUnlinkStatus = 'failed';
+  try {
+    kakaoUnlink = await unlinkAfterDeletion(
+      user,
+      fetch,
+      Deno.env.get('KAKAO_ADMIN_KEY') ?? '',
+    );
+  } catch (error) {
+    console.error(
+      `delete-account: 카카오 연결 끊기 예외 (${error instanceof Error ? error.name : typeof error})`,
+    );
+  }
 
   return jsonResponse({ deleted: true, kakaoUnlink });
 });

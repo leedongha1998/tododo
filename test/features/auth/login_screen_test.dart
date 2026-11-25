@@ -4,12 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:todododo/core/navigation/main_shell.dart';
 import 'package:todododo/core/strings.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/auth/presentation/auth_gate.dart';
 import 'package:todododo/features/auth/presentation/login_screen.dart';
+import 'package:todododo/features/battle/data/battle_repository.dart';
+import 'package:todododo/features/battle/data/criteria_check_result.dart';
+import 'package:todododo/features/battle/data/open_recruit_page.dart';
+import 'package:todododo/features/battle/data/profile.dart';
+import 'package:todododo/features/battle/domain/ai_consent_providers.dart';
+import 'package:todododo/features/battle/domain/battle_providers.dart';
+import 'package:todododo/features/profile/data/player_stats.dart';
+import 'package:todododo/features/profile/domain/profile_providers.dart';
+import 'package:todododo/features/todo/domain/todo_providers.dart';
 
 import '../../helpers/text_finders.dart';
+import '../../core/push/push_fakes.dart';
+import '../notification/notification_fakes.dart';
+import '../todo/due_alarm_fakes.dart';
 import '../todo/todo_widget_fakes.dart';
 
 /// 브라우저에서 돌아온 뒤의 로그인 실패(kakao-login design 흐름 2, 오너 확정 1번 — 구글·카카오 공통).
@@ -94,6 +107,56 @@ void main() {
     });
   });
 
+  // 재시도 끄기와 `AuthGate`의 `skipError`를 고정한다(plan "구현 중 바꾼 것"). 로그인한 사용자의 토큰 갱신이
+  // 네트워크로 실패해도(gotrue가 스트림에 오류를 흘린다) 본 화면에서 쫓겨나지 않고, 그 뒤 진짜 로그아웃은
+  // 그대로 로그인 화면으로 간다. 본 화면은 `widget_test.dart`의 `_pumpMainShellForWidgetCache`와 같은
+  // 방식으로 서버를 보지 않게 고정한다.
+  testWidgets('로그인한 동안 인증 스트림 오류가 와도 본 화면을 지키고, 로그아웃하면 로그인 화면으로 간다', (
+    WidgetTester tester,
+  ) async {
+    final auth = StreamController<AuthState>();
+    addTearDown(auth.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ...notificationOverrides,
+          ...pushOverrides(),
+          ...todoWidgetOverrides(host: FakeTodoWidgetHost()),
+          ...dueAlarmOverrides(),
+          authStateProvider.overrideWith((ref) => auth.stream),
+          todosProvider.overrideWith((ref) async => []),
+          myBattlesProvider.overrideWith((ref) async => []),
+          myRecruitsProvider.overrideWith((ref) async => []),
+          battleRepositoryProvider.overrideWithValue(_QuietBattleRepository()),
+          myAiConsentProvider.overrideWith((ref) async => null),
+          myProfileProvider.overrideWith(
+            (ref) async => const Profile(id: 'me', displayName: '나'),
+          ),
+          myPlayerStatsProvider.overrideWith((ref) async => PlayerStats.empty),
+          battleRecordsProvider.overrideWith((ref) async => []),
+        ],
+        child: const MaterialApp(home: AuthGate()),
+      ),
+    );
+
+    auth.add(AuthState(AuthChangeEvent.signedIn, _session()));
+    await tester.pumpAndSettle();
+    expect(find.byType(MainShell), findsOneWidget);
+
+    // 토큰 갱신 실패 같은 스트림 오류. 재시도 로딩으로 바뀌지도, 로그인 화면으로 쫓겨나지도 않는다.
+    auth.addError(const AuthException('x'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(MainShell), findsOneWidget);
+    expect(find.byType(LoginScreen), findsNothing);
+
+    // 오류 뒤에도 스트림 구독은 이어진다 — 진짜 로그아웃은 그대로 로그인 화면이다.
+    auth.add(AuthState(AuthChangeEvent.signedOut, null));
+    await tester.pumpAndSettle();
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(MainShell), findsNothing);
+  });
+
   testWidgets('로그아웃 이벤트는 실패가 아니다', (WidgetTester tester) async {
     final auth = await pumpLogin(tester);
 
@@ -103,4 +166,38 @@ void main() {
 
     expect(find.byType(SnackBar), findsNothing);
   });
+}
+
+Session _session() {
+  return Session(
+    accessToken: 'test-access-token',
+    tokenType: 'bearer',
+    user: const User(
+      id: 'me',
+      appMetadata: {'provider': 'google'},
+      userMetadata: {},
+      aud: 'authenticated',
+      createdAt: '2026-11-25T00:00:00Z',
+    ),
+  );
+}
+
+/// 본 화면의 모집 탭이 서버를 보지 않게 하는 가짜(`notification_tap_test.dart`의 것과 같은 범위).
+class _QuietBattleRepository implements BattleRepository {
+  @override
+  Future<OpenRecruitPage> fetchOpenRecruits({
+    int limit = openRecruitPageSize,
+    RecruitCursor? cursor,
+    String? query,
+    String? type,
+    String? durationBand,
+  }) async =>
+      const OpenRecruitPage(items: [], nextCursor: null, hasMore: false);
+
+  @override
+  Future<MyLimits> fetchMyLimits() async =>
+      const MyLimits(consented: true, criteriaCallsLeft: 10);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

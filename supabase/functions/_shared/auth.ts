@@ -3,7 +3,7 @@
 // 클라이언트가 보낸 user id를 믿지 않는다. Authorization 헤더의 JWT로 확인한 id만 DB 함수에 넘긴다.
 // service 전용 DB 함수는 service_role 키로만 부른다(앱에는 EXECUTE 권한이 없다).
 
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
+import { createClient, SupabaseClient, type User } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -11,6 +11,13 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
 /// JWT로 확인한 호출자 id. 없거나 틀리면 null.
 export async function getUserId(req: Request): Promise<string | null> {
+  return (await getUser(req))?.id ?? null;
+}
+
+/// JWT로 확인한 호출자의 **사용자 레코드 전체**(identities·app_metadata 포함). 없거나 틀리면 null.
+/// delete-account가 탈퇴 **전에** 카카오 회원번호를 읽는 데 쓴다 — delete_account가 auth.users를
+/// 지우면 auth.identities도 함께 사라진다(kakao-login design §4.2).
+export async function getUser(req: Request): Promise<User | null> {
   const authorization = req.headers.get('Authorization');
   if (!authorization) return null;
 
@@ -21,7 +28,7 @@ export async function getUserId(req: Request): Promise<string | null> {
 
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) return null;
-  return data.user.id;
+  return data.user;
 }
 
 export function serviceClient(): SupabaseClient {

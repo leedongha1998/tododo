@@ -14,10 +14,19 @@
 //      사진을 지워야, "사진은 사라졌는데 대결은 아직 판정 중"인 틈이 생기지 않는다.
 //      실패하면 아무것도 지우지 않고 오류를 돌려준다(앱이 토스트로 알린다).
 //   4. 사진을 지운다. 실패해도 탈퇴는 이미 끝났으므로 로그만 남긴다(예전 앱 쪽 처리와 같은 태도).
+//   5. 카카오 가입자면 이 앱과 카카오 계정의 연결을 한 번 끊는다(kakao-login design §4). 회원번호는
+//      1번에서 받은 사용자 레코드에서 뽑는다 — delete_account가 auth.users를 지우면 identities도
+//      사라지므로 **그 전에** 받아 두어야 한다. 끊기는 탈퇴 **뒤에** 한다 — 탈퇴가 실패했는데 연결만
+//      끊긴 어정쩡한 상태를 만들지 않는다. 실패해도 탈퇴는 되돌리지 않고 로그(회원번호 포함, 키는
+//      없음)만 남기며, 앱은 응답의 kakaoUnlink를 보고 "직접 끊을 수 있어요"를 알린다.
+//
+// 응답(성공): { deleted: true, kakaoUnlink: 'done' | 'failed' | 'notKakao' }
+// 시크릿: KAKAO_ADMIN_KEY(계정 소유자가 `supabase secrets set`으로만 넣는다. 코드·로그에 남기지 않는다)
 
-import { getUserId, serviceClient, userClient } from '../_shared/auth.ts';
+import { getUser, serviceClient, userClient } from '../_shared/auth.ts';
 import { errorResponse, jsonResponse } from '../_shared/errors.ts';
 import { removeUserEvidence, supabaseEvidenceStore } from '../_shared/evidence_storage.ts';
+import { unlinkAfterDeletion } from '../_shared/kakao_unlink.ts';
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== 'POST') {
@@ -25,10 +34,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   const authorization = req.headers.get('Authorization');
-  const userId = await getUserId(req);
-  if (!userId || !authorization) {
+  // 사용자 레코드 전체를 받는다 — 카카오 회원번호(identities)는 delete_account 뒤에는 읽을 수 없다.
+  const user = await getUser(req);
+  if (!user || !authorization) {
     return errorResponse('UNAUTHORIZED');
   }
+  const userId = user.id;
 
   const supabase = serviceClient();
 
@@ -57,5 +68,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     console.error(`delete-account: 사진 폴더 ${failedFolders}개를 지우지 못했습니다.`);
   }
 
-  return jsonResponse({ deleted: true });
+  // 관문이 아니다 — 무엇이 돌아오든 탈퇴는 이미 끝났다. 실패 로그는 unlinkAfterDeletion이 남긴다.
+  const kakaoUnlink = await unlinkAfterDeletion(
+    user,
+    fetch,
+    Deno.env.get('KAKAO_ADMIN_KEY') ?? '',
+  );
+
+  return jsonResponse({ deleted: true, kakaoUnlink });
 });

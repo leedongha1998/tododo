@@ -51,7 +51,10 @@ void main() {
 
   test('세 줄 중 하나가 실패하면 발행이 한 번이고 실패 줄이 앞에 온다', () async {
     final fixture = setUp(todos: todos, failingId: '2');
-    // 목록이 이미 손에 있는 상태(= 앱이 떠 있고 할 일 탭을 지났다).
+    // 목록이 이미 손에 있는 상태(= 앱이 떠 있고 할 일 탭을 지났다). 앱에서는 `MainShell`이 늘
+    // 구독하고 있으므로 여기서도 구독을 쥔다 — todosProvider는 autoDispose라 구독자가 없으면 버려진다.
+    final shell = fixture.container.listen(todosProvider, (_, _) {});
+    addTearDown(shell.close);
     await fixture.container.read(todosProvider.future);
 
     final outcome = await fixture.container

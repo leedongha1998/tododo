@@ -1379,9 +1379,10 @@ void main() {
       tester,
       host: FakeTodoWidgetHost(),
       dueAlarmHost: alarms,
-      // 로그아웃 뒤에도 todosProvider는 살아 있다(autoDispose가 아니다). 그 상태에서 셸이 다시
-      // 뜨면 ref.listen이 한 번도 울리지 않아, 보정이 셸 시작에 한 번 더 없으면 재로그인한
-      // 사용자는 할 일을 건드릴 때까지 알림이 하나도 없다.
+      // 셸이 뜨는 순간 todosProvider가 이미 data이면 ref.listen이 한 번도 울리지 않는다. 그때도
+      // 셸 시작의 보정이 예약을 맞춘다. (todosProvider가 autoDispose가 된 뒤로 로그아웃·재로그인은
+      // 이 경로를 지나지 않는다 — 셸과 함께 값이 버려진다. 그래도 어느 쪽 경로든 예약이 한 번은
+      // 맞춰져야 한다는 사실을 고정한다.)
       preloadTodos: true,
       todos: [
         Todo(
@@ -1435,9 +1436,11 @@ Future<void> _pumpMainShellForWidgetCache(
     retry: (retryCount, error) => null,
   );
   addTearDown(container.dispose);
-  // 셸이 뜨기 **전에** 목록을 이미 받아 둔 상태(= 같은 프로세스에서 재로그인). 그러면 아래
-  // ref.listen은 한 번도 울리지 않는다 — 이미 data인 FutureProvider에 listen을 새로 붙이면
-  // 콜백이 불리지 않기 때문이다.
+  // 셸이 뜨기 **전에** 목록을 이미 받아 둔 상태. 그러면 아래 ref.listen은 한 번도 울리지 않을 수
+  // 있다 — 이미 data인 FutureProvider에 listen을 새로 붙이면 콜백이 불리지 않기 때문이다.
+  // todosProvider는 autoDispose라 구독자가 없으면 다음 틱에 버려지므로, 셸이 붙을 때까지 구독을
+  // 하나 쥐고 있는다(셸이 뜬 뒤 놓는다).
+  final preload = preloadTodos ? container.listen(todosProvider, (_, _) {}) : null;
   if (preloadTodos) await container.read(todosProvider.future);
 
   await tester.pumpWidget(
@@ -1446,5 +1449,6 @@ Future<void> _pumpMainShellForWidgetCache(
       child: const MaterialApp(home: MainShell()),
     ),
   );
+  preload?.close();
   await tester.pumpAndSettle();
 }

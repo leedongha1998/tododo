@@ -76,16 +76,15 @@ class _MainShellState extends ConsumerState<MainShell> {
   /// `main.dart`가 아니라 여기인 이유는 위젯 캐시와 같다 — 알림이 뜻을 갖는 것은 로그인 뒤이고,
   /// 셸은 세션이 있을 때만 떠 있다.
   ///
-  /// 마지막 한 번이 필요한 이유: 아래 `ref.listen`은 `fireImmediately`가 아니고, `todosProvider`는
-  /// autoDispose가 아니라 **로그아웃 뒤에도 값이 살아 있다.** 이미 data인 provider에 listen을
-  /// 새로 붙이면 콜백이 한 번도 불리지 않으므로, 같은 프로세스에서 재로그인하면 할 일을 건드릴
-  /// 때까지 예약이 비어 있게 된다(투두 화면에는 당겨서 새로고침도 없다).
+  /// 마지막 한 번이 남아 있는 이유: 아래 `ref.listen`은 `fireImmediately`가 아니라, 셸이 뜨는
+  /// 순간 `todosProvider`가 **이미 data**이면 콜백이 한 번도 불리지 않는다. `todosProvider`가
+  /// autoDispose가 된 뒤(kakao-login P0-5)로는 로그아웃하면 셸과 함께 상태가 버려지므로 재로그인한
+  /// 셸은 늘 값 없는 로딩에서 시작하고(`cached == null`), 첫 조회가 끝나는 loading → data 전이를
+  /// 아래 리스너가 받아 보정한다. 그래서 이 한 번은 지금은 거의 늘 건너뛰어지는 보험이다.
   /// `fireImmediately: true`를 쓰지 않는 이유는 그러면 위젯 발행까지 함께 다시 돌기 때문이다.
   ///
-  /// 받아들이는 한계: 그 캐시가 **이전 사용자의 목록**일 수 있다(로그인·로그아웃에
-  /// `invalidate(todosProvider)`하는 자리가 없는 기존 버그 — `TODO_BACKLOG.md`). 그 경우 화면에도
-  /// 이미 이전 사용자의 할 일이 보이고 있으므로 이 보정이 새로운 유출을 만들지는 않으며, 그
-  /// 무효화가 들어오면 둘이 함께 해결된다.
+  /// 이 캐시가 **이전 사용자의 목록**일 수는 없다 — 셸이 사라질 때 `todosProvider`의 마지막 구독자가
+  /// 빠져 그 값이 함께 버려지기 때문이다(예전 `TODO_BACKLOG.md`의 무효화 누락 버그가 그렇게 해소됐다).
   ///
   /// `start()`·`sync()`의 실패는 **서비스가 직접** `debugPrint`만 남긴다 — 여기서 같은 실패를
   /// 다시 감싸 같은 문구를 두 번 찍지 않는다. 아래 `try`가 잡는 것은 **그 앞단**뿐이다

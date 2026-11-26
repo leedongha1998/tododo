@@ -15,6 +15,7 @@ import '../data/player_stats.dart';
 import '../domain/profile_providers.dart';
 import 'ai_consent_settings_screen.dart';
 import 'battle_records_screen.dart';
+import 'nickname_edit_screen.dart';
 import 'notification_section.dart';
 
 /// 프로필 탭. **점수가 맨 위, 나머지는 메뉴**다(2026-11-12 오너 안 B).
@@ -52,9 +53,23 @@ class ProfileScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
         children: [
           profileAsync.when(
-            data: (profile) => KeepWordsText(
-              profile.displayName,
-              style: Theme.of(context).textTheme.titleLarge,
+            // 별명 바꾸기 입구는 이름 바로 옆 연필이다(nickname design 7.3) — 바꾸는 대상의 바로 옆이
+            // 가장 짧은 길이고, 면이 있는 메뉴 행을 하나 더 늘리지 않는다. 불러오는 중·실패에는 채워
+            // 넣을 현재 이름이 없으므로 연필도 없다.
+            data: (profile) => Row(
+              children: [
+                Expanded(
+                  child: KeepWordsText(
+                    profile.displayName,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(AppIcons.edit),
+                  tooltip: AppStrings.nicknameEditTooltip,
+                  onPressed: () => _editNickname(context, ref, profile.displayName),
+                ),
+              ],
             ),
             loading: () => const Center(child: AppLoader.medium()),
             error: (error, stackTrace) {
@@ -119,6 +134,21 @@ class ProfileScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 별명 바꾸기 화면을 띄우고, 바꿨으면 토스트와 함께 내 프로필을 다시 읽는다(design 흐름 4).
+///
+/// 다른 provider는 무효화하지 않는다 — 내 이름을 캐시하는 것은 `myProfileProvider` 하나다(VS 인트로는
+/// 그때그때 `.future`를 읽고, 대결 상세의 내 이름은 상세를 열 때마다 새로 읽는다).
+Future<void> _editNickname(BuildContext context, WidgetRef ref, String current) async {
+  final changed = await Navigator.of(context).push<bool>(
+    MaterialPageRoute(builder: (_) => NicknameEditScreen(currentNickname: current)),
+  );
+  if (changed != true || !context.mounted) return;
+  ref.invalidate(myProfileProvider);
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: KeepWordsText(AppStrings.nicknameChanged)),
+  );
 }
 
 /// 프로필 메뉴 한 줄. 눌러서 다른 화면으로 들어간다.

@@ -1,6 +1,6 @@
 ---
 name: flutter-widget-test-gotchas
-description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump, PopScope는 maybePop으로만, 남은 시간 내림 픽스처, Cupertino delegate 누락, 공용 앱바 위젯이 기존 테스트 전부에 override를 요구함, 목록 첫 칸 삽입·Repository 메서드 추가의 파급
+description: 이 저장소 위젯 테스트에서 반복해서 걸리는 것들 — NetworkImage 400, 화면 밖 버튼 탭, DateTime.now() getter, Riverpod 자동 재시도 타이머, finder 모호성, 정사각 테스트 글꼴, 런타임 fontFamily/행간 머지, 끌기 제스처·FAB 제거의 추가 pump, PopScope는 maybePop으로만, 남은 시간 내림 픽스처, Cupertino delegate 누락, 공용 앱바 위젯이 기존 테스트 전부에 override를 요구함, 목록 첫 칸 삽입·Repository 메서드 추가의 파급, InputDecoration 오류 줄 전환에 pumpAndSettle
 metadata:
   type: feedback
 ---
@@ -106,3 +106,8 @@ metadata:
 1번을 근거로 조건의 범위를 분명히 적어 둔다. 글꼴·배율·레이아웃 넘침을 테스트로 보장해 달라는 요구를
 받으면 6번을 근거로 "무엇을 측정한 것인지"를 테스트 주석과 보고에 분명히 적는다.
 SQL 쪽의 같은 성격 함정은 [[sql-smoke-test-now-frozen]] 참고.
+
+15. **`InputDecoration`의 오류 줄은 한 프레임에 사라지지 않는다.** `error`/`errorText`를 null로 바꿔도
+    InputDecorator가 오류 줄과 helper 줄을 잠깐 겹쳐 바꾸므로(전환 애니메이션), `enterText` 뒤 `pump()` 한 번이면
+    옛 오류 문구가 아직 트리에 있어 "사라졌다" 단정이 실패한다. `pumpAndSettle()`로 끝까지 돌린다
+    (2026-11-24 nickname 관문 테스트).

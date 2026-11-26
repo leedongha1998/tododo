@@ -131,8 +131,16 @@ flutter build appbundle --release --dart-define-from-file=env.json
 
 ## 5. 정책 문서 (최초 1회)
 
-이 앱이 수집하는 것: **Google 계정 이메일·이름**(프로필 표시용), **사용자가 올린 증거 사진**,
+이 앱이 수집하는 것: **Google 계정 이메일·이름**(로그인 시 Supabase Auth가 받는다. 다른 이용자에게
+보이지 않는다), **이용자가 정한 별명**(다른 이용자에게 보이는 이름), **사용자가 올린 증거 사진**,
 **투두/대결 내용**. 전부 Supabase(외부 서버)에 저장되고 HTTPS로 전송된다.
+
+> **별명(nickname, 2026-11-24)**: 다른 이용자에게 보이는 이름은 이용자가 정한 별명 하나다. 가입 트리거
+> (`handle_new_user`)는 Google 이름·이메일을 더 이상 읽지 않고 무작위 별명을 넣으며, 앱도 `userMetadata`를
+> 읽지 않는다. 그래도 **Google 이름은 계속 받는다** — Supabase Auth가 로그인마다 `auth.users.raw_user_meta_data`
+> 에 저장한다(같은 자리에 **프로필 사진 주소(`avatar_url`·`picture`)도 저장된다** — 앱은 쓰지 않고 남에게
+> 보이지 않는다. 2026-11-24 키 조회로 확인). 그래서 방침 1-가는 "받지만 다른 이용자에게 보이지 않는다"로 쓰고
+> 사진 주소 한 줄을 더한다(`todododo-legal`, 오너 몫 — `bot-battle` 동의 고지와 같은 시행일로).
 
 문서는 **별도 공개 저장소** `C:\workspaces\todododo-legal`에 작성해뒀다(앱 소스는 비공개로 두고
 문서만 공개하기 위함). 게시 절차는 그 저장소의 `README.md`에 있다.
@@ -148,6 +156,8 @@ flutter build appbundle --release --dart-define-from-file=env.json
       — 데이터 보안 → 계정 삭제: `https://<사용자명>.github.io/todododo-legal/account-deletion.html`
 - [ ] **Play Console → 데이터 보안(Data safety)** 양식 작성 — 아래 내용과 어긋나면 심사에서 걸린다.
       수집: 이메일 주소, 이름, 사용자 생성 콘텐츠(투두·대결 제목·증거 텍스트), 사진.
+      **"이름"은 체크를 그대로 둔다** — Play의 "이름" 분류는 닉네임을 포함하고 Google 이름도 여전히 받는다.
+      이름 = Google 이름(표시 안 함) + 별명(다른 이용자에게 표시).
       목적: 앱 기능 제공. 전송 중 암호화: 예. 삭제 요청 가능: 예.
       광고·분석 SDK 없음, 제3자 판매 없음
 - [ ] 정책 문서 내용이 앱 동작과 계속 일치하는지 — 기능을 바꾸면 `privacy.html`의 시행일과 함께 갱신

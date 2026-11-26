@@ -15,3 +15,4 @@
 - [RemoteViews 그리기 함정](remoteviews_gotchas.md) — 취소선은 span만 되고 setPaintFlags는 위젯을 깨뜨린다. 상태 색은 이른 return보다 먼저, 양쪽 분기로 칠한다.
 - [자국 기반 가드의 함정](native_mark_guard_pitfall.md) — 네이티브가 쓰고 Dart가 읽는 자국으로 중복 탭을 가르면 모든 탭이 버려진다. 쓰는 쪽에 판정을 둔다.
 - [회귀 수정의 모양](feedback_regression_fix_workflow.md) — 빨간 테스트 먼저, 커밋 하나, 틀린 설계 절에 추기, 네이티브 규칙은 순수 함수로 뽑아 묶기.
+- [단계 나눈 마이그레이션과 db push](migration_stage_split.md) — 두 파일을 한 번에 만들면 db push가 함께 적용한다. 되돌릴 수 없는 뒤 단계는 폴더 밖에 두라고 적는다.

@@ -78,9 +78,11 @@ revoke execute on function public.kakao_display_name(jsonb, text) from public, a
 -- is_kakao_signup: 이 가입이 카카오에서 왔는가 (신규, 순수 함수)
 -- ---------------------------------------------------------------------------
 -- 둘 중 하나라도 참이면 카카오:
---   - raw_app_meta_data.provider = 'kakao' (가입 INSERT 시점에 이미 채워져 있는지는 [확인 필요, V4])
---   - raw_user_meta_data.iss의 호스트가 kakao.com이거나 그 하위 도메인 — 위가 INSERT 뒤에 채워지는
---     경우의 보험. 문자열 어디에 kakao.com이 들어 있기만 하면 되는 느슨한 검사 대신 호스트로 본다.
+--   - raw_app_meta_data.provider = 'kakao' — Supabase Auth가 INSERT 전에 채운다(supabase/auth
+--     internal/api/signup.go ToUserModel이 AppMetaData["provider"]를 넣은 뒤 signupNewUser가 INSERT)
+--   - raw_user_meta_data.iss의 호스트가 kakao.com이거나 그 하위 도메인 — 위가 빠지는 경우의 보험.
+--     Supabase Auth는 iss를 scheme 없이 `kapi.kakao.com`으로 넣는다(kakao.go `Issuer: p.APIHost`)
+--     그래서 scheme은 있어도 없어도 된다. 문자열 어디에 kakao.com이 들어 있기만 하면 되는 느슨한 검사 대신 호스트로 본다.
 -- 둘 다 빗나가도 트리거의 "그 밖" 갈래가 가입 실패를 막는다(이메일이 없으면 기본 이름).
 create or replace function public.is_kakao_signup(p_app_meta jsonb, p_user_meta jsonb)
 returns boolean
@@ -89,7 +91,7 @@ immutable
 set search_path = public
 as $$
   select coalesce(p_app_meta ->> 'provider', '') = 'kakao'
-      or coalesce(p_user_meta ->> 'iss', '') ~* '^https?://([a-z0-9-]+\.)*kakao\.com(:[0-9]+)?(/|$)';
+      or coalesce(p_user_meta ->> 'iss', '') ~* '^(https?://)?([a-z0-9-]+\.)*kakao\.com(:[0-9]+)?(/|$)';
 $$;
 
 comment on function public.is_kakao_signup(jsonb, jsonb) is

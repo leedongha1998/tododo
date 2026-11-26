@@ -57,6 +57,14 @@ begin
     (v_g, 'join-smoke-g@example.invalid', '스모크G')
   ) as u(id, email, name);
 
+  -- nickname(20261124140000) 이후 가입 트리거는 full_name이 아니라 무작위 별명을 이름으로 넣는다.
+  -- 이 스모크가 보는 것은 "모집 목록·상대 카드가 profiles.display_name을 그대로 내준다"이므로, 기대값을
+  -- 고정하려고 postgres 권한으로 이름을 박아 둔다(스모크는 postgres로 돌아 쓰기 권한 회수와 무관하다).
+  update public.profiles p
+  set display_name = u.name
+  from (values (v_a, '스모크A'), (v_d, '스모크D')) as u(id, name)
+  where p.id = u.id;
+
   update public.player_stats set score = 7, wins = 2, losses = 1, draws = 0 where user_id = v_a;
 
   -- 동의(E만 동의하지 않는다).

@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:todododo/core/navigation/main_shell.dart';
 import 'package:todododo/core/strings.dart';
+import 'package:todododo/features/auth/data/auth_repository.dart';
 import 'package:todododo/features/auth/domain/auth_providers.dart';
 import 'package:todododo/features/auth/presentation/auth_gate.dart';
 import 'package:todododo/features/auth/presentation/login_screen.dart';
@@ -40,6 +41,41 @@ void main() {
     await tester.pump();
     return auth;
   }
+
+  testWidgets('구글 버튼 아래에 카카오 버튼과 계정 안내 한 줄이 있고, 누르면 각자의 로그인을 부른다',
+      (WidgetTester tester) async {
+    final repo = _RecordingAuthRepository();
+    final auth = StreamController<AuthState>();
+    addTearDown(auth.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authStateProvider.overrideWith((ref) => auth.stream),
+          authRepositoryProvider.overrideWithValue(repo),
+        ],
+        child: const MaterialApp(home: LoginScreen()),
+      ),
+    );
+    await tester.pump();
+
+    final google = findText(AppStrings.googleSignIn);
+    final kakao = findText(AppStrings.kakaoSignIn);
+    expect(google, findsOneWidget);
+    expect(kakao, findsOneWidget);
+    expect(findText(AppStrings.signInAccountsNotLinked), findsOneWidget);
+    // 구글이 위, 카카오가 아래(design 1.1 — 기존 가입자의 손이 기억하는 자리를 지킨다).
+    expect(tester.getCenter(google).dy, lessThan(tester.getCenter(kakao).dy));
+
+    await tester.tap(kakao);
+    await tester.pump();
+    expect(repo.kakaoCalls, 1);
+    expect(repo.googleCalls, 0);
+
+    await tester.tap(google);
+    await tester.pump();
+    expect(repo.googleCalls, 1);
+    expect(find.byType(SnackBar), findsNothing);
+  });
 
   testWidgets('카카오·구글 화면에서 취소하고 돌아오면 아무 말도 하지 않는다', (WidgetTester tester) async {
     final auth = await pumpLogin(tester);
@@ -200,4 +236,23 @@ class _QuietBattleRepository implements BattleRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// 로그인 버튼이 어느 메서드를 부르는지만 센다. 나머지 메서드는 이 테스트에서 불리지 않는다.
+class _RecordingAuthRepository implements AuthRepository {
+  int googleCalls = 0;
+  int kakaoCalls = 0;
+
+  @override
+  Future<void> signInWithGoogle() async {
+    googleCalls++;
+  }
+
+  @override
+  Future<void> signInWithKakao() async {
+    kakaoCalls++;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

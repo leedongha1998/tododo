@@ -667,6 +667,9 @@ class _SignedInAuthRepository implements AuthRepository {
   Future<void> signInWithGoogle() async {}
 
   @override
+  Future<void> signInWithKakao() async {}
+
+  @override
   Future<void> signOut() async {}
 
   @override

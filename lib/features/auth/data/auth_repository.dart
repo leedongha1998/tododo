@@ -3,8 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/push/push_service.dart';
 import 'account_deletion_result.dart';
 
-/// AndroidManifest.xml의 login-callback intent-filter와 반드시 일치해야 한다.
-const _googleRedirectUrl = 'com.todododo.todododo://login-callback/';
+/// AndroidManifest.xml의 login-callback intent-filter와 반드시 일치해야 한다. 구글·카카오가 함께 쓴다.
+const _oauthRedirectUrl = 'com.todododo.todododo://login-callback/';
 
 /// 로그아웃·탈퇴 때 이 기기에 걸어 둔 기한 알림 예약을 전부 버리는 일.
 ///
@@ -42,8 +42,21 @@ class AuthRepository {
   Future<void> signInWithGoogle() {
     return _client.auth.signInWithOAuth(
       OAuthProvider.google,
-      redirectTo: _googleRedirectUrl,
+      redirectTo: _oauthRedirectUrl,
       queryParams: const {'prompt': 'select_account'},
+    );
+  }
+
+  /// 카카오 로그인(브라우저 경유, kakao-login design 흐름 1).
+  ///
+  /// 재인증 인자를 붙이지 않는다(오너 결정 3) — 브라우저에 카카오 로그인이 남아 있으면 그대로 통과한다.
+  /// `scopes`도 넘기지 않는다: Supabase Auth의 카카오 공급자는 `account_email`·`profile_image`·
+  /// `profile_nickname`을 항상 요청하고, 여기서 넘긴 값은 그 뒤에 **덧붙을** 뿐 빼지 못한다
+  /// (supabase/auth `internal/api/provider/kakao.go` NewKakaoProvider).
+  Future<void> signInWithKakao() {
+    return _client.auth.signInWithOAuth(
+      OAuthProvider.kakao,
+      redirectTo: _oauthRedirectUrl,
     );
   }
 

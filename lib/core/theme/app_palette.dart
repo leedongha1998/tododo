@@ -93,6 +93,12 @@ class AppPalette {
   /// 판정 중 칩 면.
   static const judgingPale = Color(0xFFECE6FF);
 
+  /// 카카오 로그인 버튼 면(카카오 브랜드 색, kakao-login design 1.1). 앱 색 체계 밖의 브랜드 상수다.
+  static const kakaoContainer = Color(0xFFFEE500);
+
+  /// 카카오 로그인 버튼 글자·심볼(검정 85% 불투명, kakao-login design 1.1).
+  static const kakaoLabel = Color(0xD9000000);
+
   /// 면색 → 그 위 글자색(design 5.2 InitialBadge). 브랜드 면에는 흰 글자, 그 밖의 면에는 ink.
   /// 시안마다 반대가 될 수 있어(시안 B는 주황 면 위 ink) 화면이 아니라 팔레트가 정한다.
   static Color onFill(Color fill) => fill == primary ? surface : ink;

@@ -10,16 +10,21 @@ import '../../../core/widgets/keep_words_text.dart';
 import '../domain/auth_providers.dart';
 import '../domain/sign_in_failure.dart';
 
-/// 로그인(redesign design 9.4). 구성(마크 + 앱 이름 + 구글 로그인)과 동작은 그대로다.
+/// 로그인(redesign design 9.4, kakao-login design 1.1). 마크 + 앱 이름 + 구글·카카오 버튼 + 계정 안내 한 줄.
 /// 반복 움직임이 없다(옛 ▶ 깜빡이는 커서는 오너 결정 4로 없앴다).
 class LoginScreen extends ConsumerWidget {
   const LoginScreen({super.key});
 
-  Future<void> _signIn(BuildContext context, WidgetRef ref) async {
+  /// 브라우저를 띄우는 단계의 실패. 구글·카카오가 같은 토스트를 쓴다.
+  Future<void> _signIn(
+    BuildContext context,
+    String label,
+    Future<void> Function() signIn,
+  ) async {
     try {
-      await ref.read(authRepositoryProvider).signInWithGoogle();
+      await signIn();
     } catch (e) {
-      debugPrint('signInWithGoogle failed: $e');
+      debugPrint('$label failed: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: KeepWordsText(AppStrings.signInFailed)),
@@ -72,8 +77,39 @@ class LoginScreen extends ConsumerWidget {
                 const SizedBox(height: 40),
                 FilledButton(
                   style: FilledButton.styleFrom(minimumSize: const Size(240, 56)),
-                  onPressed: () => _signIn(context, ref),
+                  onPressed: () => _signIn(
+                    context,
+                    'signInWithGoogle',
+                    ref.read(authRepositoryProvider).signInWithGoogle,
+                  ),
                   child: const KeepWordsText(AppStrings.googleSignIn),
+                ),
+                const SizedBox(height: 12),
+                // 심볼(공식 PNG)은 오너가 카카오 디자인 가이드에서 받아 넣은 뒤 붙인다(plan 2차분) —
+                // 손으로 그린 근사 심볼은 쓰지 않는다(design 1.1).
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(240, 56),
+                    backgroundColor: AppPalette.kakaoContainer,
+                    foregroundColor: AppPalette.kakaoLabel,
+                  ),
+                  onPressed: () => _signIn(
+                    context,
+                    'signInWithKakao',
+                    ref.read(authRepositoryProvider).signInWithKakao,
+                  ),
+                  child: const KeepWordsText(AppStrings.kakaoSignIn),
+                ),
+                const SizedBox(height: 16),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: KeepWordsText(
+                    AppStrings.signInAccountsNotLinked,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
                 ),
               ],
             ),

@@ -189,3 +189,24 @@ design §6을 그대로 옮긴다. 문구는 오너 승인 사항.
 | V4 | | |
 | V5 | | |
 | V6 | | |
+
+## 2026-11-26 메인 세션 추가분 (Supabase 소스·문서로 확인한 사실과 반영)
+
+- **Supabase 카카오 공급자는 `account_email`·`profile_image`·`profile_nickname`을 항상 요청한다.** 앱이 넘긴
+  scopes는 덧붙을 뿐 빼지 못한다(supabase/auth `internal/api/provider/kakao.go` NewKakaoProvider). Supabase 문서는
+  동의항목으로 `profile_image`·`profile_nickname`을 켜라 하고, 이메일을 안 받으면 **Allow users without an email**을
+  켜라 한다(`auth-kakao.mdx`). → spec 결정 1의 "닉네임 하나만"은 프로필 사진 쪽에서 깨질 수 있다. 게이트 V1·V2에서
+  사진 동의항목 없이 먼저 시도하고, 오류면 **선택 동의**로 넣은 뒤 정책 문서 수집 항목에 "프로필 사진 URL(선택)"을
+  더한다(오너에게 보고됨). 오너용 순서는 `console-setup.md`.
+- 메타데이터(kakao.go GetUserData): `full_name`·`name`·`preferred_username` = 카카오 닉네임, `sub`·`provider_id` =
+  카카오 회원번호, `avatar_url` = 프로필 사진, `iss` = `kapi.kakao.com`(scheme 없음). 이메일은 있을 때만 채운다.
+  → V4의 "닉네임 후보 키"는 소스상 `full_name`으로 확정. 게이트에서 실제 행으로 한 번 더 본다.
+- `app_metadata.provider`는 INSERT 전에 채워진다(signup.go ToUserModel → signupNewUser). → `is_kakao_signup`의
+  주 판별이 트리거 시점에 성립한다. 보조 판별 `iss` 정규식이 `https://`를 요구해 실제 값(`kapi.kakao.com`)을
+  놓치던 것을 scheme 선택으로 고쳤다(원격 미적용 마이그레이션이라 그 파일을 직접 고쳤다). 스모크 `K2_bare`·
+  `K2_bare_lookalike` 추가, PGlite에서 `SMOKE RESULT ok=t`.
+- 2차분 3번(로그인 화면) 중 **심볼을 뺀 부분**을 했다: `AuthRepository.signInWithKakao()`(브라우저 경유, 재인증 인자·
+  scopes 없음, 리다이렉트 상수 `_oauthRedirectUrl`로 일반화), 카카오 버튼(`AppPalette.kakaoContainer`·`kakaoLabel`),
+  안내 한 줄, 문구 `kakaoSignIn`·`signInAccountsNotLinked`, 가짜 `AuthRepository` 8곳에 `signInWithKakao`, 위젯 테스트
+  1개. **공식 심볼 PNG는 오너가 디자인 가이드에서 받아 넣은 뒤 붙인다**(developers.kakao.com이 이 컨테이너에서 막혀
+  가이드 규격도 미확인). flutter가 없어 컴파일·테스트 미실행.

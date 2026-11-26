@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/navigation/main_shell.dart';
 import '../../../core/widgets/app_loader.dart';
+import '../../profile/presentation/nickname_gate.dart';
 import '../../todo/data/todo_widget_callback.dart';
 import '../../todo/data/todo_widget_payload.dart';
 import '../../todo/domain/todo_providers.dart';
@@ -14,7 +15,8 @@ import '../../todo/domain/todo_widget_tap_settler.dart';
 import '../domain/auth_providers.dart';
 import 'login_screen.dart';
 
-/// 로그인 상태에 따라 화면을 분기한다. 로그인하면 탭바가 있는 본 화면으로 들어간다.
+/// 로그인 상태에 따라 화면을 분기한다. 로그인하면 별명 관문(`NicknameGate`)을 지나 탭바가 있는 본
+/// 화면으로 들어간다.
 ///
 /// 홈 화면 위젯의 **앱 쪽 배선**도 여기서 한다(design 7장·10장): 로그인 여부와 상관없이 늘 떠
 /// 있는 화면이고, `main.dart`를 열지 않아도 되는 자리다. 셋 다 관문이 아니라서 어느 단계가
@@ -144,7 +146,16 @@ class _AuthGateState extends ConsumerState<AuthGate> {
 
     return authState.when(
       data: (state) {
-        return state.session == null ? const LoginScreen() : const MainShell();
+        final session = state.session;
+        if (session == null) return const LoginScreen();
+        // 본 화면 앞에 별명 관문(nickname design 7.1). 계정마다 키를 나눠, 로그아웃 뒤 다른 계정이
+        // 들어오면 관문 상태(통과 래치 포함)를 새로 시작한다.
+        final userId = session.user.id;
+        return NicknameGate(
+          key: ValueKey(userId),
+          userId: userId,
+          child: const MainShell(),
+        );
       },
       loading: () => const Scaffold(body: Center(child: AppLoader.medium())),
       error: (error, stackTrace) {

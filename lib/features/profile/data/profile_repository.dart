@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../battle/data/battle.dart';
 import '../../battle/data/profile.dart';
+import 'nickname_state.dart';
 import 'player_stats.dart';
 
 class ProfileRepository {
@@ -54,5 +55,25 @@ class ProfileRepository {
     if (uniqueIds.isEmpty) return {};
     final rows = await _client.from('profiles').select().inFilter('id', uniqueIds);
     return {for (final row in rows) row['id'] as String: row['display_name'] as String};
+  }
+
+  /// 내 별명 관문 상태. 본인만 RPC로 읽는다(`nickname_states`는 테이블을 직접 읽을 수 없다).
+  Future<NicknameState> fetchMyNicknameState() async {
+    final result = await _client.rpc('get_my_nickname_state');
+    return NicknameState.fromMap(Map<String, dynamic>.from(result as Map));
+  }
+
+  /// 별명 확정·바꾸기(관문과 프로필이 같은 RPC). **원문 그대로** 보낸다 — 다듬기(공백 정리)와 규칙
+  /// 검사는 서버(`check_nickname`) 한 자리에만 있다. 저장된 정규화 값을 돌려준다.
+  /// 규칙 위반은 `PostgrestException`(hint = `NICKNAME_*`)으로 온다.
+  Future<String> setNickname(String raw) async {
+    final result = await _client.rpc('set_nickname', params: {'p_nickname': raw});
+    return result as String;
+  }
+
+  /// 무작위 별명 하나(아무것도 쓰지 않는다). 관문의 "다른 별명 추천받기".
+  Future<String> suggestNickname() async {
+    final result = await _client.rpc('suggest_nickname');
+    return result as String;
   }
 }

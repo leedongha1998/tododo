@@ -445,6 +445,40 @@ class AppStrings {
   // 무효는 점수에도 승/패/무에도 들어가지 않는다. 목록에만 남아 숫자와 어긋나 보이므로 이유를 적는다.
   static const profileVoidedExcluded = '무효 대결은 점수와 승/패/무에 넣지 않아요.';
   static const profileHistorySection = '지난 대결';
+
+  // 별명(nickname). 다른 사용자에게 보이는 이름은 별명 하나다 — 실명·이메일은 어디에도 보이지 않는다.
+  // 규칙 위반 문구는 서버 오류 코드(NICKNAME_*)에 1:1로 붙는다. 규칙 자체는 서버(check_nickname)에 있다.
+  static const nicknameSetupTitle = '별명 정하기';
+  static const nicknameSetupIntro =
+      '대결 상대와 모집 목록에는 이 별명만 보여요. 실명과 이메일은 다른 사용자에게 보이지 않아요.';
+  static const nicknameResetNoticeTitle = '이름이 별명으로 바뀌었어요';
+  // "원래 이름은 보관하지 않았다"를 따로 말하지 않는다 — 사용자가 할 수 있는 일(지금 고치기)만 말한다.
+  // 예전 이름을 다시 쓰고 싶은 사람은 칸에 직접 적으면 된다(spec P0-3이 허용).
+  static const nicknameResetNoticeBody =
+      '실명이나 이메일 주소가 다른 사용자에게 보이지 않도록 모든 사용자의 이름을 무작위 별명으로 바꿨어요. '
+      '마음에 들지 않으면 지금 고칠 수 있어요.';
+  static const nicknameFieldLabel = '별명';
+  static const nicknameConfirm = '이 별명으로 시작하기';
+  static const nicknameEditTitle = '별명 바꾸기';
+  static const nicknameEditTooltip = '별명 바꾸기';
+  static const nicknameEditIntro = '바꾸면 모집 목록, 대결 상대의 화면, 지난 대결 기록에 새 별명이 보여요.';
+  static const nicknameChanged = '별명을 바꿨어요.';
+  static const nicknameSaveFailed = '별명을 저장하지 못했어요. 다시 시도해 주세요.';
+  static const nicknameErrorLength = '별명은 2~10자로 정해 주세요.';
+  static const nicknameErrorChars = '한글, 영문, 숫자와 띄어쓰기만 쓸 수 있어요.';
+  // 끝에 `: $term`을 붙여 조사(이/가) 문제를 피한다. 예약어는 무해한 말이라 걸린 말까지 보여 준다
+  // (금칙어는 보여 주지 않는다 — design 2.6).
+  static String nicknameErrorReserved(String term) => '앱이나 운영자가 쓰는 말이라 별명에 넣을 수 없어요: $term';
+  static const nicknameErrorReservedGeneric = '앱이나 운영자가 쓰는 말이라 별명에 넣을 수 없어요.';
+  static const nicknameErrorBanned = '쓸 수 없는 말이 들어 있어요.';
+  // 관문에서는 로그아웃이 유일한 출구라 실패를 받는다(프로필의 로그아웃은 실패를 받지 않는다).
+  static const logoutFailed = '로그아웃하지 못했어요. 다시 시도해 주세요.';
+  // P1-1·P1-2
+  static const nicknameSuggestAnother = '다른 별명 추천받기';
+  static const nicknameSuggestFailed = '새 별명을 받지 못했어요. 다시 시도해 주세요.';
+  static const nicknameRuleHint = '한글·영문·숫자 2~10자, 띄어쓰기는 한 칸씩';
+  static String nicknameLength(int length) => '$length/10';
+
   static const battleRecordWin = '승';
   static const battleRecordLose = '패';
   static const battleRecordDraw = '무';
@@ -502,7 +536,7 @@ class AppStrings {
   static const openSourceLicenses = '오픈소스 라이선스';
   static const accountDelete = '계정 삭제';
   static const accountDeleteConfirmTitle = '정말 계정을 삭제할까요?';
-  static const accountDeleteConfirmMessage = '할 일, 증거 사진, 표시 이름이 모두 삭제되고 되돌릴 수 없어요.\n'
+  static const accountDeleteConfirmMessage = '할 일, 증거 사진, 별명이 모두 삭제되고 되돌릴 수 없어요.\n'
       '진행 중인 대결은 승자 없이 취소되고, 이미 끝난 대결 기록에는 "탈퇴한 사용자"로 남습니다.';
   static const accountDeleteConfirm = '삭제하기';
   static const accountDeleteDone = '계정을 삭제했습니다.';
